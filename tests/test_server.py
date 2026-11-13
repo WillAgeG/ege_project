@@ -62,6 +62,10 @@ def test_health_and_html_shell(tmp_path: Path) -> None:
         app_pos = html.find('<script src="app.js"></script>')
         assert 0 < flag_pos < app_pos
 
+        r_priv = client.get("/privacy")
+        assert r_priv.status_code == 200
+        assert "Политика конфиденциальности" in r_priv.text
+
 
 def test_static_asset_allowlist(tmp_path: Path) -> None:
     app = create_app(_make_settings(tmp_path))

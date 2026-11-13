@@ -1066,6 +1066,7 @@
       ${authCard({ standalone: true })}
       <div class="auth-foot">
         <button type="button" class="link-btn small" data-a="auth-guest">Продолжить без аккаунта (данные останутся только в этом браузере)</button>
+        <div style="margin-top:8px"><a class="muted small" href="/privacy">Политика конфиденциальности</a></div>
       </div>
     </div>`;
   }

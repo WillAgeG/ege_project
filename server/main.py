@@ -391,6 +391,26 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
             headers={"Cache-Control": "no-store"},
         )
 
+    @app.get("/privacy", response_class=HTMLResponse)
+    async def privacy_page() -> HTMLResponse:
+        html = """<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Политика конфиденциальности — Вектор ЕГЭ</title><style>
+body{margin:0;background:#f2f7f4;color:#102419;font:15px/1.6 system-ui,-apple-system,sans-serif;padding:32px 16px}
+main{max-width:720px;margin:0 auto;background:#fff;border:1px solid #d4e3da;border-radius:14px;padding:28px}
+h1{margin:0 0 12px;font-size:24px}h2{margin:20px 0 8px;font-size:17px}p,li{color:#3b5546}a{color:#13794b}
+</style></head><body><main>
+<h1>Политика конфиденциальности «Вектор ЕГЭ»</h1>
+<p>Настоящая страница описывает, какие данные обрабатывает образовательное веб-приложение «Вектор ЕГЭ».</p>
+<h2>Какие данные мы получаем</h2>
+<ul><li>При регистрации или входе через Google — имя, адрес электронной почты и изображение профиля (если предоставлено Google).</li>
+<li>Данные вашей подготовки — результаты тестов, прочитанные темы, отметки плана поступления, пробники и сочинения.</li></ul>
+<h2>Как используются данные</h2>
+<p>Данные используются исключительно для авторизации и сохранения прогресса подготовки между вашими устройствами. Мы не передаём и не продаём персональные данные третьим лицам.</p>
+<h2>Удаление и связь</h2>
+<p>По вопросам обработки или удаления данных аккаунта обращайтесь к администратору сервиса по контакту, указанному на экране входа Google.</p>
+<p><a href="/">← Вернуться в «Вектор ЕГЭ»</a></p>
+</main></body></html>"""
+        return HTMLResponse(content=html, headers={"Cache-Control": "no-cache"})
+
     @app.get("/{asset_path:path}")
     async def static_assets(asset_path: str) -> FileResponse:
         clean = asset_path.strip("/")
