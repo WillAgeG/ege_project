@@ -1,4 +1,4 @@
-"""Тесты FastAPI-бэкенда «Путь в медицину»."""
+"""Тесты FastAPI-бэкенда «Вектор ЕГЭ»."""
 
 import json
 from pathlib import Path
@@ -56,6 +56,8 @@ def test_health_and_html_shell(tmp_path: Path) -> None:
         assert r_home.headers["cache-control"] == "no-store"
         html = r_home.text
         assert html.startswith("<!doctype html><html>")
+        assert "<title>Вектор ЕГЭ</title>" in html
+        assert "--accent: #13794b" in html
         flag_pos = html.find("<script>window.EGE_HOST={backend:true};</script>")
         app_pos = html.find('<script src="app.js"></script>')
         assert 0 < flag_pos < app_pos
@@ -358,7 +360,7 @@ def test_ai_openai_anthropic_openrouter_and_errors(tmp_path: Path) -> None:
     def or_handler(request: httpx.Request) -> httpx.Response:
         assert str(request.url) == "https://openrouter.ai/api/v1/chat/completions"
         assert request.headers["http-referer"] == "https://railway.app"
-        assert request.headers["x-title"] == "Put v medicinu"
+        assert request.headers["x-title"] == "Vektor EGE"
         return httpx.Response(200, json={"choices": [{"message": {"content": "не json вообще"}}]})
 
     with TestClient(app_or) as client:
@@ -438,7 +440,7 @@ def test_google_oauth_flow_and_email_linking(tmp_path: Path) -> None:
         _make_settings(
             tmp_path / "with_google",
             google=google_cfg,
-            public_base_url="https://med.example.com",
+            public_base_url="https://ege.example.com",
             max_users=2,
         )
     )
@@ -479,7 +481,7 @@ def test_google_oauth_flow_and_email_linking(tmp_path: Path) -> None:
         assert auth_url.netloc == "accounts.google.com"
         qs = {k: v[0] for k, v in parse_qs(auth_url.query).items()}
         assert qs["client_id"] == "gid-123"
-        assert qs["redirect_uri"] == "https://med.example.com/api/auth/google/callback"
+        assert qs["redirect_uri"] == "https://ege.example.com/api/auth/google/callback"
         assert qs["code_challenge_method"] == "S256"
         state1 = qs["state"]
 
@@ -500,7 +502,7 @@ def test_google_oauth_flow_and_email_linking(tmp_path: Path) -> None:
         assert r_cb.headers["location"] == "/"
         assert "pvm_session" in client.cookies
         assert token_requests[0]["code_verifier"]
-        assert token_requests[0]["redirect_uri"] == "https://med.example.com/api/auth/google/callback"
+        assert token_requests[0]["redirect_uri"] == "https://ege.example.com/api/auth/google/callback"
 
         me_authed = client.get("/api/me").json()["user"]
         assert me_authed["displayName"] == "Мария Соколова"

@@ -109,7 +109,7 @@ def _openai_endpoint(cfg: AIConfig) -> tuple[str, dict[str, str]]:
     }
     if cfg.provider == "openrouter":
         headers["HTTP-Referer"] = "https://railway.app"
-        headers["X-Title"] = "Put v medicinu"
+        headers["X-Title"] = "Vektor EGE"
     return f"{base}/chat/completions", headers
 
 

@@ -178,8 +178,14 @@
     assert(scripts.length >= 30 && scripts[scripts.length - 1] === "app.js", "expected index.html scripts");
     const dataScripts = scripts.filter((s) => s !== "app.js");
 
-    // 1. Проверка банка и режима локального браузера
-    const env1 = installGlobals({});
+    // 1. Проверка банка и режима локального браузера (включая чтение legacy-ключа)
+    const env1 = installGlobals({
+      localStorage: {
+        "put-v-medicinu:v1": JSON.stringify({
+          profile: { name: "Саша", exists: true, targets: { bio: 80, chem: 75, rus: 85 } }
+        })
+      }
+    });
     loadScripts(dataScripts);
     const bank = globalThis.EGE.loadBank();
     assert(Object.keys(bank.SUBJ).length === 3, "expected 3 subjects (bio, rus, chem)");
@@ -188,8 +194,10 @@
     vmRun(readFileText("app.js"), "app.js");
     await flushMicrotasks(12);
     const main1 = env1.elements.get("main").innerHTML;
-    assert(main1.includes("Привет"), "local home greeting missing");
+    assert(main1.includes("Привет, Саша!"), "local legacy migration home greeting missing");
     assert(main1.includes("Данные сохраняются только в этом браузере"), "local notice missing");
+    assert(!!env1.lsMap["vektor-ege:v1"], "expected new localStorage key written");
+    assert(!env1.lsMap["put-v-medicinu:v1"], "expected legacy localStorage key cleaned up");
 
     // 2. Проверка бэкенд-режима: неавторизованный старт -> регистрация с миграцией -> ИИ стрим -> выход
     const serverDocs = {};
@@ -200,7 +208,7 @@
     const env2 = installGlobals({
       host: { backend: true },
       localStorage: {
-        "put-v-medicinu:v1": JSON.stringify({
+        "vektor-ege:v1": JSON.stringify({
           profile: { name: "Оля", exists: true, targets: { bio: 88, chem: 82, rus: 90 } }
         })
       },
@@ -286,8 +294,10 @@
     await flushMicrotasks(20);
     const homePreLogin = env2.elements.get("main").innerHTML;
     assert(env2.body.dataset.auth === "1", "expected auth gate body flag before login");
+    assert(homePreLogin.includes("Вектор ЕГЭ") && homePreLogin.includes("brand-mark"), "expected new brand name and SVG logo on auth screen");
     assert(homePreLogin.includes("Продолжить через Google"), "expected Google OAuth button on auth screen");
     assert(homePreLogin.includes("Продолжить без аккаунта"), "expected guest fallback button on auth screen");
+    assert(!homePreLogin.includes("Путь в медицину") && !homePreLogin.includes("СВФУ"), "should not show old medical branding");
     assert(!homePreLogin.includes("Давай настроим подготовку"), "should not show onboarding before login on backend");
 
     // Гостевой режим без входа -> затем возврат на экран входа
@@ -380,9 +390,10 @@
     assert(authedUser && authedUser.username === "olya", "expected authenticated user");
     assert(!env2.body.dataset.auth, "expected auth gate flag cleared after registration");
     assert(serverDocs.profile && serverDocs.profile.name === "Оля", "expected migrated profile on server");
-    assert(!env2.lsMap["put-v-medicinu:v1"], "expected localStorage cleared after migration");
+    assert(!env2.lsMap["vektor-ege:v1"], "expected localStorage cleared after migration");
     const homeAuthed = env2.elements.get("main").innerHTML;
     assert(homeAuthed.includes("Привет, Оля!"), "expected personalized greeting after login");
+    assert(!homeAuthed.includes("Лечебное дело") && !homeAuthed.includes("СВФУ"), "expected universal 3-subject copy without medical uni");
     assert(env2.elements.get("side-foot").innerHTML.includes("Оля"), "expected sidebar user name");
 
     // Репетитор доступен и отвечает стримом

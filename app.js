@@ -1,7 +1,6 @@
-/* Путь в медицину — логика сайта.
-   Прогресс хранится в облачной базе артефакта: u/<id>/d/<документ>
-   (profile, plan, mocks, prog-<предмет>, log-<ГГГГ-ММ>). Если страница открыта
-   не на claude.ai, данные живут только в localStorage этого браузера. */
+/* Вектор ЕГЭ — логика сайта.
+   Прогресс хранится на сервере (или в облачной базе claude.ai), а в оффлайн-режиме —
+   в localStorage браузера. */
 (function () {
   "use strict";
 
@@ -14,7 +13,8 @@
   const SUBJECT_NAME = { bio: "Биология", chem: "Химия", rus: "Русский язык", other: "Другое" };
   const DEFAULT_TARGETS = { bio: 80, chem: 75, rus: 80 };
   const INTERVALS = [0, 1, 3, 7, 14, 30, 60]; // дни до повторения по «коробкам»
-  const LS_KEY = "put-v-medicinu:v1";
+  const LS_KEY = "vektor-ege:v1";
+  const LEGACY_LS_KEY = "put-v-medicinu:v1";
   const QUIZ_SIZE = 20;
   const TOPIC_QUIZ = 15;
   const MAX_Q_MS = 180000; // больше трёх минут на вопрос в учёт времени не идёт
@@ -176,7 +176,11 @@
     }
   }
   function readLocalDocs() {
-    try { const raw = localStorage.getItem(LS_KEY); const parsed = raw ? JSON.parse(raw) : null; return isObj(parsed) ? parsed : {}; }
+    try {
+      const raw = localStorage.getItem(LS_KEY) || localStorage.getItem(LEGACY_LS_KEY);
+      const parsed = raw ? JSON.parse(raw) : null;
+      return isObj(parsed) ? parsed : {};
+    }
     catch (e) { return {}; }
   }
   function hasLocalProgress() {
@@ -268,7 +272,12 @@
     store.ready = true;
     scheduleRender();
   }
-  function saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify(store.docs)); } catch (e) { /* хранилище браузера недоступно */ } }
+  function saveLocal() {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify(store.docs));
+      localStorage.removeItem(LEGACY_LS_KEY);
+    } catch (e) { /* хранилище браузера недоступно */ }
+  }
   function startLocal() {
     store.mode = "local";
     const saved = readLocalDocs();
@@ -481,7 +490,7 @@
         body: JSON.stringify(saved[name])
       });
     }
-    try { localStorage.removeItem(LS_KEY); } catch (e) { /* игнор */ }
+    try { localStorage.removeItem(LS_KEY); localStorage.removeItem(LEGACY_LS_KEY); } catch (e) { /* игнор */ }
     return names.length;
   }
   async function initBackend() {
@@ -735,7 +744,7 @@
     if (authGate) {
       html = store.ready
         ? authScreen()
-        : `<div class="auth-wrap"><div class="auth-brand"><div class="brand-name">Путь в медицину</div><p class="muted">Подключаюсь к серверу…</p></div></div>`;
+        : `<div class="auth-wrap"><div class="auth-brand">${BRAND_MARK_HTML}<div class="brand-name">Вектор ЕГЭ</div><p class="muted">Подключаюсь к серверу…</p></div></div>`;
       main.innerHTML = html;
     } else {
       try { html = (VIEWS[ui.view] || viewHome)(); }
@@ -831,7 +840,7 @@
     return `<div class="todo${it.done ? " done" : ""}${it.key && !it.done ? " key" : ""}">
       <input type="checkbox" class="check" id="${esc(cid)}" data-c="todo" data-id="${esc(it.id)}" data-custom="${it.custom ? 1 : 0}"${it.done ? " checked" : ""}>
       <div class="todo-main">
-        <div class="todo-top"><label class="todo-title" for="${esc(cid)}">${esc(it.title)}</label><span class="row" style="gap:6px">${it.key && !it.done ? '<span class="chip eosin">главный срок</span>' : ""}${dueChip(it.due, it.done)}</span></div>
+        <div class="todo-top"><label class="todo-title" for="${esc(cid)}">${esc(it.title)}</label><span class="row" style="gap:6px">${it.key && !it.done ? '<span class="chip leaf">главный срок</span>' : ""}${dueChip(it.due, it.done)}</span></div>
         ${!compact && it.note ? `<div class="todo-note">${esc(it.note)}</div>` : ""}
         ${actions}
       </div>
@@ -853,6 +862,7 @@
     if (store.stale && !store.confirmed) return `<div class="notice"><b>${store.backend ? "Сервер" : "Облако"} пока не отвечает.</b><span>Показаны данные, которые удалось загрузить; они могут быть неполными. Изменения сохранятся, когда связь появится.</span></div>`;
     return "";
   }
+  const BRAND_MARK_HTML = '<span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><rect x="5" y="20" width="4" height="7" rx="2" fill="#fff" opacity=".7"/><rect x="11" y="16.5" width="4" height="10.5" rx="2" fill="#fff" opacity=".85"/><rect x="17" y="12.5" width="4" height="14.5" rx="2" fill="#fff"/><path d="M5.5 15Q15 9.5 26.5 4.9" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/><path d="M21.8 4.9h4.8v4.8" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
   const GOOGLE_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5a5.6 5.6 0 0 1-2.4 3.6v3h3.9c2.3-2.1 3.5-5.2 3.5-8.8z"/><path fill="#34A853" d="M12 24c3.2 0 6-1.1 8-3l-3.9-3c-1.1.7-2.5 1.2-4.1 1.2-3.1 0-5.8-2.1-6.8-5H1.2v3.1A12 12 0 0 0 12 24z"/><path fill="#FBBC05" d="M5.2 14.2A7.2 7.2 0 0 1 4.8 12c0-.8.1-1.5.4-2.2V6.7H1.2A12 12 0 0 0 0 12c0 1.9.5 3.8 1.2 5.3l4-3.1z"/><path fill="#EA4335" d="M12 4.8c1.8 0 3.3.6 4.6 1.8l3.4-3.4A11.9 11.9 0 0 0 12 0 12 12 0 0 0 1.2 6.7l4 3.1c1-2.9 3.7-5 6.8-5z"/></svg>';
   function authCard(opts) {
     opts = opts || {};
@@ -899,8 +909,9 @@
   function authScreen() {
     return `<div class="auth-wrap">
       <div class="auth-brand">
-        <div class="brand-name">Путь в медицину</div>
-        <p class="muted small">Подготовка к ЕГЭ · ${esc(CONTENT.map((s) => s.name).join(" · "))}</p>
+        ${BRAND_MARK_HTML}
+        <div class="brand-name">Вектор ЕГЭ</div>
+        <p class="muted small">Подготовка к ЕГЭ 2027 · ${esc(CONTENT.map((s) => s.name).join(" · "))}</p>
       </div>
       ${authCard({ standalone: true })}
       <div class="auth-foot">
@@ -934,7 +945,7 @@
     const prof = profile();
     const name = prof.name || (store.ready ? defaultName() : "");
     const parts = [];
-    parts.push(`<div class="head"><div class="eyebrow">${esc(capitalize(fmtWeekday.format(new Date())))}</div><h1 class="h1">${name ? "Привет, " + esc(name) + "!" : "Привет!"}</h1><p class="lead">Цель — «Лечебное дело» в СВФУ. Здесь темы и тесты ${esc(CONTENT.map((s) => SUBJ[s.id].po).join(" и "))}, план поступления и твои показатели.</p></div>`);
+    parts.push(`<div class="head"><div class="eyebrow">${esc(capitalize(fmtWeekday.format(new Date())))}</div><h1 class="h1">${name ? "Привет, " + esc(name) + "!" : "Привет!"}</h1><p class="lead">Подготовка к ЕГЭ по трём предметам: ${esc(CONTENT.map((s) => s.name.toLowerCase()).join(", "))}. Здесь темы и тесты, план подготовки и твои показатели.</p></div>`);
     if (store.backend && store.ready && !store.user) parts.push(`<div class="notice"><b>Гостевой режим.</b><span>Прогресс сохраняется только в этом браузере. <button type="button" class="link-btn" data-a="auth-screen">Войти или создать аккаунт</button>, чтобы синхронизировать с сервером.</span></div>`);
     if (store.ready && !prof.exists && store.error !== "readonly" && (!store.backend || store.user || ui.guest)) parts.push(onboardingCard());
     if (store.mode === "local" && !store.backend) parts.push(localNotice());
@@ -951,14 +962,14 @@
           ? "Прогресс сохраняется на сервере и привязан к твоему аккаунту: открой сайт с любого устройства под своим логином, и всё будет на месте."
           : "Прогресс сохраняется в облаке claude.ai: открой эту страницу на любом компьютере под своим аккаунтом, и всё будет на месте.")
       : "Сейчас данные сохраняются только в этом браузере.";
-    return `<form class="card pad-lg form" data-f="onboard" style="border-color:var(--hema)">
+    return `<form class="card pad-lg form" data-f="onboard" style="border-color:var(--accent)">
       <div class="eyebrow">Первый вход</div>
       <h2 class="h2">Давай настроим подготовку</h2>
       <p class="ink2">${cloudText}</p>
       <div class="field"><label for="ob-name">Как к тебе обращаться</label><input class="input" id="ob-name" data-d="ob.name" value="${esc(draft("ob.name", defaultName()))}" maxlength="40"></div>
       <div class="label">Целевые баллы ЕГЭ</div>
       <div class="fields">${SUBJECT_META.map((s) => `<div class="field"><label for="ob-${s.id}">${esc(s.name)}</label><input class="input num" type="number" min="0" max="100" inputmode="numeric" id="ob-${s.id}" data-d="ob.${s.id}" value="${esc(draft("ob." + s.id, DEFAULT_TARGETS[s.id]))}"></div>`).join("")}</div>
-      <p class="hint">Ориентир: в 2025 году проходной балл на бюджет «Лечебного дела» в СВФУ был около 212 из 300 (по данным агрегаторов). Цель с запасом — от 230.</p>
+      <p class="hint">Ориентир: сумма по трём предметам — до 300 баллов (обычно цель ставят от 220+). Целевые баллы можно поменять позже в настройках.</p>
       <div><button class="btn" type="submit">Начать подготовку</button></div>
     </form>`;
   }
@@ -1003,10 +1014,10 @@
   }
   function nextSteps() {
     const steps = [];
-    if (ui.quiz && !ui.quiz.done) steps.push({ a: "go", v: "quiz", ico: "arrow", tone: "eosin", title: "Вернуться к тесту", sub: `${ui.quiz.title} · вопрос ${ui.quiz.i + 1} из ${ui.quiz.items.length}` });
+    if (ui.quiz && !ui.quiz.done) steps.push({ a: "go", v: "quiz", ico: "arrow", tone: "leaf", title: "Вернуться к тесту", sub: `${ui.quiz.title} · вопрос ${ui.quiz.i + 1} из ${ui.quiz.items.length}` });
     if (store.ready) {
       CONTENT.forEach((s) => {
-        if (subjectStats(s.id).seen === 0) steps.push({ a: "quiz-mixed", sid: s.id, ico: "spark", tone: "eosin", title: "Пройди диагностический тест " + SUBJ[s.id].po, sub: QUIZ_SIZE + " вопросов по всем разделам — станет видно, с чего начать" });
+        if (subjectStats(s.id).seen === 0) steps.push({ a: "quiz-mixed", sid: s.id, ico: "spark", tone: "leaf", title: "Пройди диагностический тест " + SUBJ[s.id].po, sub: QUIZ_SIZE + " вопросов по всем разделам — станет видно, с чего начать" });
       });
     }
     CONTENT.forEach((s) => {
@@ -1082,7 +1093,7 @@
       : "";
     return `${switcher}<div class="head">
         <div class="eyebrow">Предмет · ЕГЭ 2027</div>
-        <div class="head-row"><h1 class="h1">${esc(s.name)}</h1><span class="chip eosin">готовность ${st.pct}%</span></div>
+        <div class="head-row"><h1 class="h1">${esc(s.name)}</h1><span class="chip leaf">готовность ${st.pct}%</span></div>
         <p class="lead">${validISO(ex) ? `Экзамен по проекту расписания — ${dateLong(ex)}${n > 0 ? ", через " + days(n) : ""}. ` : ""}${esc(s.about || "")} Вопрос считается освоенным после двух верных ответов подряд.</p>
       </div>
       <div class="facts">${s.exam.facts.map((f) => `<div class="fact"><b>${esc(f[0])}</b><span>${esc(f[1])}</span></div>`).join("")}</div>
@@ -1090,7 +1101,7 @@
       ${s.fullVariant ? `<section class="card stack"><h2 class="h2">Пробные варианты ЕГЭ</h2><p class="small muted">${esc(s.fullVariant.sub)}</p>
         <div class="row" style="flex-wrap:wrap">${range(s.fullVariant.count).map((i) => `<button type="button" class="btn ghost sm" data-a="quiz-fullvariant" data-sid="${sid}" data-k="${i + 1}">Вариант ${i + 1}</button>`).join("")}<button type="button" class="btn sm" data-a="quiz-fullvariant" data-sid="${sid}" data-k="0">Случайный</button></div></section>` : ""}
       <section class="card stack"><h2 class="h2">Тренировка</h2><div class="steps">
-        ${stepBtn({ a: "quiz-mixed", sid, ico: "spark", tone: "eosin", title: "Смешанный тест", sub: QUIZ_SIZE + " вопросов из разных тем: сначала новые и трудные" })}
+        ${stepBtn({ a: "quiz-mixed", sid, ico: "spark", tone: "leaf", title: "Смешанный тест", sub: QUIZ_SIZE + " вопросов из разных тем: сначала новые и трудные" })}
         ${stepBtn({ a: "quiz-review", sid, ico: "repeat", title: "Повторение" + (due ? " · " + due : ""), sub: due ? "Вопросы, которые пора закрепить" : "Сейчас повторять нечего: вопросы появятся здесь по расписанию" })}
         ${stepBtn({ a: "quiz-mistakes", sid, ico: "alert", tone: "warn", title: "Работа над ошибками" + (mis ? " · " + mis : ""), sub: mis ? "Вопросы с неверным ответом" : "Ошибок пока нет" })}
         ${s.variant ? stepBtn({ a: "quiz-variant", sid, ico: "list", title: s.variant.label || "Пробный вариант ЕГЭ · часть 1", sub: s.variant.sub || "Задания 1–26 подряд, баллы как на экзамене, ответы — в конце" }) : ""}
@@ -1107,7 +1118,7 @@
   function slide(t) {
     const ts = topicStats(t), p = prog(t.sid);
     const dots = t.qids.map((id) => { const st = p.q[id]; return `<i class="qdot" data-s="${st && st.n ? st.last : -1}"></i>`; }).join("");
-    const chipCls = ts.pct >= 90 ? "good" : ts.pct > 0 ? "eosin" : "";
+    const chipCls = ts.pct >= 90 ? "good" : ts.pct > 0 ? "leaf" : "";
     return `<button type="button" class="slide" data-a="open-topic" data-id="${t.id}">
       <span class="slide-label">${esc(t.code)}<small>${esc((SUBJ[t.sid].codeName || "Тема").toUpperCase())}</small></span>
       <span class="slide-body">
@@ -1129,7 +1140,7 @@
     return `<div><button type="button" class="link-btn" data-a="go" data-v="subject" data-sid="${t.sid}">← ${esc(SUBJ[t.sid].name)}</button></div>
       <div class="head"><div class="eyebrow">${esc(codeLabel(t))} · ${esc(t.sec.title)}</div><h1 class="h1">${esc(t.title)}</h1></div>
       <section class="card stack">
-        <div class="row between"><span class="tile-label">Прогресс темы</span><span class="chip ${ts.pct >= 90 ? "good" : "eosin"} num">${ts.pct}%</span></div>
+        <div class="row between"><span class="tile-label">Прогресс темы</span><span class="chip ${ts.pct >= 90 ? "good" : "leaf"} num">${ts.pct}%</span></div>
         <div class="meter"><i style="width:${ts.pct}%"></i></div>
         <div class="row small ink2"><span>Освоено ${ts.mastered} из ${ts.total}</span><span>·</span><span>${ts.read ? "теория прочитана" : "теория не отмечена"}</span>${mis ? `<span>·</span><span>ошибок: ${mis}</span>` : ""}</div>
         <div class="row">
@@ -1486,7 +1497,7 @@
     return `<div class="quiz-top">
         <div class="row between"><div class="eyebrow">${esc(qz.title)}</div><button type="button" class="link-btn" data-a="quiz-exit">${exam ? "Прервать" : "Завершить"}</button></div>
         <div class="row between small"><span class="ink2">${exam ? "Задание " + it.n + " · " + (qz.i + 1) + " из " + qz.items.length : "Вопрос " + (qz.i + 1) + " из " + qz.items.length}</span><span class="muted num">${exam ? "идёт " + (mins < 1 ? "меньше минуты" : minutesText(mins)) : "верно " + qz.correct + " из " + qz.answered}</span></div>
-        <div class="meter hema thin"><i style="width:${pct}%"></i></div>
+        <div class="meter accent thin"><i style="width:${pct}%"></i></div>
       </div>
       <article class="qcard">
         <div class="row between"><span class="eyebrow">${esc(typeLabel(q))}</span>${exam ? `<span class="small muted">Задание ${it.n}${q.t === "self" ? " · до " + q.els.length + " баллов" : ((qz.cfg || SUBJ[qz.sid].variant).two || []).includes(it.n) ? " · до 2 баллов" : ""}</span>` : t ? `<span class="small muted">${esc(codeLabel(t))} · ${esc(t.title)}</span>` : ""}</div>
@@ -1585,7 +1596,7 @@
   function subjectAI(sid) { return (SUBJ[sid] && SUBJ[sid].ai) || { role: "репетитор", focus: "", suggest: [] }; }
   function tutorRules(sid) {
     const a = subjectAI(sid);
-    return `Ты — внимательный ${a.role}. С тобой говорит человек, который готовится к ЕГЭ 2027 года, чтобы поступить на специальность «Лечебное дело» в СВФУ (Якутск). ${a.focus} Отвечай по-русски, понятно и точно, по школьной программе и материалам ФИПИ. Пиши коротко: 3–8 предложений или короткий список, если не просят подробнее; если помогает, добавь пример задания ЕГЭ или способ запомнить. Если не уверен в факте, так и скажи. Не используй таблицы и заголовки. Обращайся на «ты» и не угадывай пол собеседника: избегай форм вроде «ты сделал» или «ты сделала».`;
+    return `Ты — внимательный ${a.role}. С тобой говорит человек, который готовится к ЕГЭ 2027 года по биологии, русскому языку и химии. ${a.focus} Отвечай по-русски, понятно и точно, по школьной программе и материалам ФИПИ. Пиши коротко: 3–8 предложений или короткий список, если не просят подробнее; если помогает, добавь пример задания ЕГЭ или способ запомнить. Если не уверен в факте, так и скажи. Не используй таблицы и заголовки. Обращайся на «ты» и не угадывай пол собеседника: избегай форм вроде «ты сделал» или «ты сделала».`;
   }
   function aiErrorText(e) {
     const code = e && e.code;
@@ -1744,9 +1755,9 @@
     const pct = all.length ? Math.round((done / all.length) * 100) : 0;
     const apply = all.find((i) => i.id === "ege-apply");
     const custom = all.filter((i) => i.custom).sort(byDue);
-    return `<div class="head"><div class="eyebrow">План поступления</div><h1 class="h1">Лечебное дело в СВФУ</h1><p class="lead">Что сделать и к какому сроку — от документов до приказа о зачислении. Отмечай выполненное, отметки сохраняются.</p></div>
+    return `<div class="head"><div class="eyebrow">План подготовки</div><h1 class="h1">ЕГЭ 2027 и поступление</h1><p class="lead">Что сделать и к какому сроку — от первых тестов и регистрации на экзамен до подачи документов. Отмечай выполненное, отметки сохраняются.</p></div>
       ${staleNotice()}
-      <section class="card stack"><div class="row between"><span class="tile-label">Сделано ${done} из ${all.length}</span><span class="small muted num">${pct}%</span></div><div class="meter hema"><i style="width:${pct}%"></i></div></section>
+      <section class="card stack"><div class="row between"><span class="tile-label">Сделано ${done} из ${all.length}</span><span class="small muted num">${pct}%</span></div><div class="meter accent"><i style="width:${pct}%"></i></div></section>
       ${apply && !apply.done ? `<div class="notice info"><b>Главный срок — ${dateLong(apply.due)}.</b><span>До этого дня нужно подать заявление на ЕГЭ. Позже — только по уважительной причине.</span></div>` : ""}
       ${((EGE.plan && EGE.plan.phases) || []).map((ph) => {
         const items = all.filter((i) => i.phase === ph.id);
@@ -1877,7 +1888,7 @@
     }
     daysArr.forEach((d, i) => {
       const v = vals[i], x = padL + band * i + (band - bw) / 2;
-      if (v > 0) s += `<path d="${barPath(x, y(v), bw, Math.max(2, (v / top) * ih), 4)}" fill="var(--hema)"/>`;
+      if (v > 0) s += `<path d="${barPath(x, y(v), bw, Math.max(2, (v / top) * ih), 4)}" fill="var(--accent)"/>`;
       if (i % 7 === 6) s += `<text x="${padL + band * i + band / 2}" y="${H - 6}" text-anchor="middle">${esc(dateShort(d))}</text>`;
       s += `<rect x="${padL + band * i}" y="${padT}" width="${band}" height="${ih}" fill="transparent" data-tip="${esc(dateDay(d) + ": " + (v ? minutesText(v) : "занятий нет"))}"/>`;
     });
@@ -1960,13 +1971,14 @@
   }
 
   // ---------- сочинение ----------
-  const ESSAY_LS = "put-v-medicinu:essay";
+  const ESSAY_LS = "vektor-ege:essay";
+  const LEGACY_ESSAY_LS = "put-v-medicinu:essay";
   const ESSAY_K = [["К1", 1, "Позиция автора"], ["К2", 3, "Комментарий"], ["К3", 2, "Своё отношение и аргумент"], ["К4", 1, "Фактическая точность"], ["К5", 2, "Логичность"], ["К6", 1, "Этика"], ["К7", 3, "Орфография"], ["К8", 3, "Пунктуация"], ["К9", 3, "Грамматика"], ["К10", 3, "Речевые нормы"]];
   let essayTimer = null;
   function essayState() {
     if (!ui.essay) {
       let saved = null;
-      try { saved = JSON.parse(localStorage.getItem(ESSAY_LS) || "null"); } catch (e) { /* хранилище браузера недоступно */ }
+      try { saved = JSON.parse(localStorage.getItem(ESSAY_LS) || localStorage.getItem(LEGACY_ESSAY_LS) || "null"); } catch (e) { /* хранилище браузера недоступно */ }
       ui.essay = Object.assign({ tid: EGE.essay.texts[0].id, own: { text: "", problem: "" }, body: "", editId: null }, saved || {},
         { tab: "write", checks: {}, ai: null, showPos: false, confirmClear: false });
     }
@@ -1976,7 +1988,10 @@
     clearTimeout(essayTimer);
     essayTimer = setTimeout(() => {
       const e = ui.essay;
-      try { localStorage.setItem(ESSAY_LS, JSON.stringify({ tid: e.tid, own: e.own, body: e.body, editId: e.editId })); } catch (err) { /* хранилище браузера недоступно */ }
+      try {
+        localStorage.setItem(ESSAY_LS, JSON.stringify({ tid: e.tid, own: e.own, body: e.body, editId: e.editId }));
+        localStorage.removeItem(LEGACY_ESSAY_LS);
+      } catch (err) { /* хранилище браузера недоступно */ }
     }, 600);
   }
   // Слова считаются как в ЕГЭ: служебные тоже, слово через дефис — одно.
@@ -2210,12 +2225,12 @@
       ${cf && cf.kind === "reset" ? `<div class="confirm"><b>Сбросить все ответы и отметки ${esc(SUBJ[cf.sid].po)}?</b><span class="small">План, пробники и журнал занятий останутся. Отменить сброс нельзя, поэтому сначала можно скачать резервную копию.</span><div class="row"><button type="button" class="btn danger sm" data-a="reset-do">Сбросить</button><button type="button" class="btn ghost sm" data-a="confirm-cancel">Отмена</button></div></div>` : ""}
     </section>
     <section class="card stack"><h2 class="h2">Откуда сроки</h2><p class="ink2 small">Даты собраны ${EGE.plan ? dateLong(EGE.plan.checked) : ""}: проект расписания ЕГЭ-2027 (Минпросвещения и Рособрнадзор, обсуждение до 10 ноября 2026 года) и сроки приёмной кампании 2026 года. Официальные документы смотри на сайтах ниже.</p>
-      <div class="stack small"><a href="https://obrnadzor.gov.ru/" target="_blank" rel="noopener">Рособрнадзор</a><a href="https://fipi.ru/" target="_blank" rel="noopener">ФИПИ</a><a href="https://priem.s-vfu.ru/" target="_blank" rel="noopener">Приёмная комиссия СВФУ</a></div>
+      <div class="stack small"><a href="https://obrnadzor.gov.ru/" target="_blank" rel="noopener">Рособрнадзор</a><a href="https://fipi.ru/" target="_blank" rel="noopener">ФИПИ</a><a href="https://www.gosuslugi.ru/vuzonline" target="_blank" rel="noopener">Поступление в вуз онлайн (Госуслуги)</a></div>
     </section>`;
   }
   async function doExport() {
-    const data = JSON.stringify({ app: "put-v-medicinu", v: 1, exported: new Date().toISOString(), docs: store.docs }, null, 2);
-    const filename = "put-v-medicinu-" + todayISO() + ".json";
+    const data = JSON.stringify({ app: "vektor-ege", v: 1, exported: new Date().toISOString(), docs: store.docs }, null, 2);
+    const filename = "vektor-ege-" + todayISO() + ".json";
     if (caps.downloads) {
       try { await caps.downloads.save({ filename, data }); toast("Резервная копия сохранена"); return; }
       catch (e) { if (e && e.code === "declined") return; }
@@ -2228,11 +2243,11 @@
     r.onload = () => {
       try {
         const obj = JSON.parse(String(r.result));
-        if (!obj || obj.app !== "put-v-medicinu" || !isObj(obj.docs)) throw new Error("format");
+        if (!obj || (obj.app !== "vektor-ege" && obj.app !== "put-v-medicinu") || !isObj(obj.docs)) throw new Error("format");
         ui.confirm = { kind: "import", data: obj.docs, date: obj.exported ? dateLong(String(obj.exported).slice(0, 10)) : "неизвестной даты" };
       } catch (e) {
         ui.confirm = null;
-        toast("Это не резервная копия «Пути в медицину».");
+        toast("Это не резервная копия «Вектора ЕГЭ».");
       }
       scheduleRender();
     };

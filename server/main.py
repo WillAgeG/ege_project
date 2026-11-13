@@ -1,4 +1,4 @@
-"""FastAPI-сервер для сайта «Путь в медицину» (статика, аккаунты, SQLite и ИИ-прокси)."""
+"""FastAPI-сервер для платформы «Вектор ЕГЭ» (статика, аккаунты, SQLite и ИИ-прокси)."""
 
 import base64
 from collections import deque
@@ -156,7 +156,7 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
             await app.state.http.aclose()
             app.state.db.close()
 
-    app = FastAPI(title="Путь в медицину", lifespan=lifespan)
+    app = FastAPI(title="Вектор ЕГЭ", lifespan=lifespan)
     app.state.settings = settings
 
     def current_user(request: Request) -> User | None:
