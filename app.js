@@ -101,7 +101,10 @@
     trash: '<path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4h6v3"/>',
     download: '<path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/>',
     upload: '<path d="M12 20V9"/><path d="m7 14 5-5 5 5"/><path d="M5 4h14"/>',
-    stop: '<rect x="6" y="6" width="12" height="12" rx="2"/>'
+    stop: '<rect x="6" y="6" width="12" height="12" rx="2"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+    moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
+    search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>'
   };
   function icon(name) {
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[name] || "") + "</svg>";
@@ -719,6 +722,38 @@
       .sort((a, b) => (a.date < b.date ? -1 : 1))[0] || null;
   }
 
+  // ---------- тема оформления ----------
+  const THEME_LS = "vektor-ege:theme";
+  let themeMode = "auto";
+  function readThemePref() {
+    try { const v = localStorage.getItem(THEME_LS); if (v === "light" || v === "dark" || v === "auto") return v; } catch (e) { /* недоступно */ }
+    return "auto";
+  }
+  function effectiveDark() {
+    if (themeMode === "dark") return true;
+    if (themeMode === "light") return false;
+    try { return !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches); } catch (e) { return false; }
+  }
+  function applyTheme() {
+    try {
+      const ds = document.documentElement && document.documentElement.dataset;
+      if (ds) { if (themeMode === "auto") delete ds.theme; else ds.theme = themeMode; }
+    } catch (e) { /* игнор */ }
+  }
+  function setTheme(mode, silent) {
+    themeMode = mode === "light" || mode === "dark" ? mode : "auto";
+    try { localStorage.setItem(THEME_LS, themeMode); } catch (e) { /* недоступно */ }
+    applyTheme();
+    scheduleRender();
+    if (!silent) toast(themeMode === "dark" ? "Включена тёмная тема" : themeMode === "light" ? "Включена светлая тема" : "Тема как в системе");
+  }
+  themeMode = readThemePref();
+  applyTheme();
+  try {
+    const mq = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)");
+    if (mq && mq.addEventListener) mq.addEventListener("change", () => { if (themeMode === "auto") scheduleRender(); });
+  } catch (e) { /* игнор */ }
+
   // ---------- состояние интерфейса ----------
   const ui = {
     view: "home",
@@ -734,7 +769,11 @@
     chat: { sid: firstSubject.id, turns: [], busy: false, ctl: null, draft: "", error: "" },
     auth: { tab: "login", busy: false, error: "" },
     guest: false,
-    essay: null
+    essay: null,
+    subjQ: "",
+    subjFilter: "all",
+    topicFilter: "all",
+    planFilter: "all"
   };
   function draft(key, fallback) { return Object.prototype.hasOwnProperty.call(ui.drafts, key) ? ui.drafts[key] : fallback; }
   function clearDrafts(prefix, keep) { for (const k of Object.keys(ui.drafts)) if (k.indexOf(prefix) === 0 && !(keep || []).includes(k)) delete ui.drafts[k]; }
@@ -743,8 +782,14 @@
     opts = opts || {};
     if (ui.view === "quiz" && v !== "quiz") abortAI();
     if (ui.quiz && ui.quiz.done && v !== "quiz") ui.quiz = null;
-    if (v === "subject" && opts.sid && SUBJ[opts.sid]) ui.sid = opts.sid;
-    if (v === "topic" && opts.id && TOPICS[opts.id]) { ui.topicId = opts.id; ui.sid = TOPICS[opts.id].sid; }
+    if (v === "subject" && opts.sid && SUBJ[opts.sid]) {
+      if (opts.sid !== ui.sid) { ui.subjQ = ""; ui.subjFilter = "all"; }
+      ui.sid = opts.sid;
+    }
+    if (v === "topic" && opts.id && TOPICS[opts.id]) {
+      if (opts.id !== ui.topicId) ui.topicFilter = "all";
+      ui.topicId = opts.id; ui.sid = TOPICS[opts.id].sid;
+    }
     if (v === "profile") clearDrafts("pf.");
     if (v === "essay") ui.sid = "rus";
     ui.view = v;
@@ -836,6 +881,16 @@
     const st = syncState();
     document.querySelectorAll(".sync").forEach((el) => { el.dataset.s = st[0]; const sp = el.querySelector("span"); if (sp) sp.textContent = st[1]; });
   }
+  function initials(name) {
+    const s = String(name || "").trim();
+    if (!s) return "В";
+    const parts = s.split(/\s+/).filter(Boolean);
+    return (parts.length > 1 ? parts[0][0] + parts[1][0] : s.slice(0, 2)).toUpperCase();
+  }
+  function avatarHTML(url, name, lg) {
+    if (url) return `<img src="${esc(url)}" alt="">`;
+    return `<span class="avatar${lg ? " lg" : ""}" aria-hidden="true">${esc(initials(name))}</span>`;
+  }
   function renderChrome() {
     const inSubject = ui.view === "subject" || ui.view === "topic" || ui.view === "quiz" || ui.view === "essay";
     const nav = [["home", "Главная", "home"], ["plan", "План поступления", "list"], ["stats", "Показатели", "chart"], ["tutor", "Репетитор", "chat"], ["profile", "Настройки", "gear"]];
@@ -847,7 +902,19 @@
     }).join("");
     const me = store.me, prof = profile();
     const nm = (store.user ? (prof.name || store.user.displayName || store.user.username) : "") || prof.name || (me && me.name) || (store.mode === "local" ? (store.backend ? "Гость" : "Этот браузер") : "");
-    $("#side-foot").innerHTML = `<div class="me">${me && me.avatarUrl ? `<img src="${esc(me.avatarUrl)}" alt="">` : ""}<div style="min-width:0"><div class="me-name">${esc(nm)}</div><span class="sync"><i></i><span></span></span></div></div>`;
+    const dark = effectiveDark();
+    const themeLabel = dark ? "Светлая тема" : "Тёмная тема";
+    $("#side-foot").innerHTML = `<div class="me">${avatarHTML(me && me.avatarUrl, nm, false)}<div style="min-width:0"><div class="me-name">${esc(nm)}</div><span class="sync"><i></i><span></span></span></div></div>
+      <div class="side-tools">
+        <button type="button" class="theme-pill" data-a="theme-toggle">${icon(dark ? "sun" : "moon")}<span>${dark ? "Светлая" : "Тёмная"}</span></button>
+        ${store.backend && !store.user ? `<button type="button" class="link-btn small" data-a="auth-screen">Войти</button>` : ""}
+      </div>`;
+    const topTheme = $("#top-theme");
+    if (topTheme) {
+      topTheme.innerHTML = icon(dark ? "sun" : "moon");
+      topTheme.setAttribute("aria-label", themeLabel);
+      topTheme.setAttribute("title", themeLabel);
+    }
     const tabSid = SUBJ[ui.sid] ? ui.sid : firstSubject.id;
     const tabs = [["home", "Главная", "home"], ["subject", CONTENT.length > 1 ? "Предметы" : firstSubject.name, "leaf"], ["plan", "План", "list"], ["stats", "Показатели", "chart"], ["tutor", "Репетитор", "chat"]];
     $("#tabbar").innerHTML = tabs.map(([v, l, ic]) => {
@@ -990,6 +1057,11 @@
         ${BRAND_MARK_HTML}
         <div class="brand-name">Вектор ЕГЭ</div>
         <p class="muted small">Подготовка к ЕГЭ 2027 · ${esc(CONTENT.map((s) => s.name).join(" · "))}</p>
+        <div class="auth-perks">
+          <span class="chip accent">Темы и задания ФИПИ</span>
+          <span class="chip leaf">Адаптивный план</span>
+          <span class="chip">Синхронизация прогресса</span>
+        </div>
       </div>
       ${authCard({ standalone: true })}
       <div class="auth-foot">
@@ -1003,7 +1075,7 @@
     return `<section class="card pad-lg stack">
       <div class="row between" style="flex-wrap:wrap">
         <div class="me">
-          ${u.avatarUrl ? `<img src="${esc(u.avatarUrl)}" alt="">` : ""}
+          ${avatarHTML(u.avatarUrl, title, true)}
           <div>
             <div class="eyebrow">Аккаунт · ${u.authProvider === "google" ? "Google" : "Логин и пароль"}</div>
             <h2 class="h2">${esc(title)}</h2>
@@ -1051,37 +1123,46 @@
       <div><button class="btn" type="submit">Начать подготовку</button></div>
     </form>`;
   }
+  function heroMetaRow() {
+    const tot = totals();
+    if (!tot.streak && !tot.today) return "";
+    return `<div class="row" style="gap:6px">${tot.streak ? `<span class="chip good">Серия: ${days(tot.streak)}</span>` : ""}${tot.today ? `<span class="chip accent">Сегодня: ${minutesText(tot.today)}</span>` : ""}</div>`;
+  }
   function heroCard(prof) {
     const apply = planItems().find((i) => i.id === "ege-apply");
+    const meta = heroMetaRow();
+    const goSubjBtn = CONTENT.length ? `<button type="button" class="btn ghost" data-a="go" data-v="subject" data-sid="${ui.sid}">К тренировкам</button>` : "";
     if (apply && !apply.done && validISO(apply.due) && daysUntil(apply.due) >= 0) {
       const n = daysUntil(apply.due);
       return `<section class="hero" aria-label="Главный срок">
-        <div class="eyebrow">Главный срок</div>
+        <div class="row between"><span class="eyebrow">Главный срок</span>${meta}</div>
         <div class="hero-figure">${n === 0 ? '<span class="hero-num">Сегодня</span>' : `<span class="hero-num num">${n}</span><span class="hero-unit">${plural(n, "день", "дня", "дней")}</span>`}</div>
         <p class="hero-text">${n === 0 ? "последний день" : "до " + dateDay(apply.due) + ", последнего дня"} подачи заявления на ЕГЭ по химии, биологии и русскому языку. Возьми паспорт и аттестат.</p>
-        <div class="row"><button type="button" class="btn" data-a="go" data-v="plan">Открыть план</button></div>
+        <div class="row"><button type="button" class="btn" data-a="go" data-v="plan">Открыть план</button>${goSubjBtn}</div>
       </section>`;
     }
     const ex = nextExam(prof);
     if (ex) {
       const n = daysUntil(ex.date);
       return `<section class="hero" aria-label="Ближайший экзамен">
-        <div class="eyebrow">Ближайший экзамен</div>
+        <div class="row between"><span class="eyebrow">Ближайший экзамен</span>${meta}</div>
         <div class="hero-figure">${n === 0 ? '<span class="hero-num">Сегодня</span>' : `<span class="hero-num num">${n}</span><span class="hero-unit">${plural(n, "день", "дня", "дней")}</span>`}</div>
         <p class="hero-text">${n === 0 ? "экзамен" : "до экзамена"} по предмету «${esc(ex.name)}», ${dateLong(ex.date)}. Цель — ${prof.targets[ex.subject]} баллов.</p>
-        <div class="row"><button type="button" class="btn" data-a="go" data-v="plan">Открыть план</button></div>
+        <div class="row"><button type="button" class="btn" data-a="go" data-v="plan">Открыть план</button>${goSubjBtn}</div>
       </section>`;
     }
-    return `<section class="hero"><div class="eyebrow">Экзамены позади</div><p class="hero-text">Теперь главное — заявление в вуз, конкурсные списки и согласие на зачисление.</p><div class="row"><button type="button" class="btn" data-a="go" data-v="plan">Открыть план</button></div></section>`;
+    return `<section class="hero"><div class="row between"><span class="eyebrow">Экзамены позади</span>${meta}</div><p class="hero-text">Теперь главное — заявление в вуз, конкурсные списки и согласие на зачисление.</p><div class="row"><button type="button" class="btn" data-a="go" data-v="plan">Открыть план</button></div></section>`;
   }
   function readinessCard(prof) {
     if (!CONTENT.length) return "";
     const rows = CONTENT.map((s) => {
       const st = subjectStats(s.id);
+      const mis = store.ready ? mistakeQs(s.id).length : 0;
+      const due = store.ready ? dueQs(s.id).length : 0;
       return `<div class="stack" style="gap:6px">
         <div class="row between"><button type="button" class="link-btn row" style="gap:8px" data-a="go" data-v="subject" data-sid="${s.id}"><i class="dot" style="background:var(--c-${s.id})"></i>${esc(s.name)}</button><span class="row" style="gap:8px"><b class="num">${store.ready ? st.pct + "%" : "—"}</b><span class="chip">цель ${prof.targets[s.id]}</span></span></div>
         <div class="meter"><i style="width:${st.pct}%"></i></div>
-        <div class="small muted">освоено ${st.mastered} из ${st.total} вопросов · начато ${st.started} из ${st.topics} тем</div>
+        <div class="row between small muted"><span>освоено ${st.mastered} из ${st.total} · начато ${st.started} из ${st.topics} тем</span>${mis ? `<span class="chip warn">ошибок: ${mis}</span>` : due ? `<span class="chip leaf">повторить: ${due}</span>` : ""}</div>
       </div>`;
     }).join("");
     return `<section class="card pad-lg stack" aria-label="Готовность по предметам">
@@ -1094,8 +1175,9 @@
     const steps = [];
     if (ui.quiz && !ui.quiz.done) steps.push({ a: "go", v: "quiz", ico: "arrow", tone: "leaf", title: "Вернуться к тесту", sub: `${ui.quiz.title} · вопрос ${ui.quiz.i + 1} из ${ui.quiz.items.length}` });
     if (store.ready) {
+      const pd = planDoc();
       CONTENT.forEach((s) => {
-        if (subjectStats(s.id).seen === 0) steps.push({ a: "quiz-mixed", sid: s.id, ico: "spark", tone: "leaf", title: "Пройди диагностический тест " + SUBJ[s.id].po, sub: QUIZ_SIZE + " вопросов по всем разделам — станет видно, с чего начать" });
+        if (subjectStats(s.id).seen === 0 && !pd.done[DIAG_PLAN_ID[s.id]]) steps.push({ a: "quiz-mixed", sid: s.id, ico: "spark", tone: "leaf", title: "Пройди диагностический тест " + SUBJ[s.id].po, sub: QUIZ_SIZE + " вопросов по всем разделам — результат сразу отметится в плане" });
       });
     }
     CONTENT.forEach((s) => {
@@ -1166,9 +1248,22 @@
     const soon = SUBJECTS.filter((x) => !x.content);
     const switcher = CONTENT.length > 1
       ? `<div class="switch" role="group" aria-label="Предмет">${SUBJECTS.map((x) => x.content
-        ? `<button type="button" data-a="go" data-v="subject" data-sid="${x.id}" aria-pressed="${x.id === sid}">${esc(x.name)}</button>`
+        ? `<button type="button" data-a="go" data-v="subject" data-sid="${x.id}" aria-pressed="${x.id === sid}"><i class="dot" style="background:var(--c-${x.id})"></i><span>${esc(x.name)}</span><span class="small num" style="opacity:.75">${subjectStats(x.id).pct}%</span></button>`
         : `<button type="button" disabled>${esc(x.name)} · скоро</button>`).join("")}</div>`
       : "";
+    const qNorm = norm(ui.subjQ);
+    const totalTopics = s.topicList.length;
+    const filteredSecs = s.sections.map((sec) => {
+      const secMatch = qNorm && norm(sec.title).includes(qNorm);
+      const topics = sec.topics.filter((t) => {
+        if (qNorm && !secMatch && !norm(t.title).includes(qNorm) && !norm(t.code).includes(qNorm)) return false;
+        if (ui.subjFilter === "todo") return topicStats(t).pct < 90;
+        if (ui.subjFilter === "mistakes") return mistakeQs(sid, t.id).length > 0;
+        return true;
+      });
+      return { sec, topics };
+    }).filter((x) => x.topics.length);
+    const shownTopics = filteredSecs.reduce((n, x) => n + x.topics.length, 0);
     return `${switcher}<div class="head">
         <div class="eyebrow">Предмет · ЕГЭ 2027</div>
         <div class="head-row"><h1 class="h1">${esc(s.name)}</h1><span class="chip leaf">готовность ${st.pct}%</span></div>
@@ -1186,7 +1281,21 @@
         ${s.part2 ? stepBtn({ a: "quiz-part2", sid, ico: "book", title: s.part2.label, sub: s.part2.sub }) : ""}
         ${sid === "rus" && EGE.essay ? stepBtn({ a: "go", v: "essay", ico: "book", title: "Тренажёр сочинения", sub: "Задание 27: тексты, план, клише, аргументы и проверка по критериям" }) : ""}
       </div></section>
-      ${s.sections.map(sectionBlock).join("")}
+      <section class="section">
+        <div class="section-head"><h2 class="h2">Темы предмета</h2><span class="small muted">${qNorm || ui.subjFilter !== "all" ? `показано ${shownTopics} из ${totalTopics}` : `всего тем: ${totalTopics}`}</span></div>
+        <div class="toolbar">
+          <div class="search-wrap">
+            <input class="input" id="subj-q" type="text" autocomplete="off" spellcheck="false" value="${esc(ui.subjQ)}" placeholder="Поиск по теме или номеру задания…">
+            ${ui.subjQ ? `<button type="button" class="search-clear" data-a="subj-clear" aria-label="Очистить поиск">${icon("x")}</button>` : ""}
+          </div>
+          <div class="switch" role="group" aria-label="Фильтр тем">
+            <button type="button" data-a="subj-filter" data-filter="all" aria-pressed="${ui.subjFilter === "all"}">Все</button>
+            <button type="button" data-a="subj-filter" data-filter="todo" aria-pressed="${ui.subjFilter === "todo"}">Не освоенные</button>
+            <button type="button" data-a="subj-filter" data-filter="mistakes" aria-pressed="${ui.subjFilter === "mistakes"}">С ошибками</button>
+          </div>
+        </div>
+      </section>
+      ${filteredSecs.length ? filteredSecs.map((x) => `<section class="section-block"><div class="section-title"><span class="section-num">Раздел ${x.sec.n}</span><h2 class="h2">${esc(x.sec.title)}</h2></div><div class="slides">${x.topics.map(slide).join("")}</div></section>`).join("") : `<div class="empty"><b>Темы не найдены</b><span>В этом фильтре тем нет — попробуй другой запрос.</span><button type="button" class="btn ghost sm" data-a="subj-clear">Сбросить фильтр</button></div>`}
       <section class="card stack"><h2 class="h2">Где ещё тренироваться</h2><div class="stack">${s.links.map((l) => `<a href="${esc(l.href)}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join("")}</div></section>
       ${soon.length ? `<div class="empty"><b>${esc(soon.map((x) => x.name).join(", "))}</b><span>Появится здесь позже — с такими же темами, тестами и прогрессом. Пока записывай занятия в «Показатели».</span></div>` : ""}`;
   }
@@ -1243,7 +1352,20 @@
       </section>
       <section class="section">
         <div class="section-head"><h2 class="h2">Вопросы темы</h2><span class="small muted">нажми на вопрос, чтобы ответить только на него</span></div>
-        <div class="stack">${t.qids.map((id) => qRow(QS[id], p.q[id])).join("")}</div>
+        ${(() => {
+          const unseenCount = t.qids.filter((id) => !p.q[id] || !p.q[id].n).length;
+          const qFilter = t.qids.length > 6 ? `<div class="switch" role="group" aria-label="Фильтр вопросов">
+            <button type="button" data-a="topic-filter" data-filter="all" aria-pressed="${ui.topicFilter === "all"}">Все (${t.qids.length})</button>
+            <button type="button" data-a="topic-filter" data-filter="mistakes" aria-pressed="${ui.topicFilter === "mistakes"}">С ошибками (${mis})</button>
+            <button type="button" data-a="topic-filter" data-filter="unseen" aria-pressed="${ui.topicFilter === "unseen"}">Новые (${unseenCount})</button>
+          </div>` : "";
+          const listIds = t.qids.filter((id) => {
+            if (ui.topicFilter === "mistakes") { const st = p.q[id]; return st && st.n && st.last !== 2; }
+            if (ui.topicFilter === "unseen") return !p.q[id] || !p.q[id].n;
+            return true;
+          });
+          return qFilter + (listIds.length ? `<div class="stack">${listIds.map((id) => qRow(QS[id], p.q[id])).join("")}</div>` : `<div class="empty">В этом фильтре вопросов нет.</div>`);
+        })()}
         <div class="qlegend"><span><i class="qdot" data-s="2"></i>верно</span><span><i class="qdot" data-s="1"></i>одна ошибка</span><span><i class="qdot" data-s="0"></i>неверно</span><span><i class="qdot" data-s="-1"></i>ещё не было</span></div>
       </section>`;
   }
@@ -1576,10 +1698,16 @@
     const pct = Math.round(((qz.i + (qz.checked ? 1 : 0)) / qz.items.length) * 100);
     const keys = q.t === "single" || q.t === "multi" ? "1–" + q.o.length + " — выбор, " : "";
     const mins = Math.floor((Date.now() - qz.started) / 60000);
+    const strip = qz.items.length <= 40
+      ? `<div class="quiz-strip" aria-hidden="true">${qz.items.map((x, idx) => {
+          const cls = idx === qz.i ? "cur" : x.res ? (exam ? "done" : x.res.r === 2 ? "ok" : x.res.r === 1 ? "part" : "bad") : "";
+          return `<i class="quiz-seg ${cls}"></i>`;
+        }).join("")}</div>`
+      : `<div class="meter accent thin"><i style="width:${pct}%"></i></div>`;
     return `<div class="quiz-top">
-        <div class="row between"><div class="eyebrow">${esc(qz.title)}</div><button type="button" class="link-btn" data-a="quiz-exit">${exam ? "Прервать" : "Завершить"}</button></div>
+        <div class="row between"><div class="eyebrow">${esc(qz.title)}</div><button type="button" class="btn ghost sm" data-a="quiz-exit">${exam ? "Прервать" : "Выйти"}</button></div>
         <div class="row between small"><span class="ink2">${exam ? "Задание " + it.n + " · " + (qz.i + 1) + " из " + qz.items.length : "Вопрос " + (qz.i + 1) + " из " + qz.items.length}</span><span class="muted num">${exam ? "идёт " + (mins < 1 ? "меньше минуты" : minutesText(mins)) : "верно " + qz.correct + " из " + qz.answered}</span></div>
-        <div class="meter accent thin"><i style="width:${pct}%"></i></div>
+        ${strip}
       </div>
       <article class="qcard">
         <div class="row between"><span class="eyebrow">${esc(typeLabel(q))}</span>${exam ? `<span class="small muted">Задание ${it.n}${q.t === "self" ? " · до " + q.els.length + " баллов" : ((qz.cfg || SUBJ[qz.sid].variant).two || []).includes(it.n) ? " · до 2 баллов" : ""}</span>` : t ? `<span class="small muted">${esc(codeLabel(t))} · ${esc(t.title)}</span>` : ""}</div>
@@ -1831,24 +1959,47 @@
   }
 
   // ---------- план ----------
+  function planMatches(it, filter) {
+    if (filter === "todo") return !it.done;
+    if (filter === "done") return !!it.done;
+    if (filter === "overdue") return !it.done && validISO(it.due) && daysUntil(it.due) < 0;
+    return true;
+  }
   function viewPlan() {
     const all = planItems();
     const done = all.filter((i) => i.done).length;
+    const todo = all.length - done;
+    const overdue = all.filter((i) => planMatches(i, "overdue")).length;
     const pct = all.length ? Math.round((done / all.length) * 100) : 0;
+    const f = ui.planFilter === "overdue" && !overdue ? "all" : ui.planFilter;
     const apply = all.find((i) => i.id === "ege-apply");
-    const custom = all.filter((i) => i.custom).sort(byDue);
-    return `<div class="head"><div class="eyebrow">План подготовки</div><h1 class="h1">ЕГЭ 2027 и поступление</h1><p class="lead">Что сделать и к какому сроку — от первых тестов и регистрации на экзамен до подачи документов. Отмечай выполненное, отметки сохраняются.</p></div>
+    const customAll = all.filter((i) => i.custom).sort(byDue);
+    const custom = customAll.filter((i) => planMatches(i, f));
+    const phaseBlocks = ((EGE.plan && EGE.plan.phases) || []).map((ph) => {
+      const items = all.filter((i) => i.phase === ph.id);
+      const shown = items.filter((i) => planMatches(i, f));
+      if (f !== "all" && !shown.length) return "";
+      const d = items.filter((i) => i.done).length;
+      return `<section class="phase"><div class="phase-head"><h2 class="h2">${esc(ph.title)}</h2><span class="mono small muted">${esc(ph.period)}</span><span class="chip ${d === items.length && items.length ? "good" : ""}">${d} из ${items.length}</span></div>${shown.map((it) => todoItem(it)).join("")}</section>`;
+    }).join("");
+    const anyShown = !!phaseBlocks || custom.length > 0;
+    return `<div class="head"><div class="eyebrow">План подготовки</div><h1 class="h1">ЕГЭ 2027 и поступление</h1><p class="lead">Что сделать и к какому сроку — от первых тестов и регистрации на экзамен до подачи документов. Завершённые тесты и шаги отмечаются сами.</p></div>
       ${staleNotice()}
-      <section class="card stack"><div class="row between"><span class="tile-label">Сделано ${done} из ${all.length}</span><span class="small muted num">${pct}%</span></div><div class="meter accent"><i style="width:${pct}%"></i></div></section>
-      ${apply && !apply.done ? `<div class="notice info"><b>Главный срок — ${dateLong(apply.due)}.</b><span>До этого дня нужно подать заявление на ЕГЭ. Позже — только по уважительной причине.</span></div>` : ""}
-      ${((EGE.plan && EGE.plan.phases) || []).map((ph) => {
-        const items = all.filter((i) => i.phase === ph.id);
-        const d = items.filter((i) => i.done).length;
-        return `<section class="phase"><div class="phase-head"><h2 class="h2">${esc(ph.title)}</h2><span class="mono small muted">${esc(ph.period)}</span><span class="small muted">· ${d} из ${items.length}</span></div>${items.map((it) => todoItem(it)).join("")}</section>`;
-      }).join("")}
-      <section class="phase"><div class="phase-head"><h2 class="h2">Мои дела</h2><span class="small muted">свои задачи и напоминания</span></div>
+      <section class="card stack">
+        <div class="row between"><span class="tile-label">Сделано ${done} из ${all.length}</span><span class="small muted num">осталось ${todo} · ${pct}%</span></div>
+        <div class="meter accent"><i style="width:${pct}%"></i></div>
+        <div class="switch" role="group" aria-label="Фильтр задач">
+          <button type="button" data-a="plan-filter" data-filter="all" aria-pressed="${f === "all"}">Все (${all.length})</button>
+          <button type="button" data-a="plan-filter" data-filter="todo" aria-pressed="${f === "todo"}">Осталось (${todo})</button>
+          ${overdue ? `<button type="button" data-a="plan-filter" data-filter="overdue" aria-pressed="${f === "overdue"}">Просрочено (${overdue})</button>` : ""}
+          <button type="button" data-a="plan-filter" data-filter="done" aria-pressed="${f === "done"}">Выполнено (${done})</button>
+        </div>
+      </section>
+      ${apply && !apply.done && f !== "done" ? `<div class="notice info"><b>Главный срок — ${dateLong(apply.due)}.</b><span>До этого дня нужно подать заявление на ЕГЭ. Позже — только по уважительной причине.</span></div>` : ""}
+      ${anyShown ? phaseBlocks : `<div class="empty"><b>Задач в этом фильтре нет</b><button type="button" class="btn ghost sm" data-a="plan-filter" data-filter="all">Показать все</button></div>`}
+      ${f === "done" && !custom.length ? "" : `<section class="phase"><div class="phase-head"><h2 class="h2">Мои дела</h2><span class="small muted">свои задачи и напоминания</span></div>
         ${custom.map((it) => todoItem(it)).join("")}
-        <form class="card form" data-f="todo">
+        ${f !== "done" ? `<form class="card form" data-f="todo">
           <div class="h3">Добавить дело</div>
           <div class="field"><label for="td-t">Что сделать</label><input class="input" id="td-t" data-d="td.t" value="${esc(draft("td.t", ""))}" maxlength="140" placeholder="Например: записаться на пробный ЕГЭ" required></div>
           <div class="fields">
@@ -1856,8 +2007,8 @@
             <div class="field"><label for="td-n">Заметка</label><input class="input" id="td-n" data-d="td.n" value="${esc(draft("td.n", ""))}" maxlength="300"></div>
           </div>
           <div><button class="btn" type="submit">Добавить</button></div>
-        </form>
-      </section>
+        </form>` : ""}
+      </section>`}
       <p class="hint">${esc((EGE.plan && EGE.plan.note) || "")} Сроки проверены ${EGE.plan ? dateLong(EGE.plan.checked) : ""}.</p>`;
   }
   function toggleTodo(id, custom, checked) {
@@ -1974,6 +2125,7 @@
       if (i % 7 === 6) s += `<text x="${padL + band * i + band / 2}" y="${H - 6}" text-anchor="middle">${esc(dateShort(d))}</text>`;
       s += `<rect x="${padL + band * i}" y="${padT}" width="${band}" height="${ih}" fill="transparent" data-tip="${esc(dateDay(d) + ": " + (v ? minutesText(v) : "занятий нет"))}"/>`;
     });
+    if (!vals.some(Boolean)) s += `<text x="${padL + iw / 2}" y="${padT + ih / 2 + 4}" text-anchor="middle">Пока нет записей — пройди тест или добавь занятие</text>`;
     el.innerHTML = s + "</svg>";
   }
   function drawMocks(el) {
@@ -2271,6 +2423,14 @@
     const prof = profile();
     return `<div class="head"><div class="eyebrow">Настройки</div><h1 class="h1">Профиль и данные</h1></div>
       ${store.backend ? accountCard() : ""}
+      <section class="card pad-lg stack">
+        <div class="row between"><h2 class="h2">Оформление</h2><span class="small muted">${themeMode === "auto" ? "по настройкам устройства" : themeMode === "dark" ? "тёмная палитра" : "светлая палитра"}</span></div>
+        <div class="switch" role="group" aria-label="Тема оформления">
+          <button type="button" data-a="theme-set" data-theme="auto" aria-pressed="${themeMode === "auto"}">Авто</button>
+          <button type="button" data-a="theme-set" data-theme="light" aria-pressed="${themeMode === "light"}">${icon("sun")}<span>Светлая</span></button>
+          <button type="button" data-a="theme-set" data-theme="dark" aria-pressed="${themeMode === "dark"}">${icon("moon")}<span>Тёмная</span></button>
+        </div>
+      </section>
       <form class="card pad-lg form" data-f="profile">
         <h2 class="h2">Профиль</h2>
         <div class="field"><label for="pf-name">Как к тебе обращаться</label><input class="input" id="pf-name" data-d="pf.name" value="${esc(draft("pf.name", prof.name || defaultName()))}" maxlength="40"></div>
@@ -2318,6 +2478,18 @@
       try { await caps.downloads.save({ filename, data }); toast("Резервная копия сохранена"); return; }
       catch (e) { if (e && e.code === "declined") return; }
     }
+    try {
+      if (typeof Blob === "function" && typeof URL !== "undefined" && typeof URL.createObjectURL === "function" && typeof document.createElement === "function") {
+        const blob = new Blob([data], { type: "application/json" });
+        const href = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = href; a.download = filename;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(() => { try { URL.revokeObjectURL(href); } catch (e) {} }, 1000);
+        toast("Файл резервной копии скачан");
+        return;
+      }
+    } catch (e) { /* запасной вариант ниже */ }
     ui.exportText = data;
     scheduleRender();
   }
@@ -2377,6 +2549,12 @@
   // ---------- действия ----------
   function subjectOf(el) { return SUBJ[el.dataset.sid] ? el.dataset.sid : ui.sid; }
   const ACTIONS = {
+    "theme-toggle": () => setTheme(effectiveDark() ? "light" : "dark"),
+    "theme-set": (el) => setTheme(el.dataset.theme),
+    "subj-filter": (el) => { ui.subjFilter = el.dataset.filter || "all"; scheduleRender(); },
+    "subj-clear": () => { ui.subjQ = ""; ui.subjFilter = "all"; ui.focusNext = "subj-q"; scheduleRender(); },
+    "topic-filter": (el) => { ui.topicFilter = el.dataset.filter || "all"; scheduleRender(); },
+    "plan-filter": (el) => { ui.planFilter = el.dataset.filter || "all"; scheduleRender(); },
     go: (el) => go(el.dataset.v, { sid: el.dataset.sid, id: el.dataset.id }),
     "open-topic": (el) => go("topic", { id: el.dataset.id }),
     "quiz-mixed": (el) => { const sid = subjectOf(el); startQuiz({ title: "Смешанный тест · " + SUBJ[sid].name, sid, qs: pickMixed(sid, QUIZ_SIZE).map((id) => QS[id]), mode: "mixed", back: { v: "subject", sid } }); },
@@ -2662,6 +2840,7 @@
   });
   document.addEventListener("input", (e) => {
     const el = e.target;
+    if (el.id === "subj-q") { ui.subjQ = el.value; scheduleRender(); return; }
     if (el.dataset && el.dataset.d) { ui.drafts[el.dataset.d] = el.value; return; }
     if (el.id === "ans") {
       const it = curItem(); if (!it) return;

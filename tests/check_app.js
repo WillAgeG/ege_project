@@ -561,6 +561,7 @@
     // Проходим диагностику по русскому -> автогалочка + результат
     clickAction(env4, { a: "plan-act", id: "diag-rus" });
     await flushMicrotasks(8);
+    assert(env4.elements.get("main").innerHTML.includes("quiz-strip"), "expected segmented quiz progress strip");
     const diagSummary = await completeActiveQuiz(env4);
     assert(diagSummary.includes("Вернуться к плану"), "expected return-to-plan button after plan quiz");
     assert(planServerDocs.plan && planServerDocs.plan.done && planServerDocs.plan.done["diag-rus"], "expected auto checkmark for diag-rus");
@@ -571,6 +572,14 @@
     const planAfterDiag = env4.elements.get("main").innerHTML;
     assert(planAfterDiag.includes("Результат:") && planAfterDiag.includes("из 20") && planAfterDiag.includes("Пройти ещё раз"), "expected rendered score and retake button in plan");
 
+    // Фильтр в плане: Выполнено / Осталось / Все
+    clickAction(env4, { a: "plan-filter", filter: "done" });
+    await flushMicrotasks(6);
+    const planDoneOnly = env4.elements.get("main").innerHTML;
+    assert(planDoneOnly.includes("diag-rus") && !planDoneOnly.includes('data-id="uni-rules"'), "expected done filter to show only completed plan items");
+    clickAction(env4, { a: "plan-filter", filter: "all" });
+    await flushMicrotasks(6);
+
     // Проходим стартовый шаг регулярной подготовки по русскому языку -> автогалочка
     clickAction(env4, { a: "plan-act", id: "rus-start" });
     await flushMicrotasks(8);
@@ -580,6 +589,24 @@
     await flushMicrotasks(8);
     const planAfterPrep = env4.elements.get("main").innerHTML;
     assert(planAfterPrep.includes("Продолжить") && planAfterPrep.includes("Освоено:"), "expected prep progress and continue button in plan");
+
+    // Поиск тем на странице предмета + переключение темы оформления
+    clickAction(env4, { a: "go", v: "subject", sid: "rus" });
+    await flushMicrotasks(6);
+    env4.emitDoc("input", { target: { id: "subj-q", value: "ударени", dataset: {} } });
+    await flushMicrotasks(6);
+    const subjFiltered = env4.elements.get("main").innerHTML;
+    assert(subjFiltered.includes("показано") && subjFiltered.includes("subj-clear"), "expected filtered subject topics count and clear button");
+    clickAction(env4, { a: "subj-clear" });
+    await flushMicrotasks(6);
+
+    clickAction(env4, { a: "theme-toggle" });
+    await flushMicrotasks(6);
+    assert(globalThis.document.documentElement.dataset.theme === "dark", "expected theme toggle to activate dark theme");
+    assert(env4.lsMap["vektor-ege:theme"] === "dark", "expected persisted theme preference");
+    clickAction(env4, { a: "theme-set", theme: "auto" });
+    await flushMicrotasks(6);
+    assert(!globalThis.document.documentElement.dataset.theme, "expected auto theme to clear data-theme");
 
     out("APP_SMOKE_TESTS_OK");
   }
