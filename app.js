@@ -1,0 +1,2538 @@
+/* Путь в медицину — логика сайта.
+   Прогресс хранится в облачной базе артефакта: u/<id>/d/<документ>
+   (profile, plan, mocks, prog-<предмет>, log-<ГГГГ-ММ>). Если страница открыта
+   не на claude.ai, данные живут только в localStorage этого браузера. */
+(function () {
+  "use strict";
+
+  const EGE = window.EGE || {};
+  const SUBJECT_META = [
+    { id: "bio", name: "Биология" },
+    { id: "rus", name: "Русский язык" },
+    { id: "chem", name: "Химия" }
+  ];
+  const SUBJECT_NAME = { bio: "Биология", chem: "Химия", rus: "Русский язык", other: "Другое" };
+  const DEFAULT_TARGETS = { bio: 80, chem: 75, rus: 80 };
+  const INTERVALS = [0, 1, 3, 7, 14, 30, 60]; // дни до повторения по «коробкам»
+  const LS_KEY = "put-v-medicinu:v1";
+  const QUIZ_SIZE = 20;
+  const TOPIC_QUIZ = 15;
+  const MAX_Q_MS = 180000; // больше трёх минут на вопрос в учёт времени не идёт
+  const LETTERS = "АБВГДЕЖЗИК";
+
+  // ---------- утилиты ----------
+  const $ = (sel) => document.querySelector(sel);
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  function rich(s) { return esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>"); }
+  function clone(o) { return o == null ? o : JSON.parse(JSON.stringify(o)); }
+  function isObj(v) { return !!v && typeof v === "object" && !Array.isArray(v); }
+  // Та же семантика, что у update() в базе: объекты сливаются, остальное заменяется.
+  function deepMerge(target, patch) {
+    const out = isObj(target) ? Object.assign({}, target) : {};
+    for (const k of Object.keys(patch || {})) {
+      const v = patch[k];
+      out[k] = isObj(v) ? deepMerge(isObj(out[k]) ? out[k] : {}, v) : v;
+    }
+    return out;
+  }
+  function pad(n) { return String(n).padStart(2, "0"); }
+  function isoDate(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+  function todayISO() { return isoDate(new Date()); }
+  function parseISO(s) { const p = String(s).split("-").map(Number); return new Date(p[0], (p[1] || 1) - 1, p[2] || 1); }
+  function addDays(iso, n) { const d = parseISO(iso); d.setDate(d.getDate() + n); return isoDate(d); }
+  function daysUntil(iso) { return Math.round((parseISO(iso) - parseISO(todayISO())) / 86400000); }
+  function validISO(s) { return /^\d{4}-\d{2}-\d{2}$/.test(String(s || "")); }
+  const fmtLong = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" });
+  const fmtDay = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long" });
+  const fmtShort = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" });
+  const fmtWeekday = new Intl.DateTimeFormat("ru-RU", { weekday: "long", day: "numeric", month: "long" });
+  function dateLong(iso) { return fmtLong.format(parseISO(iso)).replace(/\s?г\.$/, ""); }
+  function dateDay(iso) { return parseISO(iso).getFullYear() === new Date().getFullYear() ? fmtDay.format(parseISO(iso)) : dateLong(iso); }
+  function dateShort(iso) { return fmtShort.format(parseISO(iso)).replace(".", ""); }
+  function plural(n, one, few, many) {
+    const a = Math.abs(n) % 100, b = a % 10;
+    if (a > 10 && a < 20) return many;
+    if (b > 1 && b < 5) return few;
+    if (b === 1) return one;
+    return many;
+  }
+  function days(n) { return n + " " + plural(n, "день", "дня", "дней"); }
+  function minutesText(m) {
+    m = Math.round(m || 0);
+    if (m < 60) return m + " мин";
+    const h = Math.floor(m / 60), r = m % 60;
+    return h + " ч" + (r ? " " + r + " мин" : "");
+  }
+  function capitalize(s) { return s ? s[0].toUpperCase() + s.slice(1) : s; }
+  const hash = EGE.hash;
+  function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function range(n) { return Array.from({ length: n }, (_, i) => i); }
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; }
+    return a;
+  }
+  function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+  function clampInt(v, lo, hi, def) { const n = parseInt(v, 10); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : def; }
+  function norm(s) { return String(s || "").toLowerCase().replace(/ё/g, "е").replace(/[«»"]/g, "").replace(/\s+/g, " ").trim().replace(/[.!]+$/, ""); }
+  function normTight(s) { return norm(s).replace(/,/g, ".").replace(/[\s\-–—]/g, "").replace(/%$/, ""); }
+  function parseNum(s) {
+    const m = String(s == null ? "" : s).replace(/,/g, ".").replace(/−/g, "-").match(/[-+]?\d+(?:\.\d+)?/);
+    return m ? parseFloat(m[0]) : null;
+  }
+  function byDue(a, b) { return (a.due || "9999") < (b.due || "9999") ? -1 : (a.due || "9999") > (b.due || "9999") ? 1 : 0; }
+
+  const ICONS = {
+    home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/>',
+    leaf: '<path d="M5 19c0-8 5-14 15-15-1 10-7 15-15 15z"/><path d="M5 19l8-8"/>',
+    list: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 2 2 3-3"/><path d="M14 10h4"/><path d="m7 15 2 2 3-3"/><path d="M14 16h4"/>',
+    chart: '<path d="M4 20V11"/><path d="M10 20V5"/><path d="M16 20v-7"/><path d="M3 20h18"/>',
+    chat: '<path d="M21 12a8 8 0 0 1-11.8 7L4 20l1.1-4.4A8 8 0 1 1 21 12z"/>',
+    gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+    arrow: '<path d="M5 12h14"/><path d="m13 6 6 6-6 6"/>',
+    check: '<path d="m5 12 5 5 9-10"/>',
+    x: '<path d="M6 6l12 12M18 6 6 18"/>',
+    alert: '<path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>',
+    repeat: '<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>',
+    book: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/>',
+    spark: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/>',
+    trash: '<path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4h6v3"/>',
+    download: '<path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/>',
+    upload: '<path d="M12 20V9"/><path d="m7 14 5-5 5 5"/><path d="M5 4h14"/>',
+    stop: '<rect x="6" y="6" width="12" height="12" rx="2"/>'
+  };
+  function icon(name) {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[name] || "") + "</svg>";
+  }
+
+  // ---------- содержание ----------
+  // Сборка банка (id заданий, повторы, правки из таблицы) — в bank-core.js, чтобы страница tools/bank.html собирала его так же.
+  const BANK = EGE.loadBank();
+  const SUBJ = BANK.SUBJ, TOPICS = BANK.TOPICS, QS = BANK.QS, SKIPPED = BANK.SKIPPED;
+  if (SKIPPED.length) console.warn("Пропущены повторы вопросов (" + SKIPPED.length + "):\n" + SKIPPED.join("\n"));
+  if (BANK.NOTES.length) console.warn("Таблица заданий:\n" + BANK.NOTES.join("\n"));
+  const SUBJECTS = SUBJECT_META.map((m) => Object.assign({}, m, { content: SUBJ[m.id] || null }));
+  const firstSubject = SUBJECTS.find((s) => s.content) || SUBJECTS[0];
+  const CONTENT = SUBJECTS.filter((s) => s.content);
+  function topicRef(t) { return (SUBJ[t.sid].ref || "") + t.code + " " + t.title; }
+  function codeLabel(t) { return (SUBJ[t.sid].codeName || "Тема") + " " + t.code; }
+
+  // ---------- хранилище ----------
+  const DOC_NAME_RE = /^(profile|plan|mocks|essays|prog-[a-z]+|log-\d{4}-\d{2})$/;
+  const store = {
+    mode: "loading", // loading | cloud | local
+    backend: !!(window.EGE_HOST && window.EGE_HOST.backend),
+    user: null,
+    backendAi: { enabled: false, provider: null },
+    inviteRequired: false,
+    ready: false,
+    confirmed: false,
+    stale: false,
+    saving: 0,
+    error: null, // null | offline | readonly | quota | auth
+    docs: {},
+    uid: null,
+    me: null,
+    isOwner: false
+  };
+  const cloud = { db: null, user: null };
+  const caps = { downloads: null };
+  const ai = { fn: null, state: "unknown" }; // unknown | ready | off
+  const queues = {};
+  let loadTimer = null;
+  let lastRefresh = 0;
+
+  function docPath(name) { return store.backend ? name : "u/" + store.uid + "/d/" + name; }
+  function queue(name) { return queues[name] || (queues[name] = { pending: null, replace: null, inflight: null, running: false }); }
+
+  function patchDoc(name, patch) {
+    store.docs[name] = deepMerge(store.docs[name] || {}, patch);
+    if (store.mode === "local") saveLocal();
+    else if (store.error !== "readonly") {
+      const q = queue(name);
+      q.pending = deepMerge(q.pending || {}, patch);
+      if (store.mode === "cloud") flush(name);
+    }
+    scheduleRender();
+  }
+  function replaceDoc(name, data) {
+    store.docs[name] = clone(data);
+    if (store.mode === "local") saveLocal();
+    else if (store.error !== "readonly") {
+      const q = queue(name);
+      q.replace = clone(data); q.pending = null;
+      if (store.mode === "cloud") flush(name);
+    }
+    scheduleRender();
+  }
+  async function withRetry(fn) {
+    try { return await fn(); }
+    catch (e) {
+      if (e && e.code === "unavailable") { await sleep(600 + Math.random() * 1000); return fn(); }
+      throw e;
+    }
+  }
+  function readLocalDocs() {
+    try { const raw = localStorage.getItem(LS_KEY); const parsed = raw ? JSON.parse(raw) : null; return isObj(parsed) ? parsed : {}; }
+    catch (e) { return {}; }
+  }
+  function hasLocalProgress() {
+    const saved = readLocalDocs();
+    return Object.keys(saved).some((k) => DOC_NAME_RE.test(k) && isObj(saved[k]));
+  }
+  function clearQueues() { for (const k in queues) delete queues[k]; }
+  function hasPendingQueues() {
+    for (const k in queues) {
+      const q = queues[k];
+      if (q && (q.running || q.pending || q.replace || q.inflight)) return true;
+    }
+    return false;
+  }
+  function overlayQueues(baseDocs) {
+    const next = {};
+    for (const k of Object.keys(baseDocs || {})) {
+      if (isObj(baseDocs[k])) next[k] = clone(baseDocs[k]);
+    }
+    for (const name in queues) {
+      const q = queues[name];
+      if (q.inflight && q.inflight.replace) next[name] = clone(q.inflight.replace);
+      if (q.inflight && q.inflight.patch) next[name] = deepMerge(next[name] || {}, q.inflight.patch);
+      if (q.replace) next[name] = clone(q.replace);
+      if (q.pending) next[name] = deepMerge(next[name] || {}, q.pending);
+    }
+    return next;
+  }
+  // Одна запись за раз на документ; накопившиеся правки уходят одним update().
+  async function flush(name) {
+    const q = queues[name];
+    if (!q || q.running || store.mode !== "cloud" || store.error === "readonly" || (store.backend && !store.user)) return;
+    q.running = true; store.saving++; renderSync();
+    let failed = null;
+    while (!failed && (q.replace || q.pending)) {
+      const ref = cloud.db.doc(docPath(name));
+      if (q.replace) {
+        const body = q.replace; q.replace = null; q.inflight = { replace: body };
+        try { await withRetry(() => ref.set(body)); }
+        catch (e) { failed = e; if (!q.replace) q.replace = body; }
+        q.inflight = null;
+        continue;
+      }
+      const patch = q.pending; q.pending = null; q.inflight = { patch };
+      try {
+        try { await withRetry(() => ref.update(patch)); }
+        catch (e) {
+          if (e && e.code === "invalid_argument") await withRetry(() => ref.set(deepMerge(store.docs[name] || {}, patch)));
+          else throw e;
+        }
+      } catch (e) {
+        failed = e;
+        q.pending = deepMerge(patch, q.pending || {});
+      }
+      q.inflight = null;
+    }
+    q.running = false; store.saving--;
+    if (failed) onWriteFail(failed, name);
+    else if (store.error === "offline") store.error = null;
+    renderSync();
+  }
+  function onWriteFail(e, name) {
+    const code = e && e.code;
+    if (code === "session_expired") {
+      store.error = "auth";
+      store.user = null; store.uid = null; store.me = null;
+      ai.fn = null; ai.state = "off";
+      for (const k in queues) { queues[k].pending = null; queues[k].replace = null; }
+      toast("Сессия истекла. Войди в аккаунт снова.");
+    } else if (code === "invalid_argument" || code === "revoked" || code === "not_granted") {
+      store.error = "readonly";
+      for (const k in queues) { queues[k].pending = null; queues[k].replace = null; }
+      toast("Изменения не сохраняются: у этого аккаунта нет прав на запись.");
+    } else if (code === "quota_exceeded") {
+      store.error = "quota";
+      const q = queues[name]; if (q) { q.pending = null; q.replace = null; }
+      toast("Хранилище заполнено. Удали старые записи или скачай резервную копию.");
+    } else {
+      store.error = "offline";
+      setTimeout(() => flush(name), code === "resource_exhausted" ? 8000 : 15000);
+    }
+    scheduleRender();
+  }
+  function onSnap(snap) {
+    if (!snap.metadata.fromCache) { store.confirmed = true; store.stale = false; clearTimeout(loadTimer); }
+    const base = {};
+    for (const d of snap.docs) { const data = d.data(); if (data) base[d.id] = clone(data); }
+    store.docs = overlayQueues(base);
+    store.ready = true;
+    scheduleRender();
+  }
+  function saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify(store.docs)); } catch (e) { /* хранилище браузера недоступно */ } }
+  function startLocal() {
+    store.mode = "local";
+    const saved = readLocalDocs();
+    for (const name in queues) {
+      const q = queues[name];
+      if (q.replace) saved[name] = q.replace;
+      if (q.pending) saved[name] = deepMerge(saved[name] || {}, q.pending);
+      delete queues[name];
+    }
+    store.docs = saved;
+    store.ready = true;
+    saveLocal();
+    scheduleRender();
+  }
+  async function backendReq(path, opts) {
+    opts = opts || {};
+    const headers = Object.assign({}, opts.headers || {});
+    if (opts.body != null && !headers["Content-Type"]) headers["Content-Type"] = "application/json";
+    let res;
+    try {
+      res = await fetch(path, Object.assign({ credentials: "same-origin" }, opts, { headers }));
+    } catch (e) {
+      if (e && e.name === "AbortError") throw Object.assign(new Error("cancelled"), { code: "cancelled" });
+      throw Object.assign(new Error("Нет связи с сервером."), { code: "unavailable" });
+    }
+    let data = null;
+    const ct = (res.headers && res.headers.get && res.headers.get("content-type")) || "";
+    if (ct.includes("json")) {
+      try { data = await res.json(); } catch (e) { data = null; }
+    }
+    if (!res.ok) {
+      const payload = (data && isObj(data.detail)) ? data.detail : (isObj(data) ? data : {});
+      const rawDetail = data && typeof data.detail === "string" ? data.detail : "";
+      const code = payload.code || (res.status === 401 ? "unauthorized" : res.status === 413 ? "quota_exceeded" : res.status >= 500 ? "unavailable" : "http_" + res.status);
+      const err = new Error(payload.message || rawDetail || ("Ошибка сервера (" + res.status + ")"));
+      err.code = code;
+      err.status = res.status;
+      throw err;
+    }
+    return data;
+  }
+  const backendDb = {
+    doc(name) {
+      const send = async (method, body) => {
+        try {
+          return await backendReq("/api/docs/" + encodeURIComponent(name), { method, body: JSON.stringify(body) });
+        } catch (e) {
+          if (e && e.status === 401) throw Object.assign(new Error(e.message), { code: "session_expired" });
+          if (e && (e.status === 413 || e.code === "doc_too_large" || e.code === "quota_exceeded")) throw Object.assign(new Error(e.message), { code: "quota_exceeded" });
+          if (!e || !e.status || e.status >= 500 || e.code === "unavailable") throw Object.assign(new Error((e && e.message) || "network"), { code: "unavailable" });
+          throw Object.assign(new Error(e.message), { code: "bad_request" });
+        }
+      };
+      return {
+        set(body) { return send("PUT", body); },
+        update(patch) { return send("PATCH", patch); }
+      };
+    }
+  };
+  async function backendSample(input, opts) {
+    opts = opts || {};
+    let acc = "";
+    const ctrl = new AbortController();
+    const onAbort = () => ctrl.abort();
+    if (opts.signal) {
+      if (opts.signal.aborted) throw Object.assign(new Error("cancelled"), { code: "cancelled", text: "" });
+      opts.signal.addEventListener("abort", onAbort, { once: true });
+    }
+    let reader = null;
+    try {
+      let res;
+      try {
+        res = await fetch("/api/ai", {
+          method: "POST",
+          credentials: "same-origin",
+          signal: ctrl.signal,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: "text", messages: input, modelTier: opts.modelTier || undefined })
+        });
+      } catch (e) {
+        if (opts.signal && opts.signal.aborted) throw Object.assign(new Error("cancelled"), { code: "cancelled", text: acc });
+        throw Object.assign(new Error("network"), { code: "unavailable", text: acc });
+      }
+      if (!res.ok) {
+        let data = null;
+        try { data = await res.json(); } catch (e) { /* не json */ }
+        const payload = (data && isObj(data.detail)) ? data.detail : (isObj(data) ? data : {});
+        const code = res.status === 401 ? "session_expired" : (payload.code || ("http_" + res.status));
+        if (res.status === 401) { store.user = null; ai.fn = null; ai.state = "off"; scheduleRender(); }
+        throw Object.assign(new Error(payload.message || ("HTTP " + res.status)), { code, text: acc });
+      }
+      if (!res.body || typeof res.body.getReader !== "function") {
+        throw Object.assign(new Error("no_stream"), { code: "ai_error", text: acc });
+      }
+      reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      const handleLine = (rawLine) => {
+        const line = rawLine.replace(/\r$/, "");
+        if (!line.startsWith("data:")) return false;
+        const rawJson = line.slice(5).trim();
+        if (!rawJson) return false;
+        let evt;
+        try { evt = JSON.parse(rawJson); } catch (e) { return false; }
+        if (evt.error) throw Object.assign(new Error(evt.message || evt.error), { code: evt.error, text: acc });
+        if (typeof evt.delta === "string" && evt.delta) {
+          acc += evt.delta;
+          if (typeof opts.onText === "function") opts.onText({ text: acc });
+        }
+        return !!evt.done;
+      };
+      while (true) {
+        let chunk;
+        try { chunk = await reader.read(); }
+        catch (e) {
+          if (opts.signal && opts.signal.aborted) throw Object.assign(new Error("cancelled"), { code: "cancelled", text: acc });
+          throw Object.assign(new Error("stream_interrupted"), { code: "ai_error", text: acc });
+        }
+        const { value, done } = chunk;
+        if (value) buf += dec.decode(value, { stream: true });
+        let idx;
+        let finished = false;
+        while ((idx = buf.indexOf("\n")) >= 0) {
+          const line = buf.slice(0, idx);
+          buf = buf.slice(idx + 1);
+          if (handleLine(line)) { finished = true; break; }
+        }
+        if (finished) {
+          try { reader.cancel(); } catch (e) { /* игнор */ }
+          break;
+        }
+        if (done) {
+          buf += dec.decode();
+          if (buf) handleLine(buf);
+          break;
+        }
+      }
+      return { text: acc };
+    } finally {
+      if (opts.signal) opts.signal.removeEventListener("abort", onAbort);
+    }
+  }
+  backendSample.json = async function (input, opts) {
+    opts = opts || {};
+    if (opts.signal && opts.signal.aborted) throw Object.assign(new Error("cancelled"), { code: "cancelled" });
+    try {
+      const res = await backendReq("/api/ai", {
+        method: "POST",
+        signal: opts.signal,
+        body: JSON.stringify({ mode: "json", messages: input, modelTier: opts.modelTier || undefined })
+      });
+      return res.data;
+    } catch (e) {
+      if ((e && e.code === "cancelled") || (e && e.name === "AbortError") || (opts.signal && opts.signal.aborted)) {
+        throw Object.assign(new Error("cancelled"), { code: "cancelled" });
+      }
+      if (e && e.status === 401) {
+        store.user = null; ai.fn = null; ai.state = "off"; scheduleRender();
+        throw Object.assign(new Error(e.message), { code: "session_expired" });
+      }
+      throw e;
+    }
+  };
+  async function loadBackendSession(user) {
+    const res = await backendReq("/api/docs");
+    store.user = user;
+    store.uid = String(user.id);
+    store.me = { name: user.username };
+    cloud.db = backendDb;
+    store.mode = "cloud";
+    store.confirmed = true;
+    store.stale = false;
+    store.error = null;
+    store.docs = overlayQueues((res && res.docs) || {});
+    store.ready = true;
+    lastRefresh = Date.now();
+    if (store.backendAi && store.backendAi.enabled) { ai.fn = backendSample; ai.state = "ready"; }
+    else { ai.fn = null; ai.state = "off"; }
+    for (const name in queues) flush(name);
+    scheduleRender();
+  }
+  async function refreshBackendDocs(force) {
+    if (!store.backend || !store.user || store.saving > 0 || hasPendingQueues()) return;
+    if (!force && Date.now() - lastRefresh < 5000) return;
+    lastRefresh = Date.now();
+    try {
+      const res = await backendReq("/api/docs");
+      if (!store.user || hasPendingQueues()) return;
+      store.docs = overlayQueues((res && res.docs) || {});
+      store.confirmed = true;
+      store.stale = false;
+      if (store.error === "offline") store.error = null;
+      scheduleRender();
+    } catch (e) {
+      if (e && e.status === 401) {
+        store.user = null; store.uid = null; store.me = null;
+        store.error = "auth"; ai.fn = null; ai.state = "off";
+        clearQueues();
+        scheduleRender();
+      }
+    }
+  }
+  async function migrateLocalDocsToServer() {
+    const saved = readLocalDocs();
+    const names = Object.keys(saved).filter((k) => DOC_NAME_RE.test(k) && isObj(saved[k]));
+    if (!names.length) return 0;
+    for (const name of names) {
+      await backendReq("/api/docs/" + encodeURIComponent(name), {
+        method: "PUT",
+        body: JSON.stringify(saved[name])
+      });
+    }
+    try { localStorage.removeItem(LS_KEY); } catch (e) { /* игнор */ }
+    return names.length;
+  }
+  async function initBackend() {
+    try {
+      const me = await backendReq("/api/me");
+      store.backendAi = (me && me.ai) || { enabled: false, provider: null };
+      store.inviteRequired = !!(me && me.inviteRequired);
+      if (me && me.user) {
+        try {
+          await loadBackendSession(me.user);
+        } catch (e) {
+          store.user = me.user; store.uid = String(me.user.id); store.me = { name: me.user.username };
+          cloud.db = backendDb; store.mode = "cloud"; store.stale = true; store.error = "offline";
+          if (store.backendAi && store.backendAi.enabled) { ai.fn = backendSample; ai.state = "ready"; }
+          else { ai.fn = null; ai.state = "off"; }
+          store.ready = true;
+          scheduleRender();
+        }
+        return;
+      }
+      store.user = null; store.uid = null; store.me = null;
+      ai.fn = null; ai.state = "off";
+      startLocal();
+    } catch (e) {
+      store.user = null; store.uid = null; store.me = null;
+      ai.fn = null; ai.state = "off";
+      startLocal();
+    }
+  }
+  async function initData() {
+    if (store.backend) return initBackend();
+    const c = window.claude;
+    if (!c || typeof c.use !== "function") return startLocal();
+    let db = null, user = null;
+    try { [db, user] = await Promise.all([c.use("db"), c.use("user")]); } catch (e) { /* нет облака */ }
+    if (!db || !user) return startLocal();
+    let uid = null;
+    try { uid = await user.id(); } catch (e) { uid = null; }
+    if (!uid) return startLocal();
+    cloud.db = db; cloud.user = user;
+    store.mode = "cloud"; store.uid = uid;
+    user.me().then((me) => { store.me = me; store.isOwner = !!(me && me.isOwner); scheduleRender(); });
+    // Корневой документ пользователя — чтобы данные были видны в списке «u».
+    const root = db.doc("u/" + uid);
+    root.get().then((s) => { if (!s.exists) return root.set({ v: 1, created: Date.now() }); }).catch(() => {});
+    loadTimer = setTimeout(() => { if (!store.confirmed) { store.stale = true; store.ready = true; scheduleRender(); } }, 10000);
+    db.collection("u/" + uid + "/d").onSnapshot(onSnap, (err) => {
+      clearTimeout(loadTimer);
+      store.error = err && err.code === "revoked" ? "readonly" : "offline";
+      store.ready = true;
+      scheduleRender();
+    });
+    for (const name in queues) flush(name);
+    scheduleRender();
+  }
+  function initCaps() {
+    if (store.backend) return;
+    const c = window.claude;
+    if (!c || typeof c.use !== "function") { ai.state = "off"; return; }
+    c.use("sample").then((fn) => { ai.fn = fn || null; ai.state = fn ? "ready" : "off"; scheduleRender(); }).catch(() => { ai.state = "off"; scheduleRender(); });
+    c.use("downloads").then((d) => { caps.downloads = d || null; }).catch(() => {});
+  }
+
+  // ---------- выборки ----------
+  function examDefaults() { const o = {}; (EGE.exams || []).forEach((e) => { o[e.subject] = e.date; }); return o; }
+  function profile() {
+    const p = store.docs.profile || {};
+    return {
+      exists: !!store.docs.profile,
+      name: p.name || "",
+      targets: Object.assign({}, DEFAULT_TARGETS, p.targets || {}),
+      exams: Object.assign({}, examDefaults(), p.exams || {})
+    };
+  }
+  function defaultName() {
+    if (store.user && store.user.username) return store.user.username;
+    if (store.me && store.me.name && !store.isOwner) return store.me.name.split(" ")[0];
+    return "Олеся";
+  }
+  function prog(sid) { const p = store.docs["prog-" + sid] || {}; return { q: p.q || {}, th: p.th || {} }; }
+  function topicStats(t) {
+    const p = prog(t.sid);
+    let m = 0, seen = 0, mastered = 0, wrong = 0;
+    for (const id of t.qids) {
+      const st = p.q[id];
+      if (st && st.n) {
+        seen++;
+        m += Math.min(st.b || 0, 2) / 2;
+        if ((st.b || 0) >= 2) mastered++;
+        if (st.last !== 2) wrong++;
+      }
+    }
+    const read = !!p.th[t.id];
+    const total = t.qids.length;
+    const pct = Math.round(100 * (0.1 * (read ? 1 : 0) + 0.9 * (total ? m / total : 0)));
+    return { pct, seen, mastered, wrong, total, read };
+  }
+  function subjectStats(sid) {
+    const s = SUBJ[sid];
+    if (!s) return { pct: 0, mastered: 0, total: 0, seen: 0, started: 0, topics: 0 };
+    let sum = 0, mastered = 0, total = 0, seen = 0, started = 0;
+    for (const t of s.topicList) {
+      const ts = topicStats(t);
+      sum += ts.pct; mastered += ts.mastered; total += ts.total; seen += ts.seen;
+      if (ts.pct > 0) started++;
+    }
+    return { pct: Math.round(sum / s.topicList.length), mastered, total, seen, started, topics: s.topicList.length };
+  }
+  function dueQs(sid) {
+    const p = prog(sid), t = todayISO();
+    return Object.keys(p.q).filter((id) => QS[id] && p.q[id] && p.q[id].n && p.q[id].last === 2 && (p.q[id].due || "") <= t);
+  }
+  function mistakeQs(sid, topicId) {
+    const p = prog(sid);
+    return Object.keys(p.q).filter((id) => QS[id] && p.q[id] && p.q[id].n && p.q[id].last !== 2 && (!topicId || QS[id].topic === topicId));
+  }
+  function sessions() {
+    const out = [];
+    for (const name in store.docs) {
+      if (name.indexOf("log-") !== 0) continue;
+      const s = (store.docs[name] && store.docs[name].s) || {};
+      for (const id in s) { const e = s[id]; if (e && e.d) out.push(Object.assign({ id, doc: name }, e)); }
+    }
+    return out.sort((a, b) => (a.d < b.d ? 1 : a.d > b.d ? -1 : (b.at || 0) - (a.at || 0)));
+  }
+  function minutesByDay() {
+    const m = {};
+    for (const s of sessions()) m[s.d] = (m[s.d] || 0) + (s.m || 0);
+    return m;
+  }
+  function totals() {
+    const ss = sessions(), today = todayISO();
+    const d7 = addDays(today, -6), d14 = addDays(today, -13), d28 = addDays(today, -27);
+    let t = 0, w = 0, pw = 0, m28 = 0, all = 0, q7 = 0, c7 = 0;
+    const active = new Set();
+    for (const s of ss) {
+      const m = s.m || 0;
+      all += m;
+      if (s.d === today) t += m;
+      if (s.d >= d7 && s.d <= today) { w += m; if (s.k === "quiz") { q7 += s.q || 0; c7 += s.c || 0; } }
+      else if (s.d >= d14 && s.d < d7) pw += m;
+      if (s.d >= d28 && s.d <= today) m28 += m;
+      if (m > 0 || (s.q || 0) > 0) active.add(s.d);
+    }
+    let streak = 0, d = active.has(today) ? today : addDays(today, -1);
+    while (active.has(d)) { streak++; d = addDays(d, -1); }
+    return { today: t, d7: w, prev7: pw, d28: m28, all, streak, acc7: q7 ? Math.round((100 * c7) / q7) : null };
+  }
+  function mocks() {
+    const m = (store.docs.mocks && store.docs.mocks.m) || {};
+    return Object.keys(m).filter((k) => m[k] && m[k].d).map((k) => Object.assign({ id: k }, m[k]))
+      .sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : (a.at || 0) - (b.at || 0)));
+  }
+  function planDoc() { const p = store.docs.plan || {}; return { done: p.done || {}, custom: p.custom || {} }; }
+  function planItems() {
+    const pd = planDoc(), prof = profile(), out = [];
+    for (const ph of (EGE.plan && EGE.plan.phases) || []) {
+      for (const it of ph.items) {
+        out.push(Object.assign({}, it, { due: it.exam ? prof.exams[it.exam] : it.due, phase: ph.id, done: !!pd.done[it.id], custom: false }));
+      }
+    }
+    for (const id in pd.custom) {
+      const c = pd.custom[id];
+      if (c && c.t) out.push({ id, title: c.t, due: c.d || "", note: c.n || "", done: !!c.done, custom: true, phase: "mine" });
+    }
+    return out;
+  }
+  function nextExam(prof) {
+    return (EGE.exams || []).map((e) => ({ subject: e.subject, name: e.name, date: prof.exams[e.subject] || e.date }))
+      .filter((e) => validISO(e.date) && daysUntil(e.date) >= 0)
+      .sort((a, b) => (a.date < b.date ? -1 : 1))[0] || null;
+  }
+
+  // ---------- состояние интерфейса ----------
+  const ui = {
+    view: "home",
+    sid: firstSubject.id,
+    topicId: null,
+    quiz: null,
+    gen: null,
+    confirm: null,
+    confirmDel: null,
+    drafts: {},
+    exportText: "",
+    focusNext: null,
+    chat: { sid: firstSubject.id, turns: [], busy: false, ctl: null, draft: "", error: "" },
+    auth: { tab: "login", busy: false, error: "" },
+    essay: null
+  };
+  function draft(key, fallback) { return Object.prototype.hasOwnProperty.call(ui.drafts, key) ? ui.drafts[key] : fallback; }
+  function clearDrafts(prefix, keep) { for (const k of Object.keys(ui.drafts)) if (k.indexOf(prefix) === 0 && !(keep || []).includes(k)) delete ui.drafts[k]; }
+
+  function go(v, opts) {
+    opts = opts || {};
+    if (ui.view === "quiz" && v !== "quiz") abortAI();
+    if (ui.quiz && ui.quiz.done && v !== "quiz") ui.quiz = null;
+    if (v === "subject" && opts.sid && SUBJ[opts.sid]) ui.sid = opts.sid;
+    if (v === "topic" && opts.id && TOPICS[opts.id]) { ui.topicId = opts.id; ui.sid = TOPICS[opts.id].sid; }
+    if (v === "profile") clearDrafts("pf.");
+    if (v === "essay") ui.sid = "rus";
+    ui.view = v;
+    ui.confirm = null; ui.confirmDel = null; ui.exportText = ""; ui.auth.error = "";
+    writeHash();
+    scheduleRender(true);
+  }
+  function readHash() {
+    const h = decodeURIComponent((location.hash || "").slice(1));
+    if (!h) return;
+    if (TOPICS[h]) { ui.view = "topic"; ui.topicId = h; ui.sid = TOPICS[h].sid; return; }
+    if (SUBJ[h]) { ui.view = "subject"; ui.sid = h; return; }
+    if (h === "essay" && EGE.essay && SUBJ.rus) { ui.view = "essay"; ui.sid = "rus"; return; }
+    if (["home", "plan", "stats", "tutor", "profile"].includes(h)) ui.view = h;
+  }
+  function writeHash() {
+    const tok = ui.view === "topic" ? ui.topicId : ui.view === "subject" ? ui.sid : ui.view === "quiz" ? null : ui.view;
+    if (!tok) return;
+    try { history.replaceState(null, "", "#" + tok); } catch (e) { /* адрес не меняется в просмотрщике */ }
+  }
+
+  // ---------- рендер ----------
+  let renderQueued = false, scrollTopPending = false;
+  function scheduleRender(scrollTop) {
+    if (scrollTop) scrollTopPending = true;
+    if (renderQueued) return;
+    renderQueued = true;
+    Promise.resolve().then(() => { renderQueued = false; render(); });
+  }
+  const VIEWS = { home: viewHome, subject: viewSubject, topic: viewTopic, quiz: viewQuiz, essay: viewEssay, plan: viewPlan, stats: viewStats, tutor: viewTutor, profile: viewProfile };
+  function render() {
+    renderChrome();
+    const main = $("#main");
+    const active = document.activeElement;
+    const aid = active && active !== document.body && active.id;
+    let selS = null, selE = null;
+    const scrollIn = aid ? active.scrollTop : 0; // прокрутка внутри длинного поля (сочинение)
+    try { if (aid && typeof active.selectionStart === "number") { selS = active.selectionStart; selE = active.selectionEnd; } } catch (e) { /* не текстовое поле */ }
+    let html;
+    try { html = (VIEWS[ui.view] || viewHome)(); }
+    catch (e) { console.error(e); html = `<div class="notice"><b>Что-то пошло не так при показе раздела.</b><span>Открой главную и попробуй снова.</span></div>`; }
+    main.innerHTML = `<div class="page">${html}</div>`;
+    $("#tip").hidden = true;
+    if (aid) {
+      const el = document.getElementById(aid);
+      if (el && !el.disabled) {
+        el.focus({ preventScroll: true });
+        try { if (selS != null) el.setSelectionRange(selS, selE); } catch (e) { /* не текстовое поле */ }
+        if (scrollIn) el.scrollTop = scrollIn;
+      }
+    }
+    if (ui.focusNext) {
+      const el = document.getElementById(ui.focusNext);
+      ui.focusNext = null;
+      if (el) el.focus({ preventScroll: true });
+    }
+    drawCharts();
+    if (scrollTopPending) { scrollTopPending = false; window.scrollTo(0, 0); }
+  }
+  function syncState() {
+    if (store.mode === "loading") return ["loading", "Загружаю…"];
+    if (store.error === "auth") return ["error", "Войди заново"];
+    if (store.mode === "local") return ["local", "Только в этом браузере"];
+    if (store.error === "readonly") return ["readonly", "Только просмотр"];
+    if (store.error === "quota") return ["error", "Хранилище заполнено"];
+    if (store.error === "offline") return ["error", "Нет связи, повторю позже"];
+    if (store.saving > 0) return ["saving", "Сохраняю…"];
+    if (store.stale && !store.confirmed) return ["stale", store.backend ? "Сервер не отвечает" : "Облако не отвечает"];
+    return ["ok", store.backend ? "Сохранено на сервере" : "Сохранено в облаке"];
+  }
+  function renderSync() {
+    const st = syncState();
+    document.querySelectorAll(".sync").forEach((el) => { el.dataset.s = st[0]; const sp = el.querySelector("span"); if (sp) sp.textContent = st[1]; });
+  }
+  function renderChrome() {
+    const inSubject = ui.view === "subject" || ui.view === "topic" || ui.view === "quiz" || ui.view === "essay";
+    const nav = [["home", "Главная", "home"], ["plan", "План поступления", "list"], ["stats", "Показатели", "chart"], ["tutor", "Репетитор", "chat"], ["profile", "Настройки", "gear"]];
+    $("#side-nav").innerHTML = nav.map(([v, l, ic]) => `<button type="button" class="nav-btn" data-a="go" data-v="${v}"${ui.view === v ? ' aria-current="page"' : ""}>${icon(ic)}<span>${l}</span></button>`).join("");
+    $("#side-subjects").innerHTML = SUBJECTS.map((s) => {
+      const cur = inSubject && ui.sid === s.id && s.content;
+      const right = s.content ? (store.ready ? subjectStats(s.id).pct + "%" : "") : "скоро";
+      return `<button type="button" class="subj-btn" ${s.content ? `data-a="go" data-v="subject" data-sid="${s.id}"` : "disabled"}${cur ? ' aria-current="page"' : ""}><i class="dot" style="background:var(--c-${s.id})"></i><span>${esc(s.name)}</span><span class="small muted num">${right}</span></button>`;
+    }).join("");
+    const me = store.me, prof = profile();
+    const nm = prof.name || (store.user && store.user.username) || (me && me.name) || (store.mode === "local" ? "Этот браузер" : "");
+    $("#side-foot").innerHTML = `<div class="me">${me && me.avatarUrl ? `<img src="${esc(me.avatarUrl)}" alt="">` : ""}<div style="min-width:0"><div class="me-name">${esc(nm)}</div><span class="sync"><i></i><span></span></span></div></div>`;
+    const tabSid = SUBJ[ui.sid] ? ui.sid : firstSubject.id;
+    const tabs = [["home", "Главная", "home"], ["subject", CONTENT.length > 1 ? "Предметы" : firstSubject.name, "leaf"], ["plan", "План", "list"], ["stats", "Показатели", "chart"], ["tutor", "Репетитор", "chat"]];
+    $("#tabbar").innerHTML = tabs.map(([v, l, ic]) => {
+      const cur = ui.view === v || (v === "subject" && inSubject);
+      return `<button type="button" class="tab-btn" data-a="go" data-v="${v}"${v === "subject" ? ` data-sid="${tabSid}"` : ""}${cur ? ' aria-current="page"' : ""}>${icon(ic)}<span>${esc(l)}</span></button>`;
+    }).join("");
+    renderSync();
+  }
+
+  // ---------- общие блоки ----------
+  function tile(label, value, note) {
+    return `<div class="tile"><span class="tile-label">${label}</span><span class="tile-value">${value}</span>${note ? `<span class="tile-note">${note}</span>` : ""}</div>`;
+  }
+  function stepBtn(s) {
+    const attrs = [`data-a="${s.a}"`];
+    if (s.v) attrs.push(`data-v="${s.v}"`);
+    if (s.id) attrs.push(`data-id="${esc(s.id)}"`);
+    if (s.sid) attrs.push(`data-sid="${s.sid}"`);
+    return `<button type="button" class="step-btn" ${attrs.join(" ")}><span class="step-ico ${s.tone || ""}">${icon(s.ico)}</span><span style="min-width:0"><span class="step-title" style="display:block">${esc(s.title)}</span><span class="step-sub" style="display:block">${esc(s.sub)}</span></span><span class="arrow">${icon("arrow")}</span></button>`;
+  }
+  function dueChip(iso, done) {
+    if (!iso) return done ? `<span class="chip good">${icon("check")}готово</span>` : "";
+    if (done) return `<span class="chip good">${icon("check")}готово</span>`;
+    const n = daysUntil(iso);
+    let cls = "", txt;
+    if (n < 0) { cls = "bad"; txt = "просрочено на " + days(-n); }
+    else if (n === 0) { cls = "bad"; txt = "сегодня"; }
+    else { cls = n <= 14 ? "warn" : ""; txt = "через " + days(n); }
+    return `<span class="chip ${cls}"><span class="mono">${dateShort(iso)}</span> · ${txt}</span>`;
+  }
+  function todoItem(it, compact) {
+    const cid = "todo-" + it.id;
+    const delKey = "todo:" + it.id;
+    let actions = "";
+    if (!compact && (it.link || it.custom)) {
+      const del = it.custom
+        ? (ui.confirmDel === delKey
+          ? `<button type="button" class="link-btn" style="color:var(--bad)" data-a="del-todo" data-id="${esc(it.id)}">Удалить</button><button type="button" class="link-btn" data-a="cancel-del">Отмена</button>`
+          : `<button type="button" class="link-btn" data-a="ask-del" data-k="${esc(delKey)}">Удалить</button>`)
+        : "";
+      actions = `<div class="todo-actions">${it.link ? `<a href="${esc(it.link.href)}" target="_blank" rel="noopener">${esc(it.link.label)}</a>` : ""}${del}</div>`;
+    }
+    return `<div class="todo${it.done ? " done" : ""}${it.key && !it.done ? " key" : ""}">
+      <input type="checkbox" class="check" id="${esc(cid)}" data-c="todo" data-id="${esc(it.id)}" data-custom="${it.custom ? 1 : 0}"${it.done ? " checked" : ""}>
+      <div class="todo-main">
+        <div class="todo-top"><label class="todo-title" for="${esc(cid)}">${esc(it.title)}</label><span class="row" style="gap:6px">${it.key && !it.done ? '<span class="chip eosin">главный срок</span>' : ""}${dueChip(it.due, it.done)}</span></div>
+        ${!compact && it.note ? `<div class="todo-note">${esc(it.note)}</div>` : ""}
+        ${actions}
+      </div>
+    </div>`;
+  }
+  function subjSelect(id, key, value, withOther) {
+    const opts = SUBJECT_META.map((s) => [s.id, s.name]);
+    if (withOther) opts.push(["other", "Другое"]);
+    return `<select class="select" id="${id}" data-d="${key}">${opts.map(([v, l]) => `<option value="${v}"${v === value ? " selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
+  }
+  function localNotice() {
+    if (store.backend) return `<div class="notice"><b>Данные сохраняются только в этом браузере.</b><span>Войди или создай аккаунт, чтобы прогресс хранился на сервере и открывался на любом устройстве.</span></div>`;
+    return `<div class="notice"><b>Данные сохраняются только в этом браузере.</b><span>Открой сайт по ссылке на claude.ai под своим аккаунтом: тогда прогресс будет храниться в облаке и откроется на любом компьютере.</span></div>`;
+  }
+  function staleNotice() {
+    if (store.backend && !store.user && store.error === "auth") return `<div class="notice"><b>Сессия истекла.</b><span>Войди в аккаунт снова, чтобы изменения продолжали сохраняться на сервере.</span></div>`;
+    if (store.mode !== "cloud") return "";
+    if (store.error === "readonly") return `<div class="notice"><b>Режим просмотра.</b><span>У этого аккаунта нет прав на запись, поэтому изменения не сохраняются.</span></div>`;
+    if (store.stale && !store.confirmed) return `<div class="notice"><b>${store.backend ? "Сервер" : "Облако"} пока не отвечает.</b><span>Показаны данные, которые удалось загрузить; они могут быть неполными. Изменения сохранятся, когда связь появится.</span></div>`;
+    return "";
+  }
+  function authCard() {
+    const a = ui.auth, reg = a.tab === "register";
+    return `<form class="card pad-lg form" data-f="auth" style="border-color:var(--hema)">
+      <div class="row between" style="flex-wrap:wrap">
+        <div>
+          <div class="eyebrow">Аккаунт и синхронизация</div>
+          <h2 class="h2">${reg ? "Регистрация" : "Вход в аккаунт"}</h2>
+        </div>
+        <div class="switch" role="group" aria-label="Режим входа">
+          <button type="button" data-a="auth-tab" data-tab="login" aria-pressed="${!reg}">Вход</button>
+          <button type="button" data-a="auth-tab" data-tab="register" aria-pressed="${reg}">Регистрация</button>
+        </div>
+      </div>
+      <p class="ink2 small">Войди или создай аккаунт, чтобы прогресс хранился на сервере и открывался с любого устройства.${store.backendAi && store.backendAi.enabled ? " После входа заработает ИИ-репетитор." : ""} Без входа всё сохраняется только в этом браузере.</p>
+      <div class="fields">
+        <div class="field"><label for="auth-user">Логин</label><input class="input" id="auth-user" name="username" type="text" autocomplete="username" minlength="2" maxlength="32" required placeholder="Например, olesya" data-d="auth.user" value="${esc(draft("auth.user", ""))}"></div>
+        <div class="field"><label for="auth-pass">Пароль</label><input class="input" id="auth-pass" name="password" type="password" autocomplete="${reg ? "new-password" : "current-password"}" minlength="6" maxlength="128" required placeholder="Минимум 6 символов" data-d="auth.pass" value="${esc(draft("auth.pass", ""))}"></div>
+      </div>
+      ${reg && store.inviteRequired ? `<div class="field"><label for="auth-invite">Код приглашения</label><input class="input" id="auth-invite" name="invite" type="text" autocomplete="off" maxlength="64" required data-d="auth.invite" value="${esc(draft("auth.invite", ""))}"></div>` : ""}
+      ${reg && hasLocalProgress() ? `<label class="row" style="gap:8px;align-items:center"><input type="checkbox" class="check" id="auth-migrate" name="migrate" checked><span class="small">Перенести текущий прогресс из этого браузера в новый аккаунт</span></label>` : ""}
+      ${a.error ? `<div class="notice">${esc(a.error)}</div>` : ""}
+      <div class="row"><button class="btn" type="submit"${a.busy ? " disabled" : ""}>${a.busy ? "Подожди…" : reg ? "Создать аккаунт" : "Войти"}</button></div>
+    </form>`;
+  }
+  function accountCard() {
+    if (!store.user) return authCard();
+    const cf = ui.confirm;
+    return `<section class="card pad-lg stack">
+      <div class="row between" style="flex-wrap:wrap">
+        <div>
+          <div class="eyebrow">Аккаунт</div>
+          <h2 class="h2">${esc(store.user.username)}</h2>
+        </div>
+        <button type="button" class="btn ghost sm" data-a="auth-logout">Выйти</button>
+      </div>
+      <p class="small ink2">Прогресс синхронизируется с сервером${store.backendAi && store.backendAi.enabled ? " · ИИ-репетитор подключён" : ""}.</p>
+      ${hasLocalProgress() ? `<div class="row" style="flex-wrap:wrap"><button type="button" class="btn soft sm" data-a="auth-migrate">Перенести локальный прогресс из браузера</button></div>` : ""}
+      ${cf && cf.kind === "migrate" ? `<div class="confirm"><b>Перенести локальные данные в аккаунт «${esc(store.user.username)}»?</b><span class="small">Документы из памяти этого браузера перезапишут одноимённые разделы на сервере.</span><div class="row"><button type="button" class="btn sm" data-a="auth-migrate-do">Перенести</button><button type="button" class="btn ghost sm" data-a="confirm-cancel">Отмена</button></div></div>` : ""}
+    </section>`;
+  }
+
+  // ---------- главная ----------
+  function viewHome() {
+    const prof = profile();
+    const name = prof.name || (store.ready ? defaultName() : "");
+    const parts = [];
+    parts.push(`<div class="head"><div class="eyebrow">${esc(capitalize(fmtWeekday.format(new Date())))}</div><h1 class="h1">${name ? "Привет, " + esc(name) + "!" : "Привет!"}</h1><p class="lead">Цель — «Лечебное дело» в СВФУ. Здесь темы и тесты ${esc(CONTENT.map((s) => SUBJ[s.id].po).join(" и "))}, план поступления и твои показатели.</p></div>`);
+    if (store.backend && store.ready && !store.user) parts.push(authCard());
+    if (store.ready && !prof.exists && store.error !== "readonly" && (!store.backend || store.user)) parts.push(onboardingCard());
+    if (store.mode === "local" && !store.backend) parts.push(localNotice());
+    parts.push(staleNotice());
+    parts.push(`<div class="grid-hero">${heroCard(prof)}${readinessCard(prof)}</div>`);
+    parts.push(`<section class="section"><div class="section-head"><h2 class="h2">Что дальше</h2><span class="small muted">по твоему прогрессу</span></div><div class="steps">${nextSteps().map(stepBtn).join("")}</div></section>`);
+    parts.push(`<div class="grid-2">${upcomingCard()}${examsCard(prof)}</div>`);
+    parts.push(activityCard());
+    return parts.join("");
+  }
+  function onboardingCard() {
+    const cloudText = store.mode === "cloud"
+      ? (store.backend
+          ? "Прогресс сохраняется на сервере и привязан к твоему аккаунту: открой сайт с любого устройства под своим логином, и всё будет на месте."
+          : "Прогресс сохраняется в облаке claude.ai: открой эту страницу на любом компьютере под своим аккаунтом, и всё будет на месте.")
+      : "Сейчас данные сохраняются только в этом браузере.";
+    return `<form class="card pad-lg form" data-f="onboard" style="border-color:var(--hema)">
+      <div class="eyebrow">Первый вход</div>
+      <h2 class="h2">Давай настроим подготовку</h2>
+      <p class="ink2">${cloudText}</p>
+      <div class="field"><label for="ob-name">Как к тебе обращаться</label><input class="input" id="ob-name" data-d="ob.name" value="${esc(draft("ob.name", defaultName()))}" maxlength="40"></div>
+      <div class="label">Целевые баллы ЕГЭ</div>
+      <div class="fields">${SUBJECT_META.map((s) => `<div class="field"><label for="ob-${s.id}">${esc(s.name)}</label><input class="input num" type="number" min="0" max="100" inputmode="numeric" id="ob-${s.id}" data-d="ob.${s.id}" value="${esc(draft("ob." + s.id, DEFAULT_TARGETS[s.id]))}"></div>`).join("")}</div>
+      <p class="hint">Ориентир: в 2025 году проходной балл на бюджет «Лечебного дела» в СВФУ был около 212 из 300 (по данным агрегаторов). Цель с запасом — от 230.</p>
+      <div><button class="btn" type="submit">Начать подготовку</button></div>
+    </form>`;
+  }
+  function heroCard(prof) {
+    const apply = planItems().find((i) => i.id === "ege-apply");
+    if (apply && !apply.done && validISO(apply.due) && daysUntil(apply.due) >= 0) {
+      const n = daysUntil(apply.due);
+      return `<section class="hero" aria-label="Главный срок">
+        <div class="eyebrow">Главный срок</div>
+        <div class="hero-figure">${n === 0 ? '<span class="hero-num">Сегодня</span>' : `<span class="hero-num num">${n}</span><span class="hero-unit">${plural(n, "день", "дня", "дней")}</span>`}</div>
+        <p class="hero-text">${n === 0 ? "последний день" : "до " + dateDay(apply.due) + ", последнего дня"} подачи заявления на ЕГЭ по химии, биологии и русскому языку. Возьми паспорт и аттестат.</p>
+        <div class="row"><button type="button" class="btn" data-a="go" data-v="plan">Открыть план</button></div>
+      </section>`;
+    }
+    const ex = nextExam(prof);
+    if (ex) {
+      const n = daysUntil(ex.date);
+      return `<section class="hero" aria-label="Ближайший экзамен">
+        <div class="eyebrow">Ближайший экзамен</div>
+        <div class="hero-figure">${n === 0 ? '<span class="hero-num">Сегодня</span>' : `<span class="hero-num num">${n}</span><span class="hero-unit">${plural(n, "день", "дня", "дней")}</span>`}</div>
+        <p class="hero-text">${n === 0 ? "экзамен" : "до экзамена"} по предмету «${esc(ex.name)}», ${dateLong(ex.date)}. Цель — ${prof.targets[ex.subject]} баллов.</p>
+        <div class="row"><button type="button" class="btn" data-a="go" data-v="plan">Открыть план</button></div>
+      </section>`;
+    }
+    return `<section class="hero"><div class="eyebrow">Экзамены позади</div><p class="hero-text">Теперь главное — заявление в вуз, конкурсные списки и согласие на зачисление.</p><div class="row"><button type="button" class="btn" data-a="go" data-v="plan">Открыть план</button></div></section>`;
+  }
+  function readinessCard(prof) {
+    if (!CONTENT.length) return "";
+    const rows = CONTENT.map((s) => {
+      const st = subjectStats(s.id);
+      return `<div class="stack" style="gap:6px">
+        <div class="row between"><button type="button" class="link-btn row" style="gap:8px" data-a="go" data-v="subject" data-sid="${s.id}"><i class="dot" style="background:var(--c-${s.id})"></i>${esc(s.name)}</button><span class="row" style="gap:8px"><b class="num">${store.ready ? st.pct + "%" : "—"}</b><span class="chip">цель ${prof.targets[s.id]}</span></span></div>
+        <div class="meter"><i style="width:${st.pct}%"></i></div>
+        <div class="small muted">освоено ${st.mastered} из ${st.total} вопросов · начато ${st.started} из ${st.topics} тем</div>
+      </div>`;
+    }).join("");
+    return `<section class="card pad-lg stack" aria-label="Готовность по предметам">
+      <div class="eyebrow">Готовность по предметам</div>
+      ${rows}
+      <div class="hint">Вопрос считается освоенным после двух верных ответов подряд.</div>
+    </section>`;
+  }
+  function nextSteps() {
+    const steps = [];
+    if (ui.quiz && !ui.quiz.done) steps.push({ a: "go", v: "quiz", ico: "arrow", tone: "eosin", title: "Вернуться к тесту", sub: `${ui.quiz.title} · вопрос ${ui.quiz.i + 1} из ${ui.quiz.items.length}` });
+    if (store.ready) {
+      CONTENT.forEach((s) => {
+        if (subjectStats(s.id).seen === 0) steps.push({ a: "quiz-mixed", sid: s.id, ico: "spark", tone: "eosin", title: "Пройди диагностический тест " + SUBJ[s.id].po, sub: QUIZ_SIZE + " вопросов по всем разделам — станет видно, с чего начать" });
+      });
+    }
+    CONTENT.forEach((s) => {
+      const due = dueQs(s.id).length;
+      if (due) steps.push({ a: "quiz-review", sid: s.id, ico: "repeat", title: `Повтори ${due} ${plural(due, "вопрос", "вопроса", "вопросов")} · ${s.name}`, sub: "Интервальное повторение: пора закрепить пройденное" });
+    });
+    CONTENT.forEach((s) => {
+      const mis = mistakeQs(s.id).length;
+      if (mis) steps.push({ a: "quiz-mistakes", sid: s.id, ico: "alert", tone: "warn", title: `Работа над ошибками · ${s.name} · ${mis}`, sub: "Вопросы, где ответ был неверным" });
+    });
+    // Следующая тема — в предмете, где готовность ниже.
+    const order = CONTENT.slice().sort((a, b) => subjectStats(a.id).pct - subjectStats(b.id).pct);
+    for (const s of order) {
+      const nt = SUBJ[s.id].topicList.find((t) => topicStats(t).pct < 90);
+      if (!nt) continue;
+      const ts = topicStats(nt);
+      steps.push({ a: "open-topic", id: nt.id, ico: "book", tone: "good", title: (ts.pct ? "Продолжи: " : "Начни: ") + nt.title, sub: `${s.name} · ${codeLabel(nt).toLowerCase()} · освоено ${ts.mastered} из ${ts.total}` });
+      break;
+    }
+    const todo = planItems().filter((i) => !i.done && validISO(i.due)).sort(byDue)[0];
+    if (todo) {
+      const n = daysUntil(todo.due);
+      steps.push({ a: "go", v: "plan", ico: "list", title: todo.title, sub: n < 0 ? "срок прошёл " + dateLong(todo.due) : n === 0 ? "срок сегодня" : "срок — " + dateLong(todo.due) + ", через " + days(n) });
+    }
+    return steps.slice(0, 6);
+  }
+  function upcomingCard() {
+    const all = planItems();
+    const list = all.filter((i) => !i.done && validISO(i.due)).sort(byDue).slice(0, 4);
+    const done = all.filter((i) => i.done).length;
+    return `<section class="card stack">
+      <div class="row between"><h2 class="h2">Ближайшие дела</h2><button type="button" class="link-btn" data-a="go" data-v="plan">Весь план</button></div>
+      <div class="small muted">Сделано ${done} из ${all.length}</div>
+      <div class="stack">${list.map((it) => todoItem(it, true)).join("") || '<div class="empty">Все дела выполнены.</div>'}</div>
+    </section>`;
+  }
+  function examsCard(prof) {
+    const rows = (EGE.exams || []).map((e) => ({ subject: e.subject, name: e.name, date: prof.exams[e.subject] || e.date }))
+      .filter((r) => validISO(r.date)).sort((a, b) => (a.date < b.date ? -1 : 1));
+    const sum = SUBJECT_META.reduce((n, s) => n + (Number(prof.targets[s.id]) || 0), 0);
+    return `<section class="card stack">
+      <div class="row between"><h2 class="h2">Экзамены</h2><button type="button" class="link-btn" data-a="go" data-v="profile">Изменить даты</button></div>
+      <div>${rows.map((r) => {
+        const n = daysUntil(r.date);
+        const chip = n < 0 ? '<span class="chip">прошёл</span>' : n === 0 ? '<span class="chip bad">сегодня</span>' : `<span class="chip${n <= 30 ? " warn" : ""}">через ${days(n)}</span>`;
+        return `<div class="exam-row"><i class="dot" style="background:var(--c-${r.subject})"></i><div><div class="entry-title">${esc(r.name)}</div><div class="small muted">${dateLong(r.date)} · цель ${prof.targets[r.subject]}</div></div>${chip}</div>`;
+      }).join("")}</div>
+      <div class="hint">Даты по проекту расписания ЕГЭ-2027. Сумма целей — ${sum} из 300.</div>
+    </section>`;
+  }
+  function activityCard() {
+    const tot = totals();
+    return `<section class="card stack">
+      <div class="row between"><h2 class="h2">Занятия за 4 недели</h2><span class="small muted">минуты в день</span></div>
+      <div class="chart" data-chart="activity" style="height:170px"></div>
+      <div class="row between small"><span class="muted">Всего за 28 дней — ${minutesText(tot.d28)}</span><button type="button" class="link-btn" data-a="go" data-v="stats">Записать занятие</button></div>
+    </section>`;
+  }
+
+  // ---------- предмет и темы ----------
+  function viewSubject() {
+    const sid = SUBJ[ui.sid] ? ui.sid : firstSubject.id;
+    const s = SUBJ[sid];
+    if (!s) return `<div class="empty">Предмет пока не добавлен.</div>`;
+    const st = subjectStats(sid), prof = profile();
+    const ex = prof.exams[sid], n = validISO(ex) ? daysUntil(ex) : null;
+    const due = dueQs(sid).length, mis = mistakeQs(sid).length;
+    const soon = SUBJECTS.filter((x) => !x.content);
+    const switcher = CONTENT.length > 1
+      ? `<div class="switch" role="group" aria-label="Предмет">${SUBJECTS.map((x) => x.content
+        ? `<button type="button" data-a="go" data-v="subject" data-sid="${x.id}" aria-pressed="${x.id === sid}">${esc(x.name)}</button>`
+        : `<button type="button" disabled>${esc(x.name)} · скоро</button>`).join("")}</div>`
+      : "";
+    return `${switcher}<div class="head">
+        <div class="eyebrow">Предмет · ЕГЭ 2027</div>
+        <div class="head-row"><h1 class="h1">${esc(s.name)}</h1><span class="chip eosin">готовность ${st.pct}%</span></div>
+        <p class="lead">${validISO(ex) ? `Экзамен по проекту расписания — ${dateLong(ex)}${n > 0 ? ", через " + days(n) : ""}. ` : ""}${esc(s.about || "")} Вопрос считается освоенным после двух верных ответов подряд.</p>
+      </div>
+      <div class="facts">${s.exam.facts.map((f) => `<div class="fact"><b>${esc(f[0])}</b><span>${esc(f[1])}</span></div>`).join("")}</div>
+      <p class="hint">${esc(s.exam.note)}</p>
+      ${s.fullVariant ? `<section class="card stack"><h2 class="h2">Пробные варианты ЕГЭ</h2><p class="small muted">${esc(s.fullVariant.sub)}</p>
+        <div class="row" style="flex-wrap:wrap">${range(s.fullVariant.count).map((i) => `<button type="button" class="btn ghost sm" data-a="quiz-fullvariant" data-sid="${sid}" data-k="${i + 1}">Вариант ${i + 1}</button>`).join("")}<button type="button" class="btn sm" data-a="quiz-fullvariant" data-sid="${sid}" data-k="0">Случайный</button></div></section>` : ""}
+      <section class="card stack"><h2 class="h2">Тренировка</h2><div class="steps">
+        ${stepBtn({ a: "quiz-mixed", sid, ico: "spark", tone: "eosin", title: "Смешанный тест", sub: QUIZ_SIZE + " вопросов из разных тем: сначала новые и трудные" })}
+        ${stepBtn({ a: "quiz-review", sid, ico: "repeat", title: "Повторение" + (due ? " · " + due : ""), sub: due ? "Вопросы, которые пора закрепить" : "Сейчас повторять нечего: вопросы появятся здесь по расписанию" })}
+        ${stepBtn({ a: "quiz-mistakes", sid, ico: "alert", tone: "warn", title: "Работа над ошибками" + (mis ? " · " + mis : ""), sub: mis ? "Вопросы с неверным ответом" : "Ошибок пока нет" })}
+        ${s.variant ? stepBtn({ a: "quiz-variant", sid, ico: "list", title: s.variant.label || "Пробный вариант ЕГЭ · часть 1", sub: s.variant.sub || "Задания 1–26 подряд, баллы как на экзамене, ответы — в конце" }) : ""}
+        ${s.part2 ? stepBtn({ a: "quiz-part2", sid, ico: "book", title: s.part2.label, sub: s.part2.sub }) : ""}
+        ${sid === "rus" && EGE.essay ? stepBtn({ a: "go", v: "essay", ico: "book", title: "Тренажёр сочинения", sub: "Задание 27: тексты, план, клише, аргументы и проверка по критериям" }) : ""}
+      </div></section>
+      ${s.sections.map(sectionBlock).join("")}
+      <section class="card stack"><h2 class="h2">Где ещё тренироваться</h2><div class="stack">${s.links.map((l) => `<a href="${esc(l.href)}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join("")}</div></section>
+      ${soon.length ? `<div class="empty"><b>${esc(soon.map((x) => x.name).join(", "))}</b><span>Появится здесь позже — с такими же темами, тестами и прогрессом. Пока записывай занятия в «Показатели».</span></div>` : ""}`;
+  }
+  function sectionBlock(sec) {
+    return `<section class="section-block"><div class="section-title"><span class="section-num">Раздел ${sec.n}</span><h2 class="h2">${esc(sec.title)}</h2></div><div class="slides">${sec.topics.map(slide).join("")}</div></section>`;
+  }
+  function slide(t) {
+    const ts = topicStats(t), p = prog(t.sid);
+    const dots = t.qids.map((id) => { const st = p.q[id]; return `<i class="qdot" data-s="${st && st.n ? st.last : -1}"></i>`; }).join("");
+    const chipCls = ts.pct >= 90 ? "good" : ts.pct > 0 ? "eosin" : "";
+    return `<button type="button" class="slide" data-a="open-topic" data-id="${t.id}">
+      <span class="slide-label">${esc(t.code)}<small>${esc((SUBJ[t.sid].codeName || "Тема").toUpperCase())}</small></span>
+      <span class="slide-body">
+        <span class="slide-top"><span class="slide-title">${esc(t.title)}</span><span class="chip ${chipCls} num">${ts.pct}%</span></span>
+        <span class="meter thin"><i style="width:${ts.pct}%"></i></span>
+        <span class="slide-meta"><span>освоено ${ts.mastered} из ${ts.total}</span>${ts.read ? "<span>теория прочитана</span>" : ""}<span class="qdots" aria-hidden="true">${dots}</span></span>
+      </span>
+    </button>`;
+  }
+  function viewTopic() {
+    const t = TOPICS[ui.topicId];
+    if (!t) { ui.view = "subject"; return viewSubject(); }
+    const ts = topicStats(t), p = prog(t.sid);
+    const mis = mistakeQs(t.sid, t.id).length;
+    const gen = ui.gen && ui.gen.topicId === t.id ? ui.gen : null;
+    const aiBtn = ai.state !== "ready" || t.noGen ? "" : gen && gen.status === "busy"
+      ? `<button type="button" class="btn soft" data-a="gen-stop">${icon("stop")}Остановить</button>`
+      : `<button type="button" class="btn soft" data-a="gen-ai" data-id="${t.id}">${icon("spark")}Ещё 5 вопросов от ИИ</button>`;
+    return `<div><button type="button" class="link-btn" data-a="go" data-v="subject" data-sid="${t.sid}">← ${esc(SUBJ[t.sid].name)}</button></div>
+      <div class="head"><div class="eyebrow">${esc(codeLabel(t))} · ${esc(t.sec.title)}</div><h1 class="h1">${esc(t.title)}</h1></div>
+      <section class="card stack">
+        <div class="row between"><span class="tile-label">Прогресс темы</span><span class="chip ${ts.pct >= 90 ? "good" : "eosin"} num">${ts.pct}%</span></div>
+        <div class="meter"><i style="width:${ts.pct}%"></i></div>
+        <div class="row small ink2"><span>Освоено ${ts.mastered} из ${ts.total}</span><span>·</span><span>${ts.read ? "теория прочитана" : "теория не отмечена"}</span>${mis ? `<span>·</span><span>ошибок: ${mis}</span>` : ""}</div>
+        <div class="row">
+          ${ts.total > TOPIC_QUIZ + 5
+            ? `<button type="button" class="btn" data-a="quiz-topic" data-id="${t.id}">Тест · ${TOPIC_QUIZ} вопросов</button><button type="button" class="btn ghost" data-a="quiz-topic" data-all="1" data-id="${t.id}">Все вопросы · ${ts.total}</button>`
+            : `<button type="button" class="btn" data-a="quiz-topic" data-all="1" data-id="${t.id}">Пройти тест · ${ts.total}</button>`}
+          ${mis ? `<button type="button" class="btn ghost" data-a="quiz-topic-mistakes" data-id="${t.id}">Только ошибки · ${mis}</button>` : ""}
+          ${aiBtn}
+        </div>
+        ${gen && gen.status === "busy" ? '<div class="hint">ИИ составляет новые задания по теме, это занимает до минуты.</div>' : ""}
+        ${gen && gen.status === "error" ? `<div class="notice">${esc(gen.error)}</div>` : ""}
+      </section>
+      <section class="card pad-lg stack">
+        <h2 class="h2">Конспект</h2>
+        ${t.tablesFirst ? tablesHTML(t) : ""}
+        <ul class="theory">${t.theory.map((x) => x.startsWith("## ") ? `<li class="th-h">${rich(x.slice(3))}</li>` : `<li>${rich(x)}</li>`).join("")}</ul>
+        ${t.tablesFirst ? "" : tablesHTML(t)}
+        <div class="row">
+          <button type="button" class="btn ${ts.read ? "ghost" : "soft"} sm" data-a="theory" data-id="${t.id}">${ts.read ? "Снять отметку «прочитано»" : icon("check") + "Отметить как прочитанное"}</button>
+          ${ai.state === "ready" ? `<button type="button" class="btn ghost sm" data-a="ask-tutor" data-id="${t.id}">${icon("chat")}Спросить репетитора</button>` : ""}
+        </div>
+      </section>
+      <section class="section">
+        <div class="section-head"><h2 class="h2">Вопросы темы</h2><span class="small muted">нажми на вопрос, чтобы ответить только на него</span></div>
+        <div class="stack">${t.qids.map((id) => qRow(QS[id], p.q[id])).join("")}</div>
+        <div class="qlegend"><span><i class="qdot" data-s="2"></i>верно</span><span><i class="qdot" data-s="1"></i>одна ошибка</span><span><i class="qdot" data-s="0"></i>неверно</span><span><i class="qdot" data-s="-1"></i>ещё не было</span></div>
+      </section>`;
+  }
+  // Справочные таблицы темы (t.tables): первая строка — заголовок, head1 — первый столбец тоже заголовок.
+  function tablesHTML(t) {
+    return (t.tables || []).map((tb) => `<div class="small muted">${rich(tb.title)}</div><div class="qtbl-wrap"><table class="qtbl">${tb.rows.map((r, i) => `<tr>${r.map((c, j) => (i === 0 || (tb.head1 && j === 0) ? `<th>${esc(c)}</th>` : `<td>${esc(c)}</td>`)).join("")}</tr>`).join("")}</table></div>${tb.note ? `<div class="small muted">${rich(tb.note)}</div>` : ""}`).join("");
+  }
+  function qRow(q, st) {
+    const s = st && st.n ? st.last : -1;
+    const txt = q.q.length > 130 ? q.q.slice(0, 128) + "…" : q.q;
+    return `<button type="button" class="step-btn" data-a="quiz-one" data-id="${esc(q.id)}" style="grid-template-columns:20px minmax(0,1fr) auto"><i class="qdot big" data-s="${s}"></i><span style="min-width:0"><span style="display:block">${esc(txt)}</span><span class="step-sub" style="display:block">${esc(typeLabel(q))}${st && st.n ? ` · ответов ${st.n}, верных ${st.k}` : ""}</span></span><span class="arrow">${icon("arrow")}</span></button>`;
+  }
+
+  // ---------- тесты ----------
+  function typeLabel(q) {
+    if (q.t === "multi") return q.open ? "Несколько верных ответов" : "Выбери " + q.a.length + " " + plural(q.a.length, "ответ", "ответа", "ответов");
+    if (q.t === "input" && q.d) return "Ответ — цифры";
+    if (q.t === "input" && q.num) return "Ответ — число";
+    return { single: "Один верный ответ", match: "Соответствие", order: "Последовательность", input: "Краткий ответ", self: "Развёрнутый ответ · самопроверка" }[q.t] || "";
+  }
+  function makeItem(q) {
+    const it = { q, key: !q.ai, resp: null, res: null, view: null };
+    if (q.t === "single" || q.t === "multi") it.view = shuffle(range(q.o.length));
+    if (q.t === "match") it.view = q.fixed ? range(q.l.length) : shuffle(range(q.l.length)); // fixed — буквы А–Г как в рецензии
+    if (q.t === "order") {
+      let v = shuffle(range(q.o.length));
+      for (let k = 0; k < 6 && v.every((x, i) => x === i); k++) v = shuffle(range(q.o.length));
+      it.view = v;
+    }
+    it.resp = q.t === "single" ? -1 : q.t === "multi" || q.t === "order" ? [] : q.t === "match" ? q.l.map(() => -1) : "";
+    if (q.t === "self") it.resp = { text: "", sel: [] }; // развёрнутый ответ: текст и отмеченные элементы эталона
+    return it;
+  }
+  function startQuiz(opts) {
+    const qs = (opts.qs || []).filter(Boolean);
+    if (!qs.length) { toast("Здесь пока нет вопросов."); return; }
+    abortAI();
+    ui.quiz = {
+      title: opts.title, sid: opts.sid, mode: opts.mode, topicId: opts.topicId || null,
+      items: qs.map((q, i) => Object.assign(makeItem(q), opts.ns ? { n: opts.ns[i] } : {})), i: 0, checked: false, done: false,
+      sessionId: newId(), startDay: todayISO(), started: Date.now(), qStart: Date.now(),
+      spent: 0, answered: 0, correct: 0, back: opts.back || { v: "subject", sid: opts.sid }, ai: null, cfg: opts.cfg || null
+    };
+    ui.focusNext = qs[0].t === "input" ? "ans" : null;
+    go("quiz");
+  }
+  function weight(st, today) {
+    if (!st || !st.n) return 3 + Math.random();
+    if (st.last !== 2) return 4 + Math.random();
+    if ((st.due || "") <= today) return 2 + Math.random();
+    return Math.random();
+  }
+  // По одному вопросу из каждой темы по кругу — так тест покрывает весь курс.
+  function pickMixed(sid, n) {
+    const s = SUBJ[sid], p = prog(sid), today = todayISO();
+    const w = {};
+    const lists = shuffle(s.topicList).map((t) => {
+      t.qids.forEach((id) => { w[id] = weight(p.q[id], today); });
+      return t.qids.slice().sort((a, b) => w[b] - w[a]);
+    });
+    lists.sort((a, b) => (w[b[0]] || 0) - (w[a[0]] || 0));
+    const out = [];
+    for (let round = 0; out.length < n; round++) {
+      let added = false;
+      for (const l of lists) { if (l[round] && out.length < n) { out.push(l[round]); added = true; } }
+      if (!added) break;
+    }
+    return shuffle(out);
+  }
+  // Тест по теме: сначала новые и трудные вопросы; вопросы к одному тексту идут подряд.
+  function pickTopic(t, n) {
+    const p = prog(t.sid), today = todayISO(), groups = {};
+    for (const id of shuffle(t.qids)) {
+      const k = QS[id].ctx ? "ctx:" + QS[id].ctx : id;
+      const g = (groups[k] = groups[k] || { w: 0, ids: [] });
+      g.ids.push(id); g.w = Math.max(g.w, weight(p.q[id], today));
+    }
+    const out = [];
+    for (const g of Object.values(groups).sort((a, b) => b.w - a.w)) {
+      if (out.length >= n) break;
+      out.push(...g.ids);
+    }
+    return t.texts ? out : shuffle(out);
+  }
+  // Пробный вариант: по одному заданию на каждый номер ЕГЭ; задания к тексту — из одного текста.
+  function pickVariant(sid, cfg, seed) {
+    const p = prog(sid), today = todayISO(), out = [];
+    for (const sl of (cfg || SUBJ[sid].variant).slots) {
+      // slot.kim — задания с меткой kim (номер КИМ) из любых тем; slot.topic — все задания одной темы
+      const t = sl.topic ? TOPICS[sl.topic] : { qids: SUBJ[sid].topicList.reduce((a, x) => a.concat(x.qids), []).filter((id) => [].concat(QS[id].kim || []).includes(sl.kim)) };
+      if (!t || !t.qids || !t.qids.length) continue;
+      const W = {};
+      const w = (id) => (id in W ? W[id] : (W[id] = weight(p.q[id], today) + (sl.prefer && sl.prefer(QS[id]) ? 10 : 0)));
+      const ns = [].concat(sl.n);
+      if (sl.byText) {
+        const best = Object.keys(t.texts || {}).map((k) => {
+          const ids = t.qids.filter((id) => QS[id].ctx === k);
+          const pick = sl.byText.map((re) => ids.filter((id) => re.test(QS[id].q)).sort((a, b) => w(b) - w(a))[0]);
+          return { pick, w: pick.every(Boolean) ? pick.reduce((s, id) => s + w(id), 0) : -1 };
+        }).filter((x) => x.w >= 0).sort((a, b) => b.w - a.w)[0];
+        if (best) best.pick.forEach((id, i) => out.push({ id, n: ns[i] }));
+      } else {
+        const pool = t.qids.filter((id) => !sl.like || sl.like.test(QS[id].q));
+        // с номером варианта (seed) берём задание по порядку в банке, иначе — новые и слабые вперёд
+        // slot.prefer (например, задания с рисунком) идут в порядке банка первыми
+        const ordered = seed && sl.prefer ? pool.filter((id) => sl.prefer(QS[id])).concat(pool.filter((id) => !sl.prefer(QS[id]))) : pool;
+        const pick = seed ? ns.map((_, i) => ordered[(seed - 1 + i) % ordered.length]) : pool.sort((a, b) => w(b) - w(a)).slice(0, ns.length);
+        pick.forEach((id, i) => out.push({ id, n: ns[i] }));
+      }
+    }
+    return out;
+  }
+  // Баллы как в ЕГЭ: двухбалльные задания — 2 или 1 за одну ошибку, остальные — 1 только за полностью верный ответ.
+  function variantScore(qz) {
+    const two = (qz.cfg || SUBJ[qz.sid].variant || {}).two || [];
+    let pts = 0, max = 0;
+    const cells = qz.items.map((it) => {
+      const self = it.q.t === "self"; // развёрнутый ответ: баллы по отмеченным элементам эталона
+      const m = self ? it.q.els.length : two.includes(it.n) ? 2 : 1;
+      const p = !it.res ? 0 : self ? it.res.pts : m === 2 ? it.res.r : it.res.r === 2 ? 1 : 0;
+      pts += p; max += m;
+      return { it, n: it.n, p, m };
+    });
+    return { pts, max, cells };
+  }
+  function curItem() { return ui.quiz && !ui.quiz.done ? ui.quiz.items[ui.quiz.i] : null; }
+  // Текст, к которому относится задание (задания 1–3 и 22 по русскому языку).
+  function passageOf(q) { const t = TOPICS[q.topic]; return (q.ctx && t && t.texts && t.texts[q.ctx]) || ""; }
+  // Таблица к заданию (q.tbl — строки, первая — заголовок): задания 1, 20 и 21 по биологии.
+  function tableHTML(q) {
+    const fig = q.svg ? `<div class="qfig">${q.svg}</div>` : ""; // рисунок к заданию (свой SVG из файлов сайта)
+    if (!q.tbl) return fig;
+    return fig + `<div class="qtbl-wrap"><table class="qtbl">${q.tbl.map((r, i) => `<tr>${r.map((c) => (i === 0 ? `<th>${esc(c)}</th>` : `<td>${esc(c)}</td>`)).join("")}</tr>`).join("")}</table></div>`;
+  }
+  function canCheck(it) {
+    const q = it.q, r = it.resp;
+    if (q.t === "single") return r >= 0;
+    if (q.t === "multi") return r.length > 0;
+    if (q.t === "match") return r.every((x) => x >= 0);
+    if (q.t === "order") return r.length === q.o.length;
+    if (q.t === "self") return true;
+    return String(r || "").trim() !== "";
+  }
+  // Оценка как в ЕГЭ: 2 балла без ошибок, 1 — за одну ошибку в сложных заданиях.
+  function grade(it) {
+    const q = it.q, r = it.resp;
+    // развёрнутый ответ: 1 балл за каждый отмеченный элемент эталона
+    if (q.t === "self") { const pts = r.sel.length, max = q.els.length; return { r: pts === max ? 2 : pts >= Math.ceil(max / 2) ? 1 : 0, pts, max }; }
+    if (q.t === "single") { const ok = r === q.a; return { r: ok ? 2 : 0, pts: ok ? 1 : 0, max: 1 }; }
+    if (q.t === "input") {
+      if (q.num) {
+        const v = parseNum(r);
+        const ok = v !== null && q.a.some((x) => Math.abs(parseNum(x) - v) <= (q.tol || 0.001));
+        return { r: ok ? 2 : 0, pts: ok ? 1 : 0, max: 1 };
+      }
+      // d — цифры в любом порядке, x — пробелы и дефисы важны, иначе сравниваем без них.
+      const f =q.d ? (s) => String(s || "").replace(/\D/g, "").split("").sort().join("") : q.x ? norm : normTight;
+      const v = f(r);
+      const ok = !!v && q.a.some((x) => f(x) === v);
+      return { r: ok ? 2 : 0, pts: ok ? 1 : 0, max: 1 };
+    }
+    let err = 0;
+    if (q.t === "multi") {
+      const sel = new Set(r), cor = new Set(q.a);
+      let extra = 0, miss = 0;
+      sel.forEach((x) => { if (!cor.has(x)) extra++; });
+      cor.forEach((x) => { if (!sel.has(x)) miss++; });
+      err = Math.max(extra, miss);
+    } else if (q.t === "match") {
+      err = q.a.reduce((n, a, i) => n + (r[i] === a ? 0 : 1), 0);
+    } else if (q.t === "order") {
+      const wrong = range(q.o.length).reduce((n, i) => n + (r[i] === i ? 0 : 1), 0);
+      err = wrong === 0 ? 0 : wrong === 2 ? 1 : 2; // одна перестановка двух элементов — одна ошибка
+    }
+    const res = err === 0 ? 2 : err === 1 ? 1 : 0;
+    return { r: res, pts: res, max: 2 };
+  }
+  function correctText(q) {
+    if (q.t === "self") return q.ref;
+    if (q.t === "single") return q.o[q.a];
+    if (q.t === "multi") return q.a.map((i) => q.o[i]).join("; ");
+    if (q.t === "match") return q.l.map((l, i) => l + " — " + q.r[q.a[i]]).join("; ");
+    if (q.t === "order") return q.o.join(" → ");
+    return q.num ? String(q.a[0]).replace(".", ",") : q.a[0];
+  }
+  function userText(it) {
+    const q = it.q, r = it.resp;
+    if (q.t === "self") return r.text.trim() || "ответ не записан";
+    if (q.t === "single") return r >= 0 ? q.o[r] : "нет ответа";
+    if (q.t === "multi") return r.length ? r.map((i) => q.o[i]).join("; ") : "нет ответа";
+    if (q.t === "match") return q.l.map((l, i) => l + " — " + (r[i] >= 0 ? q.r[r[i]] : "?")).join("; ");
+    if (q.t === "order") return r.map((i) => q.o[i]).join(" → ") || "нет ответа";
+    return r || "нет ответа";
+  }
+  function optionsText(q) {
+    if (q.t === "single" || q.t === "multi") return "Варианты: " + q.o.map((o, i) => i + 1 + ") " + o).join("; ");
+    if (q.t === "match") return "Левый столбец: " + q.l.join("; ") + ". Правый столбец: " + q.r.join("; ");
+    if (q.t === "order") return "Элементы: " + q.o.join("; ");
+    return "";
+  }
+  function doCheck() {
+    const qz = ui.quiz, it = curItem();
+    if (!it || qz.checked || !canCheck(it)) return;
+    const g = grade(it);
+    it.res = g; qz.checked = true;
+    qz.spent += Math.min(Date.now() - qz.qStart, MAX_Q_MS);
+    qz.answered++;
+    if (it.q.t !== "self") { if (g.r === 2) qz.correct++; if (it.key) recordAnswer(it.q, g.r); } // у развёрнутого ответа итог известен после отметок — см. doNext
+    logQuizSession(qz);
+    if (qz.mode === "variant") { doNext(); return; } // в пробном варианте ответы показываем в конце
+    ui.focusNext = "next-btn";
+    scheduleRender();
+  }
+  function recordAnswer(q, r) {
+    const prev = prog(q.sid).q[q.id] || {};
+    const b = r === 2 ? Math.min((prev.b || 0) + 1, INTERVALS.length - 1) : r === 1 ? Math.max(0, (prev.b || 0) - 1) : 0;
+    const st = { n: (prev.n || 0) + 1, k: (prev.k || 0) + (r === 2 ? 1 : 0), b, last: r, at: Date.now(), due: addDays(todayISO(), INTERVALS[b]) };
+    patchDoc("prog-" + q.sid, { q: { [q.id]: st } });
+  }
+  function logQuizSession(qz) {
+    patchDoc("log-" + qz.startDay.slice(0, 7), { s: { [qz.sessionId]: {
+      d: qz.startDay, sub: qz.sid, m: Math.round(qz.spent / 60000), q: qz.answered, c: qz.correct,
+      k: "quiz", t: qz.topicId || qz.mode, at: qz.started
+    } } });
+  }
+  function doNext() {
+    const qz = ui.quiz;
+    if (!qz || !qz.checked) return;
+    const cur = qz.items[qz.i];
+    if (cur.q.t === "self" && cur.res && !cur.fin && qz.mode !== "variant") { // развёрнутый ответ засчитываем, когда отметки расставлены (в варианте — после итогов)
+      cur.fin = true;
+      if (cur.res.r === 2) qz.correct++;
+      if (cur.key) recordAnswer(cur.q, cur.res.r);
+      logQuizSession(qz);
+    }
+    abortAI(); qz.ai = null;
+    if (qz.i + 1 >= qz.items.length) qz.done = true;
+    else {
+      qz.i++; qz.checked = false; qz.qStart = Date.now();
+      ui.focusNext = qz.items[qz.i].q.t === "input" ? "ans" : null;
+    }
+    scheduleRender(true);
+  }
+  function exitQuiz() {
+    const qz = ui.quiz;
+    abortAI();
+    const back = qz ? qz.back : { v: "home" };
+    ui.quiz = null;
+    go(back.v || "home", { id: back.id, sid: back.sid });
+  }
+  function renderQuestion(it, checked) {
+    const q = it.q;
+    if (q.t === "single" || q.t === "multi") {
+      return `<div class="opts" role="group" aria-label="Варианты ответа">${it.view.map((oi, pos) => {
+        const sel = q.t === "single" ? it.resp === oi : it.resp.includes(oi);
+        let cls = "", mark = "";
+        if (checked) {
+          const cor = q.t === "single" ? q.a === oi : q.a.includes(oi);
+          if (cor && sel) { cls = "ok"; mark = "верно"; }
+          else if (sel) { cls = "bad"; mark = "ошибка"; }
+          else if (cor) { cls = "miss"; mark = q.t === "single" ? "верный ответ" : "пропущено"; }
+        }
+        return `<button type="button" class="opt ${cls}" data-a="pick" data-i="${oi}" aria-pressed="${sel}"${checked ? " disabled" : ""}><span class="opt-key">${pos + 1}</span><span>${esc(q.o[oi])}</span><span class="opt-mark">${mark}</span></button>`;
+      }).join("")}</div>`;
+    }
+    if (q.t === "match") {
+      const legend = `<div class="legend-r${q.r.some((r) => r.length > 40) ? " long" : ""}">${q.r.map((r, i) => `<span><b>${i + 1}</b>${esc(r)}</span>`).join("")}</div>`;
+      const rows = it.view.map((li, pos) => {
+        const v = it.resp[li];
+        let cls = "", fix = "";
+        if (checked) {
+          const ok = v === q.a[li];
+          cls = ok ? "ok" : "bad";
+          if (!ok) fix = `<div class="mrow-fix">Верно: ${q.a[li] + 1} — ${esc(q.r[q.a[li]])}</div>`;
+        }
+        const btns = q.r.map((r, ri) => `<button type="button" data-a="match" data-l="${li}" data-r="${ri}" aria-pressed="${v === ri}" aria-label="${esc(r)}" title="${esc(r)}"${checked ? " disabled" : ""}>${ri + 1}</button>`).join("");
+        return `<div class="mrow ${cls}"><div><span class="mono muted">${LETTERS[pos]}</span> ${esc(q.l[li])}</div><div class="seg" role="group">${btns}</div>${fix}</div>`;
+      }).join("");
+      return legend + `<div class="mrows">${rows}</div>`;
+    }
+    if (q.t === "order") {
+      const items = it.view.map((oi) => {
+        const pos = it.resp.indexOf(oi);
+        let cls = "", extra = "";
+        if (checked) { cls = pos === oi ? "ok" : "bad"; if (pos !== oi) extra = ` <span class="small muted">— должно быть на месте ${oi + 1}</span>`; }
+        return `<button type="button" class="ord ${cls}" data-a="ord" data-i="${oi}"${pos >= 0 ? ` data-n="${pos + 1}"` : ""}${checked ? " disabled" : ""}><span class="opt-key">${pos >= 0 ? pos + 1 : ""}</span><span>${esc(q.o[oi])}${extra}</span></button>`;
+      }).join("");
+      return `${checked ? "" : '<div class="hint">Нажимай на элементы по порядку. Повторное нажатие убирает элемент из последовательности.</div>'}<div class="order-pool">${items}</div>${!checked && it.resp.length ? '<div><button type="button" class="link-btn" data-a="ord-reset">Сбросить порядок</button></div>' : ""}`;
+    }
+    if (q.t === "self") {
+      if (!checked) return `<div class="field"><label for="self-text">Твой ответ</label><textarea id="self-text" class="essay-area" rows="8" spellcheck="false" placeholder="Напиши ответ так, как на экзамене. Потом откроешь эталон и отметишь, что совпало.">${esc(it.resp.text)}</textarea></div>`;
+      return `<div class="field"><label>Твой ответ</label><div class="passage"><p>${esc(it.resp.text.trim() || "(ответ не записан)")}</p></div></div>
+        <div class="stack"><div class="eyebrow">Эталон</div><div class="passage"><p>${esc(q.ref)}</p></div>
+        <div class="eyebrow">Отметь элементы, которые есть в твоём ответе: 1 балл за каждый</div>
+        <div class="checklist">${q.els.map((x, i) => `<label><input type="checkbox" class="check" data-c="self-el" data-i="${i}"${it.resp.sel.includes(i) ? " checked" : ""}><span>${esc(x)}</span></label>`).join("")}</div></div>`;
+    }
+    return `<div class="field"><label for="ans">Твой ответ</label><input id="ans" class="answer-input" autocomplete="off" spellcheck="false" value="${esc(it.resp)}"${checked ? " disabled" : ""} placeholder="Введи ответ и нажми Enter"></div>`;
+  }
+  function feedbackBlock(it, qz) {
+    const g = it.res, q = it.q;
+    const self = q.t === "self";
+    const title = self ? "Баллов за это задание: " + g.pts + " из " + g.max : g.r === 2 ? "Верно" : g.r === 1 ? "Почти: одна ошибка" : "Неверно";
+    let aiPart = "";
+    if (ai.state === "ready" && !self) {
+      const st = qz.ai && qz.ai.forIdx === qz.i ? qz.ai : null;
+      if (!st) aiPart = `<div><button type="button" class="btn soft sm" data-a="explain">${icon("spark")}Объясни подробнее</button></div>`;
+      else {
+        const busy = st.status === "thinking" || st.status === "streaming";
+        aiPart = `<div class="ai-box"><div class="row between"><span class="eyebrow">Объяснение ИИ</span>${busy ? '<button type="button" class="link-btn" data-a="explain-stop">Остановить</button>' : ""}</div><div class="ai-text" id="ai-explain">${st.text ? fmtAI(st.text) : '<span class="muted">Думаю…</span>'}</div>${st.status === "error" ? `<div class="small" style="color:var(--bad)">${esc(st.error)}</div>` : ""}</div>`;
+      }
+    }
+    const showCorrect = g.r !== 2 && (q.t === "single" || q.t === "multi" || q.t === "input");
+    return `<div class="feedback" data-r="${g.r}">
+      <div class="fb-title">${icon(g.r === 2 ? "check" : g.r === 1 ? "alert" : "x")}${title}${g.max === 2 && !self ? ` · ${g.pts} из 2 баллов` : ""}</div>
+      ${showCorrect ? `<div class="small"><b>Правильный ответ:</b> ${esc(correctText(q))}</div>` : ""}
+      ${q.e ? `<div class="small ink2">${esc(q.e)}</div>` : ""}
+      ${aiPart}
+    </div>`;
+  }
+  function viewQuiz() {
+    const qz = ui.quiz;
+    if (!qz) { ui.view = "home"; return viewHome(); }
+    if (qz.done) return qz.mode === "variant" ? variantSummary(qz) : quizSummary(qz);
+    const it = qz.items[qz.i], q = it.q, t = TOPICS[q.topic];
+    const exam = qz.mode === "variant";
+    const pct = Math.round(((qz.i + (qz.checked ? 1 : 0)) / qz.items.length) * 100);
+    const keys = q.t === "single" || q.t === "multi" ? "1–" + q.o.length + " — выбор, " : "";
+    const mins = Math.floor((Date.now() - qz.started) / 60000);
+    return `<div class="quiz-top">
+        <div class="row between"><div class="eyebrow">${esc(qz.title)}</div><button type="button" class="link-btn" data-a="quiz-exit">${exam ? "Прервать" : "Завершить"}</button></div>
+        <div class="row between small"><span class="ink2">${exam ? "Задание " + it.n + " · " + (qz.i + 1) + " из " + qz.items.length : "Вопрос " + (qz.i + 1) + " из " + qz.items.length}</span><span class="muted num">${exam ? "идёт " + (mins < 1 ? "меньше минуты" : minutesText(mins)) : "верно " + qz.correct + " из " + qz.answered}</span></div>
+        <div class="meter hema thin"><i style="width:${pct}%"></i></div>
+      </div>
+      <article class="qcard">
+        <div class="row between"><span class="eyebrow">${esc(typeLabel(q))}</span>${exam ? `<span class="small muted">Задание ${it.n}${q.t === "self" ? " · до " + q.els.length + " баллов" : ((qz.cfg || SUBJ[qz.sid].variant).two || []).includes(it.n) ? " · до 2 баллов" : ""}</span>` : t ? `<span class="small muted">${esc(codeLabel(t))} · ${esc(t.title)}</span>` : ""}</div>
+        ${q.ai ? '<div class="hint">Вопрос составил ИИ. Если ответ вызывает сомнения, сверься с конспектом темы.</div>' : ""}
+        ${passageOf(q) ? `<div class="passage"><div class="eyebrow">Текст</div><p>${esc(passageOf(q))}</p></div>` : ""}
+        <div class="qtext">${esc(q.q)}</div>
+        ${tableHTML(q)}
+        ${renderQuestion(it, qz.checked)}
+        ${qz.checked ? feedbackBlock(it, qz) : ""}
+        <div class="qfoot">
+          <span class="kbd">${keys}Enter — ${qz.checked ? "дальше" : exam ? "ответить" : "проверить"}</span>
+          ${qz.checked
+            ? `<button type="button" class="btn" id="next-btn" data-a="quiz-next">${qz.i + 1 >= qz.items.length ? "Итоги" : "Дальше"}${icon("arrow")}</button>`
+            : `<span class="row">${exam ? '<button type="button" class="btn ghost" data-a="quiz-skip">Пропустить</button>' : ""}<button type="button" class="btn" data-a="quiz-check"${canCheck(it) ? "" : " disabled"}>${exam ? "Ответить" : "Проверить"}</button></span>`}
+        </div>
+      </article>`;
+  }
+  function quizSummary(qz) {
+    const answered = qz.items.filter((it) => it.res);
+    const right = answered.filter((it) => it.res.r === 2).length;
+    const wrong = answered.filter((it) => it.res.r !== 2);
+    const pts = answered.reduce((s, it) => s + it.res.pts, 0);
+    const max = answered.reduce((s, it) => s + it.res.max, 0);
+    const pct = answered.length ? Math.round((100 * right) / answered.length) : 0;
+    const head = pct >= 85 ? "Отличный результат" : pct >= 60 ? "Хороший результат" : "Есть над чем поработать";
+    return `<div class="head"><div class="eyebrow">Итоги · ${esc(qz.title)}</div><h1 class="h1">${head}</h1></div>
+      <div class="tiles">
+        ${tile("Верно", right + " из " + answered.length, "")}
+        ${tile("Баллы как в ЕГЭ", pts + " из " + max, "за одну ошибку в сложном задании — 1 балл")}
+        ${tile("Точность", pct + "%", "")}
+        ${tile("Время", qz.spent < 30000 ? "меньше минуты" : minutesText(Math.round(qz.spent / 60000)), "записано в показатели")}
+      </div>
+      ${wrong.length ? `<section class="section"><h2 class="h2">Разбор ошибок</h2><div class="review-list">${wrong.map((it) => `<div class="review-item">
+          <div class="small muted">${esc(typeLabel(it.q))}</div>
+          <div class="entry-title">${esc(it.q.q)}</div>
+          ${tableHTML(it.q)}
+          <div class="small"><b>Правильно:</b> ${esc(correctText(it.q))}</div>
+          <div class="small muted">Твой ответ: ${esc(userText(it))}</div>
+          ${it.q.e ? `<div class="small ink2">${esc(it.q.e)}</div>` : ""}
+        </div>`).join("")}</div></section>` : ""}
+      <div class="row">
+        ${wrong.length ? `<button type="button" class="btn" data-a="quiz-retry">Повторить ошибки · ${wrong.length}</button>` : ""}
+        <button type="button" class="btn ghost" data-a="quiz-exit">${qz.back.v === "topic" ? "Вернуться к теме" : "Вернуться к предмету"}</button>
+        <button type="button" class="btn ghost" data-a="go" data-v="home">На главную</button>
+      </div>`;
+  }
+
+  function variantSummary(qz) {
+    const sc = variantScore(qz), lost = sc.max - sc.pts;
+    const full = sc.cells.filter((c) => c.p === c.m).length;
+    const bad = sc.cells.filter((c) => c.p < c.m && c.it.q.t !== "self"), shown = new Set();
+    const selfs = sc.cells.filter((c) => c.it.q.t === "self");
+    // Цель 90+ задаёт предмет (variant.goal): русский — 47 из 50, биология — 51 из 57 по шкале 2026 года.
+    const vcfg = qz.cfg || SUBJ[qz.sid].variant;
+    const g = vcfg.goal, need = g.need - sc.pts, half = Math.round(g.rest / 2), goalLabel = g.label || "90+";
+    const guess = g.scale && g.scale[sc.pts + half] ? ` Для ориентира: с такой первой частью и второй на ${half} из ${g.rest} получится примерно ${g.scale[sc.pts + half]} тестовых баллов.` : "";
+    const verdict = g.verdict ? g.verdict(sc.pts) : need <= g.rest
+      ? `Для ${goalLabel} нужно набрать ${g.need} ${plural(g.need, "первичный балл", "первичных балла", "первичных баллов")} из ${g.total} (по шкале 2026 года это ${g.test} тестовых). ${g.ok(need)}${guess}${g.extra ? " " + g.extra(sc.pts) : ""}`
+      : `Для ${goalLabel} нужно набрать ${g.need} ${plural(g.need, "первичный балл", "первичных балла", "первичных баллов")} из ${g.total}. ${g.fail(sc.pts + g.rest)}`;
+    const cell = (c) => `<span class="vcell" data-s="${!c.it.res ? "skip" : c.p === c.m ? "ok" : c.p ? "part" : "bad"}" title="Задание ${c.n}: ${c.p} из ${c.m}">${c.n}</span>`;
+    return `<div class="head"><div class="eyebrow">Итоги · ${esc(qz.title)}</div><h1 class="h1">${sc.pts} из ${sc.max} первичных баллов</h1><p class="lead">${verdict}</p></div>
+      <div class="tiles">
+        ${tile(g.partName || "Тестовая часть", sc.pts + " из " + sc.max, lost ? "потеряно " + lost + " " + plural(lost, "балл", "балла", "баллов") : "без потерь")}
+        ${tile("Заданий без ошибок", full + " из " + sc.cells.length, "")}
+        ${tile("Время", qz.spent < 30000 ? "меньше минуты" : minutesText(Math.round(qz.spent / 60000)), "на экзамене на всё — " + g.time)}
+        ${tile("Цель для " + goalLabel, g.need + " из " + g.total, g.split)}
+      </div>
+      <section class="card stack"><h2 class="h2">Задания</h2><div class="vgrid">${sc.cells.map(cell).join("")}</div>
+        <div class="qlegend"><span><i class="qdot" data-s="2"></i>верно</span><span><i class="qdot" data-s="1"></i>1 балл из 2</span><span><i class="qdot" data-s="0"></i>неверно</span><span><i class="qdot" data-s="-1"></i>пропущено</span></div></section>
+      ${bad.length ? `<section class="section"><h2 class="h2">Разбор ошибок</h2><div class="review-list">${bad.map((c) => `<div class="review-item">
+          <div class="small muted">Задание ${c.n} · ${c.p} из ${c.m}</div>
+          ${passageOf(c.it.q) && !shown.has(passageOf(c.it.q)) && shown.add(passageOf(c.it.q)) ? `<div class="passage"><div class="eyebrow">Текст</div><p>${esc(passageOf(c.it.q))}</p></div>` : ""}
+          <div class="entry-title">${esc(c.it.q.q)}</div>
+          ${tableHTML(c.it.q)}
+          <div class="small"><b>Правильно:</b> ${esc(correctText(c.it.q))}</div>
+          <div class="small muted">Твой ответ: ${c.it.res ? esc(userText(c.it)) : "пропущено"}</div>
+          ${c.it.q.e ? `<div class="small ink2">${esc(c.it.q.e)}</div>` : ""}
+        </div>`).join("")}</div></section>` : ""}
+      ${selfs.length ? `<section class="section"><h2 class="h2">Часть 2: проверь себя по эталону</h2><p class="small muted">Сравни свой ответ с эталоном и отметь элементы, которые в нём есть: 1 балл за каждый. Итог вверху пересчитается сам.</p><div class="review-list">${selfs.map((c) => { const k = qz.items.indexOf(c.it); return `<div class="review-item">
+          <div class="small muted">Задание ${c.n} · ${c.p} из ${c.m}</div>
+          <div class="entry-title">${esc(c.it.q.q)}</div>
+          ${tableHTML(c.it.q)}
+          <div class="small"><b>Твой ответ:</b> ${esc(userText(c.it))}</div>
+          <div class="eyebrow">Эталон</div><div class="passage"><p>${esc(c.it.q.ref)}</p></div>
+          <div class="checklist">${c.it.q.els.map((x, i) => `<label><input type="checkbox" class="check" data-c="self-sum" data-k="${k}" data-i="${i}"${c.it.resp.sel.includes(i) ? " checked" : ""}><span>${esc(x)}</span></label>`).join("")}</div>
+        </div>`; }).join("")}</div></section>` : ""}
+      <div class="row" style="flex-wrap:wrap">
+        ${vcfg.goal.scale && selfs.length ? `<button type="button" class="btn" data-a="variant-save"${qz.saved ? " disabled" : ""}>${qz.saved ? "Записано в показатели" : "Записать результат в «Показатели»"}</button>` : ""}
+        ${bad.length ? `<button type="button" class="btn ghost" data-a="quiz-retry">Прорешать ошибки · ${bad.length}</button>` : ""}
+        <button type="button" class="btn ghost" data-a="${vcfg.full ? "quiz-fullvariant" : "quiz-variant"}" data-sid="${qz.sid}" data-k="0">Новый вариант</button>
+        <button type="button" class="btn ghost" data-a="quiz-exit">Вернуться к предмету</button>
+      </div>`;
+  }
+
+  // ---------- ИИ ----------
+  function subjectAI(sid) { return (SUBJ[sid] && SUBJ[sid].ai) || { role: "репетитор", focus: "", suggest: [] }; }
+  function tutorRules(sid) {
+    const a = subjectAI(sid);
+    return `Ты — внимательный ${a.role}. С тобой говорит человек, который готовится к ЕГЭ 2027 года, чтобы поступить на специальность «Лечебное дело» в СВФУ (Якутск). ${a.focus} Отвечай по-русски, понятно и точно, по школьной программе и материалам ФИПИ. Пиши коротко: 3–8 предложений или короткий список, если не просят подробнее; если помогает, добавь пример задания ЕГЭ или способ запомнить. Если не уверен в факте, так и скажи. Не используй таблицы и заголовки. Обращайся на «ты» и не угадывай пол собеседника: избегай форм вроде «ты сделал» или «ты сделала».`;
+  }
+  function aiErrorText(e) {
+    const code = e && e.code;
+    if (["ai_disabled", "not_granted", "sampling_disabled", "not_declared", "capability_disabled", "capability_removed"].includes(code)) {
+      ai.state = "off";
+      return store.backend ? "ИИ на сервере сейчас не настроен." : "ИИ недоступен на этой странице.";
+    }
+    if (code === "rate_limited") return "Слишком много запросов подряд. Попробуй через минуту.";
+    if (code === "session_expired" || code === "unauthorized") return store.backend ? "Сессия истекла. Войди в аккаунт снова." : "Сессия claude.ai истекла. Войди в аккаунт снова.";
+    if (code === "refused") return "ИИ не стал отвечать на этот запрос. Попробуй сформулировать иначе.";
+    if (code === "invalid_json") return "ИИ прислал ответ в неверном формате. Попробуй ещё раз.";
+    if (code === "timeout" || code === "upstream_timeout") return "ИИ отвечает слишком долго. Попробуй ещё раз.";
+    return "Не получилось получить ответ. Попробуй ещё раз.";
+  }
+  function fmtAI(text) {
+    const inline = (s) => s.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
+    const lines = esc(text).split(/\n/);
+    let html = "", list = null;
+    const flushList = () => { if (list) { html += `<${list.t}>${list.items.map((i) => `<li>${i}</li>`).join("")}</${list.t}>`; list = null; } };
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line) { flushList(); continue; }
+      let m = line.match(/^[-•*]\s+(.*)$/);
+      if (m) { if (!list || list.t !== "ul") { flushList(); list = { t: "ul", items: [] }; } list.items.push(inline(m[1])); continue; }
+      m = line.match(/^\d+[.)]\s+(.*)$/);
+      if (m) { if (!list || list.t !== "ol") { flushList(); list = { t: "ol", items: [] }; } list.items.push(inline(m[1])); continue; }
+      flushList();
+      html += `<p>${inline(line.replace(/^#+\s*/, ""))}</p>`;
+    }
+    flushList();
+    return html;
+  }
+  function abortAI() {
+    const st = ui.quiz && ui.quiz.ai;
+    if (st && st.ctl && (st.status === "thinking" || st.status === "streaming")) st.ctl.abort();
+  }
+  async function explainCurrent() {
+    const qz = ui.quiz, it = curItem();
+    if (!ai.fn || !it || !it.res) return;
+    abortAI();
+    const st = (qz.ai = { status: "thinking", text: "", error: "", ctl: new AbortController(), forIdx: qz.i });
+    scheduleRender();
+    const t = TOPICS[it.q.topic];
+    const prompt = [
+      "Ты — " + subjectAI(it.q.sid).role + ", готовишь к ЕГЭ (Россия, 2027). Человек ответил на тренировочный вопрос. Объясни по-русски, точно и просто, в 4–8 предложениях, почему верный ответ именно такой" + (it.res.r === 2 ? "." : ", и в чём ошибка в ответе.") + " В конце дай короткую подсказку, как это запомнить. Без заголовков и таблиц. Не угадывай пол собеседника.",
+      "",
+      "Тема: " + (t ? codeLabel(t) + ", " + t.title : SUBJECT_NAME[it.q.sid] || ""),
+      passageOf(it.q) ? "Текст задания: " + passageOf(it.q) : "",
+      "Вопрос: " + it.q.q,
+      optionsText(it.q),
+      "Верный ответ: " + correctText(it.q),
+      "Ответ ученика: " + userText(it),
+      it.q.e ? "Пояснение из конспекта: " + it.q.e : ""
+    ].filter(Boolean).join("\n");
+    try {
+      const res = await ai.fn(prompt, { signal: st.ctl.signal, onText: (u) => { st.text = u.text; if (st.status === "thinking") { st.status = "streaming"; scheduleRender(); } else paintAI(); } });
+      st.text = res.text; st.status = "done";
+    } catch (e) {
+      if (e && e.code === "cancelled") { st.status = "done"; if (!st.text && qz.ai === st) qz.ai = null; }
+      else { st.status = "error"; st.text = (e && e.text) || st.text; st.error = aiErrorText(e); }
+    }
+    if (ui.quiz === qz) scheduleRender();
+  }
+  function paintAI() {
+    const el = document.getElementById("ai-explain");
+    if (el && ui.quiz && ui.quiz.ai) el.innerHTML = fmtAI(ui.quiz.ai.text);
+  }
+  function validateGen(data, t) {
+    const arr = Array.isArray(data) ? data : data && Array.isArray(data.questions) ? data.questions : [];
+    const out = [];
+    for (const x of arr) {
+      if (!x || typeof x.q !== "string" || !Array.isArray(x.o)) continue;
+      const o = x.o.map((s) => String(s).trim()).filter(Boolean);
+      if (o.length !== x.o.length) continue;
+      if (x.t === "single") {
+        const a = Number(x.a);
+        if (o.length < 3 || o.length > 6 || !Number.isInteger(a) || a < 0 || a >= o.length) continue;
+        out.push({ t: "single", q: x.q.trim(), o, a, e: String(x.e || "") });
+      } else if (x.t === "multi") {
+        const a = Array.isArray(x.a) ? Array.from(new Set(x.a.map(Number))) : [];
+        if (o.length < 4 || o.length > 8 || a.length < 2 || a.length >= o.length || a.some((v) => !Number.isInteger(v) || v < 0 || v >= o.length)) continue;
+        out.push({ t: "multi", q: x.q.trim(), o, a: a.sort((m, n) => m - n), e: String(x.e || "") });
+      }
+    }
+    // ИИ иногда повторяет вопросы темы или сам себя — такие отбрасываем.
+    const norm = (s) => s.toLowerCase().replace(/ё/g, "е").replace(/[^a-zа-я0-9]+/g, " ").trim();
+    const known = new Set(t.q.map((q) => norm(q.q) + "|" + norm((q.o || []).join(" "))));
+    const fresh = out.filter((q) => { const k = norm(q.q) + "|" + norm(q.o.join(" ")); return !known.has(k) && known.add(k); });
+    fresh.forEach((q) => { q.ai = true; q.id = "ai." + newId(); q.topic = t.id; q.sid = t.sid; });
+    return fresh;
+  }
+  async function generateQuestions(topicId) {
+    const t = TOPICS[topicId];
+    if (!ai.fn || !t) return;
+    const gen = (ui.gen = { topicId, status: "busy", error: "", ctl: new AbortController() });
+    scheduleRender();
+    const prompt = [
+      `Составь 5 новых тренировочных заданий ${SUBJ[t.sid].po} в стиле ЕГЭ (Россия, материалы ФИПИ) по теме «${t.title}» (${codeLabel(t).toLowerCase()}). Используй только надёжные факты и правила школьного курса; если в задании есть слово с пропуском или ударением, проверь его по словарю.`,
+      "",
+      "Ключевые правила и факты темы:",
+      t.theory.map((x) => (x.startsWith("## ") ? x.slice(3) + ":" : "- " + x.replace(/\*\*/g, ""))).join("\n"),
+      "",
+      "Не повторяй эти вопросы:",
+      t.q.map((q) => "- " + q.q).join("\n"),
+      "",
+      "Сделай 3 задания типа \"single\" (4 варианта, один верный) и 2 задания типа \"multi\" (6 вариантов, ровно три верных, формулировка «Выберите три верных ответа...»).",
+      "Ответь только JSON-массивом из 5 объектов, без текста вокруг. Формат:",
+      '[{"t":"single","q":"Текст вопроса","o":["вариант","вариант","вариант","вариант"],"a":0,"e":"Пояснение в 1–2 предложениях"},{"t":"multi","q":"Выберите три верных утверждения о ...","o":["...","...","...","...","...","..."],"a":[0,2,5],"e":"Пояснение"}]',
+      "Индексы в \"a\" считаются с нуля."
+    ].join("\n");
+    try {
+      const data = await ai.fn.json(prompt, { signal: gen.ctl.signal, cache: false });
+      const qs = validateGen(data, t);
+      if (!qs.length) throw { code: "invalid_json" };
+      if (ui.gen !== gen) return;
+      ui.gen = null;
+      startQuiz({ title: "Вопросы ИИ · " + t.title, sid: t.sid, qs, mode: "ai", topicId: t.id, back: { v: "topic", id: t.id } });
+    } catch (e) {
+      if (ui.gen !== gen) return;
+      if (e && e.code === "cancelled") { ui.gen = null; scheduleRender(); return; }
+      ui.gen = { topicId, status: "error", error: aiErrorText(e) };
+      scheduleRender();
+    }
+  }
+  async function sendChat(text) {
+    const c = ui.chat;
+    text = String(text || "").trim();
+    if (!text || c.busy || !ai.fn) return;
+    c.turns.push({ role: "user", content: text });
+    c.draft = ""; c.busy = true; c.error = ""; c.ctl = new AbortController();
+    const pending = { role: "assistant", content: "", streaming: true };
+    const history = c.turns.slice(-12).map((x) => ({ role: x.role, content: x.content }));
+    c.turns.push(pending);
+    ui.focusNext = "chat-input";
+    scheduleRender();
+    try {
+      const res = await ai.fn([{ role: "user", content: tutorRules(c.sid) }].concat(history), {
+        cache: false, signal: c.ctl.signal,
+        onText: (u) => { pending.content = u.text; const el = document.getElementById("chat-stream"); if (el) el.innerHTML = fmtAI(u.text); }
+      });
+      pending.content = res.text;
+    } catch (e) {
+      if (e && e.text) pending.content = e.text;
+      if (!pending.content) c.turns.splice(c.turns.indexOf(pending), 1);
+      if (!(e && e.code === "cancelled")) c.error = aiErrorText(e);
+    }
+    pending.streaming = false;
+    c.busy = false; c.ctl = null;
+    scheduleRender();
+  }
+
+  // ---------- план ----------
+  function viewPlan() {
+    const all = planItems();
+    const done = all.filter((i) => i.done).length;
+    const pct = all.length ? Math.round((done / all.length) * 100) : 0;
+    const apply = all.find((i) => i.id === "ege-apply");
+    const custom = all.filter((i) => i.custom).sort(byDue);
+    return `<div class="head"><div class="eyebrow">План поступления</div><h1 class="h1">Лечебное дело в СВФУ</h1><p class="lead">Что сделать и к какому сроку — от документов до приказа о зачислении. Отмечай выполненное, отметки сохраняются.</p></div>
+      ${staleNotice()}
+      <section class="card stack"><div class="row between"><span class="tile-label">Сделано ${done} из ${all.length}</span><span class="small muted num">${pct}%</span></div><div class="meter hema"><i style="width:${pct}%"></i></div></section>
+      ${apply && !apply.done ? `<div class="notice info"><b>Главный срок — ${dateLong(apply.due)}.</b><span>До этого дня нужно подать заявление на ЕГЭ. Позже — только по уважительной причине.</span></div>` : ""}
+      ${((EGE.plan && EGE.plan.phases) || []).map((ph) => {
+        const items = all.filter((i) => i.phase === ph.id);
+        const d = items.filter((i) => i.done).length;
+        return `<section class="phase"><div class="phase-head"><h2 class="h2">${esc(ph.title)}</h2><span class="mono small muted">${esc(ph.period)}</span><span class="small muted">· ${d} из ${items.length}</span></div>${items.map((it) => todoItem(it)).join("")}</section>`;
+      }).join("")}
+      <section class="phase"><div class="phase-head"><h2 class="h2">Мои дела</h2><span class="small muted">свои задачи и напоминания</span></div>
+        ${custom.map((it) => todoItem(it)).join("")}
+        <form class="card form" data-f="todo">
+          <div class="h3">Добавить дело</div>
+          <div class="field"><label for="td-t">Что сделать</label><input class="input" id="td-t" data-d="td.t" value="${esc(draft("td.t", ""))}" maxlength="140" placeholder="Например: записаться на пробный ЕГЭ" required></div>
+          <div class="fields">
+            <div class="field"><label for="td-d">Срок</label><input class="input" type="date" id="td-d" data-d="td.d" value="${esc(draft("td.d", ""))}"></div>
+            <div class="field"><label for="td-n">Заметка</label><input class="input" id="td-n" data-d="td.n" value="${esc(draft("td.n", ""))}" maxlength="300"></div>
+          </div>
+          <div><button class="btn" type="submit">Добавить</button></div>
+        </form>
+      </section>
+      <p class="hint">${esc((EGE.plan && EGE.plan.note) || "")} Сроки проверены ${EGE.plan ? dateLong(EGE.plan.checked) : ""}.</p>`;
+  }
+  function toggleTodo(id, custom, checked) {
+    if (custom) patchDoc("plan", { custom: { [id]: { done: checked ? Date.now() : null } } });
+    else patchDoc("plan", { done: { [id]: checked ? Date.now() : null } });
+    if (checked) toast("Отмечено");
+  }
+
+  // ---------- показатели ----------
+  function viewStats() {
+    const tot = totals();
+    const recent = sessions().slice(0, 15);
+    const diff = tot.d7 - tot.prev7;
+    const weekNote = tot.prev7 || tot.d7 ? (diff >= 0 ? "+" : "−") + minutesText(Math.abs(diff)) + " к прошлой неделе" : "";
+    return `<div class="head"><div class="eyebrow">Показатели</div><h1 class="h1">Подготовка в цифрах</h1><p class="lead">Время из тестов записывается само. Занятия с учебником, видео и пробные варианты добавляй вручную.</p></div>
+      ${store.mode === "local" ? localNotice() : staleNotice()}
+      <div class="tiles">
+        ${tile("Сегодня", minutesText(tot.today), "")}
+        ${tile("За 7 дней", minutesText(tot.d7), weekNote)}
+        ${tile("Серия", days(tot.streak), "подряд с занятиями")}
+        ${tile("Точность", tot.acc7 == null ? "—" : tot.acc7 + "%", "ответы в тестах за 7 дней")}
+      </div>
+      <div class="grid-2">${logForm()}${mockForm()}</div>
+      <section class="card stack">
+        <div class="row between"><h2 class="h2">Занятия за 4 недели</h2><span class="small muted">всего записано ${minutesText(tot.all)}</span></div>
+        <div class="chart" data-chart="activity" style="height:170px"></div>
+        <h3 class="h3">Последние записи</h3>
+        ${recent.length ? `<div class="entries">${recent.map(entryRow).join("")}</div>` : '<div class="empty">Записей пока нет. Пройди тест или добавь занятие вручную.</div>'}
+      </section>
+      ${mocksCard()}`;
+  }
+  function logForm() {
+    return `<form class="card form" data-f="log">
+      <h2 class="h2">Записать занятие</h2>
+      <div class="fields">
+        <div class="field"><label for="lg-d">Дата</label><input class="input" type="date" id="lg-d" data-d="log.d" value="${esc(draft("log.d", todayISO()))}" max="${todayISO()}" required></div>
+        <div class="field"><label for="lg-s">Предмет</label>${subjSelect("lg-s", "log.sub", draft("log.sub", "bio"), true)}</div>
+        <div class="field"><label for="lg-m">Минут</label><input class="input num" type="number" inputmode="numeric" id="lg-m" data-d="log.m" value="${esc(draft("log.m", ""))}" min="1" max="720" placeholder="45" required></div>
+      </div>
+      <div class="field"><label for="lg-n">Что было на занятии</label><input class="input" id="lg-n" data-d="log.n" value="${esc(draft("log.n", ""))}" maxlength="200" placeholder="Например: учебник, параграф про митоз"></div>
+      <div><button class="btn" type="submit">Сохранить</button></div>
+    </form>`;
+  }
+  function mockForm() {
+    return `<form class="card form" data-f="mock">
+      <h2 class="h2">Добавить пробник</h2>
+      <div class="fields">
+        <div class="field"><label for="mk-d">Дата</label><input class="input" type="date" id="mk-d" data-d="mk.d" value="${esc(draft("mk.d", todayISO()))}" max="${todayISO()}" required></div>
+        <div class="field"><label for="mk-s">Предмет</label>${subjSelect("mk-s", "mk.sub", draft("mk.sub", "bio"), false)}</div>
+        <div class="field"><label for="mk-sc">Тестовый балл</label><input class="input num" type="number" inputmode="numeric" id="mk-sc" data-d="mk.sc" value="${esc(draft("mk.sc", ""))}" min="0" max="100" placeholder="0–100" required></div>
+        <div class="field"><label for="mk-p">Первичный балл</label><input class="input num" type="number" inputmode="numeric" id="mk-p" data-d="mk.p" value="${esc(draft("mk.p", ""))}" min="0" max="100" placeholder="необязательно"></div>
+      </div>
+      <div class="field"><label for="mk-n">Источник</label><input class="input" id="mk-n" data-d="mk.n" value="${esc(draft("mk.n", ""))}" maxlength="120" placeholder="Например: демоверсия ФИПИ"></div>
+      <div><button class="btn" type="submit">Добавить</button></div>
+    </form>`;
+  }
+  function delControl(key, action, attrs) {
+    if (ui.confirmDel === key) return `<span class="row" style="gap:12px"><button type="button" class="link-btn" style="color:var(--bad)" data-a="${action}" ${attrs}>Удалить</button><button type="button" class="link-btn" data-a="cancel-del">Отмена</button></span>`;
+    return `<button type="button" class="x-btn" data-a="ask-del" data-k="${esc(key)}" aria-label="Удалить запись">${icon("trash")}</button>`;
+  }
+  function quizLabel(e) {
+    const t = TOPICS[e.t];
+    if (t) return topicRef(t);
+    return { mixed: "смешанный", review: "повторение", mistakes: "работа над ошибками", ai: "вопросы ИИ", variant: "пробный вариант", part2: "часть 2" }[e.t] || "тренировка";
+  }
+  function entryRow(e) {
+    const title = e.k === "quiz" ? "Тест: " + quizLabel(e) : e.n || "Занятие";
+    const sub = [SUBJECT_NAME[e.sub] || "Другое", e.m ? minutesText(e.m) : "меньше минуты"].concat(e.k === "quiz" ? ["верно " + (e.c || 0) + " из " + (e.q || 0)] : []).join(" · ");
+    return `<div class="entry"><span class="entry-date">${dateShort(e.d)}</span><div class="entry-main"><span class="entry-title">${esc(title)}</span><span class="entry-sub">${esc(sub)}</span></div>${delControl("log:" + e.doc + ":" + e.id, "del-log", `data-doc="${esc(e.doc)}" data-id="${esc(e.id)}"`)}</div>`;
+  }
+  function mocksCard() {
+    const list = mocks(), prof = profile();
+    const subs = SUBJECT_META.filter((s) => list.some((m) => m.sub === s.id));
+    if (!list.length) {
+      return `<section class="card stack"><div class="row between"><h2 class="h2">Пробные экзамены</h2><span class="small muted">тестовый балл из 100</span></div>
+        <div class="empty"><b>Пробников пока нет</b><span>Реши демоверсию ФИПИ или вариант с «Решу ЕГЭ» и запиши тестовый балл. Здесь появится график роста и линия цели.</span></div></section>`;
+    }
+    const rows = list.slice().reverse().map((m) => {
+      const target = prof.targets[m.sub];
+      const chip = m.sc >= target ? `<span class="chip good">цель достигнута</span>` : `<span class="chip">до цели ${target - m.sc}</span>`;
+      return `<tr><td class="mono small" style="white-space:nowrap">${dateShort(m.d)}</td><td><span class="row" style="gap:6px;flex-wrap:nowrap"><i class="dot" style="background:var(--c-${m.sub})"></i>${esc(SUBJECT_NAME[m.sub] || "")}</span></td><td class="num"><b>${m.sc}</b> ${chip}</td><td class="num">${m.p != null && m.p !== "" ? esc(m.p) : "—"}</td><td class="small">${esc(m.n || "")}</td><td>${delControl("mock:" + m.id, "del-mock", `data-id="${esc(m.id)}"`)}</td></tr>`;
+    }).join("");
+    return `<section class="card stack">
+      <div class="row between"><h2 class="h2">Пробные экзамены</h2><span class="small muted">тестовый балл из 100</span></div>
+      ${subs.length > 1 ? `<div class="legend">${subs.map((s) => `<span><i style="background:var(--c-${s.id})"></i>${esc(s.name)}</span>`).join("")}</div>` : ""}
+      <div class="chart" data-chart="mocks" style="height:230px"></div>
+      <div class="table-wrap"><table class="tbl"><thead><tr><th>Дата</th><th>Предмет</th><th>Балл</th><th>Первичный</th><th>Источник</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    </section>`;
+  }
+
+  // ---------- графики ----------
+  function niceStep(x) { const steps = [5, 10, 15, 20, 30, 60, 90, 120, 180, 240, 360]; return steps.find((s) => s >= x) || 480; }
+  function barPath(x, yTop, w, h, r) {
+    r = Math.min(r, w / 2, h);
+    const yb = yTop + h;
+    return `M${x},${yb}V${yTop + r}Q${x},${yTop} ${x + r},${yTop}H${x + w - r}Q${x + w},${yTop} ${x + w},${yTop + r}V${yb}Z`;
+  }
+  function drawActivity(el) {
+    const W = Math.max(260, el.clientWidth), H = 170, padL = 36, padR = 8, padT = 10, padB = 24;
+    const N = 28, today = todayISO(), byDay = minutesByDay();
+    const daysArr = range(N).map((i) => addDays(today, i - N + 1));
+    const vals = daysArr.map((d) => byDay[d] || 0);
+    const step = niceStep(Math.max(30, ...vals) / 3);
+    const top = Math.max(step * 3, Math.ceil(Math.max(...vals) / step) * step);
+    const ih = H - padT - padB, iw = W - padL - padR, band = iw / N, bw = Math.min(24, Math.max(3, band * 0.62));
+    const y = (v) => padT + ih - (v / top) * ih;
+    let s = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Минуты занятий за последние 28 дней">`;
+    for (let v = 0; v <= top; v += step) {
+      s += `<line class="${v === 0 ? "axis-l" : "grid-l"}" x1="${padL}" x2="${W - padR}" y1="${y(v)}" y2="${y(v)}"/><text x="${padL - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`;
+    }
+    daysArr.forEach((d, i) => {
+      const v = vals[i], x = padL + band * i + (band - bw) / 2;
+      if (v > 0) s += `<path d="${barPath(x, y(v), bw, Math.max(2, (v / top) * ih), 4)}" fill="var(--hema)"/>`;
+      if (i % 7 === 6) s += `<text x="${padL + band * i + band / 2}" y="${H - 6}" text-anchor="middle">${esc(dateShort(d))}</text>`;
+      s += `<rect x="${padL + band * i}" y="${padT}" width="${band}" height="${ih}" fill="transparent" data-tip="${esc(dateDay(d) + ": " + (v ? minutesText(v) : "занятий нет"))}"/>`;
+    });
+    el.innerHTML = s + "</svg>";
+  }
+  function drawMocks(el) {
+    const list = mocks(), prof = profile();
+    if (!list.length) { el.innerHTML = ""; return; }
+    const W = Math.max(260, el.clientWidth), H = 230, padL = 32, padR = 64, padT = 14, padB = 26;
+    const ih = H - padT - padB, iw = W - padL - padR;
+    const t0 = parseISO(list[0].d).getTime();
+    const t1 = Math.max(parseISO(list[list.length - 1].d).getTime(), t0 + 30 * 86400000);
+    const x = (iso) => padL + ((parseISO(iso).getTime() - t0) / (t1 - t0)) * iw;
+    const y = (v) => padT + ih - (v / 100) * ih;
+    let s = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Баллы пробных экзаменов">`;
+    for (let v = 0; v <= 100; v += 20) s += `<line class="${v === 0 ? "axis-l" : "grid-l"}" x1="${padL}" x2="${W - padR}" y1="${y(v)}" y2="${y(v)}"/><text x="${padL - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`;
+    s += `<text x="${padL}" y="${H - 6}" text-anchor="start">${esc(dateShort(list[0].d))}</text><text x="${W - padR}" y="${H - 6}" text-anchor="end">${esc(dateShort(isoDate(new Date(t1))))}</text>`;
+    const seenTargets = new Set(), ends = [];
+    for (const sm of SUBJECT_META) {
+      const pts = list.filter((m) => m.sub === sm.id);
+      if (!pts.length) continue;
+      const color = `var(--c-${sm.id})`, target = prof.targets[sm.id];
+      s += `<line x1="${padL}" x2="${W - padR}" y1="${y(target)}" y2="${y(target)}" stroke="${color}" stroke-width="1.5" stroke-opacity=".45"/>`;
+      if (!seenTargets.has(target)) { seenTargets.add(target); s += `<text x="${W - padR + 6}" y="${y(target) + 4}">цель ${target}</text>`; }
+      if (pts.length > 1) s += `<path d="${pts.map((m, i) => (i ? "L" : "M") + x(m.d) + "," + y(m.sc)).join("")}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+      pts.forEach((m) => {
+        s += `<circle cx="${x(m.d)}" cy="${y(m.sc)}" r="4.5" fill="${color}" stroke="var(--surface)" stroke-width="2"/>`;
+        s += `<circle cx="${x(m.d)}" cy="${y(m.sc)}" r="13" fill="transparent" data-tip="${esc(sm.name + " · " + dateDay(m.d) + ": " + m.sc + " " + plural(m.sc, "балл", "балла", "баллов"))}"/>`;
+      });
+      const last = pts[pts.length - 1];
+      ends.push({ x: x(last.d) + 9, y: y(last.sc) - 8, v: last.sc });
+    }
+    // Подписи концов линий не наезжают друг на друга: лишние значения остаются в подсказке и таблице.
+    let prevY = -Infinity;
+    ends.sort((a, b) => a.y - b.y).forEach((e) => {
+      if (e.y - prevY < 14) return;
+      prevY = e.y;
+      s += `<text class="lbl" x="${e.x}" y="${e.y}">${e.v}</text>`;
+    });
+    el.innerHTML = s + "</svg>";
+  }
+  function drawCharts() {
+    document.querySelectorAll("[data-chart]").forEach((el) => {
+      if (el.dataset.chart === "activity") drawActivity(el);
+      if (el.dataset.chart === "mocks") drawMocks(el);
+    });
+  }
+  let resizeTimer = null;
+  window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(drawCharts, 150); });
+
+  // ---------- репетитор ----------
+  function viewTutor() {
+    const c = ui.chat;
+    const lead = store.backend
+      ? "ИИ-репетитор объяснит правило или термин, разберёт задачу, проверит сочинение, подскажет, как запомнить. Важное сверяй с конспектом и материалами ФИПИ."
+      : "Отвечает Claude: объяснит правило или термин, разберёт задачу, проверит сочинение, подскажет, как запомнить. Важное сверяй с конспектом и материалами ФИПИ.";
+    const head = `<div class="head"><div class="eyebrow">Репетитор</div><h1 class="h1">Спроси о любой теме</h1><p class="lead">${lead}</p></div>`;
+    if (ai.state === "off") {
+      const msg = store.backend
+        ? (!store.user
+            ? `<b>Репетитор доступен после входа.</b><span>Войди в аккаунт на <button type="button" class="link-btn" data-a="go" data-v="home">главной странице</button> или в <button type="button" class="link-btn" data-a="go" data-v="profile">настройках</button>, чтобы задавать вопросы ИИ-репетитору. Остальные разделы работают и без входа.</span>`
+            : `<b>Репетитор сейчас недоступен.</b><span>На сервере не настроен ключ ИИ. Остальные разделы работают как обычно.</span>`)
+        : `<b>Репетитор сейчас недоступен.</b><span>Он работает, когда сайт открыт на claude.ai и разрешено обращение к Claude. Остальные разделы работают как обычно.</span>`;
+      return head + `<div class="notice">${msg}</div>`;
+    }
+    if (ai.state === "unknown") return head + `<div class="empty">Подключаю репетитора…</div>`;
+    const sugg = subjectAI(c.sid).suggest || [];
+    const switcher = CONTENT.length > 1
+      ? `<div class="switch" role="group" aria-label="Предмет">${CONTENT.map((s) => `<button type="button" data-a="chat-subject" data-sid="${s.id}" aria-pressed="${s.id === c.sid}">${esc(s.name)}</button>`).join("")}</div>`
+      : "";
+    const bubbles = c.turns.map((t) => `<div class="bubble ${t.role === "user" ? "me" : "ai"}"${t.streaming ? ' id="chat-stream"' : ""}>${t.role === "user" ? esc(t.content) : t.content ? fmtAI(t.content) : '<span class="muted">Думаю…</span>'}</div>`).join("");
+    return head + switcher + `${c.turns.length ? `<section class="chat" aria-live="polite">${bubbles}</section>` : `<div class="suggest">${sugg.map((s) => `<button type="button" data-a="chat-suggest" data-text="${esc(s)}">${esc(s)}</button>`).join("")}</div>`}
+      ${c.error ? `<div class="notice">${esc(c.error)}</div>` : ""}
+      <form class="composer" data-f="chat">
+        <label class="sr" for="chat-input">Вопрос репетитору</label>
+        <textarea class="textarea" id="chat-input" rows="2" maxlength="6000" placeholder="Напиши вопрос ${esc(SUBJ[c.sid] ? SUBJ[c.sid].po : "")} или вставь сочинение…">${esc(c.draft)}</textarea>
+        ${c.busy ? `<button class="btn ghost" type="button" data-a="chat-stop">${icon("stop")}Стоп</button>` : `<button class="btn" type="submit">Отправить</button>`}
+      </form>
+      ${c.turns.length && !c.busy ? '<div><button type="button" class="link-btn" data-a="chat-clear">Начать новый разговор</button></div>' : ""}`;
+  }
+
+  // ---------- сочинение ----------
+  const ESSAY_LS = "put-v-medicinu:essay";
+  const ESSAY_K = [["К1", 1, "Позиция автора"], ["К2", 3, "Комментарий"], ["К3", 2, "Своё отношение и аргумент"], ["К4", 1, "Фактическая точность"], ["К5", 2, "Логичность"], ["К6", 1, "Этика"], ["К7", 3, "Орфография"], ["К8", 3, "Пунктуация"], ["К9", 3, "Грамматика"], ["К10", 3, "Речевые нормы"]];
+  let essayTimer = null;
+  function essayState() {
+    if (!ui.essay) {
+      let saved = null;
+      try { saved = JSON.parse(localStorage.getItem(ESSAY_LS) || "null"); } catch (e) { /* хранилище браузера недоступно */ }
+      ui.essay = Object.assign({ tid: EGE.essay.texts[0].id, own: { text: "", problem: "" }, body: "", editId: null }, saved || {},
+        { tab: "write", checks: {}, ai: null, showPos: false, confirmClear: false });
+    }
+    return ui.essay;
+  }
+  function essayDraftLater() {
+    clearTimeout(essayTimer);
+    essayTimer = setTimeout(() => {
+      const e = ui.essay;
+      try { localStorage.setItem(ESSAY_LS, JSON.stringify({ tid: e.tid, own: e.own, body: e.body, editId: e.editId })); } catch (err) { /* хранилище браузера недоступно */ }
+    }, 600);
+  }
+  // Слова считаются как в ЕГЭ: служебные тоже, слово через дефис — одно.
+  function wordCount(s) { return (String(s || "").match(/[A-Za-zА-Яа-яЁё0-9]+(?:-[A-Za-zА-Яа-яЁё0-9]+)*/g) || []).length; }
+  function essayText(e) {
+    if (e.tid === "own") return { id: "own", own: true, title: "Свой текст", problem: e.own.problem || "", body: e.own.text || "" };
+    return EGE.essay.texts.find((t) => t.id === e.tid) || EGE.essay.texts[0];
+  }
+  function essays() {
+    const m = (store.docs.essays && store.docs.essays.e) || {};
+    return Object.keys(m).filter((k) => m[k] && m[k].body).map((k) => Object.assign({ id: k }, m[k])).sort((a, b) => (b.at || 0) - (a.at || 0));
+  }
+  function paras(text) { return String(text || "").split(/\n+/).filter((x) => x.trim()).map((x) => `<p>${esc(x)}</p>`).join(""); }
+  function countChip(w) {
+    const cls = w < 150 ? "bad" : w < 200 ? "warn" : "good";
+    return `<span id="essay-count" class="chip ${cls} num">${w} ${plural(w, "слово", "слова", "слов")}</span>`;
+  }
+  function paintEssayCount() {
+    const el = document.getElementById("essay-count");
+    if (el) el.outerHTML = countChip(wordCount(ui.essay.body));
+  }
+  function saveEssay(extra) {
+    const e = essayState(), T = essayText(e);
+    if (!e.body.trim()) { toast("Сочинение пока пустое"); return null; }
+    const id = e.editId || newId();
+    const scored = e.ai && e.ai.status === "done" && e.ai.forHash === hash(e.body) ? e.ai.res : null;
+    const rec = { d: todayISO(), tid: e.tid, title: T.title, problem: T.problem || "", body: e.body.slice(0, 12000), w: wordCount(e.body), at: Date.now(),
+      sc: scored ? scored.total : null, k: scored ? Object.fromEntries(scored.k.map((c) => [c.id, c.p])) : null, adv: scored ? scored.advice : null,
+      src: e.tid === "own" ? String(e.own.text || "").slice(0, 12000) : null };
+    patchDoc("essays", { e: { [id]: Object.assign(rec, extra || {}) } });
+    e.editId = id; essayDraftLater();
+    return id;
+  }
+  function validateEssayCheck(data, words) {
+    const arr = data && Array.isArray(data.k) ? data.k : null;
+    if (!arr) return null;
+    const k = ESSAY_K.map(([id, max, name]) => {
+      const x = arr.find((y) => y && String(y.id).replace(/K/g, "К").replace(/\s/g, "") === id) || {};
+      const p = Math.round(Number(x.p));
+      return { id, name, max, p: Number.isFinite(p) ? Math.max(0, Math.min(max, p)) : 0, note: String(x.note || "").slice(0, 400) };
+    });
+    if (k[0].p === 0) { k[1].p = 0; k[2].p = 0; } // без позиции автора комментарий и своё отношение не засчитываются
+    if (words < 150) k.forEach((c) => { c.p = 0; });
+    const errors = (Array.isArray(data.errors) ? data.errors : []).filter((x) => x && x.quote).slice(0, 30)
+      .map((x) => ({ type: String(x.type || ""), quote: String(x.quote).slice(0, 200), fix: String(x.fix || "").slice(0, 300) }));
+    return { k, errors, advice: String(data.advice || "").slice(0, 1200), total: k.reduce((s, c) => s + c.p, 0) };
+  }
+  async function checkEssay() {
+    const e = essayState();
+    if (!ai.fn) return;
+    const T = essayText(e), w = wordCount(e.body);
+    if (w < 30) { toast("Сначала напиши сочинение"); return; }
+    if (T.own && (!T.body.trim() || !T.problem.trim())) { toast("Вставь исходный текст и проблему из задания"); return; }
+    if (e.ai && e.ai.ctl) e.ai.ctl.abort();
+    const st = (e.ai = { status: "busy", ctl: new AbortController(), forHash: hash(e.body), res: null, error: "" });
+    scheduleRender();
+    const prompt = [
+      "Ты — эксперт ЕГЭ по русскому языку. Проверь сочинение (задание 27) по критериям ФИПИ 2026 года строго, как на экзамене.",
+      "",
+      "Задание: Напишите сочинение-рассуждение по проблеме, поставленной в исходном тексте: «" + T.problem + "». Сформулируйте позицию автора (рассказчика) по указанной проблеме. Прокомментируйте, как в тексте раскрывается эта позиция: включите в комментарий два примера-иллюстрации из прочитанного текста, важные для понимания позиции автора, поясните их, укажите и поясните смысловую связь между ними. Сформулируйте и обоснуйте своё отношение к позиции автора, включите в обоснование пример-аргумент из читательского, историко-культурного или жизненного опыта (примеры из комиксов, аниме, манги, фанфиков, графических романов, компьютерных игр не учитываются). Объём — не менее 150 слов.",
+      "",
+      "Критерии и максимальные баллы:",
+      "К1 (1) — позиция автора по указанной проблеме сформулирована верно.",
+      "К2 (3) — комментарий: 3 — два примера-иллюстрации с пояснениями, смысловая связь указана и пояснена; 2 — два примера с пояснениями, но связь не указана или не пояснена; 1 — один пример с пояснением; 0 — примеров нет, они без пояснений, не относятся к позиции автора или текст пересказан.",
+      "К3 (2) — своё отношение к позиции автора: 2 — сформулировано и обосновано подходящим примером-аргументом; 1 — сформулировано, но пример-аргумент отсутствует или не подходит; 0 — отношения нет.",
+      "Если по К1 стоит 0, то по К2 и К3 тоже 0.",
+      "К4 (1) — нет фактических ошибок (имена, названия, даты, события, содержание произведений).",
+      "К5 (2) — логичность: 2 — нет логических ошибок и нарушений абзацного членения; 1 — одна-две логические ошибки; 0 — три и больше.",
+      "К6 (1) — соблюдены этические нормы.",
+      "К7 орфография, К8 пунктуация, К9 грамматика, К10 речевые нормы — по 3 балла: 3 — ошибок нет; 2 — одна-две; 1 — три-четыре; 0 — пять и больше.",
+      "",
+      "Исходный текст:",
+      T.body,
+      "",
+      "Сочинение (слов: " + w + "):",
+      e.body,
+      "",
+      'Ответь только JSON без текста вокруг: {"k":[{"id":"К1","p":0,"note":"кратко, за что поставлен балл"}, … все десять критериев К1–К10 …],"errors":[{"type":"орфография|пунктуация|грамматика|речь|логика|факт","quote":"фрагмент из сочинения с ошибкой","fix":"как исправить"}],"advice":"два-три главных совета, что улучшить"}',
+      "Пиши по-русски, обращайся на «ты», не угадывай пол автора сочинения. Перечисли все найденные ошибки."
+    ].join("\n");
+    try {
+      const data = await ai.fn.json(prompt, { signal: st.ctl.signal, cache: false, modelTier: "complex" });
+      const res = validateEssayCheck(data, w);
+      if (!res) throw { code: "invalid_json" };
+      if (e.ai !== st) return;
+      st.status = "done"; st.res = res; st.ctl = null;
+      saveEssay();
+      toast("Проверено и сохранено в «Мои сочинения»");
+    } catch (err) {
+      if (e.ai !== st) return;
+      if (err && err.code === "cancelled") ui.essay.ai = null;
+      else { st.status = "error"; st.error = aiErrorText(err); st.ctl = null; }
+    }
+    scheduleRender();
+  }
+  function essayAIBlock(e) {
+    const st = e.ai;
+    if (!st) return "";
+    if (st.status === "busy") return `<section class="card stack"><div class="row between"><h2 class="h2">Проверка по критериям</h2><button type="button" class="link-btn" data-a="essay-stop">Остановить</button></div><div class="hint">ИИ читает текст и сочинение и выставляет баллы по К1–К10. Это занимает до минуты.</div></section>`;
+    if (st.status === "error") return `<div class="notice">${esc(st.error)}</div>`;
+    const r = st.res, stale = st.forHash !== hash(e.body);
+    return `<section class="card stack">
+      <div class="row between"><h2 class="h2">Проверка по критериям</h2><span class="chip ${r.total >= 19 ? "good" : r.total >= 14 ? "warn" : "bad"} num">${r.total} из 22</span></div>
+      ${stale ? '<div class="hint">После проверки сочинение изменилось — нажми «Проверить» ещё раз, чтобы получить новую оценку.</div>' : ""}
+      <div class="table-wrap"><table class="tbl"><thead><tr><th>Критерий</th><th>Баллы</th><th>Комментарий</th></tr></thead><tbody>
+        ${r.k.map((c) => `<tr><td><b>${c.id}</b> ${esc(c.name)}</td><td class="num">${c.p} из ${c.max}</td><td class="small ink2">${esc(c.note)}</td></tr>`).join("")}
+      </tbody></table></div>
+      ${r.errors.length ? `<div class="label">Ошибки</div><div class="review-list">${r.errors.map((x) => `<div class="review-item"><div class="small muted">${esc(x.type)}</div><div>«${esc(x.quote)}»</div>${x.fix ? `<div class="small"><b>Как исправить:</b> ${esc(x.fix)}</div>` : ""}</div>`).join("")}</div>` : ""}
+      ${r.advice ? `<div class="ai-box"><span class="eyebrow">Что улучшить</span><div class="ai-text">${fmtAI(r.advice)}</div></div>` : ""}
+      <p class="hint">Оценка ИИ примерная: на экзамене сочинение проверяют два эксперта по критериям ФИПИ. Ошибки, которые нашёл ИИ, перепроверяй по правилам.</p>
+    </section>`;
+  }
+  function viewEssay() {
+    const E = EGE.essay;
+    if (!E) { ui.view = "subject"; return viewSubject(); }
+    const e = essayState(), T = essayText(e), mine = essays();
+    const tabs = [["write", "Писать"], ["plan", "План, клише, образец"], ["args", "Аргументы"], ["mine", "Мои сочинения" + (mine.length ? " · " + mine.length : "")]];
+    const head = `<div><button type="button" class="link-btn" data-a="go" data-v="subject" data-sid="rus">← Русский язык</button></div>
+      <div class="head"><div class="eyebrow">Задание 27 · до 22 баллов</div><h1 class="h1">Тренажёр сочинения</h1><p class="lead">Формат 2026 года: проблема дана в задании. Сформулируй позицию автора, прокомментируй её двумя примерами из текста со смысловой связью и обоснуй своё отношение примером-аргументом. Не меньше 150 слов.</p></div>
+      <div class="switch" role="group" aria-label="Раздел">${tabs.map(([k, l]) => `<button type="button" data-a="essay-tab" data-tab="${k}" aria-pressed="${e.tab === k}">${esc(l)}</button>`).join("")}</div>`;
+    if (e.tab === "plan") return head + essayPlanTab(E);
+    if (e.tab === "args") return head + essayArgsTab(E);
+    if (e.tab === "mine") return head + essayMineTab(mine);
+    const w = wordCount(e.body), checked = E.checklist.filter((x, i) => e.checks[i]).length;
+    const src = T.own
+      ? `<div class="field"><label for="essay-problem">Проблема из задания</label><input class="input" id="essay-problem" maxlength="300" placeholder="Например: «Что даёт человеку чтение?»" value="${esc(e.own.problem)}"></div>
+         <div class="field"><label for="essay-src">Исходный текст</label><textarea class="textarea" id="essay-src" rows="8" maxlength="12000" placeholder="Вставь текст из открытого банка ФИПИ или из варианта">${esc(e.own.text)}</textarea></div>`
+      : `<div class="well"><span class="eyebrow">Проблема из задания</span><div class="h3">${esc(T.problem)}</div></div>
+         <div class="passage"><div class="eyebrow">Текст · «${esc(T.title)}»</div>${paras(T.body)}</div>
+         <div>${e.showPos ? `<div class="ai-box"><span class="eyebrow">Позиция автора</span><div>${esc(T.position)}</div></div>` : `<button type="button" class="link-btn" data-a="essay-pos">Сверить позицию автора (после того как сформулируешь свою)</button>`}</div>`;
+    return head + `
+      <section class="card stack">
+        <h2 class="h2">Исходный текст</h2>
+        <div class="switch" role="group" aria-label="Текст">${E.texts.map((t) => `<button type="button" data-a="essay-text" data-id="${t.id}" aria-pressed="${e.tid === t.id}">${esc(t.title)}</button>`).join("")}<button type="button" data-a="essay-text" data-id="own" aria-pressed="${e.tid === "own"}">Свой текст</button></div>
+        ${src}
+      </section>
+      <section class="card stack">
+        <div class="row between"><h2 class="h2">Сочинение</h2>${countChip(w)}</div>
+        <label class="sr" for="essay-body">Текст сочинения</label>
+        <textarea class="textarea essay-area" id="essay-body" maxlength="12000" placeholder="Начни со вступления, которое подводит к проблеме…">${esc(e.body)}</textarea>
+        <p class="hint">Минимум 150 слов, оптимально 200–300. Черновик сохраняется в этом браузере; кнопка «Сохранить» переносит сочинение в «Мои сочинения» — оно будет доступно на любом компьютере.</p>
+        <div class="row">
+          <button type="button" class="btn" data-a="essay-save">Сохранить</button>
+          ${ai.state === "ready" ? `<button type="button" class="btn soft" data-a="essay-check"${e.ai && e.ai.status === "busy" ? " disabled" : ""}>${icon("spark")}Проверить по критериям</button>` : ""}
+          ${e.confirmClear
+            ? `<span class="row" style="gap:12px"><button type="button" class="link-btn" style="color:var(--bad)" data-a="essay-clear">Очистить поле</button><button type="button" class="link-btn" data-a="essay-clear-cancel">Отмена</button></span>`
+            : `<button type="button" class="btn ghost" data-a="essay-clear-ask">Новое сочинение</button>`}
+        </div>
+        ${ai.state === "off" ? `<div class="hint">${store.backend ? (!store.user ? "Проверка ИИ доступна после входа в аккаунт." : "Проверка ИИ заработает, когда на сервере будет настроен ключ ИИ.") : "Проверка ИИ работает, когда сайт открыт на claude.ai и разрешено обращение к Claude."}</div>` : ""}
+      </section>
+      ${essayAIBlock(e)}
+      <section class="card stack">
+        <div class="row between"><h2 class="h2">Самопроверка</h2><span class="small muted num">${checked} из ${E.checklist.length}</span></div>
+        <div class="checklist">${E.checklist.map((x, i) => `<label><input type="checkbox" class="check" data-c="essay-check" data-i="${i}"${e.checks[i] ? " checked" : ""}><span>${esc(x)}</span></label>`).join("")}</div>
+      </section>`;
+  }
+  function essayPlanTab(E) {
+    const s = E.sample, st = E.texts.find((t) => t.id === s.textId);
+    return `<section class="card pad-lg stack"><h2 class="h2">План на 200–250 слов</h2>
+        <ol class="plan-list">
+          <li><b>Вступление</b> — 1–2 предложения, подводящие к проблеме.</li>
+          <li><b>Позиция автора</b> по проблеме из задания — своими словами (К1).</li>
+          <li><b>Пример 1</b> из текста с номером предложения или цитатой и пояснение: «Этот пример показывает…» (К2).</li>
+          <li><b>Пример 2</b> и пояснение (К2).</li>
+          <li><b>Смысловая связь</b> между примерами — назови и объясни (К2).</li>
+          <li><b>Своё отношение</b> к позиции автора и пример-аргумент из книги, истории или жизни (К3).</li>
+          <li><b>Вывод</b> — 1–2 предложения.</li>
+        </ol></section>
+      <section class="card stack"><h2 class="h2">Клише</h2>
+        ${E.cliches.map((c) => `<div class="stack" style="gap:6px"><div class="label">${esc(c.part)}</div><ul class="theory">${c.items.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>`).join("")}
+      </section>
+      <section class="card stack"><div class="row between"><h2 class="h2">Образец по тексту «${esc(st ? st.title : "")}»</h2><span class="chip num">${wordCount(s.body)} слов</span></div>
+        <div class="well"><span class="eyebrow">Проблема</span><div>${esc(st ? st.problem : "")}</div></div>
+        <div class="essay-sample">${paras(s.body)}</div>
+        <div class="label">Почему это сочинение получает высокие баллы</div>
+        <ul class="theory">${s.notes.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
+      </section>`;
+  }
+  function essayArgsTab(E) {
+    return `<p class="hint">Для К3 нужен пример-аргумент из читательского, историко-культурного или жизненного опыта. Выбери заранее 5–6 произведений и перечитай их краткое содержание: за ошибку в имени, названии или сюжете снимают балл по К4.</p>
+      ${E.args.map((g) => `<section class="card stack"><h2 class="h2">${esc(g.theme)}</h2><div class="stack">${g.items.map((x) => `<div><div class="entry-title">${esc(x.src)}</div><div class="small ink2">${esc(x.text)}</div></div>`).join("")}</div></section>`).join("")}`;
+  }
+  function essayMineTab(list) {
+    if (!list.length) return `<div class="empty"><b>Пока нет сохранённых сочинений</b><span>Напиши первое на вкладке «Писать» и нажми «Сохранить» или «Проверить по критериям».</span></div>`;
+    return `<section class="card stack"><div class="entries">${list.map((x) => `<div class="entry">
+        <span class="entry-date">${esc(dateShort(x.d))}</span>
+        <div class="entry-main"><span class="entry-title">${esc(x.title || "Сочинение")}</span><span class="entry-sub">${esc(x.problem || "")} · ${x.w || 0} ${plural(x.w || 0, "слово", "слова", "слов")}${x.sc != null ? " · ИИ: " + x.sc + " из 22" : ""}</span></div>
+        <span class="row" style="gap:10px"><button type="button" class="link-btn" data-a="essay-open" data-id="${esc(x.id)}">Открыть</button>${delControl("essay:" + x.id, "del-essay", `data-id="${esc(x.id)}"`)}</span>
+      </div>`).join("")}</div></section>`;
+  }
+
+  // ---------- настройки ----------
+  function viewProfile() {
+    const prof = profile();
+    return `<div class="head"><div class="eyebrow">Настройки</div><h1 class="h1">Профиль и данные</h1></div>
+      ${store.backend ? accountCard() : ""}
+      <form class="card pad-lg form" data-f="profile">
+        <h2 class="h2">Профиль</h2>
+        <div class="field"><label for="pf-name">Как к тебе обращаться</label><input class="input" id="pf-name" data-d="pf.name" value="${esc(draft("pf.name", prof.name || defaultName()))}" maxlength="40"></div>
+        <div class="label">Целевые баллы</div>
+        <div class="fields">${SUBJECT_META.map((s) => `<div class="field"><label for="pf-t-${s.id}">${esc(s.name)}</label><input class="input num" type="number" min="0" max="100" inputmode="numeric" id="pf-t-${s.id}" data-d="pf.t.${s.id}" value="${esc(draft("pf.t." + s.id, prof.targets[s.id]))}"></div>`).join("")}</div>
+        <div class="label">Даты экзаменов</div>
+        <div class="fields">${SUBJECT_META.map((s) => `<div class="field"><label for="pf-e-${s.id}">${esc(s.name)}</label><input class="input" type="date" id="pf-e-${s.id}" data-d="pf.e.${s.id}" value="${esc(draft("pf.e." + s.id, prof.exams[s.id]))}"></div>`).join("")}</div>
+        <p class="hint">Сейчас стоят даты из проекта расписания ЕГЭ-2027. Когда расписание утвердят, поправь их здесь — план и отсчёты обновятся.</p>
+        <div><button class="btn" type="submit">Сохранить</button></div>
+      </form>
+      ${dataCard()}`;
+  }
+  function dataCard() {
+    const where = store.mode === "cloud"
+      ? (store.backend
+          ? "Прогресс хранится на сервере в базе данных и привязан к твоему аккаунту. Войди под тем же логином на любом устройстве — ответы, отметки и записи будут на месте."
+          : "Прогресс хранится в облаке claude.ai и привязан к твоему аккаунту. Открой эту страницу на любом компьютере под тем же аккаунтом — ответы, отметки и записи будут на месте.")
+      : store.mode === "local"
+        ? (store.backend
+            ? "Сейчас вход в аккаунт не выполнен, поэтому данные хранятся только в этом браузере. Войди или зарегистрируйся, чтобы синхронизировать прогресс."
+            : "Сейчас страница открыта не на claude.ai, поэтому данные хранятся только в этом браузере. Открой её по ссылке на claude.ai, чтобы прогресс сохранялся в облаке.")
+        : "Подключаюсь к хранилищу…";
+    const cf = ui.confirm;
+    return `<section class="card pad-lg stack">
+      <h2 class="h2">Данные</h2>
+      <p class="ink2">${where}</p>
+      <div class="row">
+        <button type="button" class="btn ghost" data-a="export">${icon("download")}Скачать резервную копию</button>
+        <button type="button" class="btn ghost" data-a="import">${icon("upload")}Восстановить из копии</button>
+        <input type="file" id="import-file" accept=".json,application/json" hidden>
+      </div>
+      ${ui.exportText ? `<div class="field"><label for="export-text">Скопируй текст и сохрани его в файл с расширением .json</label><textarea class="textarea" id="export-text" rows="6" readonly>${esc(ui.exportText)}</textarea><div><button type="button" class="btn soft sm" data-a="copy-export">Скопировать</button></div></div>` : ""}
+      ${cf && cf.kind === "import" ? `<div class="confirm"><b>Заменить данные копией от ${esc(cf.date)}?</b><span class="small">Прогресс, план и записи заменятся данными из файла.</span><div class="row"><button type="button" class="btn danger sm" data-a="import-do">Заменить</button><button type="button" class="btn ghost sm" data-a="confirm-cancel">Отмена</button></div></div>` : ""}
+      <div class="row">${CONTENT.map((s) => `<button type="button" class="btn ghost" data-a="reset-ask" data-sid="${s.id}">${icon("trash")}Сбросить прогресс ${esc(SUBJ[s.id].po)}</button>`).join("")}</div>
+      ${cf && cf.kind === "reset" ? `<div class="confirm"><b>Сбросить все ответы и отметки ${esc(SUBJ[cf.sid].po)}?</b><span class="small">План, пробники и журнал занятий останутся. Отменить сброс нельзя, поэтому сначала можно скачать резервную копию.</span><div class="row"><button type="button" class="btn danger sm" data-a="reset-do">Сбросить</button><button type="button" class="btn ghost sm" data-a="confirm-cancel">Отмена</button></div></div>` : ""}
+    </section>
+    <section class="card stack"><h2 class="h2">Откуда сроки</h2><p class="ink2 small">Даты собраны ${EGE.plan ? dateLong(EGE.plan.checked) : ""}: проект расписания ЕГЭ-2027 (Минпросвещения и Рособрнадзор, обсуждение до 10 ноября 2026 года) и сроки приёмной кампании 2026 года. Официальные документы смотри на сайтах ниже.</p>
+      <div class="stack small"><a href="https://obrnadzor.gov.ru/" target="_blank" rel="noopener">Рособрнадзор</a><a href="https://fipi.ru/" target="_blank" rel="noopener">ФИПИ</a><a href="https://priem.s-vfu.ru/" target="_blank" rel="noopener">Приёмная комиссия СВФУ</a></div>
+    </section>`;
+  }
+  async function doExport() {
+    const data = JSON.stringify({ app: "put-v-medicinu", v: 1, exported: new Date().toISOString(), docs: store.docs }, null, 2);
+    const filename = "put-v-medicinu-" + todayISO() + ".json";
+    if (caps.downloads) {
+      try { await caps.downloads.save({ filename, data }); toast("Резервная копия сохранена"); return; }
+      catch (e) { if (e && e.code === "declined") return; }
+    }
+    ui.exportText = data;
+    scheduleRender();
+  }
+  function readImport(file) {
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const obj = JSON.parse(String(r.result));
+        if (!obj || obj.app !== "put-v-medicinu" || !isObj(obj.docs)) throw new Error("format");
+        ui.confirm = { kind: "import", data: obj.docs, date: obj.exported ? dateLong(String(obj.exported).slice(0, 10)) : "неизвестной даты" };
+      } catch (e) {
+        ui.confirm = null;
+        toast("Это не резервная копия «Пути в медицину».");
+      }
+      scheduleRender();
+    };
+    r.readAsText(file);
+  }
+  function doImport() {
+    const cf = ui.confirm;
+    if (!cf || cf.kind !== "import") return;
+    const ok = /^(profile|plan|mocks|essays|prog-[a-z]+|log-\d{4}-\d{2})$/;
+    for (const name of Object.keys(cf.data)) if (ok.test(name) && isObj(cf.data[name])) replaceDoc(name, cf.data[name]);
+    ui.confirm = null;
+    toast("Данные восстановлены из копии");
+  }
+  function copyText(text, sel) {
+    const fallback = () => { const el = document.querySelector(sel); if (el) { el.focus(); el.select(); toast("Текст выделен — нажми Ctrl+C"); } };
+    try { navigator.clipboard.writeText(text).then(() => toast("Скопировано"), fallback); } catch (e) { fallback(); }
+  }
+
+  // ---------- тосты и подсказки ----------
+  let toastTimer = null;
+  function toast(msg) {
+    const el = $("#toast");
+    el.textContent = msg; el.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.hidden = true; }, 2600);
+  }
+  const tipEl = $("#tip");
+  function moveTip(e) {
+    const r = tipEl.getBoundingClientRect();
+    let x = e.clientX + 14, y = e.clientY + 14;
+    if (x + r.width > window.innerWidth - 8) x = e.clientX - r.width - 14;
+    if (y + r.height > window.innerHeight - 8) y = e.clientY - r.height - 14;
+    tipEl.style.left = Math.max(8, x) + "px"; tipEl.style.top = Math.max(8, y) + "px";
+  }
+  document.addEventListener("pointerover", (e) => {
+    const el = e.target.closest && e.target.closest("[data-tip]");
+    if (!el) return;
+    tipEl.textContent = el.getAttribute("data-tip"); tipEl.hidden = false; moveTip(e);
+  });
+  document.addEventListener("pointermove", (e) => { if (!tipEl.hidden) moveTip(e); });
+  document.addEventListener("pointerout", (e) => { if (e.target.closest && e.target.closest("[data-tip]")) tipEl.hidden = true; });
+  window.addEventListener("scroll", () => { tipEl.hidden = true; }, { passive: true });
+
+  // ---------- действия ----------
+  function subjectOf(el) { return SUBJ[el.dataset.sid] ? el.dataset.sid : ui.sid; }
+  const ACTIONS = {
+    go: (el) => go(el.dataset.v, { sid: el.dataset.sid, id: el.dataset.id }),
+    "open-topic": (el) => go("topic", { id: el.dataset.id }),
+    "quiz-mixed": (el) => { const sid = subjectOf(el); startQuiz({ title: "Смешанный тест · " + SUBJ[sid].name, sid, qs: pickMixed(sid, QUIZ_SIZE).map((id) => QS[id]), mode: "mixed", back: { v: "subject", sid } }); },
+    "quiz-review": (el) => {
+      const sid = subjectOf(el), ids = shuffle(dueQs(sid)).slice(0, QUIZ_SIZE);
+      if (!ids.length) { toast("Повторять пока нечего, загляни завтра."); return; }
+      startQuiz({ title: "Повторение · " + SUBJ[sid].name, sid, qs: ids.map((id) => QS[id]), mode: "review", back: { v: "subject", sid } });
+    },
+    "quiz-mistakes": (el) => {
+      const sid = subjectOf(el), ids = shuffle(mistakeQs(sid)).slice(0, QUIZ_SIZE);
+      if (!ids.length) { toast("Ошибок нет, так держать."); return; }
+      startQuiz({ title: "Работа над ошибками · " + SUBJ[sid].name, sid, qs: ids.map((id) => QS[id]), mode: "mistakes", back: { v: "subject", sid } });
+    },
+    "quiz-topic": (el) => { const t = TOPICS[el.dataset.id]; startQuiz({ title: topicRef(t), sid: t.sid, qs: pickTopic(t, el.dataset.all ? Infinity : TOPIC_QUIZ).map((id) => QS[id]), mode: "topic", topicId: t.id, back: { v: "topic", id: t.id } }); },
+    "quiz-topic-mistakes": (el) => { const t = TOPICS[el.dataset.id]; startQuiz({ title: "Ошибки · " + t.title, sid: t.sid, qs: shuffle(mistakeQs(t.sid, t.id)).map((id) => QS[id]), mode: "topic", topicId: t.id, back: { v: "topic", id: t.id } }); },
+    "quiz-one": (el) => { const q = QS[el.dataset.id]; if (!q) return; const t = TOPICS[q.topic]; startQuiz({ title: topicRef(t), sid: q.sid, qs: [q], mode: "topic", topicId: t.id, back: { v: "topic", id: t.id } }); },
+    "quiz-retry": () => {
+      const qz = ui.quiz; if (!qz) return;
+      const exam = qz.mode === "variant";
+      startQuiz({ title: "Ошибки · " + qz.title, sid: qz.sid, qs: qz.items.filter((it) => (exam && !it.res) || (it.res && it.res.r !== 2)).map((it) => it.q), mode: exam ? "mistakes" : qz.mode, topicId: qz.topicId, back: qz.back });
+    },
+    "quiz-variant": (el) => {
+      const sid = subjectOf(el); if (!SUBJ[sid].variant) return;
+      const v = pickVariant(sid);
+      startQuiz({ title: SUBJ[sid].variant.title || "Пробный вариант · часть 1", sid, qs: v.map((x) => QS[x.id]), ns: v.map((x) => x.n), mode: "variant", back: { v: "subject", sid } });
+    },
+    "quiz-fullvariant": (el) => {
+      const sid = subjectOf(el), cfg = SUBJ[sid].fullVariant; if (!cfg) return;
+      const k = Number(el.dataset.k) || 0, v = pickVariant(sid, cfg, k);
+      startQuiz({ title: cfg.title + (k ? " · вариант " + k : ""), sid, qs: v.map((x) => QS[x.id]), ns: v.map((x) => x.n), mode: "variant", cfg, back: { v: "subject", sid } });
+    },
+    "variant-save": () => {
+      const qz = ui.quiz; if (!qz || !qz.done || qz.saved) return;
+      const cfg = qz.cfg || SUBJ[qz.sid].variant, sc = variantScore(qz), scale = cfg.goal.scale;
+      qz.items.forEach((it) => { if (it.q.t === "self" && it.res && !it.fin) { it.fin = true; if (it.key) recordAnswer(it.q, it.res.r); } });
+      patchDoc("mocks", { m: { [newId()]: { d: todayISO(), sub: qz.sid, sc: scale ? scale[Math.min(sc.pts, scale.length - 1)] : 0, p: sc.pts, n: qz.title, at: Date.now() } } });
+      qz.saved = true; toast("Результат записан в показатели"); scheduleRender();
+    },
+    "quiz-part2": (el) => {
+      const sid = subjectOf(el), p = SUBJ[sid].part2; if (!p) return;
+      const v = pickVariant(sid, p); if (!v.length) return;
+      startQuiz({ title: p.title, sid, qs: v.map((x) => QS[x.id]), mode: "part2", back: { v: "subject", sid } });
+    },
+    "quiz-skip": () => { const qz = ui.quiz; if (!qz || qz.checked) return; qz.spent += Math.min(Date.now() - qz.qStart, MAX_Q_MS); qz.checked = true; doNext(); },
+    pick: (el) => {
+      const it = curItem(); if (!it || ui.quiz.checked) return;
+      const i = Number(el.dataset.i);
+      if (it.q.t === "single") it.resp = i;
+      else { const k = it.resp.indexOf(i); if (k >= 0) it.resp.splice(k, 1); else it.resp.push(i); }
+      ui.focusNext = null; scheduleRender();
+    },
+    match: (el) => { const it = curItem(); if (!it || ui.quiz.checked) return; const l = Number(el.dataset.l), r = Number(el.dataset.r); it.resp[l] = it.resp[l] === r ? -1 : r; scheduleRender(); },
+    ord: (el) => { const it = curItem(); if (!it || ui.quiz.checked) return; const i = Number(el.dataset.i), k = it.resp.indexOf(i); if (k >= 0) it.resp.splice(k, 1); else it.resp.push(i); scheduleRender(); },
+    "ord-reset": () => { const it = curItem(); if (it) { it.resp = []; scheduleRender(); } },
+    "quiz-check": () => doCheck(),
+    "quiz-next": () => doNext(),
+    "quiz-exit": () => exitQuiz(),
+    explain: () => explainCurrent(),
+    "explain-stop": () => abortAI(),
+    theory: (el) => {
+      const t = TOPICS[el.dataset.id], read = !!prog(t.sid).th[t.id];
+      patchDoc("prog-" + t.sid, { th: { [t.id]: read ? null : Date.now() } });
+      toast(read ? "Отметка снята" : "Теория отмечена как прочитанная");
+    },
+    "gen-ai": (el) => generateQuestions(el.dataset.id),
+    "gen-stop": () => { if (ui.gen && ui.gen.ctl) ui.gen.ctl.abort(); ui.gen = null; scheduleRender(); },
+    "ask-tutor": (el) => { const t = TOPICS[el.dataset.id]; ui.chat.sid = t.sid; ui.chat.draft = `Объясни простыми словами главное по теме «${t.title}» и приведи пример задания ЕГЭ.`; ui.focusNext = "chat-input"; go("tutor"); },
+    "chat-subject": (el) => { if (SUBJ[el.dataset.sid]) { ui.chat.sid = el.dataset.sid; scheduleRender(); } },
+    "chat-suggest": (el) => sendChat(el.dataset.text),
+    "chat-stop": () => { if (ui.chat.ctl) ui.chat.ctl.abort(); },
+    "chat-clear": () => { if (ui.chat.ctl) ui.chat.ctl.abort(); ui.chat = { sid: ui.chat.sid, turns: [], busy: false, ctl: null, draft: "", error: "" }; scheduleRender(); },
+    "ask-del": (el) => { ui.confirmDel = el.dataset.k; scheduleRender(); },
+    "cancel-del": () => { ui.confirmDel = null; scheduleRender(); },
+    "del-log": (el) => { patchDoc(el.dataset.doc, { s: { [el.dataset.id]: null } }); ui.confirmDel = null; toast("Запись удалена"); },
+    "del-mock": (el) => { patchDoc("mocks", { m: { [el.dataset.id]: null } }); ui.confirmDel = null; toast("Пробник удалён"); },
+    "del-todo": (el) => { patchDoc("plan", { custom: { [el.dataset.id]: null } }); ui.confirmDel = null; toast("Дело удалено"); },
+    export: () => doExport(),
+    "copy-export": () => copyText(ui.exportText, "#export-text"),
+    import: () => { const f = document.getElementById("import-file"); if (f) f.click(); },
+    "import-do": () => doImport(),
+    "reset-ask": (el) => { if (!SUBJ[el.dataset.sid]) return; ui.confirm = { kind: "reset", sid: el.dataset.sid }; scheduleRender(); },
+    "reset-do": () => {
+      const cf = ui.confirm;
+      if (!cf || cf.kind !== "reset" || !SUBJ[cf.sid]) return;
+      replaceDoc("prog-" + cf.sid, { q: {}, th: {} });
+      ui.confirm = null;
+      toast("Прогресс " + SUBJ[cf.sid].po + " сброшен");
+    },
+    "confirm-cancel": () => { ui.confirm = null; scheduleRender(); },
+    "essay-tab": (el) => { essayState().tab = el.dataset.tab; scheduleRender(true); },
+    "essay-text": (el) => { const e = essayState(); if (e.tid === el.dataset.id) return; e.tid = el.dataset.id; e.editId = null; e.showPos = false; e.ai = null; essayDraftLater(); scheduleRender(); },
+    "essay-pos": () => { essayState().showPos = true; scheduleRender(); },
+    "essay-save": () => { if (saveEssay()) toast("Сохранено в «Мои сочинения»"); },
+    "essay-check": () => checkEssay(),
+    "essay-stop": () => { const e = essayState(); if (e.ai && e.ai.ctl) e.ai.ctl.abort(); },
+    "essay-clear-ask": () => { essayState().confirmClear = true; scheduleRender(); },
+    "essay-clear-cancel": () => { essayState().confirmClear = false; scheduleRender(); },
+    "essay-clear": () => {
+      const e = essayState();
+      Object.assign(e, { body: "", editId: null, ai: null, checks: {}, showPos: false, confirmClear: false });
+      essayDraftLater(); ui.focusNext = "essay-body"; scheduleRender();
+    },
+    "essay-open": (el) => {
+      const x = essays().find((r) => r.id === el.dataset.id), e = essayState();
+      if (!x) return;
+      const own = !EGE.essay.texts.some((t) => t.id === x.tid);
+      Object.assign(e, { tid: own ? "own" : x.tid, body: x.body, editId: x.id, ai: null, checks: {}, showPos: false, tab: "write" });
+      if (own) e.own = { text: x.src || "", problem: x.problem || "" };
+      essayDraftLater(); scheduleRender(true);
+    },
+    "del-essay": (el) => {
+      patchDoc("essays", { e: { [el.dataset.id]: null } });
+      if (ui.essay && ui.essay.editId === el.dataset.id) ui.essay.editId = null;
+      ui.confirmDel = null; toast("Сочинение удалено");
+    },
+    "auth-tab": (el) => {
+      ui.auth.tab = el.dataset.tab === "register" ? "register" : "login";
+      ui.auth.error = "";
+      scheduleRender();
+    },
+    "auth-logout": async () => {
+      try { await backendReq("/api/auth/logout", { method: "POST" }); } catch (e) { /* выходим локально в любом случае */ }
+      store.user = null; store.uid = null; store.me = null;
+      store.error = null; store.confirmed = false; store.stale = false;
+      cloud.db = null; ai.fn = null; ai.state = "off";
+      clearQueues();
+      ui.confirm = null; ui.auth.error = "";
+      clearDrafts("auth."); clearDrafts("pf."); clearDrafts("ob.");
+      startLocal();
+      toast("Выход из аккаунта выполнен");
+    },
+    "auth-migrate": () => {
+      if (!store.backend || !store.user || !hasLocalProgress()) return;
+      ui.confirm = { kind: "migrate" };
+      scheduleRender();
+    },
+    "auth-migrate-do": async () => {
+      if (!store.backend || !store.user) return;
+      ui.confirm = null;
+      try {
+        const n = await migrateLocalDocsToServer();
+        await refreshBackendDocs(true);
+        toast(n ? "Локальный прогресс перенесён в аккаунт" : "Нет данных для переноса");
+      } catch (e) {
+        toast((e && e.message) || "Не удалось перенести данные");
+      }
+      scheduleRender();
+    }
+  };
+  function authErrorText(e) {
+    const code = e && e.code;
+    if (code === "unavailable") return "Нет связи с сервером. Попробуй через несколько секунд.";
+    if (code === "invalid_credentials") return "Неверный логин или пароль.";
+    if (code === "username_taken") return "Этот логин уже занят.";
+    return (e && e.message) || "Не получилось войти. Попробуй ещё раз.";
+  }
+  const FORMS = {
+    onboard: () => {
+      const name = String(draft("ob.name", defaultName())).trim().slice(0, 40);
+      const targets = {};
+      SUBJECT_META.forEach((s) => { targets[s.id] = clampInt(draft("ob." + s.id, DEFAULT_TARGETS[s.id]), 0, 100, DEFAULT_TARGETS[s.id]); });
+      patchDoc("profile", { name, targets, created: Date.now() });
+      clearDrafts("ob.");
+      toast("Готово! Подготовка началась");
+    },
+    profile: () => {
+      const prof = profile();
+      const targets = {}, exams = {};
+      SUBJECT_META.forEach((s) => {
+        targets[s.id] = clampInt(draft("pf.t." + s.id, prof.targets[s.id]), 0, 100, prof.targets[s.id]);
+        const d = draft("pf.e." + s.id, prof.exams[s.id]);
+        exams[s.id] = validISO(d) ? d : prof.exams[s.id];
+      });
+      patchDoc("profile", { name: String(draft("pf.name", prof.name || defaultName())).trim().slice(0, 40), targets, exams });
+      clearDrafts("pf.");
+      toast("Сохранено");
+    },
+    log: () => {
+      const d = draft("log.d", todayISO()), m = clampInt(draft("log.m", ""), 1, 720, 0);
+      if (!validISO(d)) { toast("Укажи дату занятия"); return; }
+      if (!m) { toast("Укажи, сколько минут длилось занятие"); return; }
+      patchDoc("log-" + d.slice(0, 7), { s: { [newId()]: { d, sub: draft("log.sub", "bio"), m, n: String(draft("log.n", "")).trim().slice(0, 200), k: "manual", at: Date.now() } } });
+      clearDrafts("log.", ["log.d", "log.sub"]);
+      toast("Занятие записано");
+    },
+    mock: () => {
+      const d = draft("mk.d", todayISO()), raw = draft("mk.sc", "");
+      const sc = clampInt(raw, 0, 100, -1);
+      if (!validISO(d)) { toast("Укажи дату пробника"); return; }
+      if (raw === "" || sc < 0) { toast("Укажи тестовый балл от 0 до 100"); return; }
+      const pRaw = draft("mk.p", "");
+      const p = pRaw === "" ? null : clampInt(pRaw, 0, 100, null);
+      patchDoc("mocks", { m: { [newId()]: { d, sub: draft("mk.sub", "bio"), sc, p, n: String(draft("mk.n", "")).trim().slice(0, 120), at: Date.now() } } });
+      clearDrafts("mk.", ["mk.d", "mk.sub"]);
+      toast("Пробник добавлен");
+    },
+    todo: () => {
+      const t = String(draft("td.t", "")).trim().slice(0, 140);
+      if (!t) { toast("Напиши, что нужно сделать"); return; }
+      const d = draft("td.d", "");
+      patchDoc("plan", { custom: { [newId()]: { t, d: validISO(d) ? d : "", n: String(draft("td.n", "")).trim().slice(0, 300), done: null, at: Date.now() } } });
+      clearDrafts("td.");
+      toast("Дело добавлено");
+    },
+    chat: () => sendChat(ui.chat.draft),
+    auth: async (form) => {
+      const a = ui.auth;
+      if (a.busy || !store.backend) return;
+      const reg = a.tab === "register";
+      const username = String(form && form.elements && form.elements.username ? form.elements.username.value : draft("auth.user", "")).trim();
+      const password = String(form && form.elements && form.elements.password ? form.elements.password.value : draft("auth.pass", ""));
+      const inviteCode = reg ? String(form && form.elements && form.elements.invite ? form.elements.invite.value : draft("auth.invite", "")).trim() : "";
+      const migEl = reg && form && form.elements ? form.elements.migrate : null;
+      const doMigrate = !!(migEl && migEl.checked);
+      if (!username || !password) { a.error = "Введи логин и пароль."; scheduleRender(); return; }
+      a.busy = true; a.error = "";
+      scheduleRender();
+      try {
+        const body = reg ? { username, password, inviteCode } : { username, password };
+        const res = await backendReq("/api/auth/" + (reg ? "register" : "login"), { method: "POST", body: JSON.stringify(body) });
+        let migrated = 0;
+        if (reg && doMigrate) {
+          try { migrated = await migrateLocalDocsToServer(); } catch (e) { /* загрузим аккаунт в любом случае */ }
+        }
+        clearQueues();
+        await loadBackendSession(res.user);
+        clearDrafts("auth."); clearDrafts("pf."); clearDrafts("ob.");
+        a.error = "";
+        toast(reg ? (migrated ? "Аккаунт создан, прогресс перенесён" : "Аккаунт создан") : "Вход выполнен");
+      } catch (e) {
+        a.error = authErrorText(e);
+      }
+      a.busy = false;
+      scheduleRender();
+    }
+  };
+
+  document.addEventListener("click", (e) => {
+    const el = e.target.closest("[data-a]");
+    if (!el || el.disabled) return;
+    const h = ACTIONS[el.dataset.a];
+    if (h) { e.preventDefault(); h(el, e); }
+  });
+  document.addEventListener("submit", (e) => {
+    const f = e.target.closest("form[data-f]");
+    if (!f) return;
+    e.preventDefault();
+    const h = FORMS[f.dataset.f];
+    if (h) h(f);
+  });
+  document.addEventListener("input", (e) => {
+    const el = e.target;
+    if (el.dataset && el.dataset.d) { ui.drafts[el.dataset.d] = el.value; return; }
+    if (el.id === "ans") {
+      const it = curItem(); if (!it) return;
+      it.resp = el.value;
+      const b = document.querySelector('[data-a="quiz-check"]'); if (b) b.disabled = !canCheck(it);
+      return;
+    }
+    if (el.id === "self-text") { const it = curItem(); if (it && it.q.t === "self") it.resp.text = el.value; return; }
+    if (el.id === "chat-input") ui.chat.draft = el.value;
+    if (el.id === "essay-body") { essayState().body = el.value; paintEssayCount(); essayDraftLater(); }
+    if (el.id === "essay-src") { essayState().own.text = el.value; essayDraftLater(); }
+    if (el.id === "essay-problem") { essayState().own.problem = el.value; essayDraftLater(); }
+  });
+  document.addEventListener("change", (e) => {
+    const el = e.target;
+    if (el.dataset && el.dataset.d) { ui.drafts[el.dataset.d] = el.value; return; }
+    if (el.dataset && el.dataset.c === "todo") { toggleTodo(el.dataset.id, el.dataset.custom === "1", el.checked); return; }
+    if (el.dataset && el.dataset.c === "self-sum") { // отметки в итогах полного варианта
+      const it = ui.quiz && ui.quiz.items[Number(el.dataset.k)]; if (!it || it.q.t !== "self") return;
+      const i = Number(el.dataset.i), k = it.resp.sel.indexOf(i);
+      if (el.checked && k < 0) it.resp.sel.push(i); else if (!el.checked && k >= 0) it.resp.sel.splice(k, 1);
+      it.res = grade(it); ui.quiz.saved = false; scheduleRender(); return;
+    }
+    if (el.dataset && el.dataset.c === "self-el") {
+      const it = curItem(); if (!it || it.q.t !== "self") return;
+      const i = Number(el.dataset.i), k = it.resp.sel.indexOf(i);
+      if (el.checked && k < 0) it.resp.sel.push(i); else if (!el.checked && k >= 0) it.resp.sel.splice(k, 1);
+      it.res = grade(it); scheduleRender(); return;
+    }
+    if (el.dataset && el.dataset.c === "essay-check") { essayState().checks[el.dataset.i] = el.checked; scheduleRender(); return; }
+    if (el.id === "import-file" && el.files && el.files[0]) { readImport(el.files[0]); el.value = ""; }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.target && e.target.id === "chat-input" && e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(ui.chat.draft); return; }
+    if (ui.view !== "quiz" || !ui.quiz || ui.quiz.done || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.target && e.target.id === "self-text") return; // в поле развёрнутого ответа Enter — перенос строки
+    const qz = ui.quiz, it = curItem();
+    const tag = (e.target.tagName || "").toLowerCase();
+    if (e.key === "Enter" && !e.shiftKey) {
+      const a = e.target.dataset ? e.target.dataset.a : null;
+      if (tag === "button" && a && !["pick", "match", "ord", "quiz-check", "quiz-next"].includes(a)) return;
+      e.preventDefault();
+      if (qz.checked) doNext(); else doCheck();
+      return;
+    }
+    if (tag === "input" || tag === "textarea" || tag === "select") return;
+    if (!qz.checked && it && (it.q.t === "single" || it.q.t === "multi") && /^[1-9]$/.test(e.key)) {
+      const pos = Number(e.key) - 1;
+      if (pos < it.view.length) { e.preventDefault(); ACTIONS.pick({ dataset: { i: String(it.view[pos]) } }); }
+    }
+  });
+
+  window.addEventListener("hashchange", () => { readHash(); scheduleRender(true); });
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refreshBackendDocs(); });
+
+  // ---------- запуск ----------
+  readHash();
+  render();
+  initData();
+  initCaps();
+})();

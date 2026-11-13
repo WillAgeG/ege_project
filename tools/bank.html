@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Банк заданий</title>
+<style>
+  :root { color-scheme: light dark; --bg: #f6f7f9; --card: #fff; --ink: #1c2330; --muted: #5d6778; --line: #dde1e8; --acc: #0f6f66; --err: #b3261e; --warn: #9a6200; --ok: #1d7a3a; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #141820; --card: #1d232d; --ink: #e8ebf0; --muted: #9aa5b5; --line: #323b4a; --acc: #4fc4b6; --err: #ff8a80; --warn: #f0b24a; --ok: #6fd18a; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 system-ui, "Segoe UI", sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 0 0 10px; }
+  p { margin: 4px 0 10px; }
+  .muted { color: var(--muted); }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin: 16px 0; }
+  button, .btn { font: inherit; padding: 7px 14px; border-radius: 8px; border: 1px solid var(--acc); background: var(--acc); color: #fff; cursor: pointer; }
+  @media (prefers-color-scheme: dark) { button, .btn { color: #0b1512; } }
+  button.ghost { background: transparent; color: var(--acc); }
+  button:disabled { opacity: .5; cursor: default; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  .tag { display: inline-block; padding: 0 7px; border-radius: 99px; font-size: 12px; border: 1px solid currentColor; }
+  .error { color: var(--err); } .warn { color: var(--warn); } .info { color: var(--muted); } .ok { color: var(--ok); }
+  pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: 12px/1.5 ui-monospace, Consolas, monospace; max-height: 320px; overflow: auto; background: var(--bg); padding: 10px; border-radius: 8px; }
+  .scroll { max-height: 420px; overflow: auto; }
+  input[type=file] { font: inherit; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Банк заданий</h1>
+  <p class="muted">Все задания сайта в одной таблице: выгрузка в CSV для Excel, проверка ответов и загрузка правок обратно. Страница открывается только с локального сервера (<code>python3 .claude/serve.py</code> или <code>.claude/serve.ps1</code> на Windows).</p>
+
+  <section id="sum"><h2>Сколько заданий</h2><div id="sum-body">Загрузка…</div></section>
+
+  <section id="chk"><h2>Проверка</h2><div id="chk-body">Загрузка…</div></section>
+
+  <section id="exp">
+    <h2>Выгрузка в таблицу</h2>
+    <p class="muted">Одна строка — одно задание. Файл <b>bank/bank.csv</b> (кодировка UTF-8, разделитель «;») открывается в Excel двойным щелчком. Не меняйте столбец <b>id</b>: по нему хранится прогресс.</p>
+    <div class="row"><button id="b-save">Записать в bank/bank.csv</button><button id="b-dl" class="ghost">Скачать bank.csv</button><span id="exp-msg" class="muted"></span></div>
+    <p id="exp-test" class="muted"></p>
+  </section>
+
+  <section id="imp">
+    <h2>Загрузка правок из таблицы</h2>
+    <p class="muted">Выберите исправленный CSV. Сравниваются только изменённые строки; новые строки (пустой id) добавляются в тему, а слово «удалить» в столбце «Параметры» убирает задание. Ничего не записывается, пока вы не нажмёте кнопку ниже.</p>
+    <div class="row"><input type="file" id="f-csv" accept=".csv,text/csv,text/plain"><button id="b-apply" disabled>Записать в subjects/table.js</button><button id="b-dlt" class="ghost" disabled>Скачать table.js</button></div>
+    <div id="imp-body" style="margin-top:10px"></div>
+  </section>
+</main>
+
+<script src="../subjects/biology.js"></script>
+<script src="../subjects/biology-theory1.js"></script>
+<script src="../subjects/biology-theory2.js"></script>
+<script src="../subjects/biology-theory3.js"></script>
+<script src="../subjects/biology-health.js"></script>
+<script src="../subjects/biology-kim1.js"></script>
+<script src="../subjects/biology-kim2.js"></script>
+<script src="../subjects/biology-kim3.js"></script>
+<script src="../subjects/biology-kim4.js"></script>
+<script src="../subjects/biology-more.js"></script>
+<script src="../subjects/biology-exam.js"></script>
+<script src="../subjects/biology-part2.js"></script>
+<script src="../subjects/biology-part2-tasks.js"></script>
+<script src="../subjects/biology-figures.js"></script>
+<script src="../subjects/russian.js"></script>
+<script src="../subjects/russian-more.js"></script>
+<script src="../subjects/russian-more2.js"></script>
+<script src="../subjects/russian-exam.js"></script>
+<script src="../subjects/chemistry.js"></script>
+<script src="../subjects/chemistry-topics.js"></script>
+<script src="../subjects/chemistry-theory1.js"></script>
+<script src="../subjects/chemistry-theory2.js"></script>
+<script src="../subjects/chemistry-theory3.js"></script>
+<script src="../subjects/chemistry-theory4.js"></script>
+<script src="../subjects/chemistry-theory5.js"></script>
+<script src="../subjects/chemistry-theory6.js"></script>
+<script src="../subjects/chemistry-theory7.js"></script>
+<script src="../subjects/chemistry-theory8.js"></script>
+<script src="../subjects/chemistry-part2.js"></script>
+<script src="../subjects/chemistry-part2-tasks.js"></script>
+<script src="../subjects/chemistry-part2-more.js"></script>
+<script src="../subjects/chemistry-kim1.js"></script>
+<script src="../subjects/chemistry-kim2.js"></script>
+<script src="../subjects/chemistry-kim3.js"></script>
+<script src="../subjects/chemistry-kim4.js"></script>
+<script src="../subjects/chemistry-kim5.js"></script>
+<script src="../subjects/chemistry-more.js"></script>
+<script src="../subjects/chemistry-exam.js"></script><script src="../subjects/table.js"></script>
+<script src="../bank-core.js"></script>
+<script src="bank-tools.js"></script>
+<script>
+(function () {
+  "use strict";
+  var T = EGE.bankTools, NAMES = { bio: "Биология", rus: "Русский язык", chem: "Химия" };
+  var TYPES = { single: "один ответ", multi: "несколько ответов", match: "соответствие", order: "порядок", input: "ввод ответа", self: "развёрнутый ответ" };
+  var bank = EGE.loadBank(), report = T.checkBank(bank), rows = T.exportRows(bank), csv = T.csvStringify(rows, T.COLS);
+  var pending = null;
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function $(id) { return document.getElementById(id); }
+
+  // ---- сводка ----
+  var st = report.stats, h = '<table><tr><th>Предмет</th><th class="n">Заданий</th><th class="n">Тем</th><th>По типам</th></tr>', total = 0;
+  Object.keys(st.subjects).forEach(function (sid) {
+    var s = st.subjects[sid]; total += s.n;
+    h += "<tr><td>" + NAMES[sid] + '</td><td class="n">' + s.n + '</td><td class="n">' + Object.keys(s.topics).length + "</td><td>" +
+      Object.keys(s.types).map(function (t) { return TYPES[t] + " — " + s.types[t]; }).join(", ") + "</td></tr>";
+  });
+  h += '<tr><td><b>Всего</b></td><td class="n"><b>' + total + "</b></td><td></td><td></td></tr></table>";
+  if (st.kim.bio) {
+    h += '<p style="margin-top:12px"><b>Биология по номерам КИМ</b> <span class="muted">(заданий на каждый номер)</span></p><div class="row" style="gap:6px">';
+    for (var k = 1; k <= 28; k++) h += '<span class="tag ' + (st.kim.bio[k] ? (st.kim.bio[k] < 8 ? "warn" : "") : "error") + '">№' + k + ": " + (st.kim.bio[k] || 0) + "</span>";
+    h += "</div>";
+  }
+  $("sum-body").innerHTML = h;
+
+  // ---- проверка ----
+  var iss = report.issues, cnt = { error: 0, warn: 0, info: 0 };
+  iss.forEach(function (i) { cnt[i.lv]++; });
+  var c = '<p><span class="tag error">ошибок: ' + cnt.error + '</span> <span class="tag warn">замечаний: ' + cnt.warn + '</span> <span class="tag info">справок: ' + cnt.info + "</span></p>";
+  c += '<p class="muted">В заданиях «один ответ» с четырьмя вариантами верный ответ заметно длиннее остальных (на 15% и не меньше чем на 5 знаков): ' + Object.keys(st.longest).map(function (sid) { var L = st.longest[sid]; return NAMES[sid] + " " + (L.n ? Math.round(100 * L.k / L.n) : 0) + "% (" + L.k + " из " + L.n + ")"; }).join(", ") + ". Больше 20% — предупреждение. Место верного ответа в файле не проверяется: сайт перемешивает варианты.</p>";
+  if (iss.length) {
+    c += '<div class="scroll"><table><tr><th>Уровень</th><th>Тема</th><th>id</th><th>Что не так</th><th>Задание</th></tr>' + iss.map(function (i) {
+      return '<tr><td class="' + i.lv + '">' + { error: "ошибка", warn: "замечание", info: "справка" }[i.lv] + "</td><td>" + esc(i.topic) + "</td><td>" + esc(i.id) + "</td><td>" + esc(i.msg) + "</td><td class=\"muted\">" + esc(i.q) + "</td></tr>";
+    }).join("") + "</table></div>";
+  } else c += '<p class="ok">Замечаний нет.</p>';
+  $("chk-body").innerHTML = c;
+
+  // ---- выгрузка ----
+  var bad = T.selfTest(bank);
+  $("exp-test").innerHTML = bad.length ? '<span class="error">Проверка выгрузки нашла расхождения (' + bad.length + "):</span><br>" + esc(bad.slice(0, 12).join("\n")).replace(/\n/g, "<br>") : '<span class="ok">Проверка выгрузки: все ' + rows.length + " заданий проходят путь «задание → таблица → задание» без потерь.</span>";
+  function save(path, text, msgEl) {
+    return fetch("/__save?path=" + encodeURIComponent(path), { method: "POST", body: text }).then(function (r) { return r.text().then(function (t) { if (!r.ok) throw new Error(t || r.status); return t; }); });
+  }
+  function download(name, text) {
+    var a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" })); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  }
+  $("b-save").onclick = function () {
+    $("exp-msg").textContent = "Записываю…";
+    save("bank/bank.csv", csv).then(function (t) { $("exp-msg").innerHTML = '<span class="ok">Готово: ' + esc(t) + "</span>"; }, function (e) { $("exp-msg").innerHTML = '<span class="error">Не записалось: ' + esc(e.message) + "</span>"; });
+  };
+  $("b-dl").onclick = function () { download("bank.csv", csv); };
+
+  // ---- загрузка правок ----
+  function showDiff(d) {
+    var n = Object.keys(d.edit).length, h = "";
+    if (d.errors.length) h += '<p class="error"><b>Ошибки (' + d.errors.length + ") — пока их не исправить, ничего не записывается:</b></p><pre>" + esc(d.errors.join("\n")) + "</pre>";
+    h += "<p>Строк в таблице: " + d.rows + ". Без изменений: " + d.same + ". <b>Изменено: " + n + ", добавлено: " + d.add.length + ", удалено: " + d.drop.length + ".</b></p>";
+    if (n) h += "<pre>" + esc(Object.keys(d.edit).map(function (id) { var q = bank.QS[id]; return id + " — " + String(q.q).slice(0, 60) + "\n   изменено: " + Object.keys(d.edit[id]).join(", "); }).join("\n")) + "</pre>";
+    if (d.add.length) h += "<p>Новые:</p><pre>" + esc(d.add.map(function (a) { return a.topic + " — " + String(a.q).slice(0, 80); }).join("\n")) + "</pre>";
+    if (d.drop.length) h += "<p>Удаляются:</p><pre>" + esc(d.drop.map(function (id) { return id + " — " + String(bank.QS[id].q).slice(0, 80); }).join("\n")) + "</pre>";
+    if (d.notes.length) h += '<p class="warn">Замечания:</p><pre>' + esc(d.notes.join("\n")) + "</pre>";
+    $("imp-body").innerHTML = h;
+  }
+  $("f-csv").onchange = function (ev) {
+    var f = ev.target.files[0]; if (!f) return;
+    var rd = new FileReader();
+    rd.onload = function () {
+      var d = T.diffTable(String(rd.result), bank);
+      showDiff(d);
+      var ok = !d.errors.length && (Object.keys(d.edit).length || d.add.length || d.drop.length);
+      pending = ok ? T.buildTable(EGE.table || {}, d) : null;
+      $("b-apply").disabled = $("b-dlt").disabled = !pending;
+    };
+    rd.readAsText(f, "utf-8");
+  };
+  $("b-apply").onclick = function () {
+    if (!pending) return;
+    save("subjects/table.js", pending).then(function (t) { $("imp-body").insertAdjacentHTML("afterbegin", '<p class="ok"><b>Записано: ' + esc(t) + ". Теперь опубликуйте сайт заново.</b></p>"); $("b-apply").disabled = true; }, function (e) { $("imp-body").insertAdjacentHTML("afterbegin", '<p class="error">Не записалось: ' + esc(e.message) + "</p>"); });
+  };
+  $("b-dlt").onclick = function () { if (pending) download("table.js", pending); };
+
+  window.bankPage = { bank: bank, report: report, rows: rows, csv: csv, tools: T, selfTestBad: bad, setPending: function (p) { pending = p; } };
+})();
+</script>
+</body>
+</html>
