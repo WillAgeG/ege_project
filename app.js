@@ -646,12 +646,21 @@
     return Object.keys(m).filter((k) => m[k] && m[k].d).map((k) => Object.assign({ id: k }, m[k]))
       .sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : (a.at || 0) - (b.at || 0)));
   }
-  function planDoc() { const p = store.docs.plan || {}; return { done: p.done || {}, custom: p.custom || {} }; }
+  const DIAG_PLAN_ID = { bio: "diag", rus: "diag-rus", chem: "diag-chem" };
+  const PREP_PLAN_ID = { rus: "rus-start", chem: "chem-start" };
+  function planDoc() { const p = store.docs.plan || {}; return { done: p.done || {}, custom: p.custom || {}, results: p.results || {} }; }
+  function findPlanItem(id) {
+    for (const ph of (EGE.plan && EGE.plan.phases) || []) {
+      const it = (ph.items || []).find((x) => x.id === id);
+      if (it) return it;
+    }
+    return null;
+  }
   function planItems() {
     const pd = planDoc(), prof = profile(), out = [];
     for (const ph of (EGE.plan && EGE.plan.phases) || []) {
       for (const it of ph.items) {
-        out.push(Object.assign({}, it, { due: it.exam ? prof.exams[it.exam] : it.due, phase: ph.id, done: !!pd.done[it.id], custom: false }));
+        out.push(Object.assign({}, it, { due: it.exam ? prof.exams[it.exam] : it.due, phase: ph.id, done: !!pd.done[it.id], result: pd.results[it.id] || null, custom: false }));
       }
     }
     for (const id in pd.custom) {
@@ -659,6 +668,50 @@
       if (c && c.t) out.push({ id, title: c.t, due: c.d || "", note: c.n || "", done: !!c.done, custom: true, phase: "mine" });
     }
     return out;
+  }
+  function quizOutcome(qz) {
+    const answered = qz.items.filter((it) => it.res);
+    const right = answered.filter((it) => it.res.r === 2).length;
+    const total = qz.items.length;
+    const pts = answered.reduce((s, it) => s + it.res.pts, 0);
+    const max = answered.reduce((s, it) => s + it.res.max, 0);
+    const pct = total ? Math.round((100 * right) / total) : 0;
+    return { answeredCount: answered.length, c: right, q: total, pct, pts, max };
+  }
+  function markPlanPrep(sid, note) {
+    const planId = PREP_PLAN_ID[sid];
+    if (!planId) return;
+    const pd = planDoc(), patch = {};
+    if (!pd.done[planId]) patch.done = { [planId]: Date.now() };
+    if (note && !pd.results[planId]) patch.results = { [planId]: { kind: "prep", note, at: Date.now() } };
+    if (patch.done || patch.results) patchDoc("plan", patch);
+  }
+  function completePlanFromQuiz(qz) {
+    if (!qz || qz.retry) return;
+    const o = quizOutcome(qz);
+    if (!o.answeredCount) return;
+    const now = Date.now();
+    if (qz.mode === "mixed") {
+      const planId = qz.planId || DIAG_PLAN_ID[qz.sid];
+      if (!planId) return;
+      patchDoc("plan", {
+        done: { [planId]: now },
+        results: { [planId]: { kind: "diag", c: o.c, q: o.q, pct: o.pct, pts: o.pts, max: o.max, at: now } }
+      });
+      if (qz.back && qz.back.v === "plan") toast(`Диагностика выполнена: ${o.c} из ${o.q} (${o.pct}%)`);
+      return;
+    }
+    if (qz.mode === "topic" || qz.mode === "variant" || qz.mode === "part2") {
+      const planId = qz.planId || PREP_PLAN_ID[qz.sid];
+      if (!planId) return;
+      const t = qz.topicId && TOPICS[qz.topicId];
+      const pd = planDoc();
+      patchDoc("plan", {
+        done: { [planId]: pd.done[planId] || now },
+        results: { [planId]: { kind: "prep", c: o.c, q: o.q, pct: o.pct, pts: o.pts, max: o.max, topic: t ? t.title : qz.title, at: now } }
+      });
+      if (qz.back && qz.back.v === "plan") toast(`Подготовка начата: ${o.c} из ${o.q} (${o.pct}%)`);
+    }
   }
   function nextExam(prof) {
     return (EGE.exams || []).map((e) => ({ subject: e.subject, name: e.name, date: prof.exams[e.subject] || e.date }))
@@ -825,23 +878,48 @@
     else { cls = n <= 14 ? "warn" : ""; txt = "через " + days(n); }
     return `<span class="chip ${cls}"><span class="mono">${dateShort(iso)}</span> · ${txt}</span>`;
   }
+  function todoResultHTML(it) {
+    const r = it.result;
+    const chunks = [];
+    if (r && r.c !== undefined) {
+      let s = `Результат: <b>${r.c} из ${r.q}</b> (${r.pct}%)`;
+      if (r.max) s += ` · ${r.pts} из ${r.max} баллов`;
+      if (r.topic) s += ` · ${esc(r.topic)}`;
+      chunks.push(s);
+    } else if (r && r.note) {
+      chunks.push(esc(r.note));
+    }
+    if (it.action && it.action.kind === "prep" && SUBJ[it.action.sid]) {
+      const st = subjectStats(it.action.sid);
+      if (st.total > 0 && st.seen > 0) chunks.push(`Освоено: ${st.mastered} из ${st.total} вопросов`);
+    }
+    if (!chunks.length) return "";
+    return `<div class="todo-result">${it.done ? icon("check") : ""}<span>${chunks.join(" · ")}</span></div>`;
+  }
   function todoItem(it, compact) {
     const cid = "todo-" + it.id;
     const delKey = "todo:" + it.id;
     let actions = "";
-    if (!compact && (it.link || it.custom)) {
+    if (!compact && (it.action || it.cta || it.link || it.custom)) {
+      const actBtn = it.action
+        ? `<button type="button" class="btn ${it.done ? "ghost" : "soft"} sm" data-a="plan-act" data-id="${esc(it.id)}">${esc(it.done ? (it.action.kind === "diag" ? "Пройти ещё раз" : "Продолжить") : it.action.label)}</button>`
+        : "";
+      const ctaBtn = it.cta
+        ? `<a class="btn ${it.done ? "ghost" : "soft"} sm" href="${esc(it.cta.href)}" target="_blank" rel="noopener noreferrer">${esc(it.cta.label)}</a>`
+        : "";
       const del = it.custom
         ? (ui.confirmDel === delKey
           ? `<button type="button" class="link-btn" style="color:var(--bad)" data-a="del-todo" data-id="${esc(it.id)}">Удалить</button><button type="button" class="link-btn" data-a="cancel-del">Отмена</button>`
           : `<button type="button" class="link-btn" data-a="ask-del" data-k="${esc(delKey)}">Удалить</button>`)
         : "";
-      actions = `<div class="todo-actions">${it.link ? `<a href="${esc(it.link.href)}" target="_blank" rel="noopener">${esc(it.link.label)}</a>` : ""}${del}</div>`;
+      actions = `<div class="todo-actions">${actBtn}${ctaBtn}${it.link ? `<a href="${esc(it.link.href)}" target="_blank" rel="noopener noreferrer">${esc(it.link.label)}</a>` : ""}${del}</div>`;
     }
     return `<div class="todo${it.done ? " done" : ""}${it.key && !it.done ? " key" : ""}">
       <input type="checkbox" class="check" id="${esc(cid)}" data-c="todo" data-id="${esc(it.id)}" data-custom="${it.custom ? 1 : 0}"${it.done ? " checked" : ""}>
       <div class="todo-main">
         <div class="todo-top"><label class="todo-title" for="${esc(cid)}">${esc(it.title)}</label><span class="row" style="gap:6px">${it.key && !it.done ? '<span class="chip leaf">главный срок</span>' : ""}${dueChip(it.due, it.done)}</span></div>
         ${!compact && it.note ? `<div class="todo-note">${esc(it.note)}</div>` : ""}
+        ${!compact ? todoResultHTML(it) : ""}
         ${actions}
       </div>
     </div>`;
@@ -966,7 +1044,7 @@
       <div class="eyebrow">Первый вход</div>
       <h2 class="h2">Давай настроим подготовку</h2>
       <p class="ink2">${cloudText}</p>
-      <div class="field"><label for="ob-name">Как к тебе обращаться</label><input class="input" id="ob-name" data-d="ob.name" value="${esc(draft("ob.name", defaultName()))}" maxlength="40"></div>
+      ${store.user ? "" : `<div class="field"><label for="ob-name">Как к тебе обращаться</label><input class="input" id="ob-name" data-d="ob.name" value="${esc(draft("ob.name", defaultName()))}" maxlength="40"></div>`}
       <div class="label">Целевые баллы ЕГЭ</div>
       <div class="fields">${SUBJECT_META.map((s) => `<div class="field"><label for="ob-${s.id}">${esc(s.name)}</label><input class="input num" type="number" min="0" max="100" inputmode="numeric" id="ob-${s.id}" data-d="ob.${s.id}" value="${esc(draft("ob." + s.id, DEFAULT_TARGETS[s.id]))}"></div>`).join("")}</div>
       <p class="hint">Ориентир: сумма по трём предметам — до 300 баллов (обычно цель ставят от 220+). Целевые баллы можно поменять позже в настройках.</p>
@@ -1207,7 +1285,8 @@
       title: opts.title, sid: opts.sid, mode: opts.mode, topicId: opts.topicId || null,
       items: qs.map((q, i) => Object.assign(makeItem(q), opts.ns ? { n: opts.ns[i] } : {})), i: 0, checked: false, done: false,
       sessionId: newId(), startDay: todayISO(), started: Date.now(), qStart: Date.now(),
-      spent: 0, answered: 0, correct: 0, back: opts.back || { v: "subject", sid: opts.sid }, ai: null, cfg: opts.cfg || null
+      spent: 0, answered: 0, correct: 0, back: opts.back || { v: "subject", sid: opts.sid }, ai: null, cfg: opts.cfg || null,
+      planId: opts.planId || null, retry: !!opts.retry
     };
     ui.focusNext = qs[0].t === "input" ? "ans" : null;
     go("quiz");
@@ -1402,7 +1481,10 @@
       logQuizSession(qz);
     }
     abortAI(); qz.ai = null;
-    if (qz.i + 1 >= qz.items.length) qz.done = true;
+    if (qz.i + 1 >= qz.items.length) {
+      qz.done = true;
+      completePlanFromQuiz(qz);
+    }
     else {
       qz.i++; qz.checked = false; qz.qStart = Date.now();
       ui.focusNext = qz.items[qz.i].q.t === "input" ? "ans" : null;
@@ -1540,7 +1622,7 @@
         </div>`).join("")}</div></section>` : ""}
       <div class="row">
         ${wrong.length ? `<button type="button" class="btn" data-a="quiz-retry">Повторить ошибки · ${wrong.length}</button>` : ""}
-        <button type="button" class="btn ghost" data-a="quiz-exit">${qz.back.v === "topic" ? "Вернуться к теме" : "Вернуться к предмету"}</button>
+        <button type="button" class="btn ghost" data-a="quiz-exit">${qz.back.v === "plan" ? "Вернуться к плану" : qz.back.v === "topic" ? "Вернуться к теме" : "Вернуться к предмету"}</button>
         <button type="button" class="btn ghost" data-a="go" data-v="home">На главную</button>
       </div>`;
   }
@@ -2022,6 +2104,7 @@
       sc: scored ? scored.total : null, k: scored ? Object.fromEntries(scored.k.map((c) => [c.id, c.p])) : null, adv: scored ? scored.advice : null,
       src: e.tid === "own" ? String(e.own.text || "").slice(0, 12000) : null };
     patchDoc("essays", { e: { [id]: Object.assign(rec, extra || {}) } });
+    markPlanPrep("rus", "Написано сочинение");
     e.editId = id; essayDraftLater();
     return id;
   }
@@ -2313,7 +2396,7 @@
     "quiz-retry": () => {
       const qz = ui.quiz; if (!qz) return;
       const exam = qz.mode === "variant";
-      startQuiz({ title: "Ошибки · " + qz.title, sid: qz.sid, qs: qz.items.filter((it) => (exam && !it.res) || (it.res && it.res.r !== 2)).map((it) => it.q), mode: exam ? "mistakes" : qz.mode, topicId: qz.topicId, back: qz.back });
+      startQuiz({ title: "Ошибки · " + qz.title, sid: qz.sid, qs: qz.items.filter((it) => (exam && !it.res) || (it.res && it.res.r !== 2)).map((it) => it.q), mode: exam || qz.mode === "mixed" ? "mistakes" : qz.mode, topicId: qz.topicId, back: qz.back, retry: true });
     },
     "quiz-variant": (el) => {
       const sid = subjectOf(el); if (!SUBJ[sid].variant) return;
@@ -2356,7 +2439,22 @@
     theory: (el) => {
       const t = TOPICS[el.dataset.id], read = !!prog(t.sid).th[t.id];
       patchDoc("prog-" + t.sid, { th: { [t.id]: read ? null : Date.now() } });
+      if (!read) markPlanPrep(t.sid, "Прочитана теория: " + t.title);
       toast(read ? "Отметка снята" : "Теория отмечена как прочитанная");
+    },
+    "plan-act": (el) => {
+      const it = findPlanItem(el.dataset.id), act = it && it.action;
+      if (!act || !SUBJ[act.sid]) return;
+      if (act.kind === "diag") {
+        startQuiz({ title: "Диагностика · " + SUBJ[act.sid].name, sid: act.sid, qs: pickMixed(act.sid, QUIZ_SIZE).map((id) => QS[id]), mode: "mixed", back: { v: "plan" }, planId: it.id });
+        return;
+      }
+      if (act.kind === "prep") {
+        const list = (SUBJ[act.sid].topicList || []).filter((x) => x.qids.length);
+        const t = list.find((x) => topicStats(x).mastered < x.qids.length) || list[0];
+        if (!t) { toast("Здесь пока нет вопросов."); return; }
+        startQuiz({ title: topicRef(t), sid: t.sid, qs: pickTopic(t, TOPIC_QUIZ).map((id) => QS[id]), mode: "topic", topicId: t.id, back: { v: "plan" }, planId: it.id });
+      }
     },
     "gen-ai": (el) => generateQuestions(el.dataset.id),
     "gen-stop": () => { if (ui.gen && ui.gen.ctl) ui.gen.ctl.abort(); ui.gen = null; scheduleRender(); },
@@ -2464,7 +2562,7 @@
   }
   const FORMS = {
     onboard: () => {
-      const name = String(draft("ob.name", defaultName())).trim().slice(0, 40);
+      const name = (store.user ? defaultName() : String(draft("ob.name", defaultName()))).trim().slice(0, 40);
       const targets = {};
       SUBJECT_META.forEach((s) => { targets[s.id] = clampInt(draft("ob." + s.id, DEFAULT_TARGETS[s.id]), 0, 100, DEFAULT_TARGETS[s.id]); });
       patchDoc("profile", { name, targets, created: Date.now() });

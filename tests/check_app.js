@@ -447,6 +447,140 @@
     await flushMicrotasks(10);
     assert(env3.elements.get("main").innerHTML.includes("Привет, Анна!"), "expected claude mode working");
 
+    // 4. Проверка онбординга без повторного вопроса имени + адаптивного плана
+    const planServerDocs = {};
+    let planUser = null;
+    const deepMerge = (dst, src) => {
+      const out = Object.assign({}, dst || {});
+      for (const k of Object.keys(src || {})) {
+        const v = src[k];
+        if (v === null) delete out[k];
+        else if (v && typeof v === "object" && !Array.isArray(v)) out[k] = deepMerge(out[k], v);
+        else out[k] = v;
+      }
+      return out;
+    };
+    const env4 = installGlobals({
+      host: { backend: true },
+      localStorage: {},
+      fetch: async (url, init) => {
+        init = init || {};
+        const mkRes = (status, jsonObj) => ({ ok: status >= 200 && status < 300, status, headers: { get: () => "application/json" }, json: async () => jsonObj });
+        if (url === "/api/me") return mkRes(200, { user: planUser, ai: { enabled: false }, inviteRequired: false, providers: { local: true, google: false } });
+        if (url === "/api/auth/register") {
+          const b = JSON.parse(init.body);
+          planUser = { id: 9, username: b.username, displayName: b.displayName || b.username, email: b.email || null, authProvider: "local" };
+          return mkRes(200, { user: planUser });
+        }
+        if (url === "/api/docs") return mkRes(200, { docs: planServerDocs });
+        if (url.startsWith("/api/docs/")) {
+          const docName = decodeURIComponent(url.slice("/api/docs/".length));
+          const method = init.method || "GET";
+          if (method === "PUT") planServerDocs[docName] = JSON.parse(init.body);
+          else if (method === "PATCH") planServerDocs[docName] = deepMerge(planServerDocs[docName], JSON.parse(init.body));
+          return mkRes(200, { ok: true });
+        }
+        return mkRes(404, { detail: "not found" });
+      }
+    });
+    const clickAction = (env, dataset) => env.emitDoc("click", {
+      target: { closest: (sel) => sel === "[data-a]" ? { dataset, disabled: false } : null },
+      preventDefault() {}
+    });
+    const completeActiveQuiz = async (env) => {
+      for (let guard = 0; guard < 30; guard++) {
+        const html = env.elements.get("main").innerHTML;
+        if (html.includes("Вернуться к плану")) return html;
+        if (guard === 0) {
+          if (html.includes('id="ans"')) env.emitDoc("input", { target: { id: "ans", value: "тест", dataset: {} } });
+          else if (html.includes('id="self-text"')) env.emitDoc("input", { target: { id: "self-text", value: "ответ", dataset: {} } });
+          else if (html.includes('data-a="pick"')) {
+            const m = /data-a="pick"\s+data-i="(\d+)"/.exec(html);
+            if (m) clickAction(env, { a: "pick", i: m[1] });
+          } else if (html.includes('data-a="match"')) {
+            const seenL = new Set();
+            const re = /data-a="match"\s+data-l="(\d+)"\s+data-r="0"/g;
+            let m;
+            while ((m = re.exec(html)) !== null) {
+              if (!seenL.has(m[1])) { seenL.add(m[1]); clickAction(env, { a: "match", l: m[1], r: "0" }); }
+            }
+          } else if (html.includes('data-a="ord"')) {
+            const re = /data-a="ord"\s+data-i="(\d+)"/g;
+            let m;
+            while ((m = re.exec(html)) !== null) clickAction(env, { a: "ord", i: m[1] });
+          }
+          clickAction(env, { a: "quiz-check" });
+          clickAction(env, { a: "quiz-next" });
+        } else {
+          clickAction(env, { a: "quiz-skip" });
+        }
+        await flushMicrotasks(6);
+      }
+      throw new Error("quiz did not finish");
+    };
+
+    loadScripts(dataScripts);
+    vmRun(readFileText("app.js"), "app.js");
+    await flushMicrotasks(15);
+    clickAction(env4, { a: "auth-tab", tab: "register" });
+    await flushMicrotasks(6);
+    env4.emitDoc("submit", {
+      target: {
+        closest: () => ({
+          dataset: { f: "auth" },
+          elements: {
+            displayName: { value: "Игорь" },
+            username: { value: "igor" },
+            email: { value: "igor@example.com" },
+            password: { value: "secret123" },
+            password2: { value: "secret123" },
+            invite: { value: "" },
+            migrate: { checked: false }
+          }
+        })
+      },
+      preventDefault() {}
+    });
+    await flushMicrotasks(25);
+    const obHtml = env4.elements.get("main").innerHTML;
+    assert(obHtml.includes("Давай настроим подготовку"), "expected onboarding form for fresh backend user");
+    assert(!obHtml.includes("Как к тебе обращаться") && !obHtml.includes('id="ob-name"'), "should not ask display name again during onboarding");
+
+    env4.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "onboard" } }) }, preventDefault() {} });
+    await flushMicrotasks(12);
+    assert(env4.elements.get("main").innerHTML.includes("Привет, Игорь!"), "expected registration name in greeting after onboarding");
+
+    clickAction(env4, { a: "go", v: "plan" });
+    await flushMicrotasks(8);
+    const planBefore = env4.elements.get("main").innerHTML;
+    assert(planBefore.includes('data-a="plan-act" data-id="diag-rus"') && planBefore.includes("Пройти"), "expected interactive diagnostic button in plan");
+    assert(planBefore.includes('data-a="plan-act" data-id="rus-start"'), "expected interactive prep start button in plan");
+    assert(planBefore.includes("https://www.gosuslugi.ru/") && planBefore.includes("Перейти на Госуслуги"), "expected Gosuslugi button");
+    assert(planBefore.includes("https://www.gosuslugi.ru/vuzonline") && planBefore.includes("Изучить"), "expected uni-rules study CTA button");
+
+    // Проходим диагностику по русскому -> автогалочка + результат
+    clickAction(env4, { a: "plan-act", id: "diag-rus" });
+    await flushMicrotasks(8);
+    const diagSummary = await completeActiveQuiz(env4);
+    assert(diagSummary.includes("Вернуться к плану"), "expected return-to-plan button after plan quiz");
+    assert(planServerDocs.plan && planServerDocs.plan.done && planServerDocs.plan.done["diag-rus"], "expected auto checkmark for diag-rus");
+    assert(planServerDocs.plan.results && planServerDocs.plan.results["diag-rus"] && planServerDocs.plan.results["diag-rus"].q === 20, "expected saved diagnostic result");
+
+    clickAction(env4, { a: "quiz-exit" });
+    await flushMicrotasks(8);
+    const planAfterDiag = env4.elements.get("main").innerHTML;
+    assert(planAfterDiag.includes("Результат:") && planAfterDiag.includes("из 20") && planAfterDiag.includes("Пройти ещё раз"), "expected rendered score and retake button in plan");
+
+    // Проходим стартовый шаг регулярной подготовки по русскому языку -> автогалочка
+    clickAction(env4, { a: "plan-act", id: "rus-start" });
+    await flushMicrotasks(8);
+    await completeActiveQuiz(env4);
+    assert(planServerDocs.plan.done && planServerDocs.plan.done["rus-start"], "expected auto checkmark for rus-start");
+    clickAction(env4, { a: "quiz-exit" });
+    await flushMicrotasks(8);
+    const planAfterPrep = env4.elements.get("main").innerHTML;
+    assert(planAfterPrep.includes("Продолжить") && planAfterPrep.includes("Освоено:"), "expected prep progress and continue button in plan");
+
     out("APP_SMOKE_TESTS_OK");
   }
 
