@@ -741,7 +741,7 @@
   function syncState() {
     if (store.mode === "loading") return ["loading", "Загружаю…"];
     if (store.error === "auth") return ["error", "Войди заново"];
-    if (store.mode === "local") return ["local", "Только в этом браузере"];
+    if (store.mode === "local") return ["local", store.backend ? "Войди в аккаунт" : "Только в этом браузере"];
     if (store.error === "readonly") return ["readonly", "Только просмотр"];
     if (store.error === "quota") return ["error", "Хранилище заполнено"];
     if (store.error === "offline") return ["error", "Нет связи, повторю позже"];
@@ -763,7 +763,7 @@
       return `<button type="button" class="subj-btn" ${s.content ? `data-a="go" data-v="subject" data-sid="${s.id}"` : "disabled"}${cur ? ' aria-current="page"' : ""}><i class="dot" style="background:var(--c-${s.id})"></i><span>${esc(s.name)}</span><span class="small muted num">${right}</span></button>`;
     }).join("");
     const me = store.me, prof = profile();
-    const nm = prof.name || (store.user && store.user.username) || (me && me.name) || (store.mode === "local" ? "Этот браузер" : "");
+    const nm = (store.user && store.user.username) ? (prof.name || store.user.username) : (prof.name || (me && me.name) || (store.mode === "local" ? (store.backend ? "Гость" : "Этот браузер") : ""));
     $("#side-foot").innerHTML = `<div class="me">${me && me.avatarUrl ? `<img src="${esc(me.avatarUrl)}" alt="">` : ""}<div style="min-width:0"><div class="me-name">${esc(nm)}</div><span class="sync"><i></i><span></span></span></div></div>`;
     const tabSid = SUBJ[ui.sid] ? ui.sid : firstSubject.id;
     const tabs = [["home", "Главная", "home"], ["subject", CONTENT.length > 1 ? "Предметы" : firstSubject.name, "leaf"], ["plan", "План", "list"], ["stats", "Показатели", "chart"], ["tutor", "Репетитор", "chat"]];
@@ -845,7 +845,7 @@
           <button type="button" data-a="auth-tab" data-tab="register" aria-pressed="${reg}">Регистрация</button>
         </div>
       </div>
-      <p class="ink2 small">Войди или создай аккаунт, чтобы прогресс хранился на сервере и открывался с любого устройства.${store.backendAi && store.backendAi.enabled ? " После входа заработает ИИ-репетитор." : ""} Без входа всё сохраняется только в этом браузере.</p>
+      <p class="ink2 small">Сервер базы данных подключён. Войди или зарегистрируйся, чтобы прогресс сохранялся на сервере и открывался с любого устройства.${store.backendAi && store.backendAi.enabled ? " После входа заработает ИИ-репетитор." : ""} Пока вход не выполнен, прогресс пишется только в этот браузер.</p>
       <div class="fields">
         <div class="field"><label for="auth-user">Логин</label><input class="input" id="auth-user" name="username" type="text" autocomplete="username" minlength="2" maxlength="32" required placeholder="Например, olesya" data-d="auth.user" value="${esc(draft("auth.user", ""))}"></div>
         <div class="field"><label for="auth-pass">Пароль</label><input class="input" id="auth-pass" name="password" type="password" autocomplete="${reg ? "new-password" : "current-password"}" minlength="6" maxlength="128" required placeholder="Минимум 6 символов" data-d="auth.pass" value="${esc(draft("auth.pass", ""))}"></div>
@@ -853,7 +853,10 @@
       ${reg && store.inviteRequired ? `<div class="field"><label for="auth-invite">Код приглашения</label><input class="input" id="auth-invite" name="invite" type="text" autocomplete="off" maxlength="64" required data-d="auth.invite" value="${esc(draft("auth.invite", ""))}"></div>` : ""}
       ${reg && hasLocalProgress() ? `<label class="row" style="gap:8px;align-items:center"><input type="checkbox" class="check" id="auth-migrate" name="migrate" checked><span class="small">Перенести текущий прогресс из этого браузера в новый аккаунт</span></label>` : ""}
       ${a.error ? `<div class="notice">${esc(a.error)}</div>` : ""}
-      <div class="row"><button class="btn" type="submit"${a.busy ? " disabled" : ""}>${a.busy ? "Подожди…" : reg ? "Создать аккаунт" : "Войти"}</button></div>
+      <div class="row" style="flex-wrap:wrap;gap:14px">
+        <button class="btn" type="submit"${a.busy ? " disabled" : ""}>${a.busy ? "Подожди…" : reg ? "Создать аккаунт" : "Войти"}</button>
+        <button type="button" class="link-btn" data-a="auth-tab" data-tab="${reg ? "login" : "register"}">${reg ? "Уже есть аккаунт? Войти" : "Нет аккаунта? Создать"}</button>
+      </div>
     </form>`;
   }
   function accountCard() {
@@ -2136,7 +2139,7 @@
           : "Прогресс хранится в облаке claude.ai и привязан к твоему аккаунту. Открой эту страницу на любом компьютере под тем же аккаунтом — ответы, отметки и записи будут на месте.")
       : store.mode === "local"
         ? (store.backend
-            ? "Сейчас вход в аккаунт не выполнен, поэтому данные хранятся только в этом браузере. Войди или зарегистрируйся, чтобы синхронизировать прогресс."
+            ? "Сервер базы данных подключён, но вход в аккаунт ещё не выполнен — текущие данные пока хранятся только в этом браузере. Войди или зарегистрируйся выше, чтобы синхронизировать прогресс."
             : "Сейчас страница открыта не на claude.ai, поэтому данные хранятся только в этом браузере. Открой её по ссылке на claude.ai, чтобы прогресс сохранялся в облаке.")
         : "Подключаюсь к хранилищу…";
     const cf = ui.confirm;
