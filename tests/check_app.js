@@ -50,7 +50,7 @@
       };
     }
 
-    for (const id of ["main", "side-nav", "side-subjects", "side-foot", "tabbar", "toast", "tip"]) {
+    for (const id of ["main", "side-nav", "side-subjects", "side-foot", "tabbar", "toast", "tip", "modal-root", "bug-mailto"]) {
       elements.set(id, makeEl(id));
     }
 
@@ -723,6 +723,64 @@
     const statsRep2 = env4.elements.get("main").innerHTML;
     assert(statsRep2.includes(`data-id="${repeatQid}"`), "expected re-solved question to move into 2-times bucket");
     assert(statsRep2.includes("ответов 2"), "expected updated attempt count of 2 for re-solved question");
+
+    // 5. Убран статус «Сохранено на сервере», кнопка бага на сайте и на заданиях + шаблон №11 и формат ЕГЭ (Русский №11, Биология №2)
+    const cleanSideFoot = env4.elements.get("side-foot").innerHTML;
+    assert(!cleanSideFoot.includes("Сохранено на сервере"), "expected normal server-saved sync status to stay hidden");
+    assert(cleanSideFoot.includes('data-a="bug-site"'), "expected site bug button in sidebar footer");
+    const syncSpan = env4.elements.get("side-foot").querySelector("span");
+    assert(syncSpan && syncSpan.textContent === "", "expected empty sync text in normal synced state");
+
+    clickAction(env4, { a: "bug-site" });
+    await flushMicrotasks(4);
+    const siteBugModal = env4.elements.get("modal-root").innerHTML;
+    assert(siteBugModal.includes("mailto:willagegg@gmail.com"), "expected site bug modal mailto link to willagegg@gmail.com");
+    assert(siteBugModal.includes("Баг на сайте"), "expected pre-filled site bug subject");
+    clickAction(env4, { a: "bug-close" });
+    await flushMicrotasks(4);
+    assert(env4.elements.get("modal-root").innerHTML === "", "expected bug-close to dismiss modal");
+
+    clickAction(env4, { a: "quiz-variant", sid: "rus" });
+    await flushMicrotasks(8);
+    let rus11Html = env4.elements.get("main").innerHTML;
+    for (let step = 0; step < 15 && !rus11Html.includes('data-qnum="11"'); step++) {
+      clickAction(env4, { a: "quiz-skip" });
+      await flushMicrotasks(4);
+      rus11Html = env4.elements.get("main").innerHTML;
+    }
+    assert(rus11Html.includes('data-qnum="11"'), "expected to reach Russian variant question #11");
+    assert(rus11Html.includes("Укажите варианты ответов"), "expected full 5-row multi EGE format for Russian question #11");
+    const rus11BugMatch = /data-a="bug-q"\s+data-qid="([^"]+)"\s+data-qnum="11"/.exec(rus11Html);
+    assert(rus11BugMatch, "expected bug-q button with qnum=11 on Russian question #11");
+
+    clickAction(env4, { a: "bug-q", qid: rus11BugMatch[1], qnum: "11" });
+    await flushMicrotasks(4);
+    const q11BugModal = env4.elements.get("modal-root").innerHTML;
+    assert(q11BugModal.includes("Баг в задании №11"), "expected pre-filled subject for question #11");
+    assert(q11BugModal.includes("На задании №11 неправильно сделано"), "expected template referencing question #11");
+    assert(q11BugModal.includes("mailto:willagegg@gmail.com?subject="), "expected mailto link in question #11 bug modal");
+
+    env4.emitDoc("input", { target: { id: "bug-body", value: "На задании №11 неправильно указан ответ в ключе", dataset: {} } });
+    await flushMicrotasks(2);
+    const liveMailHref = env4.elements.get("bug-mailto").href || "";
+    assert(liveMailHref.startsWith("mailto:willagegg@gmail.com?subject=") && liveMailHref.includes(encodeURIComponent("неправильно указан ответ в ключе")), "expected #bug-mailto href to track edits to #bug-body");
+    clickAction(env4, { a: "bug-close" });
+    await flushMicrotasks(2);
+    clickAction(env4, { a: "quiz-exit" });
+    await flushMicrotasks(6);
+
+    clickAction(env4, { a: "quiz-variant", sid: "bio" });
+    await flushMicrotasks(8);
+    let bio2Html = env4.elements.get("main").innerHTML;
+    for (let step = 0; step < 5 && !bio2Html.includes('data-qnum="2"'); step++) {
+      clickAction(env4, { a: "quiz-skip" });
+      await flushMicrotasks(4);
+      bio2Html = env4.elements.get("main").innerHTML;
+    }
+    assert(bio2Html.includes('data-qnum="2"'), "expected to reach Biology variant question #2");
+    assert(bio2Html.includes("увеличилась") && bio2Html.includes("уменьшилась") && bio2Html.includes("не изменилась"), "expected experiment match format for Biology question #2");
+    clickAction(env4, { a: "quiz-exit" });
+    await flushMicrotasks(6);
 
     out("APP_SMOKE_TESTS_OK");
   }

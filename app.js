@@ -107,7 +107,8 @@
     moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
     search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
     logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
-    hint: '<path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.7.6 1 1.4 1 2.3h6c0-.9.3-1.7 1-2.3A7 7 0 0 0 12 2z"/>'
+    hint: '<path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.7.6 1 1.4 1 2.3h6c0-.9.3-1.7 1-2.3A7 7 0 0 0 12 2z"/>',
+    bug: '<path d="m8 2 1.88 1.88M14.12 3.88 16 2M9 7.13v-1a3 3 0 1 1 6 0v1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"/><path d="M12 20v-9M6.53 9C4.6 8.8 3 7.1 3 5M6 13H2M3 21c0-2.1 1.7-3.9 3.8-4M20.97 5c0 2.1-1.6 3.8-3.5 4M22 13h-4M17.2 17c2.1.1 3.8 1.9 3.8 4"/>'
   };
   function icon(name) {
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[name] || "") + "</svg>";
@@ -899,7 +900,8 @@
     guideQ: "",
     statsSubj: "all",
     statsRepBucket: 1,
-    statsRepAll: false
+    statsRepAll: false,
+    bug: null
   };
   function draft(key, fallback) { return Object.prototype.hasOwnProperty.call(ui.drafts, key) ? ui.drafts[key] : fallback; }
   function clearDrafts(prefix, keep) { for (const k of Object.keys(ui.drafts)) if (k.indexOf(prefix) === 0 && !(keep || []).includes(k)) delete ui.drafts[k]; }
@@ -1012,22 +1014,104 @@
       if (el) el.focus({ preventScroll: true });
     }
     if (!authGate) drawCharts();
+    renderModal();
     if (scrollTopPending) { scrollTopPending = false; window.scrollTo(0, 0); }
   }
+  const BUG_EMAIL = "willagegg@gmail.com";
+  const VIEW_LABELS = { home: "Главная", subject: "Предмет", topic: "Тема", quiz: "Тест", plan: "План поступления", stats: "Показатели", tutor: "Справочник", essay: "Сочинение", profile: "Настройки" };
+  function bugMailtoHref(bug) {
+    return `mailto:${BUG_EMAIL}?subject=${encodeURIComponent(bug.subject)}&body=${encodeURIComponent(bug.body)}`;
+  }
+  function buildBugReport(opts) {
+    opts = opts || {};
+    const urlStr = typeof location !== "undefined" && location.href ? location.href : "";
+    const q = opts.qid ? QS[opts.qid] : null;
+    if (q) {
+      const t = TOPICS[q.topic];
+      const subjName = SUBJECT_NAME[q.sid] || "Предмет";
+      const qNum = opts.qnum || (q.kim ? String(q.kim) : (t && /^\d+$/.test(t.code || "") ? t.code : ""));
+      const numLabel = qNum ? "№" + qNum : "этом задании";
+      const rawQ = String(q.q || "").replace(/\s+/g, " ").trim();
+      const clipQ = rawQ.length > 220 ? rawQ.slice(0, 218) + "…" : rawQ;
+      const ans = correctText(q);
+      const ansClip = ans && ans.length > 160 ? ans.slice(0, 158) + "…" : ans;
+      return {
+        title: `Ошибка в задании ${qNum ? "№" + qNum : ""}`.trim(),
+        subject: `Баг в задании ${qNum ? "№" + qNum : q.id} (${subjName}) — Вектор ЕГЭ`,
+        body: [
+          "Здравствуйте! Нашёл(ла) ошибку в «Вектор ЕГЭ».",
+          "",
+          `На задании ${numLabel} неправильно сделано / указано: (уточните что не так или отправьте как есть)`,
+          "",
+          "Детали задания:",
+          `• Предмет: ${subjName}`,
+          `• Тема: ${t ? topicRef(t) : "—"}`,
+          `• Задание: ${qNum ? "№" + qNum : "—"}${q.kim ? ` (КИМ №${q.kim})` : ""}`,
+          `• ID: ${q.id}`,
+          `• Текст: ${clipQ}`,
+          `• Ответ в системе: ${ansClip || "—"}`,
+          urlStr ? `• Страница: ${urlStr}` : ""
+        ].filter((x, i, a) => x || (a[i - 1] !== "")).join("\n")
+      };
+    }
+    const viewName = VIEW_LABELS[ui.view] || ui.view || "Сайт";
+    const subjNote = ui.sid && SUBJECT_NAME[ui.sid] && ["subject", "topic", "quiz", "essay"].includes(ui.view) ? ` (${SUBJECT_NAME[ui.sid]})` : "";
+    const screen = typeof window !== "undefined" && window.innerWidth ? `${window.innerWidth}×${window.innerHeight}` : "—";
+    return {
+      title: "Сообщить об ошибке на сайте",
+      subject: `Баг на сайте (${viewName}) — Вектор ЕГЭ`,
+      body: [
+        "Здравствуйте! Нашёл(ла) ошибку на сайте «Вектор ЕГЭ».",
+        "",
+        "Что работает не так / что нужно исправить:",
+        "(опишите проблему в 1–2 предложениях)",
+        "",
+        "Контекст:",
+        `• Раздел: ${viewName}${subjNote}`,
+        `• Экран: ${screen}`,
+        urlStr ? `• Страница: ${urlStr}` : ""
+      ].filter((x, i, a) => x || (a[i - 1] !== "")).join("\n")
+    };
+  }
+  function renderModal() {
+    const root = $("#modal-root");
+    if (!root) return;
+    if (!ui.bug) { root.innerHTML = ""; return; }
+    root.innerHTML = `<div class="modal-back" role="dialog" aria-modal="true" aria-labelledby="bug-modal-title">
+      <div class="modal-card">
+        <div class="modal-head">
+          <div class="row" style="gap:8px">${icon("bug")}<b id="bug-modal-title">${esc(ui.bug.title)}</b></div>
+          <button type="button" class="icon-btn sm" data-a="bug-close" aria-label="Закрыть">${icon("x")}</button>
+        </div>
+        <div class="small muted">Получатель: <b>${BUG_EMAIL}</b> · Тема: ${esc(ui.bug.subject)}</div>
+        <div class="field">
+          <label for="bug-body">Готовый шаблон письма (можно дополнить перед отправкой)</label>
+          <textarea class="input" id="bug-body" rows="9">${esc(ui.bug.body)}</textarea>
+        </div>
+        <div class="row" style="flex-wrap:wrap;gap:8px">
+          <a class="btn" id="bug-mailto" href="${esc(bugMailtoHref(ui.bug))}" target="_blank" rel="noopener">${icon("bug")}<span>Написать на ${BUG_EMAIL}</span></a>
+          <button type="button" class="btn soft" data-a="bug-copy">Скопировать шаблон</button>
+          <button type="button" class="btn ghost" data-a="bug-close">Закрыть</button>
+        </div>
+      </div>
+    </div>`;
+  }
   function syncState() {
-    if (store.mode === "loading") return ["loading", "Загружаю…"];
     if (store.error === "auth") return ["error", "Войди заново"];
-    if (store.mode === "local") return ["local", store.backend ? "Войди в аккаунт" : "Только в этом браузере"];
     if (store.error === "readonly") return ["readonly", "Только просмотр"];
     if (store.error === "quota") return ["error", "Хранилище заполнено"];
     if (store.error === "offline") return ["error", "Нет связи, повторю позже"];
-    if (store.saving > 0) return ["saving", "Сохраняю…"];
     if (store.stale && !store.confirmed) return ["stale", store.backend ? "Сервер не отвечает" : "Облако не отвечает"];
-    return ["ok", store.backend ? "Сохранено на сервере" : "Сохранено в облаке"];
+    return ["ok", ""];
   }
   function renderSync() {
     const st = syncState();
-    document.querySelectorAll(".sync").forEach((el) => { el.dataset.s = st[0]; const sp = el.querySelector("span"); if (sp) sp.textContent = st[1]; });
+    document.querySelectorAll(".sync").forEach((el) => {
+      el.dataset.s = st[0];
+      el.hidden = !st[1];
+      const sp = el.querySelector("span");
+      if (sp) sp.textContent = st[1];
+    });
   }
   function initials(name) {
     const s = String(name || "").trim();
@@ -1056,8 +1140,11 @@
     const dark = effectiveDark();
     const themeLabel = dark ? "Светлая тема" : "Тёмная тема";
     $("#side-foot").innerHTML = `<div class="side-user">
-        <div class="me">${avatarHTML(me && me.avatarUrl, nm, false)}<div style="min-width:0"><div class="me-name">${esc(nm)}</div><span class="sync"><i></i><span></span></span></div></div>
-        <button type="button" class="icon-btn sm" data-a="go" data-v="profile"${ui.view === "profile" ? ' aria-current="page"' : ""} aria-label="Настройки" title="Настройки">${icon("gear")}</button>
+        <div class="me">${avatarHTML(me && me.avatarUrl, nm, false)}<div style="min-width:0"><div class="me-name">${esc(nm)}</div><span class="sync" hidden><i></i><span></span></span></div></div>
+        <div class="row" style="gap:6px">
+          <button type="button" class="icon-btn sm" data-a="bug-site" aria-label="Сообщить о баге" title="Сообщить о баге на willagegg@gmail.com">${icon("bug")}</button>
+          <button type="button" class="icon-btn sm" data-a="go" data-v="profile"${ui.view === "profile" ? ' aria-current="page"' : ""} aria-label="Настройки" title="Настройки">${icon("gear")}</button>
+        </div>
       </div>
       <div class="side-tools">
         <button type="button" class="theme-pill" data-a="theme-toggle">${icon(dark ? "sun" : "moon")}<span>${dark ? "Светлая" : "Тёмная"}</span></button>
@@ -1956,6 +2043,7 @@
         }).join("")}</div>`
       : `<div class="meter accent thin"><i style="width:${pct}%"></i></div>`;
     const hintStat = qz.hints ? ` · подсказок: ${qz.hints}` : "";
+    const qNum = exam ? String(it.n) : (q.kim ? String(q.kim) : (t && /^\d+$/.test(t.code || "") ? t.code : String(qz.i + 1)));
     return `<div class="quiz-top">
         <div class="row between">
           <div class="eyebrow">${esc(qz.title)}</div>
@@ -1977,8 +2065,9 @@
         ${it.hintOpen ? quizHintHTML(it) : ""}
         ${qz.checked ? feedbackBlock(it, qz) : ""}
         <div class="qfoot">
-          <div class="row" style="gap:8px">
+          <div class="row" style="gap:8px;flex-wrap:wrap">
             <button type="button" class="btn ghost sm" data-a="quiz-hint" aria-expanded="${!!it.hintOpen}">${icon("hint")}${it.hintOpen ? "Скрыть подсказку" : "Подсказка"}</button>
+            <button type="button" class="btn ghost sm" data-a="bug-q" data-qid="${esc(q.id)}" data-qnum="${esc(qNum)}" aria-label="Сообщить о баге в задании" title="Сообщить о баге на willagegg@gmail.com">${icon("bug")}<span>Баг</span></button>
             <span class="kbd">${keys}Enter — ${qz.checked ? "дальше" : exam ? "ответить" : "проверить"}</span>
           </div>
           ${qz.checked
@@ -2003,14 +2092,14 @@
         ${tile("Точность", pct + "%", "")}
         ${tile("Время", qz.spent < 30000 ? "меньше минуты" : minutesText(Math.round(qz.spent / 60000)), timeNote)}
       </div>
-      ${wrong.length ? `<section class="section"><h2 class="h2">Разбор ошибок</h2><div class="review-list">${wrong.map((it) => `<div class="review-item">
-          <div class="small muted">${esc(typeLabel(it.q))}</div>
+      ${wrong.length ? `<section class="section"><h2 class="h2">Разбор ошибок</h2><div class="review-list">${wrong.map((it) => { const tp = TOPICS[it.q.topic]; const qn = it.q.kim ? String(it.q.kim) : (tp && /^\d+$/.test(tp.code || "") ? tp.code : String(qz.items.indexOf(it) + 1)); return `<div class="review-item">
+          <div class="row between"><span class="small muted">${esc(typeLabel(it.q))}</span><button type="button" class="btn ghost sm" data-a="bug-q" data-qid="${esc(it.q.id)}" data-qnum="${esc(qn)}" title="Сообщить о баге на willagegg@gmail.com">${icon("bug")}<span>Баг</span></button></div>
           <div class="entry-title">${esc(it.q.q)}</div>
           ${tableHTML(it.q)}
           <div class="small"><b>Правильно:</b> ${esc(correctText(it.q))}</div>
           <div class="small muted">Твой ответ: ${esc(userText(it))}</div>
           ${it.q.e ? `<div class="small ink2">${esc(it.q.e)}</div>` : ""}
-        </div>`).join("")}</div></section>` : ""}
+        </div>`; }).join("")}</div></section>` : ""}
       <div class="row">
         ${wrong.length ? `<button type="button" class="btn" data-a="quiz-retry">Повторить ошибки · ${wrong.length}</button>` : ""}
         <button type="button" class="btn ghost" data-a="quiz-exit">${qz.back.v === "plan" ? "Вернуться к плану" : qz.back.v === "stats" ? "Вернуться к показателям" : qz.back.v === "topic" ? "Вернуться к теме" : "Вернуться к предмету"}</button>
@@ -2041,7 +2130,7 @@
       <section class="card stack"><h2 class="h2">Задания</h2><div class="vgrid">${sc.cells.map(cell).join("")}</div>
         <div class="qlegend"><span><i class="qdot" data-s="2"></i>верно</span><span><i class="qdot" data-s="1"></i>1 балл из 2</span><span><i class="qdot" data-s="0"></i>неверно</span><span><i class="qdot" data-s="-1"></i>пропущено</span></div></section>
       ${bad.length ? `<section class="section"><h2 class="h2">Разбор ошибок</h2><div class="review-list">${bad.map((c) => `<div class="review-item">
-          <div class="small muted">Задание ${c.n} · ${c.p} из ${c.m}</div>
+          <div class="row between"><span class="small muted">Задание ${c.n} · ${c.p} из ${c.m}</span><button type="button" class="btn ghost sm" data-a="bug-q" data-qid="${esc(c.it.q.id)}" data-qnum="${esc(c.n)}" title="Сообщить о баге на willagegg@gmail.com">${icon("bug")}<span>Баг</span></button></div>
           ${passageOf(c.it.q) && !shown.has(passageOf(c.it.q)) && shown.add(passageOf(c.it.q)) ? `<div class="passage"><div class="eyebrow">Текст</div><p>${esc(passageOf(c.it.q))}</p></div>` : ""}
           <div class="entry-title">${esc(c.it.q.q)}</div>
           ${tableHTML(c.it.q)}
@@ -2050,7 +2139,7 @@
           ${c.it.q.e ? `<div class="small ink2">${esc(c.it.q.e)}</div>` : ""}
         </div>`).join("")}</div></section>` : ""}
       ${selfs.length ? `<section class="section"><h2 class="h2">Часть 2: проверь себя по эталону</h2><p class="small muted">Сравни свой ответ с эталоном и отметь элементы, которые в нём есть: 1 балл за каждый. Итог вверху пересчитается сам.</p><div class="review-list">${selfs.map((c) => { const k = qz.items.indexOf(c.it); return `<div class="review-item">
-          <div class="small muted">Задание ${c.n} · ${c.p} из ${c.m}</div>
+          <div class="row between"><span class="small muted">Задание ${c.n} · ${c.p} из ${c.m}</span><button type="button" class="btn ghost sm" data-a="bug-q" data-qid="${esc(c.it.q.id)}" data-qnum="${esc(c.n)}" title="Сообщить о баге на willagegg@gmail.com">${icon("bug")}<span>Баг</span></button></div>
           <div class="entry-title">${esc(c.it.q.q)}</div>
           ${tableHTML(c.it.q)}
           <div class="small"><b>Твой ответ:</b> ${esc(userText(c.it))}</div>
@@ -3012,6 +3101,10 @@
     "stats-subj": (el) => { ui.statsSubj = el.dataset.sid || "all"; ui.statsRepAll = false; scheduleRender(); },
     "stats-rep": (el) => { const k = Number(el.dataset.k); if ([1, 2, 3, 4].includes(k)) { ui.statsRepBucket = k; ui.statsRepAll = false; scheduleRender(); } },
     "stats-rep-all": () => { ui.statsRepAll = true; scheduleRender(); },
+    "bug-site": () => { ui.bug = buildBugReport({}); ui.focusNext = "bug-body"; renderModal(); },
+    "bug-q": (el) => { ui.bug = buildBugReport({ qid: el.dataset.qid, qnum: el.dataset.qnum }); ui.focusNext = "bug-body"; renderModal(); },
+    "bug-copy": () => { if (ui.bug) copyText(ui.bug.body, "#bug-body"); },
+    "bug-close": () => { ui.bug = null; renderModal(); },
     go: (el) => go(el.dataset.v, { sid: el.dataset.sid, id: el.dataset.id }),
     "open-topic": (el) => go("topic", { id: el.dataset.id }),
     "quiz-mixed": (el) => { const sid = subjectOf(el); startQuiz({ title: "Смешанный тест · " + SUBJ[sid].name, sid, qs: pickMixed(sid, QUIZ_SIZE).map((id) => QS[id]), mode: "mixed", back: { v: "subject", sid } }); },
@@ -3302,6 +3395,7 @@
   };
 
   document.addEventListener("click", (e) => {
+    if (e.target && e.target.classList && e.target.classList.contains("modal-back")) { ui.bug = null; renderModal(); return; }
     const el = e.target.closest("[data-a]");
     if (!el || el.disabled) return;
     const h = ACTIONS[el.dataset.a];
@@ -3318,6 +3412,14 @@
     const el = e.target;
     if (el.id === "subj-q") { ui.subjQ = el.value; scheduleRender(); return; }
     if (el.id === "guide-q") { ui.guideQ = el.value; scheduleRender(); return; }
+    if (el.id === "bug-body") {
+      if (ui.bug) {
+        ui.bug.body = el.value;
+        const a = document.getElementById("bug-mailto");
+        if (a) a.href = bugMailtoHref(ui.bug);
+      }
+      return;
+    }
     if (el.dataset && el.dataset.d) { ui.drafts[el.dataset.d] = el.value; return; }
     if (el.id === "ans") {
       const it = curItem(); if (!it) return;
@@ -3355,6 +3457,8 @@
     if (el.id === "import-file" && el.files && el.files[0]) { readImport(el.files[0]); el.value = ""; }
   });
   document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && ui.bug) { e.preventDefault(); ui.bug = null; renderModal(); return; }
+    if (ui.bug) return;
     if (e.target && e.target.id === "chat-input" && e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(ui.chat.draft); return; }
     if (ui.view !== "quiz" || !ui.quiz || ui.quiz.done || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.target && e.target.id === "self-text") return; // в поле развёрнутого ответа Enter — перенос строки
