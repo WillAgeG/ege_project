@@ -608,6 +608,66 @@
     await flushMicrotasks(6);
     assert(!globalThis.document.documentElement.dataset.theme, "expected auto theme to clear data-theme");
 
+    // Нижняя шестерёнка + «Выйти» в сайдбаре, «Справочник» вместо недоступного Репетитора
+    const sideNavHtml = env4.elements.get("side-nav").innerHTML;
+    const sideFootHtml = env4.elements.get("side-foot").innerHTML;
+    const tabHtml = env4.elements.get("tabbar").innerHTML;
+    assert(!sideNavHtml.includes('data-v="profile"'), "expected Settings removed from top sidebar nav");
+    assert(sideFootHtml.includes('data-v="profile"') && sideFootHtml.includes('data-a="auth-logout"') && sideFootHtml.includes("Выйти"), "expected Settings gear and Logout button in sidebar footer");
+    assert(sideNavHtml.includes("Справочник") && tabHtml.includes("Справочник"), "expected Справочник nav label when AI is off");
+
+    // Справочник без нейросети: мгновенный поиск по темам и сочинению
+    clickAction(env4, { a: "go", v: "tutor" });
+    await flushMicrotasks(6);
+    const guideHome = env4.elements.get("main").innerHTML;
+    assert(guideHome.includes("Справочник") && !guideHome.includes("недоступен"), "expected offline guide view without unavailable notice");
+    env4.emitDoc("input", { target: { id: "guide-q", value: "митоз", dataset: {} } });
+    await flushMicrotasks(6);
+    assert(env4.elements.get("main").innerHTML.includes("guide-card") && env4.elements.get("main").innerHTML.includes("Митоз"), "expected guide search results for митоз");
+    clickAction(env4, { a: "guide-chip", q: "клише" });
+    await flushMicrotasks(6);
+    assert(env4.elements.get("main").innerHTML.includes("Сочинение: клише и аргументы"), "expected essay reference card on клише chip");
+
+    // Автоматические «Показатели» + ненулевое время завершённых тестов + свернутый ручной ввод
+    clickAction(env4, { a: "go", v: "stats" });
+    await flushMicrotasks(8);
+    const statsHtml = env4.elements.get("main").innerHTML;
+    assert(statsHtml.includes("По предметам (автоматически)") && statsHtml.includes("Освоено вопросов"), "expected automatic per-subject analytics cards");
+    assert(statsHtml.includes('<details class="card manual-box">'), "expected manual forms collapsed inside details.manual-box");
+    assert(!statsHtml.includes('<span class="tile-label">Сегодня</span><span class="tile-value">0 мин</span>'), "expected non-zero auto time after completed quizzes");
+
+    // Завершённый вариант с известной шкалой (биология) автоматически сохраняется в «Показатели»
+    clickAction(env4, { a: "quiz-variant", sid: "bio" });
+    await flushMicrotasks(8);
+    for (let guard = 0; guard < 45; guard++) {
+      const qHtml = env4.elements.get("main").innerHTML;
+      if (qHtml.includes("Итоги ·")) break;
+      if (guard === 0) {
+        if (qHtml.includes('id="ans"')) env4.emitDoc("input", { target: { id: "ans", value: "тест", dataset: {} } });
+        else if (qHtml.includes('id="self-text"')) env4.emitDoc("input", { target: { id: "self-text", value: "ответ", dataset: {} } });
+        else if (qHtml.includes('data-a="pick"')) {
+          const m = /data-a="pick"\s+data-i="(\d+)"/.exec(qHtml);
+          if (m) clickAction(env4, { a: "pick", i: m[1] });
+        } else if (qHtml.includes('data-a="match"')) {
+          const re = /data-a="match"\s+data-l="(\d+)"\s+data-r="0"/g;
+          let m;
+          while ((m = re.exec(qHtml)) !== null) clickAction(env4, { a: "match", l: m[1], r: "0" });
+        } else if (qHtml.includes('data-a="ord"')) {
+          const re = /data-a="ord"\s+data-i="(\d+)"/g;
+          let m;
+          while ((m = re.exec(qHtml)) !== null) clickAction(env4, { a: "ord", i: m[1] });
+        }
+        clickAction(env4, { a: "quiz-check" });
+        clickAction(env4, { a: "quiz-next" });
+      } else {
+        clickAction(env4, { a: "quiz-skip" });
+      }
+      await flushMicrotasks(6);
+    }
+    const varSummary = env4.elements.get("main").innerHTML;
+    assert(varSummary.includes("Итоги ·") && varSummary.includes("Сохранено в «Показателях»"), "expected variant summary to auto-save to mocks");
+    assert(planServerDocs.mocks && planServerDocs.mocks.m && Object.keys(planServerDocs.mocks.m).length >= 1, "expected auto-saved mock record in server docs");
+
     out("APP_SMOKE_TESTS_OK");
   }
 

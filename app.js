@@ -104,7 +104,8 @@
     stop: '<rect x="6" y="6" width="12" height="12" rx="2"/>',
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
     moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
-    search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>'
+    search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+    logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>'
   };
   function icon(name) {
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[name] || "") + "</svg>";
@@ -604,6 +605,21 @@
     }
     return { pct: Math.round(sum / s.topicList.length), mastered, total, seen, started, topics: s.topicList.length };
   }
+  function subjectAccuracy(sid) {
+    const q = prog(sid).q;
+    let n = 0, k = 0;
+    for (const id of Object.keys(q)) {
+      const st = q[id];
+      if (QS[id] && st && st.n) { n += st.n; k += st.k || 0; }
+    }
+    return { n, k, acc: n ? Math.round((100 * k) / n) : null };
+  }
+  function subjectReadCount(sid) {
+    const s = SUBJ[sid];
+    if (!s) return 0;
+    const th = prog(sid).th;
+    return s.topicList.filter((t) => !!th[t.id]).length;
+  }
   function dueQs(sid) {
     const p = prog(sid), t = todayISO();
     return Object.keys(p.q).filter((id) => QS[id] && p.q[id] && p.q[id].n && p.q[id].last === 2 && (p.q[id].due || "") <= t);
@@ -629,20 +645,28 @@
   function totals() {
     const ss = sessions(), today = todayISO();
     const d7 = addDays(today, -6), d14 = addDays(today, -13), d28 = addDays(today, -27);
-    let t = 0, w = 0, pw = 0, m28 = 0, all = 0, q7 = 0, c7 = 0;
+    let t = 0, w = 0, pw = 0, m28 = 0, all = 0, q7 = 0, c7 = 0, qAll = 0, cAll = 0;
     const active = new Set();
     for (const s of ss) {
       const m = s.m || 0;
       all += m;
+      if (s.k === "quiz") { qAll += s.q || 0; cAll += s.c || 0; }
       if (s.d === today) t += m;
       if (s.d >= d7 && s.d <= today) { w += m; if (s.k === "quiz") { q7 += s.q || 0; c7 += s.c || 0; } }
       else if (s.d >= d14 && s.d < d7) pw += m;
       if (s.d >= d28 && s.d <= today) m28 += m;
       if (m > 0 || (s.q || 0) > 0) active.add(s.d);
     }
+    if (!qAll) {
+      for (const s of CONTENT) { const sa = subjectAccuracy(s.id); qAll += sa.n; cAll += sa.k; }
+    }
     let streak = 0, d = active.has(today) ? today : addDays(today, -1);
     while (active.has(d)) { streak++; d = addDays(d, -1); }
-    return { today: t, d7: w, prev7: pw, d28: m28, all, streak, acc7: q7 ? Math.round((100 * c7) / q7) : null };
+    return {
+      today: t, d7: w, prev7: pw, d28: m28, all, streak,
+      acc7: q7 ? Math.round((100 * c7) / q7) : null,
+      accAll: qAll ? Math.round((100 * cAll) / qAll) : null
+    };
   }
   function mocks() {
     const m = (store.docs.mocks && store.docs.mocks.m) || {};
@@ -773,7 +797,9 @@
     subjQ: "",
     subjFilter: "all",
     topicFilter: "all",
-    planFilter: "all"
+    planFilter: "all",
+    guideSid: "all",
+    guideQ: ""
   };
   function draft(key, fallback) { return Object.prototype.hasOwnProperty.call(ui.drafts, key) ? ui.drafts[key] : fallback; }
   function clearDrafts(prefix, keep) { for (const k of Object.keys(ui.drafts)) if (k.indexOf(prefix) === 0 && !(keep || []).includes(k)) delete ui.drafts[k]; }
@@ -893,7 +919,10 @@
   }
   function renderChrome() {
     const inSubject = ui.view === "subject" || ui.view === "topic" || ui.view === "quiz" || ui.view === "essay";
-    const nav = [["home", "Главная", "home"], ["plan", "План поступления", "list"], ["stats", "Показатели", "chart"], ["tutor", "Репетитор", "chat"], ["profile", "Настройки", "gear"]];
+    const tutorReady = ai.state === "ready";
+    const tutorLabel = tutorReady ? "Репетитор" : "Справочник";
+    const tutorIcon = tutorReady ? "chat" : "book";
+    const nav = [["home", "Главная", "home"], ["plan", "План поступления", "list"], ["stats", "Показатели", "chart"], ["tutor", tutorLabel, tutorIcon]];
     $("#side-nav").innerHTML = nav.map(([v, l, ic]) => `<button type="button" class="nav-btn" data-a="go" data-v="${v}"${ui.view === v ? ' aria-current="page"' : ""}>${icon(ic)}<span>${l}</span></button>`).join("");
     $("#side-subjects").innerHTML = SUBJECTS.map((s) => {
       const cur = inSubject && ui.sid === s.id && s.content;
@@ -904,10 +933,17 @@
     const nm = (store.user ? (prof.name || store.user.displayName || store.user.username) : "") || prof.name || (me && me.name) || (store.mode === "local" ? (store.backend ? "Гость" : "Этот браузер") : "");
     const dark = effectiveDark();
     const themeLabel = dark ? "Светлая тема" : "Тёмная тема";
-    $("#side-foot").innerHTML = `<div class="me">${avatarHTML(me && me.avatarUrl, nm, false)}<div style="min-width:0"><div class="me-name">${esc(nm)}</div><span class="sync"><i></i><span></span></span></div></div>
+    $("#side-foot").innerHTML = `<div class="side-user">
+        <div class="me">${avatarHTML(me && me.avatarUrl, nm, false)}<div style="min-width:0"><div class="me-name">${esc(nm)}</div><span class="sync"><i></i><span></span></span></div></div>
+        <button type="button" class="icon-btn sm" data-a="go" data-v="profile"${ui.view === "profile" ? ' aria-current="page"' : ""} aria-label="Настройки" title="Настройки">${icon("gear")}</button>
+      </div>
       <div class="side-tools">
         <button type="button" class="theme-pill" data-a="theme-toggle">${icon(dark ? "sun" : "moon")}<span>${dark ? "Светлая" : "Тёмная"}</span></button>
-        ${store.backend && !store.user ? `<button type="button" class="link-btn small" data-a="auth-screen">Войти</button>` : ""}
+        ${store.backend && store.user
+          ? `<button type="button" class="side-logout danger" data-a="auth-logout">${icon("logout")}<span>Выйти</span></button>`
+          : store.backend && !store.user
+            ? `<button type="button" class="side-logout" data-a="auth-screen"><span>Войти</span></button>`
+            : ""}
       </div>`;
     const topTheme = $("#top-theme");
     if (topTheme) {
@@ -915,8 +951,15 @@
       topTheme.setAttribute("aria-label", themeLabel);
       topTheme.setAttribute("title", themeLabel);
     }
+    const topProf = $("#top-profile");
+    if (topProf) {
+      if (ui.view === "profile") topProf.setAttribute("aria-current", "page");
+      else topProf.removeAttribute("aria-current");
+    }
+    const topLogout = $("#top-logout");
+    if (topLogout) topLogout.hidden = !(store.backend && store.user);
     const tabSid = SUBJ[ui.sid] ? ui.sid : firstSubject.id;
-    const tabs = [["home", "Главная", "home"], ["subject", CONTENT.length > 1 ? "Предметы" : firstSubject.name, "leaf"], ["plan", "План", "list"], ["stats", "Показатели", "chart"], ["tutor", "Репетитор", "chat"]];
+    const tabs = [["home", "Главная", "home"], ["subject", CONTENT.length > 1 ? "Предметы" : firstSubject.name, "leaf"], ["plan", "План", "list"], ["stats", "Показатели", "chart"], ["tutor", tutorLabel, tutorIcon]];
     $("#tabbar").innerHTML = tabs.map(([v, l, ic]) => {
       const cur = ui.view === v || (v === "subject" && inSubject);
       return `<button type="button" class="tab-btn" data-a="go" data-v="${v}"${v === "subject" ? ` data-sid="${tabSid}"` : ""}${cur ? ' aria-current="page"' : ""}>${icon(ic)}<span>${esc(l)}</span></button>`;
@@ -1234,7 +1277,7 @@
     return `<section class="card stack">
       <div class="row between"><h2 class="h2">Занятия за 4 недели</h2><span class="small muted">минуты в день</span></div>
       <div class="chart" data-chart="activity" style="height:170px"></div>
-      <div class="row between small"><span class="muted">Всего за 28 дней — ${minutesText(tot.d28)}</span><button type="button" class="link-btn" data-a="go" data-v="stats">Записать занятие</button></div>
+      <div class="row between small"><span class="muted">Всего за 28 дней — ${minutesText(tot.d28)}</span><button type="button" class="link-btn" data-a="go" data-v="stats">Все показатели</button></div>
     </section>`;
   }
 
@@ -1589,9 +1632,21 @@
   }
   function logQuizSession(qz) {
     patchDoc("log-" + qz.startDay.slice(0, 7), { s: { [qz.sessionId]: {
-      d: qz.startDay, sub: qz.sid, m: Math.round(qz.spent / 60000), q: qz.answered, c: qz.correct,
+      d: qz.startDay, sub: qz.sid, m: qz.answered ? Math.max(1, Math.round(qz.spent / 60000)) : 0, q: qz.answered, c: qz.correct,
       k: "quiz", t: qz.topicId || qz.mode, at: qz.started
     } } });
+  }
+  function saveVariantMock(qz, silent) {
+    if (!qz || !qz.done || qz.mode !== "variant") return;
+    const cfg = qz.cfg || (SUBJ[qz.sid] && SUBJ[qz.sid].variant);
+    if (!cfg || !cfg.goal || !cfg.goal.scale) return;
+    const sc = variantScore(qz), scale = cfg.goal.scale;
+    if (!qz.mockId) qz.mockId = newId();
+    qz.items.forEach((it) => { if (it.q.t === "self" && it.res && !it.fin) { it.fin = true; if (it.key) recordAnswer(it.q, it.res.r); } });
+    const testScore = scale[Math.min(sc.pts, scale.length - 1)] || 0;
+    patchDoc("mocks", { m: { [qz.mockId]: { d: qz.startDay || todayISO(), sub: qz.sid, sc: testScore, p: sc.pts, n: qz.title, at: qz.started || Date.now(), auto: 1 } } });
+    qz.saved = true;
+    if (!silent) toast("Результат записан в «Показатели»");
   }
   function doNext() {
     const qz = ui.quiz;
@@ -1607,6 +1662,7 @@
     if (qz.i + 1 >= qz.items.length) {
       qz.done = true;
       completePlanFromQuiz(qz);
+      if (qz.mode === "variant" && qz.answered > 0) saveVariantMock(qz, true);
     }
     else {
       qz.i++; qz.checked = false; qz.qStart = Date.now();
@@ -1796,7 +1852,11 @@
           <div class="checklist">${c.it.q.els.map((x, i) => `<label><input type="checkbox" class="check" data-c="self-sum" data-k="${k}" data-i="${i}"${c.it.resp.sel.includes(i) ? " checked" : ""}><span>${esc(x)}</span></label>`).join("")}</div>
         </div>`; }).join("")}</div></section>` : ""}
       <div class="row" style="flex-wrap:wrap">
-        ${vcfg.goal.scale && selfs.length ? `<button type="button" class="btn" data-a="variant-save"${qz.saved ? " disabled" : ""}>${qz.saved ? "Записано в показатели" : "Записать результат в «Показатели»"}</button>` : ""}
+        ${vcfg.goal.scale && (qz.saved || selfs.length)
+          ? (qz.saved
+              ? `<button type="button" class="btn soft" data-a="go" data-v="stats">${icon("chart")}Сохранено в «Показателях»</button>`
+              : `<button type="button" class="btn" data-a="variant-save">Записать результат в «Показатели»</button>`)
+          : ""}
         ${bad.length ? `<button type="button" class="btn ghost" data-a="quiz-retry">Прорешать ошибки · ${bad.length}</button>` : ""}
         <button type="button" class="btn ghost" data-a="${vcfg.full ? "quiz-fullvariant" : "quiz-variant"}" data-sid="${qz.sid}" data-k="0">Новый вариант</button>
         <button type="button" class="btn ghost" data-a="quiz-exit">Вернуться к предмету</button>
@@ -2019,27 +2079,61 @@
   }
 
   // ---------- показатели ----------
+  function subjectAutoCard(s, prof, allSess, allMocks, pd) {
+    const st = subjectStats(s.id), acc = subjectAccuracy(s.id), thRead = subjectReadCount(s.id);
+    const mis = mistakeQs(s.id).length, due = dueQs(s.id).length;
+    const subMin = allSess.filter((x) => x.sub === s.id).reduce((n, x) => n + (x.m || 0), 0);
+    const diag = pd.results[DIAG_PLAN_ID[s.id]] || null;
+    const lastMock = allMocks.filter((m) => m.sub === s.id).slice(-1)[0] || null;
+    const rows = [
+      ["Освоено вопросов", `${st.mastered} из ${st.total}`],
+      ["Точность", acc.acc == null ? "—" : `${acc.acc}% (${acc.n} отв.)`],
+      ["Конспекты", `${thRead} из ${st.topics}`],
+      ["Время", minutesText(subMin)]
+    ];
+    if (diag && diag.q) rows.push(["Диагностика", `${diag.c} из ${diag.q} (${diag.pct}%)`]);
+    if (lastMock) rows.push(["Последний пробник", `${lastMock.sc} б. (цель ${prof.targets[s.id]})`]);
+    return `<section class="card stack">
+      <div class="row between"><span class="row" style="gap:8px"><i class="dot" style="background:var(--c-${s.id})"></i><b>${esc(s.name)}</b></span><b class="num">${st.pct}%</b></div>
+      <div class="meter"><i style="width:${st.pct}%"></i></div>
+      <div class="stat-kv">${rows.map(([k, v]) => `<div class="stat-kv-row"><span class="muted">${k}</span><b class="num">${esc(v)}</b></div>`).join("")}</div>
+      <div class="row">
+        <button type="button" class="btn soft sm" data-a="quiz-mixed" data-sid="${s.id}">Тест</button>
+        ${mis ? `<button type="button" class="btn ghost sm" data-a="quiz-mistakes" data-sid="${s.id}">Ошибки · ${mis}</button>`
+          : due ? `<button type="button" class="btn ghost sm" data-a="quiz-review" data-sid="${s.id}">Повтор · ${due}</button>`
+          : `<button type="button" class="btn ghost sm" data-a="go" data-v="subject" data-sid="${s.id}">Темы · ${st.topics}</button>`}
+      </div>
+    </section>`;
+  }
   function viewStats() {
-    const tot = totals();
-    const recent = sessions().slice(0, 15);
+    const tot = totals(), prof = profile(), pd = planDoc();
+    const allSess = sessions(), allMocks = mocks();
+    const recent = allSess.slice(0, 15);
     const diff = tot.d7 - tot.prev7;
     const weekNote = tot.prev7 || tot.d7 ? (diff >= 0 ? "+" : "−") + minutesText(Math.abs(diff)) + " к прошлой неделе" : "";
-    return `<div class="head"><div class="eyebrow">Показатели</div><h1 class="h1">Подготовка в цифрах</h1><p class="lead">Время из тестов записывается само. Занятия с учебником, видео и пробные варианты добавляй вручную.</p></div>
+    const accVal = tot.acc7 != null ? tot.acc7 + "%" : (tot.accAll != null ? tot.accAll + "%" : "—");
+    const accNote = tot.acc7 != null ? "ответы за 7 дней" : (tot.accAll != null ? "за всё время" : "появится после первого теста");
+    const subjCards = CONTENT.map((s) => subjectAutoCard(s, prof, allSess, allMocks, pd)).join("");
+    return `<div class="head"><div class="eyebrow">Показатели</div><h1 class="h1">Подготовка в цифрах</h1><p class="lead">Считается автоматически по тестам, конспектам, повторениям и полным вариантам. Занятия с учебником или бумажные пробники можно добавить внизу.</p></div>
       ${store.mode === "local" ? localNotice() : staleNotice()}
       <div class="tiles">
         ${tile("Сегодня", minutesText(tot.today), "")}
         ${tile("За 7 дней", minutesText(tot.d7), weekNote)}
         ${tile("Серия", days(tot.streak), "подряд с занятиями")}
-        ${tile("Точность", tot.acc7 == null ? "—" : tot.acc7 + "%", "ответы в тестах за 7 дней")}
+        ${tile("Точность", accVal, accNote)}
       </div>
-      <div class="grid-2">${logForm()}${mockForm()}</div>
+      ${CONTENT.length ? `<section class="section"><div class="section-head"><h2 class="h2">По предметам (автоматически)</h2><span class="small muted">обновляется после каждого задания</span></div><div class="grid-3">${subjCards}</div></section>` : ""}
       <section class="card stack">
         <div class="row between"><h2 class="h2">Занятия за 4 недели</h2><span class="small muted">всего записано ${minutesText(tot.all)}</span></div>
         <div class="chart" data-chart="activity" style="height:170px"></div>
         <h3 class="h3">Последние записи</h3>
-        ${recent.length ? `<div class="entries">${recent.map(entryRow).join("")}</div>` : '<div class="empty">Записей пока нет. Пройди тест или добавь занятие вручную.</div>'}
+        ${recent.length ? `<div class="entries">${recent.map(entryRow).join("")}</div>` : '<div class="empty">Записей пока нет. Реши любой тест — время и результат появятся здесь автоматически.</div>'}
       </section>
-      ${mocksCard()}`;
+      ${mocksCard()}
+      <details class="card manual-box">
+        <summary><span><b>Добавить вручную</b> <span class="small muted">занятие с учебником, репетитором или бумажный пробник</span></span></summary>
+        <div class="manual-body"><div class="grid-2">${logForm()}${mockForm()}</div></div>
+      </details>`;
   }
   function logForm() {
     return `<form class="card form" data-f="log">
@@ -2085,7 +2179,7 @@
     const subs = SUBJECT_META.filter((s) => list.some((m) => m.sub === s.id));
     if (!list.length) {
       return `<section class="card stack"><div class="row between"><h2 class="h2">Пробные экзамены</h2><span class="small muted">тестовый балл из 100</span></div>
-        <div class="empty"><b>Пробников пока нет</b><span>Реши демоверсию ФИПИ или вариант с «Решу ЕГЭ» и запиши тестовый балл. Здесь появится график роста и линия цели.</span></div></section>`;
+        <div class="empty"><b>Пробников пока нет</b><span>Реши полный вариант на странице предмета — тестовый балл и график появятся здесь автоматически. Бумажный пробник можно добавить вручную ниже.</span></div></section>`;
     }
     const rows = list.slice().reverse().map((m) => {
       const target = prof.targets[m.sub];
@@ -2174,22 +2268,119 @@
   let resizeTimer = null;
   window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(drawCharts, 150); });
 
-  // ---------- репетитор ----------
+  // ---------- справочник без ИИ и репетитор ----------
+  function tableBlockHTML(tb) {
+    return `<div class="small muted">${rich(tb.title)}</div><div class="qtbl-wrap"><table class="qtbl">${tb.rows.map((r, i) => `<tr>${r.map((c, j) => (i === 0 || (tb.head1 && j === 0) ? `<th>${esc(c)}</th>` : `<td>${esc(c)}</td>`)).join("")}</tr>`).join("")}</table></div>${tb.note ? `<div class="small muted">${rich(tb.note)}</div>` : ""}`;
+  }
+  function guideQuickChips(sid) {
+    const bySub = {
+      bio: ["митоз", "фотосинтез", "меиоз", "генетический код", "кровообращение"],
+      rus: ["ударения", "н и нн", "запятые", "причастный оборот", "клише", "аргументы"],
+      chem: ["овр", "гидролиз", "электролиз", "изомерия", "степень окисления"],
+      all: ["митоз", "фотосинтез", "ударения", "запятые", "гидролиз", "овр", "клише"]
+    };
+    return (bySub[sid] || bySub.all);
+  }
+  function guideMatchEssay(terms) {
+    const E = EGE.essay;
+    if (!E) return "";
+    const clicheHits = (E.cliches || []).filter((c) => terms.every((w) => norm(c.part + " " + c.items.join(" ")).includes(w)));
+    const argHits = (E.args || []).filter((g) => terms.every((w) => norm(g.theme + " " + g.items.map((x) => x.src + " " + x.text).join(" ")).includes(w)));
+    if (!clicheHits.length && !argHits.length && !terms.every((w) => norm("сочинение задание 27 план клише аргументы").includes(w))) return "";
+    return `<article class="card guide-card">
+      <div class="guide-meta"><span class="eyebrow">Русский язык · Задание 27</span><button type="button" class="btn soft sm" data-a="go" data-v="essay">Тренажёр сочинения</button></div>
+      <h2 class="h2">Сочинение: клише и аргументы</h2>
+      ${clicheHits.slice(0, 2).map((c) => `<div class="stack" style="gap:4px"><div class="label">${esc(c.part)}</div><ul class="theory">${c.items.slice(0, 3).map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>`).join("")}
+      ${argHits.slice(0, 2).map((g) => `<div class="stack" style="gap:4px"><div class="label">${esc(g.theme)}</div><ul class="theory">${g.items.slice(0, 2).map((x) => `<li><b>${esc(x.src)}:</b> ${esc(x.text)}</li>`).join("")}</ul></div>`).join("")}
+    </article>`;
+  }
+  function guideOverview(sid) {
+    const list = sid === "all" ? CONTENT : CONTENT.filter((s) => s.id === sid);
+    const cards = list.map((s) => {
+      const topics = (s.content && s.content.topicList) || [];
+      const withTables = topics.filter((t) => t.tables && t.tables.length);
+      const sample = (withTables.length ? withTables : topics).slice(0, 8);
+      return `<section class="card stack">
+        <div class="row between"><span class="row" style="gap:8px"><i class="dot" style="background:var(--c-${s.id})"></i><h2 class="h2">${esc(s.name)}</h2></span><button type="button" class="link-btn" data-a="go" data-v="subject" data-sid="${s.id}">Все темы · ${topics.length}</button></div>
+        <div class="suggest">${sample.map((t) => `<button type="button" data-a="open-topic" data-id="${t.id}">${esc(t.title)}</button>`).join("")}</div>
+      </section>`;
+    }).join("");
+    const essayCard = (sid === "all" || sid === "rus") && EGE.essay
+      ? `<section class="card stack">
+          <div class="row between"><h2 class="h2">Сочинение ЕГЭ · памятка</h2><button type="button" class="btn soft sm" data-a="go" data-v="essay">Открыть тренажёр</button></div>
+          <p class="small ink2">План на 200–250 слов, готовые клише по критериям К1–К3, образец сочинения и банк литературных аргументов.</p>
+        </section>`
+      : "";
+    return cards + essayCard;
+  }
+  function viewGuide() {
+    const sid = ui.guideSid && (ui.guideSid === "all" || SUBJ[ui.guideSid]) ? ui.guideSid : "all";
+    const qNorm = norm(ui.guideQ);
+    const terms = qNorm ? qNorm.split(/\s+/).filter(Boolean) : [];
+    const switcher = `<div class="switch" role="group" aria-label="Предмет">
+      <button type="button" data-a="guide-sid" data-sid="all" aria-pressed="${sid === "all"}">Все предметы</button>
+      ${CONTENT.map((s) => `<button type="button" data-a="guide-sid" data-sid="${s.id}" aria-pressed="${sid === s.id}"><i class="dot" style="background:var(--c-${s.id})"></i><span>${esc(s.name)}</span></button>`).join("")}
+    </div>`;
+    const searchBox = `<div class="search-wrap">
+      <label class="sr" for="guide-q">Поиск по конспектам и таблицам</label>
+      <input class="input" type="search" id="guide-q" value="${esc(ui.guideQ)}" placeholder="Поиск по правилам, терминам, формулам и исключениям…">
+      ${ui.guideQ ? `<button type="button" class="search-clear" data-a="guide-clear" aria-label="Очистить поиск">${icon("x")}</button>` : ""}
+    </div>`;
+    const chips = `<div class="suggest">${guideQuickChips(sid).map((w) => `<button type="button" data-a="guide-chip" data-q="${esc(w)}">${esc(w)}</button>`).join("")}</div>`;
+    let body = "";
+    if (!terms.length) {
+      body = guideOverview(sid);
+    } else {
+      const pool = (sid === "all" ? CONTENT : CONTENT.filter((s) => s.id === sid));
+      const hits = [];
+      for (const s of pool) {
+        const secs = (s.content && s.content.sections) || [];
+        for (const sec of secs) {
+          for (const t of sec.topics) {
+            const titleText = norm(t.title + " " + t.code + " " + sec.title);
+            const matchTables = (t.tables || []).filter((tb) => terms.every((w) => norm(tb.title + " " + tb.rows.map((r) => r.join(" ")).join(" ") + " " + (tb.note || "")).includes(w)));
+            const matchBullets = (t.theory || []).filter((line) => !line.startsWith("## ") && terms.every((w) => norm(line).includes(w)));
+            const fullText = titleText + " " + norm((t.theory || []).join(" ")) + " " + norm((t.tables || []).map((tb) => tb.title + " " + tb.rows.map((r) => r.join(" ")).join(" ")).join(" "));
+            if (!terms.every((w) => fullText.includes(w))) continue;
+            const score = (terms.every((w) => titleText.includes(w)) ? 4 : 0) + (matchTables.length ? 2 : 0) + (matchBullets.length ? 1 : 0);
+            hits.push({ s, sec, t, matchTables, matchBullets, score });
+          }
+        }
+      }
+      hits.sort((a, b) => b.score - a.score);
+      const essayHit = (sid === "all" || sid === "rus") ? guideMatchEssay(terms) : "";
+      const cards = hits.slice(0, 12).map(({ s, sec, t, matchTables, matchBullets }) => {
+        const bullets = (matchBullets.length ? matchBullets : (t.theory || []).filter((x) => !x.startsWith("## "))).slice(0, 4);
+        const tb = matchTables[0] || (t.tables && t.tables[0]) || null;
+        return `<article class="card guide-card">
+          <div class="guide-meta">
+            <span class="row small muted" style="gap:6px"><i class="dot" style="background:var(--c-${s.id})"></i>${esc(s.name)} · ${esc(sec.title)}</span>
+            <span class="row" style="gap:6px">
+              <button type="button" class="btn soft sm" data-a="open-topic" data-id="${t.id}">Конспект</button>
+              ${t.qids.length ? `<button type="button" class="btn ghost sm" data-a="quiz-topic" data-id="${t.id}">Тест</button>` : ""}
+            </span>
+          </div>
+          <h2 class="h2">${esc(t.title)}</h2>
+          ${bullets.length ? `<ul class="theory">${bullets.map((x) => `<li>${rich(x)}</li>`).join("")}</ul>` : ""}
+          ${tb ? tableBlockHTML(tb) : ""}
+        </article>`;
+      }).join("");
+      body = (essayHit + cards) || `<div class="empty"><b>По запросу «${esc(ui.guideQ)}» ничего не найдено</b><span>Попробуй более короткое слово: например, «митоз», «гидролиз» или «запятые».</span><button type="button" class="btn ghost sm" data-a="guide-clear">Показать все разделы</button></div>`;
+    }
+    return `<div class="head"><div class="eyebrow">Справочник</div><h1 class="h1">Быстрый поиск без нейросети</h1><p class="lead">Правила, термины, формулы, исключения и клише сочинения по всему банку ЕГЭ — работает мгновенно и без интернета к ИИ.</p></div>
+      ${switcher}
+      ${searchBox}
+      ${chips}
+      ${body}`;
+  }
+
   function viewTutor() {
+    if (ai.state !== "ready") return viewGuide();
     const c = ui.chat;
     const lead = store.backend
       ? "ИИ-репетитор объяснит правило или термин, разберёт задачу, проверит сочинение, подскажет, как запомнить. Важное сверяй с конспектом и материалами ФИПИ."
       : "Отвечает Claude: объяснит правило или термин, разберёт задачу, проверит сочинение, подскажет, как запомнить. Важное сверяй с конспектом и материалами ФИПИ.";
     const head = `<div class="head"><div class="eyebrow">Репетитор</div><h1 class="h1">Спроси о любой теме</h1><p class="lead">${lead}</p></div>`;
-    if (ai.state === "off") {
-      const msg = store.backend
-        ? (!store.user
-            ? `<b>Репетитор доступен после входа.</b><span>Войди в аккаунт на <button type="button" class="link-btn" data-a="go" data-v="home">главной странице</button> или в <button type="button" class="link-btn" data-a="go" data-v="profile">настройках</button>, чтобы задавать вопросы ИИ-репетитору. Остальные разделы работают и без входа.</span>`
-            : `<b>Репетитор сейчас недоступен.</b><span>На сервере не настроен ключ ИИ. Остальные разделы работают как обычно.</span>`)
-        : `<b>Репетитор сейчас недоступен.</b><span>Он работает, когда сайт открыт на claude.ai и разрешено обращение к Claude. Остальные разделы работают как обычно.</span>`;
-      return head + `<div class="notice">${msg}</div>`;
-    }
-    if (ai.state === "unknown") return head + `<div class="empty">Подключаю репетитора…</div>`;
     const sugg = subjectAI(c.sid).suggest || [];
     const switcher = CONTENT.length > 1
       ? `<div class="switch" role="group" aria-label="Предмет">${CONTENT.map((s) => `<button type="button" data-a="chat-subject" data-sid="${s.id}" aria-pressed="${s.id === c.sid}">${esc(s.name)}</button>`).join("")}</div>`
@@ -2556,6 +2747,9 @@
     "subj-clear": () => { ui.subjQ = ""; ui.subjFilter = "all"; ui.focusNext = "subj-q"; scheduleRender(); },
     "topic-filter": (el) => { ui.topicFilter = el.dataset.filter || "all"; scheduleRender(); },
     "plan-filter": (el) => { ui.planFilter = el.dataset.filter || "all"; scheduleRender(); },
+    "guide-sid": (el) => { ui.guideSid = el.dataset.sid || "all"; scheduleRender(); },
+    "guide-clear": () => { ui.guideQ = ""; ui.focusNext = "guide-q"; scheduleRender(); },
+    "guide-chip": (el) => { ui.guideQ = el.dataset.q || ""; scheduleRender(); },
     go: (el) => go(el.dataset.v, { sid: el.dataset.sid, id: el.dataset.id }),
     "open-topic": (el) => go("topic", { id: el.dataset.id }),
     "quiz-mixed": (el) => { const sid = subjectOf(el); startQuiz({ title: "Смешанный тест · " + SUBJ[sid].name, sid, qs: pickMixed(sid, QUIZ_SIZE).map((id) => QS[id]), mode: "mixed", back: { v: "subject", sid } }); },
@@ -2589,10 +2783,8 @@
     },
     "variant-save": () => {
       const qz = ui.quiz; if (!qz || !qz.done || qz.saved) return;
-      const cfg = qz.cfg || SUBJ[qz.sid].variant, sc = variantScore(qz), scale = cfg.goal.scale;
-      qz.items.forEach((it) => { if (it.q.t === "self" && it.res && !it.fin) { it.fin = true; if (it.key) recordAnswer(it.q, it.res.r); } });
-      patchDoc("mocks", { m: { [newId()]: { d: todayISO(), sub: qz.sid, sc: scale ? scale[Math.min(sc.pts, scale.length - 1)] : 0, p: sc.pts, n: qz.title, at: Date.now() } } });
-      qz.saved = true; toast("Результат записан в показатели"); scheduleRender();
+      saveVariantMock(qz, false);
+      scheduleRender();
     },
     "quiz-part2": (el) => {
       const sid = subjectOf(el), p = SUBJ[sid].part2; if (!p) return;
@@ -2842,6 +3034,7 @@
   document.addEventListener("input", (e) => {
     const el = e.target;
     if (el.id === "subj-q") { ui.subjQ = el.value; scheduleRender(); return; }
+    if (el.id === "guide-q") { ui.guideQ = el.value; scheduleRender(); return; }
     if (el.dataset && el.dataset.d) { ui.drafts[el.dataset.d] = el.value; return; }
     if (el.id === "ans") {
       const it = curItem(); if (!it) return;
@@ -2863,7 +3056,10 @@
       const it = ui.quiz && ui.quiz.items[Number(el.dataset.k)]; if (!it || it.q.t !== "self") return;
       const i = Number(el.dataset.i), k = it.resp.sel.indexOf(i);
       if (el.checked && k < 0) it.resp.sel.push(i); else if (!el.checked && k >= 0) it.resp.sel.splice(k, 1);
-      it.res = grade(it); ui.quiz.saved = false; scheduleRender(); return;
+      it.res = grade(it);
+      if (ui.quiz.mockId) saveVariantMock(ui.quiz, true);
+      else ui.quiz.saved = false;
+      scheduleRender(); return;
     }
     if (el.dataset && el.dataset.c === "self-el") {
       const it = curItem(); if (!it || it.q.t !== "self") return;
