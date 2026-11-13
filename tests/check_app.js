@@ -490,7 +490,7 @@
     const completeActiveQuiz = async (env) => {
       for (let guard = 0; guard < 30; guard++) {
         const html = env.elements.get("main").innerHTML;
-        if (html.includes("Вернуться к плану")) return html;
+        if (html.includes('<div class="eyebrow">Итоги · ')) return html;
         if (guard === 0) {
           if (html.includes('id="ans"')) env.emitDoc("input", { target: { id: "ans", value: "тест", dataset: {} } });
           else if (html.includes('id="self-text"')) env.emitDoc("input", { target: { id: "self-text", value: "ответ", dataset: {} } });
@@ -667,6 +667,62 @@
     const varSummary = env4.elements.get("main").innerHTML;
     assert(varSummary.includes("Итоги ·") && varSummary.includes("Сохранено в «Показателях»"), "expected variant summary to auto-save to mocks");
     assert(planServerDocs.mocks && planServerDocs.mocks.m && Object.keys(planServerDocs.mocks.m).length >= 1, "expected auto-saved mock record in server docs");
+    clickAction(env4, { a: "quiz-exit" });
+    await flushMicrotasks(6);
+
+    // Подсказка без спойлера + пауза теста при переходе в Справочник и другие разделы + сохранение активного теста
+    clickAction(env4, { a: "quiz-mixed", sid: "bio" });
+    await flushMicrotasks(8);
+    const quizStartHtml = env4.elements.get("main").innerHTML;
+    assert(quizStartHtml.includes('data-a="quiz-hint"') && quizStartHtml.includes('data-a="quiz-guide"'), "expected quiz hint and guide buttons");
+    clickAction(env4, { a: "quiz-hint" });
+    await flushMicrotasks(6);
+    const quizHintedHtml = env4.elements.get("main").innerHTML;
+    assert(quizHintedHtml.includes("Где искать информацию в справочнике") && quizHintedHtml.includes("Открыть в справочнике"), "expected spoiler-safe guide hint box");
+    clickAction(env4, { a: "quiz-hint" });
+    clickAction(env4, { a: "quiz-hint" });
+    await flushMicrotasks(4);
+
+    clickAction(env4, { a: "quiz-guide" });
+    await flushMicrotasks(8);
+    const pausedInGuide = env4.elements.get("main").innerHTML;
+    assert(pausedInGuide.includes("Справочник") && pausedInGuide.includes("quiz-resume") && pausedInGuide.includes("Вернуться к тесту"), "expected paused quiz banner in guide view");
+    assert(!!env4.lsMap["vektor-ege:active-quiz"], "expected unfinished quiz snapshot persisted in localStorage");
+
+    clickAction(env4, { a: "go", v: "stats" });
+    await flushMicrotasks(6);
+    assert(env4.elements.get("main").innerHTML.includes("quiz-resume"), "expected paused quiz banner in stats view too");
+
+    clickAction(env4, { a: "go", v: "quiz" });
+    await flushMicrotasks(6);
+    assert(env4.elements.get("main").innerHTML.includes("Где искать информацию в справочнике"), "expected quiz state and hint box preserved after returning");
+
+    const hintedSummary = await completeActiveQuiz(env4);
+    assert(hintedSummary.includes("подсказ"), "expected hint count displayed in quiz summary");
+    assert(!env4.lsMap["vektor-ege:active-quiz"], "expected active quiz snapshot cleared upon completion");
+    clickAction(env4, { a: "quiz-exit" });
+    await flushMicrotasks(6);
+
+    // Показатели: среднее число подсказок за тест + повторяемость вопросов (1 раз / 2 раза)
+    clickAction(env4, { a: "go", v: "stats" });
+    await flushMicrotasks(8);
+    const statsBeforeRepeat = env4.elements.get("main").innerHTML;
+    assert(statsBeforeRepeat.includes("Подсказок за тест") && statsBeforeRepeat.includes("Повторяемость вопросов"), "expected average hints and question repeatability section in stats");
+    const firstQMatch = /data-a="quiz-one"\s+data-id="([^"]+)"/.exec(statsBeforeRepeat);
+    assert(firstQMatch, "expected at least one solved question listed in repeatability card");
+    const repeatQid = firstQMatch[1];
+
+    clickAction(env4, { a: "quiz-one", id: repeatQid, back: "stats" });
+    await flushMicrotasks(6);
+    await completeActiveQuiz(env4);
+    clickAction(env4, { a: "quiz-exit" });
+    await flushMicrotasks(8);
+
+    clickAction(env4, { a: "stats-rep", k: "2" });
+    await flushMicrotasks(6);
+    const statsRep2 = env4.elements.get("main").innerHTML;
+    assert(statsRep2.includes(`data-id="${repeatQid}"`), "expected re-solved question to move into 2-times bucket");
+    assert(statsRep2.includes("ответов 2"), "expected updated attempt count of 2 for re-solved question");
 
     out("APP_SMOKE_TESTS_OK");
   }

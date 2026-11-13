@@ -15,6 +15,7 @@
   const INTERVALS = [0, 1, 3, 7, 14, 30, 60]; // дни до повторения по «коробкам»
   const LS_KEY = "vektor-ege:v1";
   const LEGACY_LS_KEY = "put-v-medicinu:v1";
+  const ACTIVE_QUIZ_LS = "vektor-ege:active-quiz";
   const QUIZ_SIZE = 20;
   const TOPIC_QUIZ = 15;
   const MAX_Q_MS = 180000; // больше трёх минут на вопрос в учёт времени не идёт
@@ -105,7 +106,8 @@
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
     moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
     search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
-    logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>'
+    logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
+    hint: '<path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.7.6 1 1.4 1 2.3h6c0-.9.3-1.7 1-2.3A7 7 0 0 0 12 2z"/>'
   };
   function icon(name) {
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[name] || "") + "</svg>";
@@ -282,6 +284,65 @@
       localStorage.removeItem(LEGACY_LS_KEY);
     } catch (e) { /* хранилище браузера недоступно */ }
   }
+  function quizOwnerKey() {
+    if (store.backend) return store.user ? "b:" + store.user.id : "b:guest";
+    return store.uid ? "c:" + store.uid : "local";
+  }
+  function clearActiveQuiz() {
+    try { localStorage.removeItem(ACTIVE_QUIZ_LS); } catch (e) { /* игнор */ }
+  }
+  function saveActiveQuiz() {
+    const qz = ui.quiz;
+    if (!qz || qz.done || !Array.isArray(qz.items) || !qz.items.length) { clearActiveQuiz(); return; }
+    try {
+      const payload = {
+        owner: quizOwnerKey(),
+        title: qz.title, sid: qz.sid, mode: qz.mode, topicId: qz.topicId || null,
+        i: qz.i, checked: !!qz.checked,
+        sessionId: qz.sessionId, startDay: qz.startDay, started: qz.started,
+        spent: qz.spent || 0, answered: qz.answered || 0, correct: qz.correct || 0,
+        back: qz.back || { v: "home" }, planId: qz.planId || null, retry: !!qz.retry,
+        cfgKey: qz.cfg && SUBJ[qz.sid] && qz.cfg === SUBJ[qz.sid].fullVariant ? "fullVariant" : null,
+        hints: qz.hints || 0, mockId: qz.mockId || null,
+        items: qz.items.map((it) => ({
+          qid: it.q && it.q.id ? it.q.id : null,
+          qObj: it.q && it.q.ai ? it.q : null,
+          n: it.n, key: !!it.key, resp: it.resp, res: it.res || null,
+          view: it.view || null, fin: !!it.fin, hinted: !!it.hinted
+        }))
+      };
+      localStorage.setItem(ACTIVE_QUIZ_LS, JSON.stringify(payload));
+    } catch (e) { /* игнор */ }
+  }
+  function restoreActiveQuiz() {
+    if (ui.quiz) return;
+    try {
+      const raw = localStorage.getItem(ACTIVE_QUIZ_LS);
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (!d || d.owner !== quizOwnerKey() || !Array.isArray(d.items) || !d.items.length || !SUBJ[d.sid]) return;
+      const items = [];
+      for (const s of d.items) {
+        const q = (s.qid && QS[s.qid]) || s.qObj;
+        if (!q) return;
+        items.push({
+          q, n: s.n, key: !!s.key, resp: s.resp, res: s.res || null,
+          view: s.view || null, fin: !!s.fin, hinted: !!s.hinted, hintOpen: false
+        });
+      }
+      ui.quiz = {
+        title: d.title || "Тест", sid: d.sid, mode: d.mode || "mixed", topicId: d.topicId || null,
+        items, i: Math.min(Math.max(0, Number(d.i) || 0), items.length - 1),
+        checked: !!d.checked, done: false,
+        sessionId: d.sessionId || newId(), startDay: d.startDay || todayISO(),
+        started: d.started || Date.now(), qStart: Date.now(), pausedAt: Date.now(),
+        spent: d.spent || 0, answered: d.answered || 0, correct: d.correct || 0,
+        back: d.back || { v: "subject", sid: d.sid }, ai: null,
+        cfg: d.cfgKey && SUBJ[d.sid] ? SUBJ[d.sid][d.cfgKey] : null,
+        planId: d.planId || null, retry: !!d.retry, hints: d.hints || 0, mockId: d.mockId || null
+      };
+    } catch (e) { /* игнор */ }
+  }
   function startLocal() {
     store.mode = "local";
     const saved = readLocalDocs();
@@ -293,6 +354,7 @@
     }
     store.docs = saved;
     store.ready = true;
+    restoreActiveQuiz();
     saveLocal();
     scheduleRender();
   }
@@ -460,6 +522,7 @@
     lastRefresh = Date.now();
     if (store.backendAi && store.backendAi.enabled) { ai.fn = backendSample; ai.state = "ready"; }
     else { ai.fn = null; ai.state = "off"; }
+    restoreActiveQuiz();
     for (const name in queues) flush(name);
     scheduleRender();
   }
@@ -642,15 +705,23 @@
     for (const s of sessions()) m[s.d] = (m[s.d] || 0) + (s.m || 0);
     return m;
   }
+  function formatAvg(v) {
+    if (v == null) return "—";
+    return (Math.round(v * 10) / 10).toFixed(1).replace(/\.0$/, "").replace(".", ",");
+  }
   function totals() {
     const ss = sessions(), today = todayISO();
     const d7 = addDays(today, -6), d14 = addDays(today, -13), d28 = addDays(today, -27);
     let t = 0, w = 0, pw = 0, m28 = 0, all = 0, q7 = 0, c7 = 0, qAll = 0, cAll = 0;
+    let quizCount = 0, hintTotal = 0;
     const active = new Set();
     for (const s of ss) {
       const m = s.m || 0;
       all += m;
-      if (s.k === "quiz") { qAll += s.q || 0; cAll += s.c || 0; }
+      if (s.k === "quiz") {
+        qAll += s.q || 0; cAll += s.c || 0;
+        if ((s.q || 0) > 0) { quizCount++; hintTotal += s.h || 0; }
+      }
       if (s.d === today) t += m;
       if (s.d >= d7 && s.d <= today) { w += m; if (s.k === "quiz") { q7 += s.q || 0; c7 += s.c || 0; } }
       else if (s.d >= d14 && s.d < d7) pw += m;
@@ -665,8 +736,34 @@
     return {
       today: t, d7: w, prev7: pw, d28: m28, all, streak,
       acc7: q7 ? Math.round((100 * c7) / q7) : null,
-      accAll: qAll ? Math.round((100 * cAll) / qAll) : null
+      accAll: qAll ? Math.round((100 * cAll) / qAll) : null,
+      quizCount, hintTotal,
+      hintAvg: quizCount ? hintTotal / quizCount : null
     };
+  }
+  function questionAttemptBreakdown(sidFilter) {
+    const pool = !sidFilter || sidFilter === "all" ? CONTENT : CONTENT.filter((s) => s.id === sidFilter);
+    const b = { total: 0, n0: 0, n1: [], n2: [], n3: [], n4: [] };
+    for (const s of pool) {
+      const pq = prog(s.id).q;
+      for (const t of (SUBJ[s.id] && SUBJ[s.id].topicList) || []) {
+        for (const id of t.qids) {
+          const q = QS[id];
+          if (!q) continue;
+          b.total++;
+          const st = pq[id];
+          const n = st && st.n ? st.n : 0;
+          if (!n) b.n0++;
+          else if (n === 1) b.n1.push({ q, t, st });
+          else if (n === 2) b.n2.push({ q, t, st });
+          else if (n === 3) b.n3.push({ q, t, st });
+          else b.n4.push({ q, t, st });
+        }
+      }
+    }
+    const byAt = (x, y) => (y.st.at || 0) - (x.st.at || 0);
+    b.n1.sort(byAt); b.n2.sort(byAt); b.n3.sort(byAt); b.n4.sort(byAt);
+    return b;
   }
   function mocks() {
     const m = (store.docs.mocks && store.docs.mocks.m) || {};
@@ -799,15 +896,31 @@
     topicFilter: "all",
     planFilter: "all",
     guideSid: "all",
-    guideQ: ""
+    guideQ: "",
+    statsSubj: "all",
+    statsRepBucket: 1,
+    statsRepAll: false
   };
   function draft(key, fallback) { return Object.prototype.hasOwnProperty.call(ui.drafts, key) ? ui.drafts[key] : fallback; }
   function clearDrafts(prefix, keep) { for (const k of Object.keys(ui.drafts)) if (k.indexOf(prefix) === 0 && !(keep || []).includes(k)) delete ui.drafts[k]; }
 
   function go(v, opts) {
     opts = opts || {};
-    if (ui.view === "quiz" && v !== "quiz") abortAI();
-    if (ui.quiz && ui.quiz.done && v !== "quiz") ui.quiz = null;
+    if (ui.view === "quiz" && v !== "quiz") {
+      abortAI();
+      if (ui.quiz && !ui.quiz.done) {
+        if (!ui.quiz.checked && !ui.quiz.pausedAt) {
+          ui.quiz.spent += Math.min(Date.now() - ui.quiz.qStart, MAX_Q_MS);
+          ui.quiz.pausedAt = Date.now();
+        }
+        saveActiveQuiz();
+      }
+    }
+    if (v === "quiz" && ui.quiz && !ui.quiz.done) {
+      ui.quiz.qStart = Date.now();
+      ui.quiz.pausedAt = null;
+    }
+    if (ui.quiz && ui.quiz.done && v !== "quiz") { ui.quiz = null; clearActiveQuiz(); }
     if (v === "subject" && opts.sid && SUBJ[opts.sid]) {
       if (opts.sid !== ui.sid) { ui.subjQ = ""; ui.subjFilter = "all"; }
       ui.sid = opts.sid;
@@ -873,7 +986,16 @@
     } else {
       try { html = (VIEWS[ui.view] || viewHome)(); }
       catch (e) { console.error(e); html = `<div class="notice"><b>Что-то пошло не так при показе раздела.</b><span>Открой главную и попробуй снова.</span></div>`; }
-      main.innerHTML = `<div class="page">${html}</div>`;
+      const resumeBar = (ui.quiz && !ui.quiz.done && ui.view !== "quiz")
+        ? `<div class="quiz-resume" role="region" aria-label="Активный тест">
+            <div class="quiz-resume-info"><span class="eyebrow">Тест на паузе</span><b>${esc(ui.quiz.title)} · вопрос ${ui.quiz.i + 1} из ${ui.quiz.items.length}</b></div>
+            <div class="row" style="gap:8px">
+              <button type="button" class="btn sm" data-a="go" data-v="quiz">Вернуться к тесту</button>
+              <button type="button" class="btn ghost sm" data-a="quiz-exit">Завершить</button>
+            </div>
+          </div>`
+        : "";
+      main.innerHTML = `<div class="page">${resumeBar}${html}</div>`;
     }
     $("#tip").hidden = true;
     if (aid) {
@@ -1431,7 +1553,7 @@
     return { single: "Один верный ответ", match: "Соответствие", order: "Последовательность", input: "Краткий ответ", self: "Развёрнутый ответ · самопроверка" }[q.t] || "";
   }
   function makeItem(q) {
-    const it = { q, key: !q.ai, resp: null, res: null, view: null };
+    const it = { q, key: !q.ai, resp: null, res: null, view: null, hinted: false, hintOpen: false };
     if (q.t === "single" || q.t === "multi") it.view = shuffle(range(q.o.length));
     if (q.t === "match") it.view = q.fixed ? range(q.l.length) : shuffle(range(q.l.length)); // fixed — буквы А–Г как в рецензии
     if (q.t === "order") {
@@ -1450,10 +1572,11 @@
     ui.quiz = {
       title: opts.title, sid: opts.sid, mode: opts.mode, topicId: opts.topicId || null,
       items: qs.map((q, i) => Object.assign(makeItem(q), opts.ns ? { n: opts.ns[i] } : {})), i: 0, checked: false, done: false,
-      sessionId: newId(), startDay: todayISO(), started: Date.now(), qStart: Date.now(),
-      spent: 0, answered: 0, correct: 0, back: opts.back || { v: "subject", sid: opts.sid }, ai: null, cfg: opts.cfg || null,
+      sessionId: newId(), startDay: todayISO(), started: Date.now(), qStart: Date.now(), pausedAt: null,
+      spent: 0, answered: 0, correct: 0, hints: 0, back: opts.back || { v: "subject", sid: opts.sid }, ai: null, cfg: opts.cfg || null,
       planId: opts.planId || null, retry: !!opts.retry
     };
+    saveActiveQuiz();
     ui.focusNext = qs[0].t === "input" ? "ans" : null;
     go("quiz");
   }
@@ -1620,6 +1743,7 @@
     qz.answered++;
     if (it.q.t !== "self") { if (g.r === 2) qz.correct++; if (it.key) recordAnswer(it.q, g.r); } // у развёрнутого ответа итог известен после отметок — см. doNext
     logQuizSession(qz);
+    saveActiveQuiz();
     if (qz.mode === "variant") { doNext(); return; } // в пробном варианте ответы показываем в конце
     ui.focusNext = "next-btn";
     scheduleRender();
@@ -1633,7 +1757,7 @@
   function logQuizSession(qz) {
     patchDoc("log-" + qz.startDay.slice(0, 7), { s: { [qz.sessionId]: {
       d: qz.startDay, sub: qz.sid, m: qz.answered ? Math.max(1, Math.round(qz.spent / 60000)) : 0, q: qz.answered, c: qz.correct,
-      k: "quiz", t: qz.topicId || qz.mode, at: qz.started
+      h: qz.hints || 0, k: "quiz", t: qz.topicId || qz.mode, at: qz.started
     } } });
   }
   function saveVariantMock(qz, silent) {
@@ -1663,9 +1787,11 @@
       qz.done = true;
       completePlanFromQuiz(qz);
       if (qz.mode === "variant" && qz.answered > 0) saveVariantMock(qz, true);
+      clearActiveQuiz();
     }
     else {
       qz.i++; qz.checked = false; qz.qStart = Date.now();
+      saveActiveQuiz();
       ui.focusNext = qz.items[qz.i].q.t === "input" ? "ans" : null;
     }
     scheduleRender(true);
@@ -1675,6 +1801,7 @@
     abortAI();
     const back = qz ? qz.back : { v: "home" };
     ui.quiz = null;
+    clearActiveQuiz();
     go(back.v || "home", { id: back.id, sid: back.sid });
   }
   function renderQuestion(it, checked) {
@@ -1746,6 +1873,73 @@
       ${aiPart}
     </div>`;
   }
+  const HINT_STOP = new Set(["что", "как", "какой", "какая", "какие", "какое", "каких", "каком", "какую", "выбери", "выберите", "установи", "установите", "соответствие", "между", "расположи", "расположите", "порядке", "ответ", "запиши", "запишите", "слово", "одно", "цифр", "число", "три", "два", "всех", "этом", "или", "для", "при", "над", "под", "без", "про", "из", "по", "от", "до", "на", "во", "со", "не", "ни", "если", "признак", "признака", "признаки", "пример", "примером", "правило", "задания"]);
+  function questionGuideHint(q) {
+    const t = TOPICS[q.topic] || null;
+    const rawText = norm(q.q + " " + (q.t === "match" && Array.isArray(q.l) ? q.l.join(" ") : ""));
+    const stems = rawText.split(/[^a-zа-я0-9]+/i).filter((w) => w.length >= 4 && !HINT_STOP.has(w)).map((w) => w.slice(0, Math.min(w.length, 5))).slice(0, 8);
+    const ansNorm = norm(correctText(q));
+    const ansWords = new Set(ansNorm.split(/[^a-zа-я0-9]+/i).filter((w) => w.length >= 4));
+    let subheading = "", bestScore = 0;
+    const anchors = [];
+    if (t && Array.isArray(t.theory)) {
+      let curSub = "";
+      for (const line of t.theory) {
+        if (line.startsWith("## ")) { curSub = line.slice(3).trim(); continue; }
+        const ln = norm(line);
+        let sc = 0;
+        for (const st of stems) if (ln.includes(st)) sc++;
+        const m = line.match(/^\*\*(.+?)\*\*/);
+        const label = m ? m[1].replace(/[:.;—–-]+$/, "").trim() : "";
+        const labelNorm = norm(label);
+        const safeLabel = label && labelNorm.length >= 3 && labelNorm !== "пример" && labelNorm !== "правило" && !ansWords.has(labelNorm) && !ansNorm.includes(labelNorm);
+        if (sc > bestScore) { bestScore = sc; subheading = curSub; }
+        if (sc > 0 && safeLabel && !anchors.includes(label) && anchors.length < 3) anchors.push(label);
+      }
+      if (!subheading && bestScore === 0) {
+        const firstH = t.theory.find((x) => x.startsWith("## "));
+        if (firstH) subheading = firstH.slice(3).trim();
+      }
+    }
+    let tableTitle = "", bestTblScore = 0;
+    if (t && Array.isArray(t.tables) && t.tables.length) {
+      for (const tb of t.tables) {
+        const tn = norm((tb.title || "") + " " + (tb.rows || []).map((r) => r.join(" ")).join(" "));
+        let sc = 0;
+        for (const st of stems) if (tn.includes(st)) sc++;
+        if (sc > bestTblScore) { bestTblScore = sc; tableTitle = tb.title || ""; }
+      }
+      if (!tableTitle) tableTitle = t.tables[0].title || "";
+    }
+    const rawQuery = anchors[0] || subheading || (t ? t.title.split(/[:.,]/)[0].trim() : "");
+    const guideQuery = rawQuery.split(/\s+/).slice(0, 2).join(" ");
+    return {
+      subjName: SUBJECT_NAME[q.sid] || "",
+      secTitle: t && t.sec ? t.sec.title : "",
+      topic: t,
+      subheading,
+      tableTitle,
+      anchors,
+      guideQuery
+    };
+  }
+  function quizHintHTML(it) {
+    const h = questionGuideHint(it.q);
+    return `<div class="hint-box" role="region" aria-label="Подсказка по справочнику">
+      <div class="hint-box-head">
+        <span class="row" style="gap:6px">${icon("hint")}Где искать информацию в справочнике</span>
+        <button type="button" class="link-btn small" data-a="quiz-hint">Скрыть</button>
+      </div>
+      <div class="small ink2">${esc(h.subjName)}${h.secTitle ? " · " + esc(h.secTitle) : ""}${h.topic ? ` · <b>${esc(codeLabel(h.topic) + " · " + h.topic.title)}</b>` : ""}</div>
+      ${h.subheading ? `<div class="small">Раздел конспекта: <b>«${esc(h.subheading)}»</b></div>` : ""}
+      ${h.tableTitle ? `<div class="small">Таблица в теме: <b>«${esc(h.tableTitle)}»</b></div>` : ""}
+      ${h.anchors.length ? `<div class="small">Ориентиры в тексте: ${h.anchors.map((a) => `<b>«${esc(a)}»</b>`).join(", ")}</div>` : ""}
+      <div class="row" style="gap:8px">
+        <button type="button" class="btn soft sm" data-a="quiz-guide">${icon("book")}Открыть в справочнике</button>
+        ${h.topic ? `<button type="button" class="btn ghost sm" data-a="open-topic" data-id="${h.topic.id}">Открыть конспект темы</button>` : ""}
+      </div>
+    </div>`;
+  }
   function viewQuiz() {
     const qz = ui.quiz;
     if (!qz) { ui.view = "home"; return viewHome(); }
@@ -1761,9 +1955,16 @@
           return `<i class="quiz-seg ${cls}"></i>`;
         }).join("")}</div>`
       : `<div class="meter accent thin"><i style="width:${pct}%"></i></div>`;
+    const hintStat = qz.hints ? ` · подсказок: ${qz.hints}` : "";
     return `<div class="quiz-top">
-        <div class="row between"><div class="eyebrow">${esc(qz.title)}</div><button type="button" class="btn ghost sm" data-a="quiz-exit">${exam ? "Прервать" : "Выйти"}</button></div>
-        <div class="row between small"><span class="ink2">${exam ? "Задание " + it.n + " · " + (qz.i + 1) + " из " + qz.items.length : "Вопрос " + (qz.i + 1) + " из " + qz.items.length}</span><span class="muted num">${exam ? "идёт " + (mins < 1 ? "меньше минуты" : minutesText(mins)) : "верно " + qz.correct + " из " + qz.answered}</span></div>
+        <div class="row between">
+          <div class="eyebrow">${esc(qz.title)}</div>
+          <div class="row" style="gap:6px">
+            <button type="button" class="btn ghost sm" data-a="quiz-guide">${icon("book")}Справочник</button>
+            <button type="button" class="btn ghost sm" data-a="quiz-exit">${exam ? "Прервать" : "Завершить"}</button>
+          </div>
+        </div>
+        <div class="row between small"><span class="ink2">${exam ? "Задание " + it.n + " · " + (qz.i + 1) + " из " + qz.items.length : "Вопрос " + (qz.i + 1) + " из " + qz.items.length}</span><span class="muted num">${(exam ? "идёт " + (mins < 1 ? "меньше минуты" : minutesText(mins)) : "верно " + qz.correct + " из " + qz.answered) + hintStat}</span></div>
         ${strip}
       </div>
       <article class="qcard">
@@ -1773,9 +1974,13 @@
         <div class="qtext">${esc(q.q)}</div>
         ${tableHTML(q)}
         ${renderQuestion(it, qz.checked)}
+        ${it.hintOpen ? quizHintHTML(it) : ""}
         ${qz.checked ? feedbackBlock(it, qz) : ""}
         <div class="qfoot">
-          <span class="kbd">${keys}Enter — ${qz.checked ? "дальше" : exam ? "ответить" : "проверить"}</span>
+          <div class="row" style="gap:8px">
+            <button type="button" class="btn ghost sm" data-a="quiz-hint" aria-expanded="${!!it.hintOpen}">${icon("hint")}${it.hintOpen ? "Скрыть подсказку" : "Подсказка"}</button>
+            <span class="kbd">${keys}Enter — ${qz.checked ? "дальше" : exam ? "ответить" : "проверить"}</span>
+          </div>
           ${qz.checked
             ? `<button type="button" class="btn" id="next-btn" data-a="quiz-next">${qz.i + 1 >= qz.items.length ? "Итоги" : "Дальше"}${icon("arrow")}</button>`
             : `<span class="row">${exam ? '<button type="button" class="btn ghost" data-a="quiz-skip">Пропустить</button>' : ""}<button type="button" class="btn" data-a="quiz-check"${canCheck(it) ? "" : " disabled"}>${exam ? "Ответить" : "Проверить"}</button></span>`}
@@ -1790,12 +1995,13 @@
     const max = answered.reduce((s, it) => s + it.res.max, 0);
     const pct = answered.length ? Math.round((100 * right) / answered.length) : 0;
     const head = pct >= 85 ? "Отличный результат" : pct >= 60 ? "Хороший результат" : "Есть над чем поработать";
+    const timeNote = qz.hints ? `подсказок: ${qz.hints}` : "записано в показатели";
     return `<div class="head"><div class="eyebrow">Итоги · ${esc(qz.title)}</div><h1 class="h1">${head}</h1></div>
       <div class="tiles">
         ${tile("Верно", right + " из " + answered.length, "")}
         ${tile("Баллы как в ЕГЭ", pts + " из " + max, "за одну ошибку в сложном задании — 1 балл")}
         ${tile("Точность", pct + "%", "")}
-        ${tile("Время", qz.spent < 30000 ? "меньше минуты" : minutesText(Math.round(qz.spent / 60000)), "записано в показатели")}
+        ${tile("Время", qz.spent < 30000 ? "меньше минуты" : minutesText(Math.round(qz.spent / 60000)), timeNote)}
       </div>
       ${wrong.length ? `<section class="section"><h2 class="h2">Разбор ошибок</h2><div class="review-list">${wrong.map((it) => `<div class="review-item">
           <div class="small muted">${esc(typeLabel(it.q))}</div>
@@ -1807,7 +2013,7 @@
         </div>`).join("")}</div></section>` : ""}
       <div class="row">
         ${wrong.length ? `<button type="button" class="btn" data-a="quiz-retry">Повторить ошибки · ${wrong.length}</button>` : ""}
-        <button type="button" class="btn ghost" data-a="quiz-exit">${qz.back.v === "plan" ? "Вернуться к плану" : qz.back.v === "topic" ? "Вернуться к теме" : "Вернуться к предмету"}</button>
+        <button type="button" class="btn ghost" data-a="quiz-exit">${qz.back.v === "plan" ? "Вернуться к плану" : qz.back.v === "stats" ? "Вернуться к показателям" : qz.back.v === "topic" ? "Вернуться к теме" : "Вернуться к предмету"}</button>
         <button type="button" class="btn ghost" data-a="go" data-v="home">На главную</button>
       </div>`;
   }
@@ -2082,12 +2288,18 @@
   function subjectAutoCard(s, prof, allSess, allMocks, pd) {
     const st = subjectStats(s.id), acc = subjectAccuracy(s.id), thRead = subjectReadCount(s.id);
     const mis = mistakeQs(s.id).length, due = dueQs(s.id).length;
-    const subMin = allSess.filter((x) => x.sub === s.id).reduce((n, x) => n + (x.m || 0), 0);
+    const subSess = allSess.filter((x) => x.sub === s.id);
+    const subMin = subSess.reduce((n, x) => n + (x.m || 0), 0);
+    const subQuizzes = subSess.filter((x) => x.k === "quiz");
+    const subHintAvg = subQuizzes.length ? subQuizzes.reduce((n, x) => n + (x.h || 0), 0) / subQuizzes.length : null;
+    const rep = questionAttemptBreakdown(s.id);
     const diag = pd.results[DIAG_PLAN_ID[s.id]] || null;
     const lastMock = allMocks.filter((m) => m.sub === s.id).slice(-1)[0] || null;
     const rows = [
       ["Освоено вопросов", `${st.mastered} из ${st.total}`],
+      ["Повтор вопросов", `1×: ${rep.n1.length} · 2×: ${rep.n2.length} · 3+×: ${rep.n3.length + rep.n4.length}`],
       ["Точность", acc.acc == null ? "—" : `${acc.acc}% (${acc.n} отв.)`],
+      ["Подсказок за тест", subHintAvg == null ? "—" : `${formatAvg(subHintAvg)} в среднем`],
       ["Конспекты", `${thRead} из ${st.topics}`],
       ["Время", minutesText(subMin)]
     ];
@@ -2105,6 +2317,43 @@
       </div>
     </section>`;
   }
+  function repeatabilityCard() {
+    const sid = ui.statsSubj && (ui.statsSubj === "all" || SUBJ[ui.statsSubj]) ? ui.statsSubj : "all";
+    const rep = questionAttemptBreakdown(sid);
+    const buckets = [
+      { k: 1, label: "1 раз", list: rep.n1 },
+      { k: 2, label: "2 раза", list: rep.n2 },
+      { k: 3, label: "3 раза", list: rep.n3 },
+      { k: 4, label: "4+ раз", list: rep.n4 }
+    ];
+    const activeK = [1, 2, 3, 4].includes(ui.statsRepBucket) ? ui.statsRepBucket : 1;
+    const activeBucket = buckets.find((b) => b.k === activeK) || buckets[0];
+    const visible = ui.statsRepAll ? activeBucket.list : activeBucket.list.slice(0, 25);
+    const subjSwitch = `<div class="switch" role="group" aria-label="Предмет">
+      <button type="button" data-a="stats-subj" data-sid="all" aria-pressed="${sid === "all"}">Все предметы</button>
+      ${CONTENT.map((s) => `<button type="button" data-a="stats-subj" data-sid="${s.id}" aria-pressed="${sid === s.id}"><i class="dot" style="background:var(--c-${s.id})"></i><span>${esc(s.name)}</span></button>`).join("")}
+    </div>`;
+    const bucketTabs = `<div class="switch" role="group" aria-label="Сколько раз пройден вопрос">
+      ${buckets.map((b) => `<button type="button" data-a="stats-rep" data-k="${b.k}" aria-pressed="${activeK === b.k}">${b.label} (${b.list.length})</button>`).join("")}
+    </div>`;
+    const listHtml = visible.length
+      ? `<div class="rep-list">${visible.map((it) => {
+          const rawQ = String(it.q.q || "").replace(/\s+/g, " ").trim();
+          const txt = rawQ.length > 110 ? rawQ.slice(0, 108) + "…" : rawQ;
+          const meta = `${esc(SUBJECT_NAME[it.q.sid] || "")}${it.t ? " · " + esc(topicRef(it.t)) : ""} · ответов ${it.st.n}, верных ${it.st.k}`;
+          return `<button type="button" class="step-btn" data-a="quiz-one" data-id="${esc(it.q.id)}" data-back="stats" style="grid-template-columns:14px minmax(0,1fr) auto"><i class="dot" style="background:var(--c-${it.q.sid})"></i><span style="min-width:0"><span style="display:block">${esc(txt)}</span><span class="step-sub" style="display:block">${meta}</span></span><span class="arrow">${icon("arrow")}</span></button>`;
+        }).join("")}</div>`
+      : `<div class="empty"><span>Вопросов в группе «${activeBucket.label}» пока нет.</span></div>`;
+    const moreBtn = !ui.statsRepAll && activeBucket.list.length > 25
+      ? `<div><button type="button" class="btn ghost sm" data-a="stats-rep-all">Показать все (${activeBucket.list.length})</button></div>` : "";
+    return `<section class="card stack">
+      <div class="row between"><h2 class="h2">Повторяемость вопросов</h2><span class="small muted">не пройдено: ${rep.n0} из ${rep.total}</span></div>
+      ${subjSwitch}
+      ${bucketTabs}
+      ${listHtml}
+      ${moreBtn}
+    </section>`;
+  }
   function viewStats() {
     const tot = totals(), prof = profile(), pd = planDoc();
     const allSess = sessions(), allMocks = mocks();
@@ -2113,6 +2362,9 @@
     const weekNote = tot.prev7 || tot.d7 ? (diff >= 0 ? "+" : "−") + minutesText(Math.abs(diff)) + " к прошлой неделе" : "";
     const accVal = tot.acc7 != null ? tot.acc7 + "%" : (tot.accAll != null ? tot.accAll + "%" : "—");
     const accNote = tot.acc7 != null ? "ответы за 7 дней" : (tot.accAll != null ? "за всё время" : "появится после первого теста");
+    const repAll = questionAttemptBreakdown("all");
+    const rep2Plus = repAll.n2.length + repAll.n3.length + repAll.n4.length;
+    const seenCount = repAll.n1.length + rep2Plus;
     const subjCards = CONTENT.map((s) => subjectAutoCard(s, prof, allSess, allMocks, pd)).join("");
     return `<div class="head"><div class="eyebrow">Показатели</div><h1 class="h1">Подготовка в цифрах</h1><p class="lead">Считается автоматически по тестам, конспектам, повторениям и полным вариантам. Занятия с учебником или бумажные пробники можно добавить внизу.</p></div>
       ${store.mode === "local" ? localNotice() : staleNotice()}
@@ -2122,7 +2374,13 @@
         ${tile("Серия", days(tot.streak), "подряд с занятиями")}
         ${tile("Точность", accVal, accNote)}
       </div>
+      <div class="tiles tiles-3">
+        ${tile("Тестов завершено", String(tot.quizCount), tot.quizCount ? "всего записано" : "появится после теста")}
+        ${tile("Подсказок за тест", formatAvg(tot.hintAvg), tot.quizCount ? `всего нажатий: ${tot.hintTotal}` : "среднее за завершённые тесты")}
+        ${tile("Пройдено 2+ раза", String(rep2Plus), `из ${seenCount} начатых вопросов`)}
+      </div>
       ${CONTENT.length ? `<section class="section"><div class="section-head"><h2 class="h2">По предметам (автоматически)</h2><span class="small muted">обновляется после каждого задания</span></div><div class="grid-3">${subjCards}</div></section>` : ""}
+      ${repeatabilityCard()}
       <section class="card stack">
         <div class="row between"><h2 class="h2">Занятия за 4 недели</h2><span class="small muted">всего записано ${minutesText(tot.all)}</span></div>
         <div class="chart" data-chart="activity" style="height:170px"></div>
@@ -2171,7 +2429,8 @@
   }
   function entryRow(e) {
     const title = e.k === "quiz" ? "Тест: " + quizLabel(e) : e.n || "Занятие";
-    const sub = [SUBJECT_NAME[e.sub] || "Другое", e.m ? minutesText(e.m) : "меньше минуты"].concat(e.k === "quiz" ? ["верно " + (e.c || 0) + " из " + (e.q || 0)] : []).join(" · ");
+    const extra = e.k === "quiz" ? ["верно " + (e.c || 0) + " из " + (e.q || 0)].concat(e.h ? ["подсказок: " + e.h] : []) : [];
+    const sub = [SUBJECT_NAME[e.sub] || "Другое", e.m ? minutesText(e.m) : "меньше минуты"].concat(extra).join(" · ");
     return `<div class="entry"><span class="entry-date">${dateShort(e.d)}</span><div class="entry-main"><span class="entry-title">${esc(title)}</span><span class="entry-sub">${esc(sub)}</span></div>${delControl("log:" + e.doc + ":" + e.id, "del-log", `data-doc="${esc(e.doc)}" data-id="${esc(e.id)}"`)}</div>`;
   }
   function mocksCard() {
@@ -2750,6 +3009,9 @@
     "guide-sid": (el) => { ui.guideSid = el.dataset.sid || "all"; scheduleRender(); },
     "guide-clear": () => { ui.guideQ = ""; ui.focusNext = "guide-q"; scheduleRender(); },
     "guide-chip": (el) => { ui.guideQ = el.dataset.q || ""; scheduleRender(); },
+    "stats-subj": (el) => { ui.statsSubj = el.dataset.sid || "all"; ui.statsRepAll = false; scheduleRender(); },
+    "stats-rep": (el) => { const k = Number(el.dataset.k); if ([1, 2, 3, 4].includes(k)) { ui.statsRepBucket = k; ui.statsRepAll = false; scheduleRender(); } },
+    "stats-rep-all": () => { ui.statsRepAll = true; scheduleRender(); },
     go: (el) => go(el.dataset.v, { sid: el.dataset.sid, id: el.dataset.id }),
     "open-topic": (el) => go("topic", { id: el.dataset.id }),
     "quiz-mixed": (el) => { const sid = subjectOf(el); startQuiz({ title: "Смешанный тест · " + SUBJ[sid].name, sid, qs: pickMixed(sid, QUIZ_SIZE).map((id) => QS[id]), mode: "mixed", back: { v: "subject", sid } }); },
@@ -2765,7 +3027,7 @@
     },
     "quiz-topic": (el) => { const t = TOPICS[el.dataset.id]; startQuiz({ title: topicRef(t), sid: t.sid, qs: pickTopic(t, el.dataset.all ? Infinity : TOPIC_QUIZ).map((id) => QS[id]), mode: "topic", topicId: t.id, back: { v: "topic", id: t.id } }); },
     "quiz-topic-mistakes": (el) => { const t = TOPICS[el.dataset.id]; startQuiz({ title: "Ошибки · " + t.title, sid: t.sid, qs: shuffle(mistakeQs(t.sid, t.id)).map((id) => QS[id]), mode: "topic", topicId: t.id, back: { v: "topic", id: t.id } }); },
-    "quiz-one": (el) => { const q = QS[el.dataset.id]; if (!q) return; const t = TOPICS[q.topic]; startQuiz({ title: topicRef(t), sid: q.sid, qs: [q], mode: "topic", topicId: t.id, back: { v: "topic", id: t.id } }); },
+    "quiz-one": (el) => { const q = QS[el.dataset.id]; if (!q) return; const t = TOPICS[q.topic]; const back = el.dataset.back === "stats" ? { v: "stats" } : { v: "topic", id: t.id }; startQuiz({ title: topicRef(t), sid: q.sid, qs: [q], mode: "topic", topicId: t.id, back }); },
     "quiz-retry": () => {
       const qz = ui.quiz; if (!qz) return;
       const exam = qz.mode === "variant";
@@ -2797,11 +3059,31 @@
       const i = Number(el.dataset.i);
       if (it.q.t === "single") it.resp = i;
       else { const k = it.resp.indexOf(i); if (k >= 0) it.resp.splice(k, 1); else it.resp.push(i); }
+      saveActiveQuiz();
       ui.focusNext = null; scheduleRender();
     },
-    match: (el) => { const it = curItem(); if (!it || ui.quiz.checked) return; const l = Number(el.dataset.l), r = Number(el.dataset.r); it.resp[l] = it.resp[l] === r ? -1 : r; scheduleRender(); },
-    ord: (el) => { const it = curItem(); if (!it || ui.quiz.checked) return; const i = Number(el.dataset.i), k = it.resp.indexOf(i); if (k >= 0) it.resp.splice(k, 1); else it.resp.push(i); scheduleRender(); },
-    "ord-reset": () => { const it = curItem(); if (it) { it.resp = []; scheduleRender(); } },
+    match: (el) => { const it = curItem(); if (!it || ui.quiz.checked) return; const l = Number(el.dataset.l), r = Number(el.dataset.r); it.resp[l] = it.resp[l] === r ? -1 : r; saveActiveQuiz(); scheduleRender(); },
+    ord: (el) => { const it = curItem(); if (!it || ui.quiz.checked) return; const i = Number(el.dataset.i), k = it.resp.indexOf(i); if (k >= 0) it.resp.splice(k, 1); else it.resp.push(i); saveActiveQuiz(); scheduleRender(); },
+    "ord-reset": () => { const it = curItem(); if (it) { it.resp = []; saveActiveQuiz(); scheduleRender(); } },
+    "quiz-hint": () => {
+      const qz = ui.quiz, it = curItem(); if (!qz || !it) return;
+      it.hintOpen = !it.hintOpen;
+      if (it.hintOpen && !it.hinted) {
+        it.hinted = true;
+        qz.hints = (qz.hints || 0) + 1;
+        if (qz.answered > 0) logQuizSession(qz);
+      }
+      saveActiveQuiz();
+      scheduleRender();
+    },
+    "quiz-guide": () => {
+      const it = curItem();
+      if (ui.quiz && !ui.quiz.done && it && it.q) {
+        ui.guideSid = it.q.sid || "all";
+        ui.guideQ = questionGuideHint(it.q).guideQuery || "";
+      }
+      go("tutor");
+    },
     "quiz-check": () => doCheck(),
     "quiz-next": () => doNext(),
     "quiz-exit": () => exitQuiz(),
@@ -2898,7 +3180,8 @@
       store.user = null; store.uid = null; store.me = null;
       store.error = null; store.confirmed = false; store.stale = false;
       cloud.db = null; ai.fn = null; ai.state = "off";
-      ui.guest = false;
+      ui.guest = false; ui.quiz = null;
+      clearActiveQuiz();
       clearQueues();
       ui.confirm = null; ui.auth.error = "";
       clearDrafts("auth."); clearDrafts("pf."); clearDrafts("ob.");
@@ -3039,10 +3322,11 @@
     if (el.id === "ans") {
       const it = curItem(); if (!it) return;
       it.resp = el.value;
+      saveActiveQuiz();
       const b = document.querySelector('[data-a="quiz-check"]'); if (b) b.disabled = !canCheck(it);
       return;
     }
-    if (el.id === "self-text") { const it = curItem(); if (it && it.q.t === "self") it.resp.text = el.value; return; }
+    if (el.id === "self-text") { const it = curItem(); if (it && it.q.t === "self") { it.resp.text = el.value; saveActiveQuiz(); } return; }
     if (el.id === "chat-input") ui.chat.draft = el.value;
     if (el.id === "essay-body") { essayState().body = el.value; paintEssayCount(); essayDraftLater(); }
     if (el.id === "essay-src") { essayState().own.text = el.value; essayDraftLater(); }
@@ -3065,7 +3349,7 @@
       const it = curItem(); if (!it || it.q.t !== "self") return;
       const i = Number(el.dataset.i), k = it.resp.sel.indexOf(i);
       if (el.checked && k < 0) it.resp.sel.push(i); else if (!el.checked && k >= 0) it.resp.sel.splice(k, 1);
-      it.res = grade(it); scheduleRender(); return;
+      it.res = grade(it); saveActiveQuiz(); scheduleRender(); return;
     }
     if (el.dataset && el.dataset.c === "essay-check") { essayState().checks[el.dataset.i] = el.checked; scheduleRender(); return; }
     if (el.id === "import-file" && el.files && el.files[0]) { readImport(el.files[0]); el.value = ""; }
