@@ -113,3 +113,11 @@ node tests/check_app.js   # или jsc tests/check_app.js на macOS
 - Чтобы заработал ИИ-репетитор, генератор заданий и проверка сочинений, задайте в Variables сервиса Railway любой один ключ (`GEMINI_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` или `OPENROUTER_API_KEY`) — провайдер определится автоматически, либо укажите `AI_PROVIDER`.
 - При желании можно ограничить регистрацию через `INVITE_CODE` и `MAX_USERS` (см. [`.env.example`](.env.example)).
 - GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) автоматически прогоняет тесты Python и банка заданий на каждом `push` / `pull_request`, а подключённый к ветке `main` сервис Railway сам пересобирает и выкатывает обновления после `git push`.
+
+### Вход через Google (опционально)
+
+Сервер уже поддерживает авторизацию через Google (OAuth 2.0 + PKCE):
+
+1. Создайте OAuth Client ID (тип *Web application*) в Google Cloud Console.
+2. Добавьте Authorised redirect URI: `https://<ваш-домен-railway>/api/auth/google/callback`.
+3. Добавьте в Railway Variables `GOOGLE_CLIENT_ID` и `GOOGLE_CLIENT_SECRET` (и при желании `PUBLIC_BASE_URL`). После перезапуска кнопка **«Продолжить через Google»** на экране входа активируется автоматически.

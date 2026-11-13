@@ -2,13 +2,16 @@
 
 import json
 from pathlib import Path
+import sqlite3
+from urllib.parse import parse_qs, urlparse
 
 from fastapi.testclient import TestClient
 import httpx
 import pytest
 
 from server.ai import AIError, extract_json, normalize_messages
-from server.config import AIConfig, Settings, load_ai_config, resolve_db_path
+from server.config import AIConfig, GoogleOAuthConfig, Settings, load_ai_config, resolve_db_path
+from server.db import Database
 from server.main import create_app
 
 
@@ -19,6 +22,8 @@ def _make_settings(
     max_users: int = 0,
     max_doc_bytes: int = 2 * 1024 * 1024,
     ai: AIConfig | None = None,
+    google: GoogleOAuthConfig | None = None,
+    public_base_url: str = "",
 ) -> Settings:
     return Settings(
         db_path=tmp_path / "test.db",
@@ -26,6 +31,8 @@ def _make_settings(
         max_users=max_users,
         max_doc_bytes=max_doc_bytes,
         ai=ai or AIConfig(None, None, None, None, None),
+        google=google or GoogleOAuthConfig(None, None),
+        public_base_url=public_base_url,
     )
 
 
@@ -92,11 +99,12 @@ def test_auth_register_login_logout_and_limits(tmp_path: Path) -> None:
         assert r_me.status_code == 200
         assert r_me.json()["user"] is None
         assert r_me.json()["inviteRequired"] is True
+        assert r_me.json()["providers"] == {"local": True, "google": False}
 
         # Без кода приглашения — отказ
         r_bad_inv = client.post(
             "/api/auth/register",
-            json={"username": "olesya", "password": "secret123", "inviteCode": "WRONG"},
+            json={"username": "student1", "password": "secret123", "inviteCode": "WRONG"},
         )
         assert r_bad_inv.status_code == 403
         assert r_bad_inv.json()["detail"]["code"] == "invalid_invite"
@@ -111,7 +119,7 @@ def test_auth_register_login_logout_and_limits(tmp_path: Path) -> None:
 
         r_weak = client.post(
             "/api/auth/register",
-            json={"username": "olesya", "password": "123", "inviteCode": "MED2027"},
+            json={"username": "student1", "password": "123", "inviteCode": "MED2027"},
         )
         assert r_weak.status_code == 400
         assert r_weak.json()["code"] == "invalid_password"
@@ -119,11 +127,19 @@ def test_auth_register_login_logout_and_limits(tmp_path: Path) -> None:
         # Успешная регистрация
         r_reg = client.post(
             "/api/auth/register",
-            json={"username": "olesya", "password": "secret123", "inviteCode": "MED2027"},
+            json={
+                "username": "student1",
+                "password": "secret123",
+                "inviteCode": "MED2027",
+                "email": "Student1@Example.com",
+                "displayName": "Анна",
+            },
         )
         assert r_reg.status_code == 200
         user = r_reg.json()["user"]
-        assert user["username"] == "olesya"
+        assert user["username"] == "student1"
+        assert user["displayName"] == "Анна"
+        assert user["email"] == "Student1@Example.com"
         assert "pvm_session" in client.cookies
 
         r_me2 = client.get("/api/me")
@@ -132,7 +148,7 @@ def test_auth_register_login_logout_and_limits(tmp_path: Path) -> None:
         # Дубликат логина (регистронезависимо)
         r_dup = client.post(
             "/api/auth/register",
-            json={"username": "Olesya", "password": "secret123", "inviteCode": "MED2027"},
+            json={"username": "Student1", "password": "secret123", "inviteCode": "MED2027"},
         )
         assert r_dup.status_code == 409
         assert r_dup.json()["code"] == "username_taken"
@@ -141,13 +157,13 @@ def test_auth_register_login_logout_and_limits(tmp_path: Path) -> None:
         assert client.post("/api/auth/logout").status_code == 200
         assert client.get("/api/me").json()["user"] is None
 
-        r_wrong = client.post("/api/auth/login", json={"username": "olesya", "password": "wrong"})
+        r_wrong = client.post("/api/auth/login", json={"username": "student1", "password": "wrong"})
         assert r_wrong.status_code == 401
         assert r_wrong.json()["detail"]["code"] == "invalid_credentials"
 
-        r_login = client.post("/api/auth/login", json={"username": "Olesya", "password": "secret123"})
+        r_login = client.post("/api/auth/login", json={"username": "Student1", "password": "secret123"})
         assert r_login.status_code == 200
-        assert r_login.json()["user"]["username"] == "olesya"
+        assert r_login.json()["user"]["username"] == "student1"
 
     # Лимит max_users=2 с отдельными клиентами
     with TestClient(app) as c2:
@@ -182,7 +198,7 @@ def test_docs_crud_deep_merge_isolation_and_size_limit(tmp_path: Path) -> None:
         # PATCH создаёт и глубоко сливает + удаляет None
         assert c1.patch(
             "/api/docs/profile",
-            json={"name": "Олеся", "targets": {"bio": 80, "chem": 75}},
+            json={"name": "Анна", "targets": {"bio": 80, "chem": 75}},
         ).status_code == 200
         assert c1.patch(
             "/api/docs/profile",
@@ -190,7 +206,7 @@ def test_docs_crud_deep_merge_isolation_and_size_limit(tmp_path: Path) -> None:
         ).status_code == 200
 
         docs_u1 = c1.get("/api/docs").json()["docs"]
-        assert docs_u1 == {"profile": {"name": "Олеся", "targets": {"bio": 80, "rus": 85}}}
+        assert docs_u1 == {"profile": {"name": "Анна", "targets": {"bio": 80, "rus": 85}}}
 
         # Изоляция между пользователями
         assert c2.get("/api/docs").json()["docs"] == {}
@@ -369,3 +385,220 @@ def test_config_and_helpers(monkeypatch: pytest.MonkeyPatch) -> None:
     assert extract_json('Текст перед\n[{"a": 1}]\nТекст после') == [{"a": 1}]
     with pytest.raises(AIError):
         normalize_messages([])
+
+
+def test_email_login_and_validation(tmp_path: Path) -> None:
+    app = create_app(_make_settings(tmp_path))
+    with TestClient(app) as client:
+        # Неверный email отклоняется
+        r_bad_email = client.post(
+            "/api/auth/register",
+            json={"username": "ivan", "password": "secret123", "email": "not-an-email"},
+        )
+        assert r_bad_email.status_code == 400
+        assert r_bad_email.json()["code"] == "invalid_email"
+
+        r_ok = client.post(
+            "/api/auth/register",
+            json={
+                "username": "ivan",
+                "password": "secret123",
+                "email": "Ivan@Med.ru",
+                "displayName": "Иван Петров",
+            },
+        )
+        assert r_ok.status_code == 200
+
+        # Дубликат email в другом регистре отклонён
+        r_dup = client.post(
+            "/api/auth/register",
+            json={"username": "ivan2", "password": "secret123", "email": "ivan@med.ru"},
+        )
+        assert r_dup.status_code == 409
+        assert r_dup.json()["code"] == "email_taken"
+
+    # Вход по email работает так же, как по логину
+    with TestClient(app) as c2:
+        r_login = c2.post("/api/auth/login", json={"username": "ivan@med.ru", "password": "secret123"})
+        assert r_login.status_code == 200
+        assert r_login.json()["user"]["username"] == "ivan"
+        assert r_login.json()["user"]["displayName"] == "Иван Петров"
+
+
+def test_google_oauth_flow_and_email_linking(tmp_path: Path) -> None:
+    # Без ключей /api/auth/google/start возвращает 503
+    app_no_google = create_app(_make_settings(tmp_path / "no_google"))
+    with TestClient(app_no_google) as c_off:
+        r_off = c_off.get("/api/auth/google/start", follow_redirects=False)
+        assert r_off.status_code == 503
+        assert r_off.json()["detail"]["code"] == "google_not_configured"
+
+    google_cfg = GoogleOAuthConfig(client_id="gid-123", client_secret="gsec-456")
+    app = create_app(
+        _make_settings(
+            tmp_path / "with_google",
+            google=google_cfg,
+            public_base_url="https://med.example.com",
+            max_users=2,
+        )
+    )
+
+    token_requests: list[dict[str, str]] = []
+    fake_profile = {
+        "sub": "google-sub-1",
+        "email": "maria@gmail.com",
+        "email_verified": True,
+        "name": "Мария Соколова",
+        "picture": "https://example.com/maria.png",
+    }
+
+    def google_handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if url == "https://oauth2.googleapis.com/token":
+            parsed = parse_qs(request.content.decode("utf-8"))
+            flat = {k: v[0] for k, v in parsed.items()}
+            token_requests.append(flat)
+            if flat.get("code") == "bad-code":
+                return httpx.Response(400, json={"error": "invalid_grant"})
+            return httpx.Response(200, json={"access_token": "tok-abc"})
+        if url == "https://openidconnect.googleapis.com/v1/userinfo":
+            assert request.headers["authorization"] == "Bearer tok-abc"
+            return httpx.Response(200, json=fake_profile)
+        return httpx.Response(404)
+
+    with TestClient(app) as client:
+        client.app.state.http = httpx.AsyncClient(transport=_mock_transport(google_handler))
+
+        me = client.get("/api/me").json()
+        assert me["providers"] == {"local": True, "google": True}
+
+        # 1. Инициализация PKCE OAuth
+        r_start = client.get("/api/auth/google/start", follow_redirects=False)
+        assert r_start.status_code == 302
+        auth_url = urlparse(r_start.headers["location"])
+        assert auth_url.netloc == "accounts.google.com"
+        qs = {k: v[0] for k, v in parse_qs(auth_url.query).items()}
+        assert qs["client_id"] == "gid-123"
+        assert qs["redirect_uri"] == "https://med.example.com/api/auth/google/callback"
+        assert qs["code_challenge_method"] == "S256"
+        state1 = qs["state"]
+
+        # 2. Невалидный state отклоняется
+        r_bad_state = client.get(
+            "/api/auth/google/callback?code=ok&state=wrong-state",
+            follow_redirects=False,
+        )
+        assert r_bad_state.status_code == 302
+        assert r_bad_state.headers["location"] == "/?auth_error=oauth_state"
+
+        # 3. Успешный callback создаёт пользователя и ставит сессию
+        r_cb = client.get(
+            f"/api/auth/google/callback?code=auth-code-1&state={state1}",
+            follow_redirects=False,
+        )
+        assert r_cb.status_code == 302
+        assert r_cb.headers["location"] == "/"
+        assert "pvm_session" in client.cookies
+        assert token_requests[0]["code_verifier"]
+        assert token_requests[0]["redirect_uri"] == "https://med.example.com/api/auth/google/callback"
+
+        me_authed = client.get("/api/me").json()["user"]
+        assert me_authed["displayName"] == "Мария Соколова"
+        assert me_authed["email"] == "maria@gmail.com"
+        assert me_authed["avatarUrl"] == "https://example.com/maria.png"
+        assert me_authed["authProvider"] == "google"
+
+        # Повторное использование того же state невозможно
+        r_replay = client.get(
+            f"/api/auth/google/callback?code=auth-code-1&state={state1}",
+            follow_redirects=False,
+        )
+        assert r_replay.headers["location"] == "/?auth_error=oauth_state"
+
+    # 4. Привязка Google к уже существующему локальному аккаунту с подтверждённым email
+    with TestClient(app) as c_local:
+        c_local.app.state.http = httpx.AsyncClient(transport=_mock_transport(google_handler))
+        r_reg = c_local.post(
+            "/api/auth/register",
+            json={"username": "dmitry", "password": "secret123", "email": "Dmitry@Gmail.com", "displayName": "Дмитрий"},
+        )
+        assert r_reg.status_code == 200
+        dmitry_id = r_reg.json()["user"]["id"]
+        assert c_local.put("/api/docs/profile", json={"name": "Дима", "exists": True}).status_code == 200
+
+    fake_profile.update({
+        "sub": "google-sub-dmitry",
+        "email": "dmitry@gmail.com",
+        "email_verified": True,
+        "name": "Дмитрий Гугл",
+        "picture": None,
+    })
+    with TestClient(app) as c_g:
+        c_g.app.state.http = httpx.AsyncClient(transport=_mock_transport(google_handler))
+        s2 = parse_qs(urlparse(c_g.get("/api/auth/google/start", follow_redirects=False).headers["location"]).query)["state"][0]
+        r_link = c_g.get(f"/api/auth/google/callback?code=ok&state={s2}", follow_redirects=False)
+        assert r_link.status_code == 302
+        assert r_link.headers["location"] == "/"
+        linked_user = c_g.get("/api/me").json()["user"]
+        assert linked_user["id"] == dmitry_id
+        assert c_g.get("/api/docs").json()["docs"]["profile"]["name"] == "Дима"
+
+    # 5. Лимит пользователей распространяется и на новых Google-пользователей
+    fake_profile.update({
+        "sub": "google-sub-3",
+        "email": "third@gmail.com",
+        "email_verified": True,
+        "name": "Третий",
+    })
+    with TestClient(app) as c_lim:
+        c_lim.app.state.http = httpx.AsyncClient(transport=_mock_transport(google_handler))
+        s3 = parse_qs(urlparse(c_lim.get("/api/auth/google/start", follow_redirects=False).headers["location"]).query)["state"][0]
+        r_lim = c_lim.get(f"/api/auth/google/callback?code=ok&state={s3}", follow_redirects=False)
+        assert r_lim.headers["location"] == "/?auth_error=user_limit"
+
+
+def test_legacy_sqlite_migration(tmp_path: Path) -> None:
+    db_path = tmp_path / "legacy.db"
+    conn = sqlite3.connect(db_path)
+    conn.executescript(
+        """
+        CREATE TABLE users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            username_lower TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            created_at INTEGER NOT NULL
+        );
+        CREATE TABLE sessions (
+            token_hash TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            created_at INTEGER NOT NULL,
+            expires_at INTEGER NOT NULL
+        );
+        CREATE TABLE docs (
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            data_json TEXT NOT NULL,
+            updated_at INTEGER NOT NULL,
+            PRIMARY KEY (user_id, name)
+        );
+        """
+    )
+    conn.commit()
+    conn.close()
+
+    # Инициализация Database должна мягко мигрировать старую схему и сохранить совместимость
+    db = Database(db_path)
+    user = db.create_user("legacyuser", "secret123", display_name="Анна", email="legacy@example.com")
+    assert user.display_name == "Анна"
+    assert db.authenticate("legacy@example.com", "secret123").id == user.id
+    oauth_u = db.upsert_oauth_user(
+        "google",
+        "sub-legacy-1",
+        email="legacy@example.com",
+        email_verified=True,
+        display_name="Анна Google",
+        avatar_url=None,
+    )
+    assert oauth_u.id == user.id
+

@@ -107,8 +107,15 @@
       _dump() { return lsMap; }
     };
 
-    g.location = { hash: opts.hash || "" };
-    g.history = { replaceState(_s, _t, u) { if (typeof u === "string") g.location.hash = u; } };
+    g.location = { hash: opts.hash || "", search: opts.search || "", pathname: "/" };
+    g.history = {
+      replaceState(_s, _t, u) {
+        if (typeof u === "string") {
+          if (u.startsWith("#")) g.location.hash = u;
+          else if (!u.includes("?")) g.location.search = "";
+        }
+      }
+    };
     g.matchMedia = () => ({ matches: false, addEventListener() {} });
     if (typeof g.clearTimeout === "undefined") g.clearTimeout = () => {};
     if (typeof g.console === "undefined") g.console = { log: out, warn() {}, error: out };
@@ -141,6 +148,8 @@
     return {
       elements,
       lsMap,
+      body: g.document.body,
+      location: g.location,
       emitDoc(ev, payload) { (docListeners[ev] || []).forEach((fn) => fn(payload)); }
     };
   }
@@ -205,12 +214,23 @@
           json: async () => jsonObj
         });
         if (url === "/api/me") {
-          return mkRes(200, { user: authedUser, ai: { enabled: true, provider: "gemini" }, inviteRequired: true });
+          return mkRes(200, {
+            user: authedUser,
+            ai: { enabled: true, provider: "gemini" },
+            inviteRequired: true,
+            providers: { local: true, google: true }
+          });
         }
         if (url === "/api/auth/register") {
           const body = JSON.parse(init.body);
           if (body.inviteCode !== "MED") return mkRes(403, { detail: { code: "invalid_invite", message: "Неверный код приглашения." } });
-          authedUser = { id: 7, username: body.username };
+          authedUser = {
+            id: 7,
+            username: body.username,
+            displayName: body.displayName || body.username,
+            email: body.email || null,
+            authProvider: "local"
+          };
           return mkRes(200, { user: authedUser });
         }
         if (url === "/api/auth/logout") {
@@ -265,8 +285,26 @@
     vmRun(readFileText("app.js"), "app.js");
     await flushMicrotasks(20);
     const homePreLogin = env2.elements.get("main").innerHTML;
-    assert(homePreLogin.includes("Вход в аккаунт"), "expected auth form on backend home page");
+    assert(env2.body.dataset.auth === "1", "expected auth gate body flag before login");
+    assert(homePreLogin.includes("Продолжить через Google"), "expected Google OAuth button on auth screen");
+    assert(homePreLogin.includes("Продолжить без аккаунта"), "expected guest fallback button on auth screen");
     assert(!homePreLogin.includes("Давай настроим подготовку"), "should not show onboarding before login on backend");
+
+    // Гостевой режим без входа -> затем возврат на экран входа
+    env2.emitDoc("click", {
+      target: { closest: (sel) => sel === "[data-a]" ? { dataset: { a: "auth-guest" }, disabled: false } : null },
+      preventDefault() {}
+    });
+    await flushMicrotasks(10);
+    assert(!env2.body.dataset.auth, "expected auth flag cleared in guest mode");
+    assert(env2.elements.get("main").innerHTML.includes("Гостевой режим"), "expected guest notice on home");
+
+    env2.emitDoc("click", {
+      target: { closest: (sel) => sel === "[data-a]" ? { dataset: { a: "auth-screen" }, disabled: false } : null },
+      preventDefault() {}
+    });
+    await flushMicrotasks(8);
+    assert(env2.body.dataset.auth === "1", "expected return to auth gate");
 
     // Переключаемся на регистрацию
     env2.emitDoc("click", {
@@ -278,14 +316,38 @@
     assert(regHtml.includes("Код приглашения"), "expected invite code field on register tab");
     assert(regHtml.includes("Перенести текущий прогресс"), "expected local migration checkbox");
 
+    // Несовпадающие пароли отклоняются на клиенте без запроса
+    env2.emitDoc("submit", {
+      target: {
+        closest: () => ({
+          dataset: { f: "auth" },
+          elements: {
+            displayName: { value: "Оля" },
+            username: { value: "olya" },
+            email: { value: "olya@example.com" },
+            password: { value: "secret123" },
+            password2: { value: "wrong" },
+            invite: { value: "MED" },
+            migrate: { checked: true }
+          }
+        })
+      },
+      preventDefault() {}
+    });
+    await flushMicrotasks(8);
+    assert(env2.elements.get("main").innerHTML.includes("Пароли не совпадают"), "expected password mismatch error");
+
     // Ошибочный код инвайта не падает и показывает ошибку
     env2.emitDoc("submit", {
       target: {
         closest: () => ({
           dataset: { f: "auth" },
           elements: {
+            displayName: { value: "Оля" },
             username: { value: "olya" },
+            email: { value: "olya@example.com" },
             password: { value: "secret123" },
+            password2: { value: "secret123" },
             invite: { value: "BAD" },
             migrate: { checked: true }
           }
@@ -302,8 +364,11 @@
         closest: () => ({
           dataset: { f: "auth" },
           elements: {
+            displayName: { value: "Оля" },
             username: { value: "olya" },
+            email: { value: "olya@example.com" },
             password: { value: "secret123" },
+            password2: { value: "secret123" },
             invite: { value: "MED" },
             migrate: { checked: true }
           }
@@ -313,6 +378,7 @@
     });
     await flushMicrotasks(30);
     assert(authedUser && authedUser.username === "olya", "expected authenticated user");
+    assert(!env2.body.dataset.auth, "expected auth gate flag cleared after registration");
     assert(serverDocs.profile && serverDocs.profile.name === "Оля", "expected migrated profile on server");
     assert(!env2.lsMap["put-v-medicinu:v1"], "expected localStorage cleared after migration");
     const homeAuthed = env2.elements.get("main").innerHTML;
@@ -344,6 +410,7 @@
     });
     await flushMicrotasks(15);
     assert(authedUser === null, "expected user logged out");
+    assert(env2.body.dataset.auth === "1", "expected auth gate restored after logout");
     assert(requests.some((r) => r.url === "/api/auth/logout"), "expected logout API call");
 
     // 3. Проверка сохранённого режима claude.ai
@@ -351,7 +418,7 @@
     const env3 = installGlobals({
       claude: {
         use: async (cap) => {
-          if (cap === "user") return { id: async () => "u-123", me: async () => ({ name: "Олеся Тест", isOwner: false }) };
+          if (cap === "user") return { id: async () => "u-123", me: async () => ({ name: "Анна Тест", isOwner: false }) };
           if (cap === "db") return {
             doc: () => ({ get: async () => ({ exists: true }), set: async () => {}, update: async () => {} }),
             collection: () => ({ onSnapshot: (cb) => { claudeSnapCb = cb; } })
@@ -365,9 +432,9 @@
     vmRun(readFileText("app.js"), "app.js");
     await flushMicrotasks(20);
     assert(typeof claudeSnapCb === "function", "expected claude onSnapshot subscription");
-    claudeSnapCb({ metadata: { fromCache: false }, docs: [{ id: "profile", data: () => ({ name: "Олеся", exists: true }) }] });
+    claudeSnapCb({ metadata: { fromCache: false }, docs: [{ id: "profile", data: () => ({ name: "Анна", exists: true }) }] });
     await flushMicrotasks(10);
-    assert(env3.elements.get("main").innerHTML.includes("Привет, Олеся!"), "expected claude mode working");
+    assert(env3.elements.get("main").innerHTML.includes("Привет, Анна!"), "expected claude mode working");
 
     out("APP_SMOKE_TESTS_OK");
   }

@@ -1,16 +1,20 @@
 """FastAPI-сервер для сайта «Путь в медицину» (статика, аккаунты, SQLite и ИИ-прокси)."""
 
+import base64
 from collections import deque
 from contextlib import asynccontextmanager
+import hashlib
 import hmac
 import json
 from pathlib import Path
+import secrets
 import threading
 import time
 from typing import Any
+from urllib.parse import urlencode
 
 from fastapi import Body, FastAPI, HTTPException, Request, Response
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 import httpx
 from pydantic import BaseModel, Field
 
@@ -51,8 +55,10 @@ class RateLimiter:
 
 
 class AuthPayload(BaseModel):
-    username: str = Field(..., min_length=1, max_length=64)
+    username: str = Field(..., min_length=1, max_length=254)
     password: str = Field(..., min_length=1, max_length=256)
+    email: str = Field(default="", max_length=254)
+    displayName: str = Field(default="", max_length=64)
     inviteCode: str = Field(default="", max_length=128)
 
 
@@ -96,6 +102,34 @@ def _clear_session_cookie(response: Response, request: Request, settings: Settin
         secure=_is_https(request),
         path="/",
     )
+
+
+def _serialize_user(user: User) -> dict[str, Any]:
+    return {
+        "id": user.id,
+        "username": user.username,
+        "displayName": user.display_name or user.username,
+        "email": user.email,
+        "avatarUrl": user.avatar_url,
+        "authProvider": user.auth_provider,
+    }
+
+
+def _google_redirect_uri(request: Request, settings: Settings) -> str:
+    if settings.public_base_url:
+        return f"{settings.public_base_url}/api/auth/google/callback"
+    scheme = "https" if _is_https(request) else request.url.scheme
+    host = (
+        request.headers.get("x-forwarded-host", "").split(",")[0].strip()
+        or request.headers.get("host", "").strip()
+        or request.url.netloc
+    )
+    return f"{scheme}://{host}/api/auth/google/callback"
+
+
+def _pkce_challenge(verifier: str) -> str:
+    digest = hashlib.sha256(verifier.encode("ascii")).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
 
 
 def _render_index_html() -> str:
@@ -159,9 +193,10 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
     async def me(request: Request) -> dict[str, Any]:
         user = current_user(request)
         return {
-            "user": {"id": user.id, "username": user.username} if user else None,
+            "user": _serialize_user(user) if user else None,
             "ai": {"enabled": settings.ai.enabled, "provider": settings.ai.provider},
             "inviteRequired": bool(settings.invite_code),
+            "providers": {"local": True, "google": settings.google.enabled},
         }
 
     @app.post("/api/auth/register")
@@ -176,10 +211,16 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
                 status_code=403,
                 detail={"code": "invalid_invite", "message": "Неверный код приглашения."},
             )
-        user = app.state.db.create_user(payload.username, payload.password, max_users=settings.max_users)
+        user = app.state.db.create_user(
+            payload.username,
+            payload.password,
+            email=payload.email or None,
+            display_name=payload.displayName,
+            max_users=settings.max_users,
+        )
         token = app.state.db.create_session(user.id, settings.session_ttl_sec)
         _set_session_cookie(response, request, settings, token)
-        return {"user": {"id": user.id, "username": user.username}}
+        return {"user": _serialize_user(user)}
 
     @app.post("/api/auth/login")
     async def login(payload: AuthPayload, request: Request, response: Response) -> dict[str, Any]:
@@ -196,13 +237,105 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
             )
         token = app.state.db.create_session(user.id, settings.session_ttl_sec)
         _set_session_cookie(response, request, settings, token)
-        return {"user": {"id": user.id, "username": user.username}}
+        return {"user": _serialize_user(user)}
 
     @app.post("/api/auth/logout")
     async def logout(request: Request, response: Response) -> dict[str, bool]:
         app.state.db.delete_session(request.cookies.get(settings.session_cookie))
         _clear_session_cookie(response, request, settings)
         return {"ok": True}
+
+    @app.get("/api/auth/google/start")
+    async def google_start(request: Request) -> RedirectResponse:
+        if not settings.google.enabled:
+            raise HTTPException(
+                status_code=503,
+                detail={"code": "google_not_configured", "message": "Вход через Google не настроен на сервере."},
+            )
+        app.state.limiter.check(
+            f"auth:{_client_ip(request)}",
+            settings.auth_rate_limit,
+            settings.auth_rate_window_sec,
+        )
+        code_verifier = secrets.token_urlsafe(48)
+        redirect_uri = _google_redirect_uri(request, settings)
+        state = app.state.db.create_oauth_state("google", code_verifier, redirect_uri)
+        params = urlencode(
+            {
+                "client_id": settings.google.client_id,
+                "redirect_uri": redirect_uri,
+                "response_type": "code",
+                "scope": "openid email profile",
+                "state": state,
+                "code_challenge": _pkce_challenge(code_verifier),
+                "code_challenge_method": "S256",
+                "prompt": "select_account",
+            }
+        )
+        return RedirectResponse(url=f"https://accounts.google.com/o/oauth2/v2/auth?{params}", status_code=302)
+
+    @app.get("/api/auth/google/callback")
+    async def google_callback(
+        request: Request,
+        code: str = "",
+        state: str = "",
+        error: str = "",
+    ) -> RedirectResponse:
+        if not settings.google.enabled or error or not code or not state:
+            return RedirectResponse(url="/?auth_error=google_denied", status_code=302)
+
+        consumed = app.state.db.consume_oauth_state(state, "google")
+        if not consumed:
+            return RedirectResponse(url="/?auth_error=oauth_state", status_code=302)
+        code_verifier, redirect_uri = consumed
+
+        try:
+            token_resp = await app.state.http.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "code": code,
+                    "client_id": settings.google.client_id or "",
+                    "client_secret": settings.google.client_secret or "",
+                    "redirect_uri": redirect_uri,
+                    "grant_type": "authorization_code",
+                    "code_verifier": code_verifier,
+                },
+            )
+            if token_resp.status_code != 200:
+                return RedirectResponse(url="/?auth_error=oauth_exchange", status_code=302)
+            access_token = (token_resp.json() or {}).get("access_token")
+            if not access_token:
+                return RedirectResponse(url="/?auth_error=oauth_exchange", status_code=302)
+
+            info_resp = await app.state.http.get(
+                "https://openidconnect.googleapis.com/v1/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            if info_resp.status_code != 200:
+                return RedirectResponse(url="/?auth_error=oauth_profile", status_code=302)
+            info = info_resp.json() or {}
+            sub = str(info.get("sub") or "").strip()
+            if not sub:
+                return RedirectResponse(url="/?auth_error=oauth_profile", status_code=302)
+            user = app.state.db.upsert_oauth_user(
+                "google",
+                sub,
+                email=info.get("email"),
+                email_verified=bool(info.get("email_verified")),
+                display_name=str(info.get("name") or ""),
+                avatar_url=info.get("picture"),
+                max_users=settings.max_users,
+            )
+        except StorageError as exc:
+            err_code = exc.code if exc.code in ("user_limit", "invalid_email") else "oauth_failed"
+            return RedirectResponse(url=f"/?auth_error={err_code}", status_code=302)
+        except httpx.HTTPError:
+            return RedirectResponse(url="/?auth_error=oauth_failed", status_code=302)
+
+        token = app.state.db.create_session(user.id, settings.session_ttl_sec)
+        resp = RedirectResponse(url="/", status_code=302)
+        _set_session_cookie(resp, request, settings, token)
+        return resp
 
     @app.get("/api/docs")
     async def list_docs(request: Request) -> dict[str, Any]:

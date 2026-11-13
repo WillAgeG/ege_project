@@ -82,6 +82,22 @@ def load_ai_config() -> AIConfig:
 
 
 @dataclass(frozen=True)
+class GoogleOAuthConfig:
+    client_id: str | None
+    client_secret: str | None
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.client_id and self.client_secret)
+
+
+def load_google_oauth_config() -> GoogleOAuthConfig:
+    cid = os.environ.get("GOOGLE_CLIENT_ID", "").strip() or None
+    csec = os.environ.get("GOOGLE_CLIENT_SECRET", "").strip() or None
+    return GoogleOAuthConfig(client_id=cid, client_secret=csec)
+
+
+@dataclass(frozen=True)
 class Settings:
     db_path: Path
     session_cookie: str = "pvm_session"
@@ -93,7 +109,9 @@ class Settings:
     auth_rate_window_sec: int = 900
     ai_rate_limit: int = 50
     ai_rate_window_sec: int = 3600
+    public_base_url: str | None = None
     ai: AIConfig = AIConfig(None, None, None, None, None)
+    google: GoogleOAuthConfig = GoogleOAuthConfig(None, None)
 
 
 def load_settings() -> Settings:
@@ -103,5 +121,7 @@ def load_settings() -> Settings:
         invite_code=os.environ.get("INVITE_CODE", "").strip(),
         max_users=max(0, _int_env("MAX_USERS", 0)),
         max_doc_bytes=max(1024, _int_env("MAX_DOC_BYTES", 2 * 1024 * 1024)),
+        public_base_url=os.environ.get("PUBLIC_BASE_URL", "").strip().rstrip("/") or None,
         ai=load_ai_config(),
+        google=load_google_oauth_config(),
     )

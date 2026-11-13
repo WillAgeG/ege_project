@@ -586,6 +586,17 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+body[data-auth="1"] .side, body[data-auth="1"] .topbar, body[data-auth="1"] .tabbar { display: none; }
+body[data-auth="1"] .shell { display: block; }
+body[data-auth="1"] .main { min-height: 100vh; display: grid; place-items: center; padding: 28px 16px; }
+.auth-wrap { width: 100%; max-width: 460px; display: grid; gap: 18px; }
+.auth-brand { text-align: center; display: grid; gap: 6px; }
+.auth-brand .brand-name { font-size: 26px; }
+.auth-card { width: 100%; }
+.auth-sep { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; color: var(--muted); font-size: 12.5px; }
+.auth-sep::before, .auth-sep::after { content: ""; height: 1px; background: var(--line); }
+.google-btn { width: 100%; justify-content: center; gap: 10px; }
+.auth-foot { text-align: center; }
 </style>
 
 <div class="shell">

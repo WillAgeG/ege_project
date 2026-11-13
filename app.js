@@ -125,6 +125,7 @@
     mode: "loading", // loading | cloud | local
     backend: !!(window.EGE_HOST && window.EGE_HOST.backend),
     user: null,
+    authProviders: { local: true, google: false },
     backendAi: { enabled: false, provider: null },
     inviteRequired: false,
     ready: false,
@@ -435,7 +436,7 @@
     const res = await backendReq("/api/docs");
     store.user = user;
     store.uid = String(user.id);
-    store.me = { name: user.username };
+    store.me = { name: user.displayName || user.username, avatarUrl: user.avatarUrl || "" };
     cloud.db = backendDb;
     store.mode = "cloud";
     store.confirmed = true;
@@ -487,12 +488,14 @@
     try {
       const me = await backendReq("/api/me");
       store.backendAi = (me && me.ai) || { enabled: false, provider: null };
+      store.authProviders = (me && me.providers) || { local: true, google: false };
       store.inviteRequired = !!(me && me.inviteRequired);
       if (me && me.user) {
         try {
           await loadBackendSession(me.user);
         } catch (e) {
-          store.user = me.user; store.uid = String(me.user.id); store.me = { name: me.user.username };
+          store.user = me.user; store.uid = String(me.user.id);
+          store.me = { name: me.user.displayName || me.user.username, avatarUrl: me.user.avatarUrl || "" };
           cloud.db = backendDb; store.mode = "cloud"; store.stale = true; store.error = "offline";
           if (store.backendAi && store.backendAi.enabled) { ai.fn = backendSample; ai.state = "ready"; }
           else { ai.fn = null; ai.state = "off"; }
@@ -556,9 +559,9 @@
     };
   }
   function defaultName() {
-    if (store.user && store.user.username) return store.user.username;
+    if (store.user) return store.user.displayName || store.user.username || "";
     if (store.me && store.me.name && !store.isOwner) return store.me.name.split(" ")[0];
-    return "Олеся";
+    return "";
   }
   function prog(sid) { const p = store.docs["prog-" + sid] || {}; return { q: p.q || {}, th: p.th || {} }; }
   function topicStats(t) {
@@ -668,6 +671,7 @@
     focusNext: null,
     chat: { sid: firstSubject.id, turns: [], busy: false, ctl: null, draft: "", error: "" },
     auth: { tab: "login", busy: false, error: "" },
+    guest: false,
     essay: null
   };
   function draft(key, fallback) { return Object.prototype.hasOwnProperty.call(ui.drafts, key) ? ui.drafts[key] : fallback; }
@@ -709,8 +713,18 @@
     Promise.resolve().then(() => { renderQueued = false; render(); });
   }
   const VIEWS = { home: viewHome, subject: viewSubject, topic: viewTopic, quiz: viewQuiz, essay: viewEssay, plan: viewPlan, stats: viewStats, tutor: viewTutor, profile: viewProfile };
+  function setAuthLayout(on) {
+    try {
+      if (document.body && document.body.dataset) {
+        if (on) document.body.dataset.auth = "1";
+        else delete document.body.dataset.auth;
+      }
+    } catch (e) { /* игнор */ }
+  }
   function render() {
-    renderChrome();
+    const authGate = store.backend && !store.user && !ui.guest;
+    setAuthLayout(authGate);
+    if (!authGate) renderChrome();
     const main = $("#main");
     const active = document.activeElement;
     const aid = active && active !== document.body && active.id;
@@ -718,9 +732,16 @@
     const scrollIn = aid ? active.scrollTop : 0; // прокрутка внутри длинного поля (сочинение)
     try { if (aid && typeof active.selectionStart === "number") { selS = active.selectionStart; selE = active.selectionEnd; } } catch (e) { /* не текстовое поле */ }
     let html;
-    try { html = (VIEWS[ui.view] || viewHome)(); }
-    catch (e) { console.error(e); html = `<div class="notice"><b>Что-то пошло не так при показе раздела.</b><span>Открой главную и попробуй снова.</span></div>`; }
-    main.innerHTML = `<div class="page">${html}</div>`;
+    if (authGate) {
+      html = store.ready
+        ? authScreen()
+        : `<div class="auth-wrap"><div class="auth-brand"><div class="brand-name">Путь в медицину</div><p class="muted">Подключаюсь к серверу…</p></div></div>`;
+      main.innerHTML = html;
+    } else {
+      try { html = (VIEWS[ui.view] || viewHome)(); }
+      catch (e) { console.error(e); html = `<div class="notice"><b>Что-то пошло не так при показе раздела.</b><span>Открой главную и попробуй снова.</span></div>`; }
+      main.innerHTML = `<div class="page">${html}</div>`;
+    }
     $("#tip").hidden = true;
     if (aid) {
       const el = document.getElementById(aid);
@@ -735,7 +756,7 @@
       ui.focusNext = null;
       if (el) el.focus({ preventScroll: true });
     }
-    drawCharts();
+    if (!authGate) drawCharts();
     if (scrollTopPending) { scrollTopPending = false; window.scrollTo(0, 0); }
   }
   function syncState() {
@@ -763,7 +784,7 @@
       return `<button type="button" class="subj-btn" ${s.content ? `data-a="go" data-v="subject" data-sid="${s.id}"` : "disabled"}${cur ? ' aria-current="page"' : ""}><i class="dot" style="background:var(--c-${s.id})"></i><span>${esc(s.name)}</span><span class="small muted num">${right}</span></button>`;
     }).join("");
     const me = store.me, prof = profile();
-    const nm = (store.user && store.user.username) ? (prof.name || store.user.username) : (prof.name || (me && me.name) || (store.mode === "local" ? (store.backend ? "Гость" : "Этот браузер") : ""));
+    const nm = (store.user ? (prof.name || store.user.displayName || store.user.username) : "") || prof.name || (me && me.name) || (store.mode === "local" ? (store.backend ? "Гость" : "Этот браузер") : "");
     $("#side-foot").innerHTML = `<div class="me">${me && me.avatarUrl ? `<img src="${esc(me.avatarUrl)}" alt="">` : ""}<div style="min-width:0"><div class="me-name">${esc(nm)}</div><span class="sync"><i></i><span></span></span></div></div>`;
     const tabSid = SUBJ[ui.sid] ? ui.sid : firstSubject.id;
     const tabs = [["home", "Главная", "home"], ["subject", CONTENT.length > 1 ? "Предметы" : firstSubject.name, "leaf"], ["plan", "План", "list"], ["stats", "Показатели", "chart"], ["tutor", "Репетитор", "chat"]];
@@ -832,12 +853,15 @@
     if (store.stale && !store.confirmed) return `<div class="notice"><b>${store.backend ? "Сервер" : "Облако"} пока не отвечает.</b><span>Показаны данные, которые удалось загрузить; они могут быть неполными. Изменения сохранятся, когда связь появится.</span></div>`;
     return "";
   }
-  function authCard() {
+  const GOOGLE_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5a5.6 5.6 0 0 1-2.4 3.6v3h3.9c2.3-2.1 3.5-5.2 3.5-8.8z"/><path fill="#34A853" d="M12 24c3.2 0 6-1.1 8-3l-3.9-3c-1.1.7-2.5 1.2-4.1 1.2-3.1 0-5.8-2.1-6.8-5H1.2v3.1A12 12 0 0 0 12 24z"/><path fill="#FBBC05" d="M5.2 14.2A7.2 7.2 0 0 1 4.8 12c0-.8.1-1.5.4-2.2V6.7H1.2A12 12 0 0 0 0 12c0 1.9.5 3.8 1.2 5.3l4-3.1z"/><path fill="#EA4335" d="M12 4.8c1.8 0 3.3.6 4.6 1.8l3.4-3.4A11.9 11.9 0 0 0 12 0 12 12 0 0 0 1.2 6.7l4 3.1c1-2.9 3.7-5 6.8-5z"/></svg>';
+  function authCard(opts) {
+    opts = opts || {};
     const a = ui.auth, reg = a.tab === "register";
-    return `<form class="card pad-lg form" data-f="auth" style="border-color:var(--hema)">
+    const hasGoogle = !!(store.authProviders && store.authProviders.google);
+    return `<form class="card pad-lg form${opts.standalone ? " auth-card" : ""}" data-f="auth">
       <div class="row between" style="flex-wrap:wrap">
         <div>
-          <div class="eyebrow">Аккаунт и синхронизация</div>
+          <div class="eyebrow">Аккаунт</div>
           <h2 class="h2">${reg ? "Регистрация" : "Вход в аккаунт"}</h2>
         </div>
         <div class="switch" role="group" aria-label="Режим входа">
@@ -845,11 +869,24 @@
           <button type="button" data-a="auth-tab" data-tab="register" aria-pressed="${reg}">Регистрация</button>
         </div>
       </div>
-      <p class="ink2 small">Сервер базы данных подключён. Войди или зарегистрируйся, чтобы прогресс сохранялся на сервере и открывался с любого устройства.${store.backendAi && store.backendAi.enabled ? " После входа заработает ИИ-репетитор." : ""} Пока вход не выполнен, прогресс пишется только в этот браузер.</p>
-      <div class="fields">
-        <div class="field"><label for="auth-user">Логин</label><input class="input" id="auth-user" name="username" type="text" autocomplete="username" minlength="2" maxlength="32" required placeholder="Например, olesya" data-d="auth.user" value="${esc(draft("auth.user", ""))}"></div>
-        <div class="field"><label for="auth-pass">Пароль</label><input class="input" id="auth-pass" name="password" type="password" autocomplete="${reg ? "new-password" : "current-password"}" minlength="6" maxlength="128" required placeholder="Минимум 6 символов" data-d="auth.pass" value="${esc(draft("auth.pass", ""))}"></div>
+      <p class="ink2 small">${reg ? "Создай личный аккаунт — прогресс сохранится в базе на сервере и будет доступен на любом устройстве." : "Войди в свой аккаунт, чтобы загрузить прогресс с сервера."}${store.backendAi && store.backendAi.enabled ? " После входа также заработает ИИ-репетитор." : ""}</p>
+      ${hasGoogle
+        ? `<a class="btn ghost google-btn" href="/api/auth/google/start">${GOOGLE_SVG}<span>Продолжить через Google</span></a>`
+        : `<button type="button" class="btn ghost google-btn" disabled title="Подключается через GOOGLE_CLIENT_ID и GOOGLE_CLIENT_SECRET на сервере">${GOOGLE_SVG}<span>Продолжить через Google</span></button>`}
+      ${!hasGoogle ? '<p class="hint" style="text-align:center">Вход через Google активируется после настройки ключей на сервере.</p>' : ""}
+      <div class="auth-sep"><span>или</span></div>
+      ${reg ? `<div class="fields">
+        <div class="field"><label for="auth-name">Как к тебе обращаться</label><input class="input" id="auth-name" name="displayName" type="text" autocomplete="name" maxlength="40" placeholder="Имя (необязательно)" data-d="auth.name" value="${esc(draft("auth.name", ""))}"></div>
+        <div class="field"><label for="auth-user">Логин</label><input class="input" id="auth-user" name="username" type="text" autocomplete="username" minlength="2" maxlength="32" required placeholder="Например, alex2027" data-d="auth.user" value="${esc(draft("auth.user", ""))}"></div>
       </div>
+      <div class="field"><label for="auth-email">Email</label><input class="input" id="auth-email" name="email" type="email" autocomplete="email" maxlength="254" placeholder="По желанию — для входа и связи с Google" data-d="auth.email" value="${esc(draft("auth.email", ""))}"></div>
+      <div class="fields">
+        <div class="field"><label for="auth-pass">Пароль</label><input class="input" id="auth-pass" name="password" type="password" autocomplete="new-password" minlength="6" maxlength="128" required placeholder="Минимум 6 символов" data-d="auth.pass" value="${esc(draft("auth.pass", ""))}"></div>
+        <div class="field"><label for="auth-pass2">Повторите пароль</label><input class="input" id="auth-pass2" name="password2" type="password" autocomplete="new-password" minlength="6" maxlength="128" required placeholder="Ещё раз" data-d="auth.pass2" value="${esc(draft("auth.pass2", ""))}"></div>
+      </div>` : `<div class="fields">
+        <div class="field"><label for="auth-user">Логин или email</label><input class="input" id="auth-user" name="username" type="text" autocomplete="username" minlength="2" maxlength="254" required placeholder="Логин или email" data-d="auth.user" value="${esc(draft("auth.user", ""))}"></div>
+        <div class="field"><label for="auth-pass">Пароль</label><input class="input" id="auth-pass" name="password" type="password" autocomplete="current-password" minlength="6" maxlength="128" required placeholder="Пароль" data-d="auth.pass" value="${esc(draft("auth.pass", ""))}"></div>
+      </div>`}
       ${reg && store.inviteRequired ? `<div class="field"><label for="auth-invite">Код приглашения</label><input class="input" id="auth-invite" name="invite" type="text" autocomplete="off" maxlength="64" required data-d="auth.invite" value="${esc(draft("auth.invite", ""))}"></div>` : ""}
       ${reg && hasLocalProgress() ? `<label class="row" style="gap:8px;align-items:center"><input type="checkbox" class="check" id="auth-migrate" name="migrate" checked><span class="small">Перенести текущий прогресс из этого браузера в новый аккаунт</span></label>` : ""}
       ${a.error ? `<div class="notice">${esc(a.error)}</div>` : ""}
@@ -859,20 +896,36 @@
       </div>
     </form>`;
   }
+  function authScreen() {
+    return `<div class="auth-wrap">
+      <div class="auth-brand">
+        <div class="brand-name">Путь в медицину</div>
+        <p class="muted small">Подготовка к ЕГЭ · ${esc(CONTENT.map((s) => s.name).join(" · "))}</p>
+      </div>
+      ${authCard({ standalone: true })}
+      <div class="auth-foot">
+        <button type="button" class="link-btn small" data-a="auth-guest">Продолжить без аккаунта (данные останутся только в этом браузере)</button>
+      </div>
+    </div>`;
+  }
   function accountCard() {
     if (!store.user) return authCard();
-    const cf = ui.confirm;
+    const cf = ui.confirm, u = store.user, title = u.displayName || u.username;
     return `<section class="card pad-lg stack">
       <div class="row between" style="flex-wrap:wrap">
-        <div>
-          <div class="eyebrow">Аккаунт</div>
-          <h2 class="h2">${esc(store.user.username)}</h2>
+        <div class="me">
+          ${u.avatarUrl ? `<img src="${esc(u.avatarUrl)}" alt="">` : ""}
+          <div>
+            <div class="eyebrow">Аккаунт · ${u.authProvider === "google" ? "Google" : "Логин и пароль"}</div>
+            <h2 class="h2">${esc(title)}</h2>
+            <div class="small muted">@${esc(u.username)}${u.email ? " · " + esc(u.email) : ""}</div>
+          </div>
         </div>
         <button type="button" class="btn ghost sm" data-a="auth-logout">Выйти</button>
       </div>
       <p class="small ink2">Прогресс синхронизируется с сервером${store.backendAi && store.backendAi.enabled ? " · ИИ-репетитор подключён" : ""}.</p>
       ${hasLocalProgress() ? `<div class="row" style="flex-wrap:wrap"><button type="button" class="btn soft sm" data-a="auth-migrate">Перенести локальный прогресс из браузера</button></div>` : ""}
-      ${cf && cf.kind === "migrate" ? `<div class="confirm"><b>Перенести локальные данные в аккаунт «${esc(store.user.username)}»?</b><span class="small">Документы из памяти этого браузера перезапишут одноимённые разделы на сервере.</span><div class="row"><button type="button" class="btn sm" data-a="auth-migrate-do">Перенести</button><button type="button" class="btn ghost sm" data-a="confirm-cancel">Отмена</button></div></div>` : ""}
+      ${cf && cf.kind === "migrate" ? `<div class="confirm"><b>Перенести локальные данные в аккаунт «${esc(title)}»?</b><span class="small">Документы из памяти этого браузера перезапишут одноимённые разделы на сервере.</span><div class="row"><button type="button" class="btn sm" data-a="auth-migrate-do">Перенести</button><button type="button" class="btn ghost sm" data-a="confirm-cancel">Отмена</button></div></div>` : ""}
     </section>`;
   }
 
@@ -882,8 +935,8 @@
     const name = prof.name || (store.ready ? defaultName() : "");
     const parts = [];
     parts.push(`<div class="head"><div class="eyebrow">${esc(capitalize(fmtWeekday.format(new Date())))}</div><h1 class="h1">${name ? "Привет, " + esc(name) + "!" : "Привет!"}</h1><p class="lead">Цель — «Лечебное дело» в СВФУ. Здесь темы и тесты ${esc(CONTENT.map((s) => SUBJ[s.id].po).join(" и "))}, план поступления и твои показатели.</p></div>`);
-    if (store.backend && store.ready && !store.user) parts.push(authCard());
-    if (store.ready && !prof.exists && store.error !== "readonly" && (!store.backend || store.user)) parts.push(onboardingCard());
+    if (store.backend && store.ready && !store.user) parts.push(`<div class="notice"><b>Гостевой режим.</b><span>Прогресс сохраняется только в этом браузере. <button type="button" class="link-btn" data-a="auth-screen">Войти или создать аккаунт</button>, чтобы синхронизировать с сервером.</span></div>`);
+    if (store.ready && !prof.exists && store.error !== "readonly" && (!store.backend || store.user || ui.guest)) parts.push(onboardingCard());
     if (store.mode === "local" && !store.backend) parts.push(localNotice());
     parts.push(staleNotice());
     parts.push(`<div class="grid-hero">${heroCard(prof)}${readinessCard(prof)}</div>`);
@@ -2346,11 +2399,22 @@
       ui.auth.error = "";
       scheduleRender();
     },
+    "auth-guest": () => {
+      ui.guest = true;
+      ui.auth.error = "";
+      scheduleRender(true);
+    },
+    "auth-screen": () => {
+      ui.guest = false;
+      ui.auth.error = "";
+      scheduleRender(true);
+    },
     "auth-logout": async () => {
       try { await backendReq("/api/auth/logout", { method: "POST" }); } catch (e) { /* выходим локально в любом случае */ }
       store.user = null; store.uid = null; store.me = null;
       store.error = null; store.confirmed = false; store.stale = false;
       cloud.db = null; ai.fn = null; ai.state = "off";
+      ui.guest = false;
       clearQueues();
       ui.confirm = null; ui.auth.error = "";
       clearDrafts("auth."); clearDrafts("pf."); clearDrafts("ob.");
@@ -2380,6 +2444,7 @@
     if (code === "unavailable") return "Нет связи с сервером. Попробуй через несколько секунд.";
     if (code === "invalid_credentials") return "Неверный логин или пароль.";
     if (code === "username_taken") return "Этот логин уже занят.";
+    if (code === "email_taken") return "Этот email уже зарегистрирован.";
     return (e && e.message) || "Не получилось войти. Попробуй ещё раз.";
   }
   const FORMS = {
@@ -2435,22 +2500,28 @@
       const a = ui.auth;
       if (a.busy || !store.backend) return;
       const reg = a.tab === "register";
-      const username = String(form && form.elements && form.elements.username ? form.elements.username.value : draft("auth.user", "")).trim();
-      const password = String(form && form.elements && form.elements.password ? form.elements.password.value : draft("auth.pass", ""));
-      const inviteCode = reg ? String(form && form.elements && form.elements.invite ? form.elements.invite.value : draft("auth.invite", "")).trim() : "";
+      const val = (name, key) => String(form && form.elements && form.elements[name] ? form.elements[name].value : draft(key, ""));
+      const username = val("username", "auth.user").trim();
+      const password = val("password", "auth.pass");
+      const password2 = reg ? val("password2", "auth.pass2") : "";
+      const displayName = reg ? val("displayName", "auth.name").trim() : "";
+      const email = reg ? val("email", "auth.email").trim() : "";
+      const inviteCode = reg ? val("invite", "auth.invite").trim() : "";
       const migEl = reg && form && form.elements ? form.elements.migrate : null;
       const doMigrate = !!(migEl && migEl.checked);
       if (!username || !password) { a.error = "Введи логин и пароль."; scheduleRender(); return; }
+      if (reg && password !== password2) { a.error = "Пароли не совпадают."; scheduleRender(); return; }
       a.busy = true; a.error = "";
       scheduleRender();
       try {
-        const body = reg ? { username, password, inviteCode } : { username, password };
+        const body = reg ? { username, password, email, displayName, inviteCode } : { username, password };
         const res = await backendReq("/api/auth/" + (reg ? "register" : "login"), { method: "POST", body: JSON.stringify(body) });
         let migrated = 0;
         if (reg && doMigrate) {
           try { migrated = await migrateLocalDocsToServer(); } catch (e) { /* загрузим аккаунт в любом случае */ }
         }
         clearQueues();
+        ui.guest = false;
         await loadBackendSession(res.user);
         clearDrafts("auth."); clearDrafts("pf."); clearDrafts("ob.");
         a.error = "";
@@ -2533,8 +2604,31 @@
   window.addEventListener("hashchange", () => { readHash(); scheduleRender(true); });
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refreshBackendDocs(); });
 
+  function readQueryError() {
+    try {
+      if (typeof URLSearchParams !== "function" || !location.search) return;
+      const sp = new URLSearchParams(location.search);
+      const code = sp.get("auth_error");
+      if (!code) return;
+      const map = {
+        google_denied: "Вход через Google отменён.",
+        oauth_state: "Сессия входа через Google устарела. Попробуй ещё раз.",
+        oauth_exchange: "Не удалось завершить вход через Google. Попробуй ещё раз.",
+        oauth_profile: "Google не передал данные профиля.",
+        user_limit: "Достигнут лимит аккаунтов на этом сервере.",
+        invalid_email: "У аккаунта Google указан некорректный email.",
+        oauth_failed: "Ошибка при входе через Google. Попробуй ещё раз."
+      };
+      ui.auth.error = map[code] || "Не удалось войти через Google.";
+      sp.delete("auth_error");
+      const q = sp.toString();
+      history.replaceState(null, "", (location.pathname || "/") + (q ? "?" + q : "") + (location.hash || ""));
+    } catch (e) { /* игнор */ }
+  }
+
   // ---------- запуск ----------
   readHash();
+  readQueryError();
   render();
   initData();
   initCaps();
