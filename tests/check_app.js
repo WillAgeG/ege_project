@@ -191,6 +191,39 @@
     assert(Object.keys(bank.SUBJ).length === 3, "expected 3 subjects (bio, rus, chem)");
     assert(Object.keys(bank.TOPICS).length > 30, "expected many topics");
     assert(Object.keys(bank.QS).length > 100, "expected loaded question bank");
+
+    vmRun(readFileText("tools/bank-tools.js"), "tools/bank-tools.js");
+    const report = globalThis.EGE.bankTools.checkBank(bank);
+    const badSelfTest = globalThis.EGE.bankTools.selfTest(bank);
+    const bankErrors = report.issues.filter((x) => x.lv === "error");
+    const bankWarns = report.issues.filter((x) => x.lv === "warn");
+    assert(bankErrors.length === 0, "expected 0 checkBank errors: " + JSON.stringify(bankErrors));
+    assert(bankWarns.length === 0, "expected 0 checkBank warnings: " + JSON.stringify(bankWarns));
+    assert(badSelfTest.length === 0, "expected 0 bankTools selfTest issues: " + JSON.stringify(badSelfTest));
+    assert(readFileText("app.js").replace(/\r\n/g, "").indexOf("\n") === -1, "expected CRLF line endings in app.js");
+
+    for (const sid of Object.keys(bank.SUBJ)) {
+      for (const t of bank.SUBJ[sid].topicList) {
+        for (const q of t.q) {
+          if (q.t !== "match") continue;
+          assert(new Set(q.l.map((x) => String(x).trim().toLowerCase())).size === q.l.length, "duplicate left match labels in " + sid + "/" + t.id);
+          assert(new Set(q.r.map((x) => String(x).trim().toLowerCase())).size === q.r.length, "duplicate right match labels in " + sid + "/" + t.id);
+        }
+      }
+    }
+    for (const q of bank.TOPICS["c5-1"].q) {
+      if (String(q.q).includes("упарили")) {
+        const w = parseFloat(String(q.a[0]).replace(",", "."));
+        assert(w > 0 && w <= 55, "expected realistic c5-1 evaporation concentration <= 55%, got " + q.a[0]);
+      }
+    }
+    const rusSlot22 = bank.SUBJ.rus.variant.slots.find((sl) => sl.n === 22);
+    const rusSlots23_26 = bank.SUBJ.rus.variant.slots.find((sl) => Array.isArray(sl.n) && sl.n.join(",") === "23,24,25,26");
+    assert(rusSlot22 && rusSlot22.topic === "r5-1", "expected Russian variant slot 22 mapped to r5-1");
+    assert(rusSlots23_26 && rusSlots23_26.topic === "r0-2", "expected Russian variant slots 23-26 mapped to r0-2");
+    assert(bank.SUBJ.rus.variant.two.includes(22), "expected Russian #22 worth 2 primary points");
+    const r51Ege = bank.TOPICS["r5-1"].q.filter((q) => q.ege);
+    assert(r51Ege.length >= 6 && r51Ege.every((q) => q.t === "match" && q.l.length === 5 && q.r.length === 9), "expected authentic 5-row ege #22 questions in r5-1");
     vmRun(readFileText("app.js"), "app.js");
     await flushMicrotasks(12);
     const main1 = env1.elements.get("main").innerHTML;
@@ -779,6 +812,24 @@
     }
     assert(bio2Html.includes('data-qnum="2"'), "expected to reach Biology variant question #2");
     assert(bio2Html.includes("увеличилась") && bio2Html.includes("уменьшилась") && bio2Html.includes("не изменилась"), "expected experiment match format for Biology question #2");
+    clickAction(env4, { a: "quiz-exit" });
+    await flushMicrotasks(6);
+
+    // Русский вариант №22 -> 5-строчное соответствие (средства выразительности), №23 -> анализ текста
+    clickAction(env4, { a: "quiz-variant", sid: "rus" });
+    await flushMicrotasks(8);
+    let rus22Html = env4.elements.get("main").innerHTML;
+    for (let step = 0; step < 30 && !rus22Html.includes('data-qnum="22"'); step++) {
+      clickAction(env4, { a: "quiz-skip" });
+      await flushMicrotasks(4);
+      rus22Html = env4.elements.get("main").innerHTML;
+    }
+    assert(rus22Html.includes('data-qnum="22"'), "expected to reach Russian variant question #22");
+    assert(rus22Html.includes("data-l=\"4\""), "expected 5-row match (A-D) for Russian variant question #22");
+    clickAction(env4, { a: "quiz-skip" });
+    await flushMicrotasks(4);
+    const rus23Html = env4.elements.get("main").innerHTML;
+    assert(rus23Html.includes('data-qnum="23"'), "expected to reach Russian variant question #23 after #22");
     clickAction(env4, { a: "quiz-exit" });
     await flushMicrotasks(6);
 
