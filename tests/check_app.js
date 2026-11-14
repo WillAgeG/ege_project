@@ -1040,6 +1040,39 @@
     const feesUpdated = env5.elements.get("main").innerHTML;
     assert(hasNum(feesUpdated, "1 900 ₽") && feesUpdated.includes("100 ₽"), "expected /fees calculator preset to recalculate 95%/5% split for 2000");
 
+    clickAction(env5, { a: "go", v: "brandbook" });
+    await flushMicrotasks(4);
+    const bbHtmlCheck = env5.elements.get("main").innerHTML;
+    assert(bbHtmlCheck.includes("bb-subj-toggle"), "expected custom hh-select dropdown trigger in brandbook");
+    assert(bbHtmlCheck.includes("card plan-card"), "expected tariff cards to include .card base class");
+    assert(bbHtmlCheck.includes("bb-preview-toast-close"), "expected close button on brandbook side toast preview");
+    assert(bbHtmlCheck.includes("bb-cancel-demo"), "expected adaptive cancel demo button");
+
+    clickAction(env5, { a: "bb-subj-toggle" });
+    await flushMicrotasks(2);
+    const openMenuHtml = env5.elements.get("main").innerHTML;
+    assert(openMenuHtml.includes('role="listbox"') && openMenuHtml.includes("bb-subj-pick"), "expected custom subject dropdown menu to open");
+    clickAction(env5, { a: "bb-subj-pick", v: "chem" });
+    await flushMicrotasks(2);
+    const pickedSubjHtml = env5.elements.get("main").innerHTML;
+    assert(pickedSubjHtml.includes("Химия · ЕГЭ 2027") && !pickedSubjHtml.includes('role="listbox"'), "expected picked subject and closed menu");
+
+    clickAction(env5, { a: "bb-cancel-demo" });
+    await flushMicrotasks(2);
+    const cancelHtml = env5.elements.get("main").innerHTML;
+    assert(cancelHtml.includes("is-undone") && cancelHtml.includes("Запись отменена · вернуть"), "expected adaptive undone state on cancel button");
+    const liveSideToast = env5.elements.get("toast");
+    assert(liveSideToast && liveSideToast.className === "toast is-side" && liveSideToast.innerHTML.includes('data-a="toast-close"'), "expected live side toast with close button");
+    clickAction(env5, { a: "toast-close" });
+    assert(liveSideToast.hidden === true || (liveSideToast.className && liveSideToast.className.includes("is-dismissing")), "expected toast-close to hide or dismiss side toast");
+
+    clickAction(env5, { a: "bb-preview-toast-close" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("bb-preview-toast-reset"), "expected dismissed preview toast restore button");
+    clickAction(env5, { a: "bb-preview-toast-reset" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("bb-preview-toast-close"), "expected restored preview toast close button");
+
     clickAction(env5, { a: "go", v: "landing" });
     await flushMicrotasks(2);
 

@@ -3149,13 +3149,31 @@
 
   // ---------- тосты и подсказки ----------
   let toastTimer = null;
+  function dismissSideToast(targetEl) {
+    const el = targetEl || $("#toast");
+    if (!el) return;
+    clearTimeout(toastTimer);
+    if (el.style) { el.style.transform = ""; el.style.opacity = ""; }
+    if (el.classList && el.classList.contains("is-side")) {
+      el.classList.remove("is-dragging");
+      el.classList.add("is-dismissing");
+      toastTimer = setTimeout(() => {
+        el.hidden = true;
+        el.className = "toast";
+      }, 210);
+    } else {
+      el.hidden = true;
+      el.className = "toast";
+    }
+  }
   function toast(msg, opts) {
     const el = $("#toast");
     if (!el) return;
     opts = opts || {};
+    if (el.style) { el.style.transform = ""; el.style.opacity = ""; }
     if (opts.side) {
       el.className = "toast is-side";
-      el.innerHTML = `<span class="toast-side-row"><span class="bb-pulse-dot" style="margin-top:5px;flex:0 0 auto"></span><span class="toast-side-copy"><b>${esc(opts.title || "Уведомление")}</b><span>${esc(msg)}</span></span></span>`;
+      el.innerHTML = `<span class="toast-side-row"><span class="bb-pulse-dot" style="margin-top:5px;flex:0 0 auto"></span><span class="toast-side-copy"><b>${esc(opts.title || "Уведомление")}</b><span>${esc(msg)}</span></span><button type="button" class="toast-close" data-a="toast-close" aria-label="Убрать уведомление">×</button></span>`;
     } else {
       el.className = "toast";
       el.textContent = msg;
@@ -3910,6 +3928,43 @@
       bbState().quizOpt = Number.isFinite(idx) ? idx : 0;
       scheduleRender();
     },
+    "toast-close": () => { dismissSideToast(); },
+    "bb-subj-toggle": () => {
+      const bb = bbState();
+      bb.subjMenuOpen = !bb.subjMenuOpen;
+      scheduleRender();
+    },
+    "bb-subj-pick": (el) => {
+      const bb = bbState();
+      bb.subj = el.dataset.v || "bio";
+      bb.subjMenuOpen = false;
+      scheduleRender();
+    },
+    "bb-preview-toast-close": () => {
+      const box = typeof document.querySelector === "function" ? document.querySelector('[data-swipe-toast="preview"]') : null;
+      if (box && box.classList) {
+        box.classList.add("is-dismissing");
+        setTimeout(() => { bbState().previewToastDismissed = true; scheduleRender(); }, 190);
+      } else {
+        bbState().previewToastDismissed = true;
+        scheduleRender();
+      }
+    },
+    "bb-preview-toast-reset": () => {
+      bbState().previewToastDismissed = false;
+      scheduleRender();
+    },
+    "bb-cancel-demo": () => {
+      const bb = bbState();
+      bb.cancelDemoUndone = !bb.cancelDemoUndone;
+      scheduleRender();
+      notifySide(
+        bb.cancelDemoUndone ? "Запись отменена" : "Запись восстановлена",
+        bb.cancelDemoUndone
+          ? "Кнопка плавно перешла в спокойный янтарный режим · смахни влево или нажми ×"
+          : "Кнопка возвращена в активный опасный режим (--bad)"
+      );
+    },
     "bb-demo-toast": () => {
       const bb = bbState();
       const hhStr = String(bb.hour || 14).padStart(2, "0") + ":00";
@@ -3934,7 +3989,12 @@
     }
   };
   function bbState() {
-    return ui.brandbook || (ui.brandbook = { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, vpWidth: 390, chipOn: true, sent: false, fav: true, switchVal: "online", pickedPlan: "month10k", quizOpt: 1 });
+    return ui.brandbook || (ui.brandbook = {
+      mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true,
+      vpWidth: 390, chipOn: true, sent: false, fav: true, switchVal: "online",
+      subj: "bio", subjMenuOpen: false, pickedPlan: "month10k", quizOpt: 1,
+      cancelDemoUndone: false, previewToastDismissed: false
+    });
   }
   function applyBrandbookViewport(rawW) { return EGE.views.brandbook.applyBrandbookViewport(ui, rawW); }
   function authErrorText(e) {
@@ -4037,6 +4097,10 @@
   function updateBookingModalLive() { return EGE.views.marketplace.updateBookingModalLive(); }
 
   document.addEventListener("click", (e) => {
+    if (ui.brandbook && ui.brandbook.subjMenuOpen && (!e.target || typeof e.target.closest !== "function" || !e.target.closest(".hh-select"))) {
+      ui.brandbook.subjMenuOpen = false;
+      scheduleRender();
+    }
     if (e.target && e.target.classList && e.target.classList.contains("modal-back")) {
       ui.bug = null; ui.booking = null; ui.authModal = false; ui.filterModal = false; ui.bbModal = false;
       renderModal();
@@ -4231,6 +4295,10 @@
     if (el.id === "import-file" && el.files && el.files[0]) { readImport(el.files[0]); el.value = ""; }
   });
   document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && ui.brandbook && ui.brandbook.subjMenuOpen) {
+      ui.brandbook.subjMenuOpen = false;
+      scheduleRender();
+    }
     if (e.key === "Escape" && (ui.bug || ui.booking || ui.authModal || ui.filterModal)) {
       e.preventDefault();
       ui.bug = null; ui.booking = null; ui.authModal = false; ui.filterModal = false;
@@ -4258,7 +4326,72 @@
   });
 
   window.addEventListener("hashchange", () => { readHash(); scheduleRender(true); });
+  let swipeToast = null;
+  function swipeClientPt(e, axis) {
+    if (e.touches && e.touches[0]) return axis === "x" ? e.touches[0].clientX : e.touches[0].clientY;
+    if (e.changedTouches && e.changedTouches[0]) return axis === "x" ? e.changedTouches[0].clientX : e.changedTouches[0].clientY;
+    return axis === "x" ? (typeof e.clientX === "number" ? e.clientX : 0) : (typeof e.clientY === "number" ? e.clientY : 0);
+  }
+  function startSwipeToast(e) {
+    if (!e || !e.target || typeof e.target.closest !== "function") return;
+    if (e.target.closest("button, [data-a]")) return;
+    const node = e.target.closest("#toast.is-side, [data-swipe-toast]");
+    if (!node) return;
+    clearTimeout(toastTimer);
+    swipeToast = { node, x0: swipeClientPt(e, "x"), y0: swipeClientPt(e, "y"), dx: 0, active: false };
+  }
+  function moveSwipeToast(e) {
+    if (!swipeToast) return;
+    const dx = swipeClientPt(e, "x") - swipeToast.x0;
+    const dy = swipeClientPt(e, "y") - swipeToast.y0;
+    if (!swipeToast.active) {
+      if (dx < -8 && Math.abs(dx) > Math.abs(dy)) {
+        swipeToast.active = true;
+        if (swipeToast.node.classList) swipeToast.node.classList.add("is-dragging");
+      } else if (Math.abs(dy) > 14 && Math.abs(dy) > Math.abs(dx)) {
+        swipeToast = null;
+        return;
+      } else {
+        return;
+      }
+    }
+    const clamped = Math.min(0, dx);
+    swipeToast.dx = clamped;
+    if (swipeToast.node.style) {
+      swipeToast.node.style.transform = `translateX(${clamped}px)`;
+      swipeToast.node.style.opacity = String(Math.max(0.18, 1 + clamped / 170));
+    }
+  }
+  function endSwipeToast() {
+    if (!swipeToast) return;
+    const cur = swipeToast;
+    swipeToast = null;
+    const node = cur.node;
+    if (node.classList) node.classList.remove("is-dragging");
+    if (cur.active && cur.dx <= -48) {
+      if (node.id === "toast") {
+        dismissSideToast(node);
+      } else {
+        if (node.style) { node.style.transform = ""; node.style.opacity = ""; }
+        if (node.classList) node.classList.add("is-dismissing");
+        setTimeout(() => {
+          bbState().previewToastDismissed = true;
+          scheduleRender();
+        }, 190);
+      }
+    } else {
+      if (node.style) { node.style.transform = ""; node.style.opacity = ""; }
+      if (node.id === "toast" && !node.hidden) {
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => dismissSideToast(node), 2600);
+      }
+    }
+  }
+  document.addEventListener("pointerdown", startSwipeToast);
+  document.addEventListener("pointerup", endSwipeToast);
+  document.addEventListener("pointercancel", endSwipeToast);
   document.addEventListener("pointermove", (e) => {
+    moveSwipeToast(e);
     if (!e || typeof document.getElementById !== "function") return;
     const wrap = document.getElementById("hero-stage-wrap");
     if (!wrap || !wrap.getBoundingClientRect || !wrap.style || !wrap.style.setProperty) return;

@@ -15,6 +15,13 @@
     bbDayObj
   } = EGE.hh;
 
+  const BB_SUBJECTS = [
+    { id: "bio", label: "Биология · ЕГЭ 2027", meta: "Естественные" },
+    { id: "chem", label: "Химия · ЕГЭ 2027", meta: "Олимпиады и ЕГЭ" },
+    { id: "rus", label: "Русский язык · ЕГЭ", meta: "Сочинение и база" },
+    { id: "design", label: "UX/UI и Моушен", meta: "Проектный трек" }
+  ];
+
   function ensureBrandbookState(ui) {
     return ui.brandbook || (ui.brandbook = {
       mode: "both",
@@ -28,8 +35,12 @@
       fav: true,
       vpWidth: 390,
       switchVal: "online",
+      subj: "bio",
+      subjMenuOpen: false,
       pickedPlan: "month10k",
-      quizOpt: 1
+      quizOpt: 1,
+      cancelDemoUndone: false,
+      previewToastDismissed: false
     });
   }
 
@@ -188,6 +199,8 @@
 
   function formsSectionHTML(bb) {
     const sw = bb.switchVal || "online";
+    const curSubj = BB_SUBJECTS.find((s) => s.id === (bb.subj || "bio")) || BB_SUBJECTS[0];
+    const menuOpen = !!bb.subjMenuOpen;
     return `<section class="land-sec" id="bb-forms">
       <div class="land-sec-head">
         <div>
@@ -217,16 +230,32 @@
             <span class="bb-hint-err">Укажите час в окне 10:00–20:00 (например, 14:00).</span>
           </div>
         </div>
-        <div class="card pad stack" style="gap:10px">
-          <div class="fields">
+        <div class="card pad stack" style="gap:12px">
+          <div class="stack" style="gap:10px">
             <div class="field">
-              <label for="bb-demo-select">Выбор предмета (.select)</label>
-              <select class="select" id="bb-demo-select">
-                <option>Биология · ЕГЭ 2027</option>
-                <option>Химия · ЕГЭ 2027</option>
-                <option>Русский язык · ЕГЭ</option>
-                <option>UX/UI и Моушен</option>
-              </select>
+              <span class="label">Выбор предмета (.hh-select)</span>
+              <div class="hh-select${menuOpen ? " open" : ""}" id="bb-demo-select">
+                <button type="button" class="hh-select-btn" data-a="bb-subj-toggle" aria-haspopup="listbox" aria-expanded="${menuOpen}">
+                  <span class="hh-select-val">
+                    <span>${curSubj.label}</span>
+                    <span class="hh-select-meta">${curSubj.meta}</span>
+                  </span>
+                  <span class="hh-select-chev">${icon("chevDown")}</span>
+                </button>
+                ${menuOpen ? `<div class="hh-select-menu" role="listbox" aria-label="Предмет подготовки">
+                  ${BB_SUBJECTS.map((s) => {
+                    const isOn = s.id === curSubj.id;
+                    return `<button type="button" class="hh-select-item${isOn ? " on" : ""}" role="option" aria-selected="${isOn}" data-a="bb-subj-pick" data-v="${s.id}">
+                      <span class="hh-select-item-main">
+                        <span>${s.label}</span>
+                        <span class="hh-select-item-sub">${s.meta}</span>
+                      </span>
+                      ${isOn ? icon("ok") : ""}
+                    </button>`;
+                  }).join("")}
+                </div>` : ""}
+              </div>
+              <span class="hint">Тематический список в цветах Светлой/Тёмной темы без системного тёмного меню браузера.</span>
             </div>
             <div class="field">
               <span class="label">Сегмент-переключатель (.switch)</span>
@@ -268,7 +297,7 @@
       <div class="grid-3">
         ${plans.map(([id, price, name, badge, perks, extraCls]) => {
           const isPick = picked === id;
-          return `<div class="plan-card${extraCls ? " " + extraCls : ""}${isPick ? " picked" : ""}">
+          return `<div class="card plan-card${extraCls ? " " + extraCls : ""}${isPick ? " picked" : ""}">
             <div class="stack" style="gap:8px">
               <div class="row between" style="gap:6px">
                 <b>${name}</b>
@@ -285,17 +314,27 @@
       </div>
       <div class="bb-overlays-grid" style="margin-top:14px">
         <div class="card pad stack" style="gap:10px">
-          <div class="row between"><b>Боковое уведомление (.toast.is-side)</b><span class="bb-spec-pill notif">right 20 px · top 78 px</span></div>
-          <div class="bb-toast-preview">
-            <span class="toast-side-row">
-              <span class="bb-pulse-dot" style="margin-top:5px;flex:0 0 auto"></span>
-              <span class="toast-side-copy">
-                <b>Предложение передано преподавателю</b>
-                <span>Ставка ${bb.price.toLocaleString("ru-RU")} ₽/ч на ${String(bb.hour).padStart(2, "0")}:00 отправлена — уведомим об ответе</span>
-              </span>
-            </span>
-          </div>
-          <span class="small muted">На мобильных экранах (&le; 720 px) растягивается сверху по ширине экрана без перекрытия таб-бара.</span>
+          <div class="row between"><b>Боковое уведомление (.toast.is-side)</b><span class="bb-spec-pill notif">× или свайп влево</span></div>
+          ${bb.previewToastDismissed
+            ? `<div class="bb-toast-dismissed">
+                <span class="small muted">Уведомление скрыто свайпом или по ×</span>
+                <button type="button" class="btn soft sm" data-a="bb-preview-toast-reset">Показать снова</button>
+              </div>`
+            : `<div class="bb-toast-preview" data-swipe-toast="preview">
+                <span class="toast-side-row">
+                  <span class="bb-pulse-dot" style="margin-top:5px;flex:0 0 auto"></span>
+                  <span class="toast-side-copy">
+                    <b>Предложение передано преподавателю</b>
+                    <span>Ставка ${bb.price.toLocaleString("ru-RU")} ₽/ч на ${String(bb.hour).padStart(2, "0")}:00 отправлена — уведомим об ответе</span>
+                  </span>
+                  <button type="button" class="toast-close" data-a="bb-preview-toast-close" aria-label="Убрать уведомление">×</button>
+                </span>
+                <div class="bb-toast-swipe-hint">
+                  <span>← смахни влево или нажми ×</span>
+                  <span>right 20 px</span>
+                </div>
+              </div>`}
+          <span class="small muted">Закрывается кнопкой × или свайпом влево (включая живой тост сверху справа). На телефонах (&le; 720 px) без перекрытия таб-бара.</span>
         </div>
         <div class="card pad stack" style="gap:10px">
           <div class="row between"><b>Анатомия модального окна (.modal-card)</b><span class="bb-spec-pill">backdrop blur · max-w 520 px</span></div>
@@ -373,11 +412,14 @@
           <button type="button" class="btn soft sm" data-a="bb-chip">Сбросить фильтры</button>
         </div>
         <div class="confirm">
-          <b>Опасное действие / Ошибка (.confirm + .btn.danger)</b>
-          <span class="small">Токен --bad используется только для необратимого удаления или сбоя сети.</span>
+          <b>Опасное действие / Адаптивный фокус (.confirm + .btn.danger)</b>
+          <span class="small">Красная кнопка меняет оттенок при hover/нажатии, имеет собственный красный :focus-visible (без синей рамки) и мягкий переход в отменённое состояние.</span>
           <div class="row" style="gap:8px;flex-wrap:wrap">
-            <button type="button" class="btn danger sm" data-a="bb-demo-toast">Отменить запись</button>
-            <button type="button" class="btn ghost sm" data-a="bb-chip">Оставить</button>
+            ${(() => {
+              const undone = !!bb.cancelDemoUndone;
+              return `<button type="button" class="btn ${undone ? "soft bb-btn-adaptive is-undone" : "danger bb-btn-adaptive"} sm" data-a="bb-cancel-demo" aria-pressed="${undone}">${undone ? "Запись отменена · вернуть" : "Отменить запись"}</button>`;
+            })()}
+            <button type="button" class="btn ghost sm" data-a="bb-chip">${bb.cancelDemoUndone ? "Закрыть" : "Оставить"}</button>
           </div>
         </div>
       </div>
@@ -465,11 +507,12 @@
           </div>
         </div>
         <nav class="land-links" aria-label="Разделы брендбука">
-          <a href="#bb-logo" data-a="land-scroll" data-target="bb-logo">Лого и цвета</a>
+          <a href="#bb-logo" data-a="land-scroll" data-target="bb-logo">Лого</a>
           <a href="#bb-sliders" data-a="land-scroll" data-target="bb-sliders">Ползунки</a>
-          <a href="#bb-forms" data-a="land-scroll" data-target="bb-forms">Формы и тарифы</a>
-          <a href="#bb-buttons" data-a="land-scroll" data-target="bb-buttons">Иконки и границы</a>
-          <a href="#bb-study-states" data-a="land-scroll" data-target="bb-study-states">Учёба и состояния</a>
+          <a href="#bb-forms" data-a="land-scroll" data-target="bb-forms">Формы</a>
+          <a href="#bb-cards-sys" data-a="land-scroll" data-target="bb-cards-sys">Тарифы</a>
+          <a href="#bb-buttons" data-a="land-scroll" data-target="bb-buttons">Иконки</a>
+          <a href="#bb-study-states" data-a="land-scroll" data-target="bb-study-states">Состояния</a>
           <a href="#bb-responsive" data-a="land-scroll" data-target="bb-responsive">Адаптив</a>
         </nav>
         <div class="land-top-actions">
