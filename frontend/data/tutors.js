@@ -580,16 +580,17 @@
     return hh * 60 + mm;
   }
 
-  LIST.forEach(function (t, idx) {
-    t.whatsapp = t.whatsapp || WA_PHONES[t.id] || ("791421001" + String(10 + idx));
+  function normalizeTutor(t, idx) {
+    t.whatsapp = t.whatsapp || WA_PHONES[t.id] || ("791421001" + String(10 + (idx || 0)));
     t.verified = t.verified !== false;
-    t.source = t.source || SOURCE_CHANNELS[idx % SOURCE_CHANNELS.length];
+    t.source = t.source || SOURCE_CHANNELS[(idx || 0) % SOURCE_CHANNELS.length];
     t.marketPrice = t.marketPrice || Math.round((t.price * 1.28) / 50) * 50;
     t.belowRub = Math.max(0, t.marketPrice - t.price);
     t.aboveRub = Math.max(0, t.price - t.marketPrice);
     t.belowPct = t.belowRub > 0 ? Math.max(10, Math.round((t.belowRub / t.marketPrice) * 100)) : 0;
     t.abovePct = t.aboveRub > 0 ? Math.max(5, Math.round((t.aboveRub / t.marketPrice) * 100)) : 0;
     t.responseMin = t.bumpedToday ? 10 : 25;
+    t.tier = t.tier || (t.aboveRub > 0 ? "pro" : "budget");
     if (!t.availableFrom || !t.availableTo) {
       var allH = [];
       Object.keys(t.slots || {}).forEach(function (k) {
@@ -600,6 +601,38 @@
       t.availableTo = t.availableTo || allH[allH.length - 1] || "20:00";
     }
     t.windowLabel = "с " + t.availableFrom + " до " + t.availableTo;
+    return t;
+  }
+
+  function upsertCustomTutor(raw) {
+    if (!raw || !raw.id) return null;
+    var subjObj = SUBJECTS.find(function (s) { return s.id === raw.subject; }) || SUBJECTS[0];
+    var clean = Object.assign({
+      subjectName: subjObj ? subjObj.name : "Подготовка",
+      exams: ["ЕГЭ"],
+      formats: ["Онлайн"],
+      city: "Онлайн по РФ",
+      rating: 4.9,
+      reviews: 12,
+      exp: "5 лет · профиль hh",
+      tag: "Ваша анкета · Профи",
+      verified: true,
+      bumpedToday: true,
+      bumpText: "Опубликовано из кабинета",
+      slots: { 1: ["14:00", "16:00"], 6: ["10:00", "12:00"] }
+    }, raw);
+    clean.availableFrom = "";
+    clean.availableTo = "";
+    clean.marketPrice = Number(raw.marketPrice) || Math.round((Number(clean.price || 1200) * 1.28) / 50) * 50;
+    normalizeTutor(clean, LIST.length);
+    var idx = LIST.findIndex(function (x) { return x.id === clean.id; });
+    if (idx >= 0) LIST[idx] = clean;
+    else LIST.unshift(clean);
+    return clean;
+  }
+
+  LIST.forEach(function (t, idx) {
+    normalizeTutor(t, idx);
   });
 
   function toISODate(d) {
@@ -759,6 +792,7 @@
     PLANS: PLANS,
     LIST: LIST,
     COMMISSION_PCT: COMMISSION_PCT,
+    upsertCustomTutor: upsertCustomTutor,
     commissionSplit: commissionSplit,
     tutorInWindow: tutorInWindow,
     buildCalendarDays: buildCalendarDays,

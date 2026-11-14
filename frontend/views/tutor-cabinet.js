@@ -1,4 +1,9 @@
-/* Личный кабинет преподавателя: входящие заявки с торгом ±100 ₽, ставка, окна 10:00–20:00 и выплата 95%. */
+/* Личный кабинет преподавателя в стиле hh.ru + Саха Gold:
+   - входящие заявки с торгом ±100 ₽ и расчётом «На руки 95%»;
+   - конструктор профиля/резюме как на hh.ru с публикацией в каталог /market;
+   - календарь записанных учеников по неделям и часам 10:00–20:00;
+   - статистика воронки и доходов + автопродвижение каждые 24 часа;
+   - трекер баллов ЕГЭ учеников и быстрые шаблоны ответов. */
 (function () {
   "use strict";
 
@@ -9,6 +14,7 @@
   const { priceHeadlineHTML, priceDiffTagsHTML, feeSplitHTML, hhSelectHTML } = EGE.hh || { priceHeadlineHTML: () => "", priceDiffTagsHTML: () => "", feeSplitHTML: () => "", hhSelectHTML: null };
 
   const TC_LS_KEY = "vektor-ege:tutor-cabinet";
+  const DAY_MS = 24 * 60 * 60 * 1000;
   const DAY_LIST = [
     { dow: "1", wd: "Пн", full: "Понедельник" },
     { dow: "2", wd: "Вт", full: "Вторник" },
@@ -18,6 +24,31 @@
     { dow: "6", wd: "Сб", full: "Суббота" },
     { dow: "0", wd: "Вс", full: "Воскресенье" }
   ];
+  const EXAM_OPTIONS = ["ЕГЭ", "ОГЭ", "ДВИ / Олимпиады"];
+  const FORMAT_OPTIONS = ["Онлайн", "Очно"];
+  const SKILL_PRESETS = [
+    "Задания ФИПИ 2027", "№28 Генетика", "№34 Химия", "Разбор пробников",
+    "Устная часть", "Сочинение КИМ", "Медвуз", "С нуля до 85+"
+  ];
+  const AUTO_BUMP_HOURS = ["09:00", "14:00", "19:00"];
+  const GOAL_PRESETS = [40000, 60000, 90000, 120000];
+  const QUICK_TEMPLATES = [
+    {
+      id: "tpl-accept",
+      title: "Принять ставку и скинуть ссылку",
+      build: (p) => `Здравствуйте! Подтверждаю занятие по ставке ${p.price.toLocaleString("ru-RU")} ₽/ч. За 10 минут до старта пришлю ссылку и разбор первой темы.`
+    },
+    {
+      id: "tpl-counter",
+      title: "Вежливый встречный торг ±100 ₽",
+      build: (p) => `Добрый день! На это время у меня высокий спрос, готов(а) провести урок за ${Math.max(p.minFair, p.price - 100).toLocaleString("ru-RU")} ₽/ч — в стоимость уже входят проверка ДЗ и конспекты ФИПИ.`
+    },
+    {
+      id: "tpl-parent",
+      title: "Краткий отчёт после урока",
+      build: (p) => `Итоги занятия (${p.headline || "подготовка"}): разобрали типовые ошибки второй части, закрепили ключевой блок и выдали домашку к следующему слоту.`
+    }
+  ];
 
   const DEFAULT_REQUESTS = [
     {
@@ -26,6 +57,7 @@
       exam: "ЕГЭ",
       subjectName: "Биология",
       format: "Онлайн",
+      dow: "6",
       dayLabel: "Сб, 14 нояб.",
       hour: "16:00",
       offerPrice: 1100,
@@ -42,6 +74,7 @@
       exam: "ЕГЭ",
       subjectName: "Химия",
       format: "Онлайн",
+      dow: "0",
       dayLabel: "Вс, 15 нояб.",
       hour: "14:00",
       offerPrice: 1500,
@@ -58,6 +91,7 @@
       exam: "ОГЭ",
       subjectName: "Русский язык",
       format: "Онлайн",
+      dow: "1",
       dayLabel: "Пн, 16 нояб.",
       hour: "18:00",
       offerPrice: 1200,
@@ -70,8 +104,15 @@
     }
   ];
 
+  const DEFAULT_STUDENTS = [
+    { id: "st-alina", name: "Алина С.", exam: "ЕГЭ · Биология", startScore: 58, curScore: 76, targetScore: 88, lessonsDone: 6, hw: "Линия №28 (сцепление генов) — сдать до Сб" },
+    { id: "st-darya", name: "Дарья В.", exam: "ОГЭ · Русский", startScore: 22, curScore: 31, targetScore: 36, lessonsDone: 4, hw: "Синтаксис и сжатое изложение — вариант №4" },
+    { id: "st-timur", name: "Тимур К.", exam: "ЕГЭ · Химия", startScore: 64, curScore: 81, targetScore: 92, lessonsDone: 8, hw: "№34 на олеум и массовую долю — 5 задач" }
+  ];
+
   let _ctx = {};
   let _cache = null;
+  let _countdownTimer = null;
 
   function configure(ctx) {
     _ctx = ctx || {};
@@ -81,21 +122,56 @@
     return _ctx.TDATA || EGE.tutors || null;
   }
 
+  function copyStr(txt) {
+    if (!txt) return;
+    if (typeof _ctx.copyText === "function") {
+      _ctx.copyText(txt);
+      return;
+    }
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+        navigator.clipboard.writeText(txt);
+      }
+    } catch (e) { /* игнор */ }
+  }
+
   function defaultState() {
     const profName =
       (typeof _ctx.profile === "function" && _ctx.profile().name) ||
       (_ctx.store && _ctx.store.user && (_ctx.store.user.displayName || _ctx.store.user.username)) ||
       "";
+    const now = Date.now();
     return {
+      tab: "requests",
       filter: "all",
       activeDow: "6",
+      calWeek: 0,
+      calAddHour: "",
+      calAddOpen: false,
+      statsPeriod: "7d",
+      monthlyGoal: 60000,
       bumpedToday: false,
+      autoBump24h: true,
+      autoBumpHour: "09:00",
+      lastBumpAt: now - 18 * 3600000,
+      bumpCount: 7,
+      profilePreview: false,
+      published: false,
       subjMenuOpen: false,
       profile: {
         name: profName || "Анна Соколова",
+        headline: "Эксперт ЕГЭ и ОГЭ · Подготовка к медвузу",
         subject: "bio",
         exams: ["ЕГЭ", "ОГЭ"],
         formats: ["Онлайн"],
+        city: "Якутск · Онлайн по РФ",
+        whatsapp: "79142100199",
+        education: "СВФУ им. М.К. Аммосова · Педагог-исследователь",
+        expYears: 6,
+        avgScore: 86,
+        highScorers: 14,
+        trialFree: true,
+        skills: ["Задания ФИПИ 2027", "№28 Генетика", "Разбор пробников", "Медвуз"],
         price: 1200,
         minFair: 900,
         bio: "Экспертная подготовка без шаблонов: разбираем задания ФИПИ, ловушки второй части и пишем пробники на 85+."
@@ -109,7 +185,8 @@
         "6": ["10:00", "12:00", "16:00", "18:00"],
         "0": ["11:00", "15:00"]
       },
-      requests: DEFAULT_REQUESTS.map((r) => Object.assign({}, r))
+      requests: DEFAULT_REQUESTS.map((r) => Object.assign({}, r)),
+      students: DEFAULT_STUDENTS.map((s) => Object.assign({}, s))
     };
   }
 
@@ -124,13 +201,16 @@
     if (saved && typeof saved === "object") {
       _cache = Object.assign({}, def, saved);
       _cache.profile = Object.assign({}, def.profile, saved.profile || {});
+      if (!Array.isArray(_cache.profile.exams) || !_cache.profile.exams.length) _cache.profile.exams = def.profile.exams.slice();
+      if (!Array.isArray(_cache.profile.formats) || !_cache.profile.formats.length) _cache.profile.formats = def.profile.formats.slice();
+      if (!Array.isArray(_cache.profile.skills)) _cache.profile.skills = def.profile.skills.slice();
       _cache.slots = Object.assign({}, def.slots, saved.slots || {});
-      _cache.requests = Array.isArray(saved.requests) && saved.requests.length
-        ? saved.requests
-        : def.requests;
+      _cache.requests = Array.isArray(saved.requests) && saved.requests.length ? saved.requests : def.requests;
+      _cache.students = Array.isArray(saved.students) && saved.students.length ? saved.students : def.students;
     } else {
       _cache = def;
     }
+    checkAutoBumpDue(_cache, true);
     return _cache;
   }
 
@@ -140,9 +220,128 @@
     } catch (e) { /* игнор */ }
   }
 
+  function checkAutoBumpDue(st, silent) {
+    if (!st || !st.autoBump24h) return false;
+    const last = Number(st.lastBumpAt) || 0;
+    const now = Date.now();
+    if (now - last >= DAY_MS) {
+      st.lastBumpAt = now;
+      st.bumpedToday = true;
+      st.bumpCount = (Number(st.bumpCount) || 0) + 1;
+      syncPublishedTutor(st);
+      if (!silent) saveState();
+      return true;
+    }
+    return false;
+  }
+
+  function formatCountdown(msLeft) {
+    const clamped = Math.max(0, Math.floor(msLeft / 1000));
+    const hh = String(Math.floor(clamped / 3600)).padStart(2, "0");
+    const mm = String(Math.floor((clamped % 3600) / 60)).padStart(2, "0");
+    const ss = String(clamped % 60).padStart(2, "0");
+    return `${hh}:${mm}:${ss}`;
+  }
+
+  function autoBumpRemainingMs(st) {
+    const last = Number(st.lastBumpAt) || Date.now();
+    return Math.max(0, (last + DAY_MS) - Date.now());
+  }
+
+  function ensureCountdownTimer() {
+    if (typeof document === "undefined" || typeof setInterval !== "function" || _countdownTimer) return;
+    _countdownTimer = setInterval(() => {
+      if (!_ctx.ui || _ctx.ui.view !== "cabinet") return;
+      const st = tState();
+      if (checkAutoBumpDue(st, false)) {
+        if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+        if (typeof _ctx.notifySide === "function") {
+          _ctx.notifySide("Автоподнятие 24 ч сработало", "Анкета снова поднята в топ каталога (0 ₽).");
+        }
+        return;
+      }
+      const txt = st.autoBump24h ? formatCountdown(autoBumpRemainingMs(st)) : "Пауза";
+      document.querySelectorAll("[data-tc-countdown]").forEach((node) => {
+        node.textContent = txt;
+      });
+    }, 1000);
+  }
+
   function clampStep(val, delta, lo, hi) {
     const cur = Math.round((Number(val) || lo) / 100) * 100;
     return Math.max(lo, Math.min(hi, cur + delta));
+  }
+
+  function profileCompleteness(p, slots) {
+    const totalSlots = Object.keys(slots || {}).reduce((s, k) => s + (Array.isArray(slots[k]) ? slots[k].length : 0), 0);
+    const checks = [
+      { ok: String(p.name || "").trim().length >= 3, tip: "укажите имя и фамилию" },
+      { ok: String(p.headline || "").trim().length >= 8, tip: "добавьте заголовок как на hh" },
+      { ok: String(p.education || "").trim().length >= 6, tip: "укажите вуз или квалификацию" },
+      { ok: Number(p.avgScore) >= 60, tip: "заполните средний балл учеников" },
+      { ok: Array.isArray(p.skills) && p.skills.length >= 2, tip: "выберите от 2 тегов навыков" },
+      { ok: String(p.bio || "").trim().length >= 30, tip: "опишите подход к подготовке (30+ симв.)" },
+      { ok: String(p.whatsapp || "").replace(/\D+/g, "").length >= 10, tip: "добавьте WhatsApp / контакт" },
+      { ok: totalSlots >= 4, tip: "откройте минимум 4 окна 10:00–20:00" }
+    ];
+    const done = checks.filter((c) => c.ok).length;
+    return {
+      pct: Math.round((done / checks.length) * 100),
+      missing: checks.filter((c) => !c.ok).map((c) => c.tip),
+      totalSlots
+    };
+  }
+
+  function buildMarketTutorPayload(st) {
+    const TDATA = getTDATA();
+    const p = st.profile;
+    const subjObj = TDATA && TDATA.SUBJECTS
+      ? TDATA.SUBJECTS.find((s) => s.id === p.subject)
+      : null;
+    const cleanSlots = {};
+    Object.keys(st.slots || {}).forEach((k) => {
+      if (Array.isArray(st.slots[k]) && st.slots[k].length) cleanSlots[Number(k)] = st.slots[k].slice();
+    });
+    const years = Math.max(1, Number(p.expYears) || 1);
+    const avg = Math.max(50, Math.min(100, Number(p.avgScore) || 84));
+    const isPro = p.price >= 1400;
+    return {
+      id: "tc-my-profile",
+      name: p.name || "Преподаватель",
+      subject: p.subject || "bio",
+      subjectName: subjObj ? subjObj.name : "Биология",
+      exams: Array.isArray(p.exams) && p.exams.length ? p.exams.slice() : ["ЕГЭ"],
+      formats: Array.isArray(p.formats) && p.formats.length ? p.formats.slice() : ["Онлайн"],
+      city: p.city || "Онлайн по РФ",
+      whatsapp: String(p.whatsapp || "79142100199").replace(/\D+/g, "") || "79142100199",
+      price: Number(p.price) || 1200,
+      minFair: Math.min(Number(p.price) || 1200, Number(p.minFair) || 900),
+      marketPrice: isPro ? Math.max(1150, Math.round((p.price * 0.85) / 50) * 50) : Math.round((p.price * 1.28) / 50) * 50,
+      tier: isPro ? "pro" : "budget",
+      qualBadge: isPro ? "Профиль hh · Эксперт" : "Проверенная анкета hh",
+      rating: 4.9,
+      reviews: 18 + Math.min(20, Number(p.highScorers) || 0),
+      exp: `${years} ${plural(years, "год", "года", "лет")} · ср. балл ${avg}`,
+      tag: p.headline || (Array.isArray(p.skills) && p.skills.slice(0, 2).join(" · ")) || "Подготовка ФИПИ",
+      source: "Кабинет hh",
+      verified: true,
+      bumpedToday: !!(st.bumpedToday || st.autoBump24h),
+      bumpText: st.autoBump24h ? `Автоподнятие 24 ч (${st.autoBumpHour})` : (st.bumpedToday ? "Поднята сегодня" : "Ваша анкета"),
+      bio: p.bio || "Подготовка к ЕГЭ и ОГЭ с проверкой пробников.",
+      slots: Object.keys(cleanSlots).length ? cleanSlots : { 6: ["10:00", "14:00"] }
+    };
+  }
+
+  function syncPublishedTutor(st) {
+    const TDATA = getTDATA();
+    if (!st.published || !TDATA || typeof TDATA.upsertCustomTutor !== "function") return null;
+    return TDATA.upsertCustomTutor(buildMarketTutorPayload(st));
+  }
+
+  function dayDowFromLabel(lbl) {
+    const s = String(lbl || "").trim().slice(0, 2).toLowerCase();
+    const hit = DAY_LIST.find((d) => d.wd.toLowerCase() === s);
+    return hit ? hit.dow : "6";
   }
 
   function syncedRequests() {
@@ -156,6 +355,8 @@
       exam: bk.exam || "ЕГЭ",
       subjectName: bk.subjectName || "Подготовка",
       format: bk.format || "Онлайн",
+      dow: bk.dow != null ? String(bk.dow) : dayDowFromLabel(bk.dayLabel),
+      dayIso: bk.dayIso || "",
       dayLabel: bk.dayLabel || "Ближайший слот",
       hour: bk.hour || "14:00",
       offerPrice: Number(bk.offerPrice) || st.profile.price,
@@ -209,13 +410,12 @@
     const isPending = req.status === "pending";
     const isAccepted = req.status === "accepted";
     const isCountered = req.status === "countered";
-    const isDeclined = req.status === "declined";
 
     const statusBadge = isAccepted
       ? `<span class="chip confirm">✓ Подтверждено</span>`
       : isCountered
         ? `<span class="chip accent">Предложена ставка ${bidRate.toLocaleString("ru-RU")} ₽/ч</span>`
-        : isDeclined
+        : req.status === "declined"
           ? `<span class="chip bad">Отклонено</span>`
           : `<span class="chip notif">Ожидает ответа · ${esc(req.createdLabel || "новое")}</span>`;
 
@@ -267,35 +467,605 @@
     </article>`;
   }
 
+  function renderSlotsPanelHTML(st, TDATA) {
+    const activeDayObj = DAY_LIST.find((d) => d.dow === st.activeDow) || DAY_LIST[5];
+    const daySlots = Array.isArray(st.slots[activeDayObj.dow]) ? st.slots[activeDayObj.dow] : [];
+    const totalSlotsCount = Object.keys(st.slots).reduce((s, k) => s + (Array.isArray(st.slots[k]) ? st.slots[k].length : 0), 0);
+    const hours = (TDATA && TDATA.HOURS) ? TDATA.HOURS : ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
+    return `<section class="card stack" style="gap:12px" aria-label="Окна времени 10:00–20:00">
+      <div class="row between" style="gap:8px;flex-wrap:wrap">
+        <div>
+          <div class="eyebrow">Слоты 10:00–20:00</div>
+          <h2 class="h2">Свободные окна (${totalSlotsCount})</h2>
+        </div>
+        <span class="chip accent num">${esc(activeDayObj.wd)}: ${daySlots.length} ч</span>
+      </div>
+      <div class="cal-days" aria-label="День недели">
+        ${DAY_LIST.map((d) => {
+          const cnt = Array.isArray(st.slots[d.dow]) ? st.slots[d.dow].length : 0;
+          return `<button type="button" class="day-cir${st.activeDow === d.dow ? " on" : ""}" data-a="tc-day" data-dow="${d.dow}">
+            <span class="day-wd">${d.wd}</span>
+            <span class="day-dot">${cnt}</span>
+            <span class="day-cnt">${cnt ? "откр." : "выкл."}</span>
+          </button>`;
+        }).join("")}
+      </div>
+      <div class="hour-circles" aria-label="Часы на день">
+        ${hours.map((h) => {
+          const on = daySlots.includes(h);
+          return `<button type="button" class="hr-cir${on ? " on" : ""}" data-a="tc-slot-toggle" data-hour="${h}" aria-pressed="${on}">
+            <span>${h}</span>
+            <span class="hr-cnt">${on ? "✓" : "—"}</span>
+          </button>`;
+        }).join("")}
+      </div>
+      <span class="small muted">Нажмите на час, чтобы открыть или закрыть запись на ${esc(activeDayObj.full.toLowerCase())}.</span>
+    </section>`;
+  }
+
+  function renderRequestsTab(st, TDATA, allReqs, pendingList, acceptedList, baseSplit) {
+    const p = st.profile;
+    const subjects = (TDATA && TDATA.SUBJECTS) ? TDATA.SUBJECTS : [{ id: "bio", name: "Биология" }];
+    const visibleReqs = st.filter === "pending" ? pendingList : st.filter === "accepted" ? acceptedList : allReqs;
+    return `<div class="tc-grid">
+      <section class="stack" style="gap:12px" aria-label="Входящие заявки учеников">
+        <div class="row between" style="gap:8px;flex-wrap:wrap">
+          <div>
+            <div class="eyebrow">Торг в реальном времени</div>
+            <h2 class="h2">Входящие заявки учеников</h2>
+          </div>
+          <div class="chip-rail" role="group" aria-label="Фильтр заявок">
+            <button type="button" class="chip-btn${st.filter === "all" ? " on" : ""}" data-a="tc-filter" data-v="all">Все (${allReqs.length})</button>
+            <button type="button" class="chip-btn${st.filter === "pending" ? " on" : ""}" data-a="tc-filter" data-v="pending">Ждут ответа (${pendingList.length})</button>
+            <button type="button" class="chip-btn${st.filter === "accepted" ? " on" : ""}" data-a="tc-filter" data-v="accepted">Подтверждено (${acceptedList.length})</button>
+          </div>
+        </div>
+
+        ${visibleReqs.length
+          ? visibleReqs.map((req) => renderRequestCard(req, st)).join("")
+          : `<div class="empty"><b>По этому фильтру заявок нет</b><span class="small muted">Переключите фильтр или проверьте расписание открытых окон справа.</span><button type="button" class="btn soft sm" data-a="tc-reset-demo">Показать пример заявок</button></div>`}
+      </section>
+
+      <aside class="stack" style="gap:16px" aria-label="Быстрые настройки ставки и окон">
+        <form class="card stack" style="gap:12px" data-f="tc-profile">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <div>
+              <div class="eyebrow">Быстрая правка · hh</div>
+              <h2 class="h2">Ставка и профиль</h2>
+            </div>
+            <span class="chip${p.price >= 1400 ? " pro" : " accent"}">${p.price >= 1400 ? "Профи выше рынка" : "В рынке"}</span>
+          </div>
+          <div class="field">
+            <label for="tc-name">Имя в каталоге</label>
+            <input class="input" id="tc-name" name="name" data-tc="name" value="${esc(p.name)}" maxlength="48">
+          </div>
+          <div class="field">
+            <span class="label">Основной предмет</span>
+            <input type="hidden" name="subject" value="${esc(p.subject)}">
+            ${typeof hhSelectHTML === "function"
+              ? hhSelectHTML({
+                  id: "tc-subject",
+                  options: subjects.map((sb) => ({ id: sb.id, label: sb.name })),
+                  value: p.subject,
+                  open: !!st.subjMenuOpen,
+                  toggleAction: "tc-subj-toggle",
+                  pickAction: "tc-subj-pick",
+                  ariaLabel: "Основной предмет"
+                })
+              : `<select class="select" id="tc-subject" data-tc="subject">${subjects.map((sb) => `<option value="${esc(sb.id)}"${sb.id === p.subject ? " selected" : ""}>${esc(sb.name)}</option>`).join("")}</select>`}
+          </div>
+          <div class="field">
+            <span class="label">Стандартная ставка (₽/ч)</span>
+            <div class="hh-price-stepper compact">
+              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="price" data-step="-100">−100 ₽</button>
+              <div class="hh-step-readout"><b class="num">${p.price.toLocaleString("ru-RU")} ₽/ч</b></div>
+              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="price" data-step="100">+100 ₽</button>
+            </div>
+          </div>
+          <div class="field">
+            <span class="label">Минимальный порог торга от учеников</span>
+            <div class="hh-price-stepper compact">
+              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="minFair" data-step="-100">−100 ₽</button>
+              <div class="hh-step-readout"><b class="num">${p.minFair.toLocaleString("ru-RU")} ₽/ч</b></div>
+              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="minFair" data-step="100">+100 ₽</button>
+            </div>
+          </div>
+          <div class="bid-fee-row">${feeSplitHTML(p.price, TDATA)}</div>
+          <span class="small muted">На руки <b class="num">${baseSplit.payout.toLocaleString("ru-RU")} ₽</b> за урок. <button type="button" class="link-btn small" data-a="tc-tab" data-tab="profile">Открыть полный профиль hh →</button></span>
+          <div class="row" style="gap:8px;flex-wrap:wrap">
+            <button type="submit" class="btn sm">Сохранить анкету</button>
+            <button type="button" class="btn ghost sm" data-a="tc-reset-demo">Сбросить демо</button>
+          </div>
+        </form>
+        ${renderSlotsPanelHTML(st, TDATA)}
+      </aside>
+    </div>`;
+  }
+
+  function renderProfileHHTab(st, TDATA, baseSplit) {
+    const p = st.profile;
+    const comp = profileCompleteness(p, st.slots);
+    const subjects = (TDATA && TDATA.SUBJECTS) ? TDATA.SUBJECTS : [{ id: "bio", name: "Биология" }];
+    const previewCard = st.profilePreview && EGE.views.marketplace && typeof EGE.views.marketplace.tutorCardHTML === "function"
+      ? EGE.views.marketplace.tutorCardHTML(buildMarketTutorPayload(st))
+      : "";
+
+    return `<div class="stack" style="gap:16px">
+      <div class="card stack" style="gap:10px">
+        <div class="row between" style="gap:10px;flex-wrap:wrap">
+          <div class="stack" style="gap:2px">
+            <div class="eyebrow">Резюме преподавателя как на hh.ru</div>
+            <h2 class="h2">Заполненность профиля: <span class="num savings-gold-txt">${comp.pct}%</span></h2>
+          </div>
+          <div class="row" style="gap:8px;flex-wrap:wrap">
+            ${st.published ? `<span class="chip confirm">✓ Опубликован в /market</span>` : `<span class="chip notif">Черновик кабинета</span>`}
+            <button type="button" class="btn soft sm" data-a="tc-preview-toggle">${st.profilePreview ? "Скрыть предпросмотр" : "Как видит ученик"}</button>
+          </div>
+        </div>
+        <div class="tc-hh-meter" aria-label="Прогресс заполнения профиля"><i style="width:${comp.pct}%"></i></div>
+        <div class="small muted">${comp.missing.length ? "До 100% рейтинга: " + esc(comp.missing.slice(0, 2).join(", ")) + "." : "Отлично! Профиль заполнен на 100% и получает приоритет в поиске."}</div>
+      </div>
+
+      ${previewCard ? `<div class="stack" style="gap:8px"><div class="eyebrow">Живой вид вашей карточки в каталоге /market</div>${previewCard}</div>` : ""}
+
+      <form class="card stack" style="gap:14px" data-f="tc-profile">
+        <div class="row between" style="gap:8px;flex-wrap:wrap">
+          <h3 class="h2">1. Основная визитка (как заголовок резюме)</h3>
+          <span class="chip${p.price >= 1400 ? " pro" : " accent"}">${p.price >= 1400 ? "Эксперт выше рынка" : "Доступная ставка"}</span>
+        </div>
+
+        <div class="tc-two-col">
+          <div class="field">
+            <label for="tc-hh-name">Имя и фамилия</label>
+            <input class="input" id="tc-hh-name" name="name" data-tc="name" value="${esc(p.name)}" maxlength="48" placeholder="Анна Соколова">
+          </div>
+          <div class="field">
+            <label for="tc-hh-headline">Заголовок специализации</label>
+            <input class="input" id="tc-hh-headline" name="headline" data-tc="headline" value="${esc(p.headline || "")}" maxlength="72" placeholder="Эксперт ЕГЭ по биологии · медвуз">
+          </div>
+        </div>
+
+        <div class="tc-two-col">
+          <div class="field">
+            <span class="label">Основной предмет</span>
+            <input type="hidden" name="subject" value="${esc(p.subject)}">
+            ${typeof hhSelectHTML === "function"
+              ? hhSelectHTML({
+                  id: "tc-subject",
+                  options: subjects.map((sb) => ({ id: sb.id, label: sb.name })),
+                  value: p.subject,
+                  open: !!st.subjMenuOpen,
+                  toggleAction: "tc-subj-toggle",
+                  pickAction: "tc-subj-pick",
+                  ariaLabel: "Основной предмет"
+                })
+              : `<select class="select" id="tc-subject" data-tc="subject">${subjects.map((sb) => `<option value="${esc(sb.id)}"${sb.id === p.subject ? " selected" : ""}>${esc(sb.name)}</option>`).join("")}</select>`}
+          </div>
+          <div class="field">
+            <label for="tc-hh-city">Город / часовой пояс</label>
+            <input class="input" id="tc-hh-city" name="city" data-tc="city" value="${esc(p.city || "")}" maxlength="48" placeholder="Якутск · Онлайн по РФ">
+          </div>
+        </div>
+
+        <div class="tc-two-col">
+          <div class="field">
+            <span class="label">Экзамены и направления</span>
+            <div class="tc-tag-grid">
+              ${EXAM_OPTIONS.map((ex) => {
+                const on = Array.isArray(p.exams) && p.exams.includes(ex);
+                return `<button type="button" class="tc-tag" data-a="tc-exam-toggle" data-v="${esc(ex)}" aria-pressed="${on}">${esc(ex)}</button>`;
+              }).join("")}
+            </div>
+          </div>
+          <div class="field">
+            <span class="label">Формат занятий</span>
+            <div class="tc-tag-grid">
+              ${FORMAT_OPTIONS.map((fm) => {
+                const on = Array.isArray(p.formats) && p.formats.includes(fm);
+                return `<button type="button" class="tc-tag" data-a="tc-format-toggle" data-v="${esc(fm)}" aria-pressed="${on}">${esc(fm)}</button>`;
+              }).join("")}
+            </div>
+          </div>
+        </div>
+
+        <div class="eyebrow" style="margin-top:4px">2. Опыт, результаты и образование</div>
+        <div class="fields" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">
+          <div class="field">
+            <label for="tc-hh-exp">Стаж (лет)</label>
+            <input class="input num" id="tc-hh-exp" name="expYears" data-tc="expYears" type="number" min="1" max="50" value="${esc(p.expYears || 6)}">
+          </div>
+          <div class="field">
+            <label for="tc-hh-avg">Средний балл ЕГЭ</label>
+            <input class="input num" id="tc-hh-avg" name="avgScore" data-tc="avgScore" type="number" min="40" max="100" value="${esc(p.avgScore || 86)}">
+          </div>
+          <div class="field">
+            <label for="tc-hh-high">Учеников на 85+ / 100</label>
+            <input class="input num" id="tc-hh-high" name="highScorers" data-tc="highScorers" type="number" min="0" max="500" value="${esc(p.highScorers || 14)}">
+          </div>
+        </div>
+
+        <div class="tc-two-col">
+          <div class="field">
+            <label for="tc-hh-edu">Образование и квалификация</label>
+            <input class="input" id="tc-hh-edu" name="education" data-tc="education" value="${esc(p.education || "")}" maxlength="90" placeholder="ВУЗ, эксперт ЕГЭ, олимпиадная подготовка">
+          </div>
+          <div class="field">
+            <label for="tc-hh-wa">WhatsApp / контакт для учеников</label>
+            <input class="input num" id="tc-hh-wa" name="whatsapp" data-tc="whatsapp" value="${esc(p.whatsapp || "")}" maxlength="32" placeholder="79142100199">
+          </div>
+        </div>
+
+        <div class="field">
+          <span class="label">Ключевые навыки и теги для поиска (как навыки в резюме hh)</span>
+          <div class="tc-tag-grid">
+            ${SKILL_PRESETS.map((sk) => {
+              const on = Array.isArray(p.skills) && p.skills.includes(sk);
+              return `<button type="button" class="tc-tag" data-a="tc-skill-toggle" data-v="${esc(sk)}" aria-pressed="${on}">${on ? "✓ " : ""}${esc(sk)}</button>`;
+            }).join("")}
+          </div>
+        </div>
+
+        <div class="eyebrow" style="margin-top:4px">3. Ставка, торг ±100 ₽ и описание методики</div>
+        <div class="tc-two-col">
+          <div class="field">
+            <span class="label">Базовая ставка (₽/ч)</span>
+            <div class="hh-price-stepper compact">
+              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="price" data-step="-100">−100 ₽</button>
+              <div class="hh-step-readout"><b class="num">${p.price.toLocaleString("ru-RU")} ₽/ч</b></div>
+              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="price" data-step="100">+100 ₽</button>
+            </div>
+          </div>
+          <div class="field">
+            <span class="label">Минимальный порог торга</span>
+            <div class="hh-price-stepper compact">
+              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="minFair" data-step="-100">−100 ₽</button>
+              <div class="hh-step-readout"><b class="num">${p.minFair.toLocaleString("ru-RU")} ₽/ч</b></div>
+              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="minFair" data-step="100">+100 ₽</button>
+            </div>
+          </div>
+        </div>
+
+        <label class="row" style="gap:8px;align-items:center;cursor:pointer">
+          <input type="checkbox" class="check" name="trialFree" data-tc="trialFree"${p.trialFree ? " checked" : ""}>
+          <span class="small"><b>Бесплатное знакомство 15 минут (0 ₽)</b> — повышает доверие и отклик учеников</span>
+        </label>
+
+        <div class="bid-fee-row">${feeSplitHTML(p.price, TDATA)}</div>
+        <span class="small muted">Чистая выплата после 5% сбора: <b class="num savings-gold-txt">${baseSplit.payout.toLocaleString("ru-RU")} ₽/ч</b>.</span>
+
+        <div class="field">
+          <label for="tc-bio-full">О себе, программе и результатах учеников</label>
+          <textarea class="textarea" id="tc-bio-full" name="bio" data-tc="bio" rows="3" maxlength="320">${esc(p.bio || "")}</textarea>
+        </div>
+
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <button type="submit" class="btn">${icon("check")}<span>Сохранить и опубликовать в /market</span></button>
+          ${st.published ? `<button type="button" class="btn soft" data-a="go" data-v="market">Посмотреть свою анкету в каталоге →</button>` : ""}
+        </div>
+      </form>
+    </div>`;
+  }
+
+  function renderCalendarTab(st, TDATA, allReqs) {
+    const hours = (TDATA && TDATA.HOURS) ? TDATA.HOURS : ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
+    const weekOffset = st.calWeek ? 1 : 0;
+    const weekDays = (TDATA && typeof TDATA.buildWeekDays === "function")
+      ? TDATA.buildWeekDays(weekOffset)
+      : DAY_LIST.map((d, i) => ({ dow: Number(d.dow), wd: d.wd, wdLong: d.full.toLowerCase(), num: 14 + i, month: "нояб.", shortLabel: `${d.wd}, ${14 + i} нояб.`, fullLabel: `${d.full.toLowerCase()}, ${14 + i} нояб.`, iso: "" }));
+    const activeDay = weekDays.find((d) => String(d.dow) === String(st.activeDow)) || weekDays[5] || weekDays[0];
+    const dowStr = String(activeDay.dow);
+    const dayOpenSlots = Array.isArray(st.slots[dowStr]) ? st.slots[dowStr] : [];
+    const activeLessons = allReqs.filter((r) => r.status !== "declined" && (String(r.dow || dayDowFromLabel(r.dayLabel)) === dowStr));
+    const weekCount = allReqs.filter((r) => r.status === "accepted" || r.status === "pending").length;
+
+    return `<div class="stack" style="gap:14px">
+      <div class="card stack" style="gap:12px">
+        <div class="row between" style="gap:8px;flex-wrap:wrap">
+          <div>
+            <div class="eyebrow">Живое расписание · 10:00–20:00</div>
+            <h2 class="h2">Календарь записанных учеников (${weekCount})</h2>
+          </div>
+          <div class="row" style="gap:8px;flex-wrap:wrap">
+            <button type="button" class="btn soft sm" data-a="tc-cal-open-add" data-hour="${hours[0]}">+ Записать ученика</button>
+            <button type="button" class="btn ghost sm" data-a="tc-copy-day">Скопировать день</button>
+          </div>
+        </div>
+
+        <div class="hh-seg equal" role="group" aria-label="Неделя календаря">
+          <button type="button" data-a="tc-cal-week" data-w="0" aria-pressed="${weekOffset === 0}"><span>Эта неделя</span></button>
+          <button type="button" data-a="tc-cal-week" data-w="1" aria-pressed="${weekOffset === 1}"><span>Следующая неделя</span></button>
+        </div>
+
+        <div class="cal-days" aria-label="Выбор дня недели">
+          ${weekDays.map((d) => {
+            const k = String(d.dow);
+            const openCnt = Array.isArray(st.slots[k]) ? st.slots[k].length : 0;
+            const bookedCnt = allReqs.filter((r) => r.status !== "declined" && String(r.dow || dayDowFromLabel(r.dayLabel)) === k).length;
+            const sel = k === dowStr;
+            return `<button type="button" class="day-cir${sel ? " on" : ""}" data-a="tc-day" data-dow="${k}">
+              <span class="day-wd">${esc(d.wd)} · ${esc(d.num)}</span>
+              <span class="day-dot">${bookedCnt}</span>
+              <span class="day-cnt">${bookedCnt ? plural(bookedCnt, "ученик", "ученика", "учеников") : (openCnt + " ок.")}</span>
+            </button>`;
+          }).join("")}
+        </div>
+      </div>
+
+      ${st.calAddOpen ? `<form class="card stack" style="gap:10px;border-color:var(--accent)" data-f="tc-cal-add">
+        <div class="row between" style="gap:8px">
+          <b>Добавить ученика в расписание (${esc(activeDay.shortLabel)})</b>
+          <button type="button" class="icon-btn sm" data-a="tc-cal-close-add" aria-label="Закрыть">${icon("x")}</button>
+        </div>
+        <div class="tc-two-col">
+          <div class="field">
+            <label for="tc-add-name">Имя ученика</label>
+            <input class="input" id="tc-add-name" name="studentName" required maxlength="40" placeholder="Например, Максим Р.">
+          </div>
+          <div class="field">
+            <label for="tc-add-hour">Время (10:00–20:00)</label>
+            <select class="select" id="tc-add-hour" name="hour">
+              ${hours.map((h) => `<option value="${h}"${h === st.calAddHour ? " selected" : ""}>${h}</option>`).join("")}
+            </select>
+          </div>
+        </div>
+        <div class="tc-two-col">
+          <div class="field">
+            <label for="tc-add-price">Ставка за урок (₽/ч)</label>
+            <input class="input num" id="tc-add-price" name="offerPrice" type="number" min="500" max="5000" step="100" value="${st.profile.price}">
+          </div>
+          <div class="field">
+            <label for="tc-add-note">Тема / ДЗ</label>
+            <input class="input" id="tc-add-note" name="note" maxlength="100" placeholder="Пробник КИМ или разбор ошибок">
+          </div>
+        </div>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <button type="submit" class="btn sm">${icon("check")}<span>Записать в календарь</span></button>
+          <button type="button" class="btn ghost sm" data-a="tc-cal-close-add">Отмена</button>
+        </div>
+      </form>` : ""}
+
+      <div class="card stack" style="gap:10px">
+        <div class="row between" style="gap:8px;flex-wrap:wrap">
+          <b>Почасовая сетка: ${esc(activeDay.fullLabel)}</b>
+          <span class="small muted">${activeLessons.length} ${plural(activeLessons.length, "занятие", "занятия", "занятий")} · ${dayOpenSlots.length} открытых окон</span>
+        </div>
+        <div class="tc-cal-hours">
+          ${hours.map((h) => {
+            const lesson = activeLessons.find((r) => r.hour === h);
+            const isOpen = dayOpenSlots.includes(h);
+            if (lesson) {
+              const rate = Number(lesson.counterPrice || lesson.offerPrice) || st.profile.price;
+              const isAcc = lesson.status === "accepted";
+              return `<div class="tc-cal-slot ${isAcc ? "is-booked" : "is-pending"}">
+                <div class="row" style="gap:12px;min-width:0;flex:1 1 240px">
+                  <span class="tc-cal-time">${h}</span>
+                  <div class="stack" style="gap:2px;min-width:0">
+                    <div class="row" style="gap:6px;flex-wrap:wrap">
+                      <b>${esc(lesson.studentName)}</b>
+                      <span class="chip ${isAcc ? "confirm" : "notif"}">${isAcc ? "✓ Подтверждён" : "Ждёт ответа"}</span>
+                      <span class="chip num">${rate.toLocaleString("ru-RU")} ₽/ч</span>
+                    </div>
+                    <span class="small muted">${esc(lesson.exam)} · ${esc(lesson.subjectName)}${lesson.note ? " — " + esc(lesson.note) : ""}</span>
+                  </div>
+                </div>
+                <div class="row" style="gap:6px;flex-wrap:wrap">
+                  ${!isAcc ? `<button type="button" class="btn confirm sm" data-a="tc-req-accept" data-id="${esc(lesson.id)}">Подтвердить</button>` : ""}
+                  <button type="button" class="btn soft sm" data-a="tc-req-msg" data-id="${esc(lesson.id)}">${icon("msg")}<span>Чат</span></button>
+                  <button type="button" class="btn ghost sm" data-a="tc-req-decline" data-id="${esc(lesson.id)}">Снять</button>
+                </div>
+              </div>`;
+            }
+            return `<div class="tc-cal-slot${isOpen ? " is-open" : ""}">
+              <div class="row" style="gap:12px;min-width:0">
+                <span class="tc-cal-time">${h}</span>
+                <span class="small ${isOpen ? "ink2" : "muted"}">${isOpen ? "Окно открыто — доступно ученикам в /market" : "Час закрыт для записи"}</span>
+              </div>
+              <div class="row" style="gap:6px;flex-wrap:wrap">
+                <button type="button" class="btn soft sm" data-a="tc-cal-open-add" data-hour="${h}">+ Записать</button>
+                <button type="button" class="btn ghost sm" data-a="tc-slot-toggle" data-hour="${h}" aria-pressed="${isOpen}">${isOpen ? "Закрыть час" : "Открыть час"}</button>
+              </div>
+            </div>`;
+          }).join("")}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function renderStatsTab(st, TDATA, allReqs, acceptedList, totalPayout) {
+    const p = st.profile;
+    const sp = TDATA && typeof TDATA.commissionSplit === "function"
+      ? TDATA.commissionSplit(p.price)
+      : { payout: Math.round(p.price * 0.95) };
+    const is30 = st.statsPeriod === "30d";
+    const mult = is30 ? 4 : 1;
+    const views = (312 + st.bumpCount * 28) * mult;
+    const clicks = Math.round(views * 0.24);
+    const reqCnt = (allReqs.length + 5) * mult;
+    const conv = Math.min(89, Math.round(((acceptedList.length + 3) * mult / Math.max(1, reqCnt)) * 100));
+    const dayBars = DAY_LIST.map((d, i) => {
+      const slotCnt = Array.isArray(st.slots[d.dow]) ? st.slots[d.dow].length : 0;
+      const dayReqs = allReqs.filter((r) => r.status === "accepted" && String(r.dow || dayDowFromLabel(r.dayLabel)) === d.dow).length;
+      const lessons = Math.max(1, dayReqs + (i >= 4 ? 2 : 1));
+      const rev = lessons * sp.payout * (is30 ? 4 : 1);
+      return { wd: d.wd, rev, lessons, isGold: st.bumpedToday || slotCnt >= 3 || d.dow === "6" };
+    });
+    const maxRev = Math.max(1, ...dayBars.map((b) => b.rev));
+    const goal = Math.max(20000, Number(st.monthlyGoal) || 60000);
+    const lessonsNeededMonth = Math.ceil(goal / Math.max(500, sp.payout));
+    const lessonsPerWeek = (lessonsNeededMonth / 4.3).toFixed(1);
+    const curMonthlyProj = Math.max(totalPayout, (acceptedList.length + 3) * 4 * sp.payout);
+    const goalPct = Math.min(100, Math.round((curMonthlyProj / goal) * 100));
+    const remMs = autoBumpRemainingMs(st);
+
+    return `<div class="stack" style="gap:16px">
+      <div class="tc-autobump-card">
+        <div class="row between" style="gap:10px;flex-wrap:wrap;align-items:flex-start">
+          <div class="stack" style="gap:3px">
+            <span class="chip gold">${icon("spark")}<span>Автопродвижение каждые 24 часа · 0 ₽</span></span>
+            <h2 class="h2">${st.autoBump24h ? "Автоподнятие активно" : "Автоподнятие на паузе"}</h2>
+            <p class="small ink2">Анкета автоматически поднимается в топ выдачи /market раз в 24 часа к пиковому времени учеников (+38% к просмотрам и откликам).</p>
+          </div>
+          <button type="button" class="btn ${st.autoBump24h ? "confirm" : "gold"} sm" data-a="tc-autobump-toggle" aria-pressed="${!!st.autoBump24h}">
+            ${st.autoBump24h ? "✓ Авто-24ч включено" : "Включить авто-24ч"}
+          </button>
+        </div>
+
+        <div class="tc-two-col">
+          <div class="card stack" style="gap:4px">
+            <span class="small muted">До следующего автоподнятия</span>
+            <b class="num savings-gold-txt" style="font-size:24px" data-tc-countdown>${st.autoBump24h ? formatCountdown(remMs) : "Пауза"}</b>
+            <span class="small muted">Всего поднятий: <b class="num">${st.bumpCount || 1}</b></span>
+          </div>
+          <div class="card stack" style="gap:8px">
+            <span class="small muted">Предпочтительное время суточного пика</span>
+            <div class="row" style="gap:6px;flex-wrap:wrap">
+              ${AUTO_BUMP_HOURS.map((hr) => `<button type="button" class="chip-btn${st.autoBumpHour === hr ? " on" : ""}" data-a="tc-autobump-hour" data-hour="${hr}">${hr} Якт</button>`).join("")}
+            </div>
+            <button type="button" class="btn soft sm" data-a="tc-bump" style="justify-self:start">${st.bumpedToday ? "✓ Поднята сегодня" : "Поднять прямо сейчас (0 ₽)"}</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card stack" style="gap:14px">
+        <div class="row between" style="gap:8px;flex-wrap:wrap">
+          <div>
+            <div class="eyebrow">Аналитика анкеты и откликов</div>
+            <h2 class="h2">Статистика преподавателя</h2>
+          </div>
+          <div class="hh-seg" role="group" aria-label="Период статистики">
+            <button type="button" data-a="tc-stats-period" data-v="7d" aria-pressed="${!is30}">7 дней</button>
+            <button type="button" data-a="tc-stats-period" data-v="30d" aria-pressed="${is30}">30 дней</button>
+          </div>
+        </div>
+
+        <div class="tiles">
+          <div class="tile"><span class="tile-label">Просмотры анкеты</span><span class="tile-value num">${views.toLocaleString("ru-RU")}</span><span class="tile-note">${st.autoBump24h ? "+38% от авто-24ч" : "включи авто-24ч для буста"}</span></div>
+          <div class="tile"><span class="tile-label">Открыли контакты</span><span class="tile-value num">${clicks.toLocaleString("ru-RU")}</span><span class="tile-note">CTR ${Math.round((clicks / Math.max(1, views)) * 100)}%</span></div>
+          <div class="tile"><span class="tile-label">Конверсия в урок</span><span class="tile-value num" style="color:var(--confirm)">${conv}%</span><span class="tile-note">${reqCnt} откликов за период</span></div>
+          <div class="tile"><span class="tile-label">На руки (95%)</span><span class="tile-value num savings-gold-txt">${curMonthlyProj.toLocaleString("ru-RU")} ₽</span><span class="tile-note">прогноз за ${is30 ? "месяц" : "текущий темп"}</span></div>
+        </div>
+
+        <div class="stack" style="gap:6px">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <b class="small">Доход по дням недели (золотым — пики после поднятия)</b>
+            <span class="small muted">На руки 95% по ставке ${p.price.toLocaleString("ru-RU")} ₽/ч</span>
+          </div>
+          <div class="tc-bar-chart" role="img" aria-label="Диаграмма дохода по дням недели">
+            ${dayBars.map((b) => {
+              const hPct = Math.max(18, Math.round((b.rev / maxRev) * 100));
+              return `<div class="tc-bar-col">
+                <span class="tc-bar-val num">${Math.round(b.rev / 1000)}к ₽</span>
+                <div class="tc-bar-track"><div class="tc-bar-fill${b.isGold ? " is-gold" : ""}" style="height:${hPct}%"></div></div>
+                <span class="tc-bar-lbl">${b.wd}</span>
+              </div>`;
+            }).join("")}
+          </div>
+        </div>
+      </div>
+
+      <div class="card stack" style="gap:12px">
+        <div class="row between" style="gap:8px;flex-wrap:wrap">
+          <div>
+            <div class="eyebrow">Финансовый планировщик</div>
+            <h3 class="h2">Цель дохода на месяц: <span class="num savings-gold-txt">${goal.toLocaleString("ru-RU")} ₽</span></h3>
+          </div>
+          <div class="row" style="gap:6px;flex-wrap:wrap">
+            ${GOAL_PRESETS.map((g) => `<button type="button" class="chip-btn${goal === g ? " on" : ""}" data-a="tc-goal" data-v="${g}">${Math.round(g / 1000)} тыс ₽</button>`).join("")}
+          </div>
+        </div>
+        <div class="tc-hh-meter"><i style="width:${goalPct}%"></i></div>
+        <div class="row between small muted" style="gap:8px;flex-wrap:wrap">
+          <span>Сейчас подтверждённый темп покрывает <b class="num" style="color:var(--ink)">${goalPct}%</b> цели.</span>
+          <span>Нужно примерно <b class="num" style="color:var(--ink)">${lessonsPerWeek} уроков/нед</b> (на руки ${sp.payout.toLocaleString("ru-RU")} ₽/урок).</span>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function renderStudentsTab(st) {
+    const p = st.profile;
+    const students = Array.isArray(st.students) ? st.students : [];
+    return `<div class="tc-grid">
+      <section class="stack" style="gap:12px" aria-label="Трекер баллов ЕГЭ учеников">
+        <div>
+          <div class="eyebrow">Авторский инструмент кабинета</div>
+          <h2 class="h2">Мои ученики и трекер баллов ЕГЭ</h2>
+        </div>
+        ${students.map((s) => {
+          const pct = Math.max(8, Math.min(100, Math.round((s.curScore / Math.max(1, s.targetScore)) * 100)));
+          const gain = s.curScore - s.startScore;
+          return `<article class="tc-student-card">
+            <div class="row between" style="gap:8px;flex-wrap:wrap">
+              <div class="row" style="gap:10px">
+                <span class="tutor-avatar" aria-hidden="true">${esc(initials(s.name))}</span>
+                <div class="stack" style="gap:2px">
+                  <b>${esc(s.name)}</b>
+                  <span class="small muted">${esc(s.exam)} · ${s.lessonsDone} ${plural(s.lessonsDone, "урок", "урока", "уроков")} проведено</span>
+                </div>
+              </div>
+              <span class="chip confirm num">+${gain} б. от старта</span>
+            </div>
+            <div class="stack" style="gap:5px">
+              <div class="row between small">
+                <span class="muted">Старт: <b class="num">${s.startScore}</b> → Сейчас: <b class="num savings-gold-txt">${s.curScore}</b></span>
+                <span class="muted">Цель: <b class="num">${s.targetScore}</b></span>
+              </div>
+              <div class="tc-score-track"><div class="tc-score-fill" style="width:${pct}%"></div></div>
+            </div>
+            <div class="tc-req-quote">Домашка / фокус: ${esc(s.hw)}</div>
+            <div class="row" style="gap:8px;flex-wrap:wrap">
+              <button type="button" class="btn soft sm" data-a="tc-student-score" data-id="${esc(s.id)}" data-delta="2">+2 балла за пробник</button>
+              <button type="button" class="btn ghost sm" data-a="tc-student-lesson" data-id="${esc(s.id)}">+1 проведённый урок</button>
+            </div>
+          </article>`;
+        }).join("")}
+      </section>
+
+      <aside class="stack" style="gap:12px" aria-label="Быстрые шаблоны ответов">
+        <div class="card stack" style="gap:10px">
+          <div>
+            <div class="eyebrow">Экономия времени</div>
+            <h2 class="h2">Быстрые шаблоны ответов</h2>
+          </div>
+          ${QUICK_TEMPLATES.map((tpl) => {
+            const text = tpl.build(p);
+            return `<div class="tc-template-card">
+              <div class="row between" style="gap:8px;flex-wrap:wrap">
+                <b class="small">${esc(tpl.title)}</b>
+                <button type="button" class="btn soft sm" data-a="tc-copy-tpl" data-id="${esc(tpl.id)}">Копировать</button>
+              </div>
+              <div class="tc-template-body">${esc(text)}</div>
+            </div>`;
+          }).join("")}
+        </div>
+      </aside>
+    </div>`;
+  }
+
   function viewCabinet() {
+    ensureCountdownTimer();
     const TDATA = getTDATA();
     const st = tState();
     const p = st.profile;
     const allReqs = syncedRequests();
     const pendingList = allReqs.filter((r) => r.status === "pending");
     const acceptedList = allReqs.filter((r) => r.status === "accepted");
-    const visibleReqs = st.filter === "pending"
-      ? pendingList
-      : st.filter === "accepted"
-        ? acceptedList
-        : allReqs;
-
     const totalPayout = acceptedList.reduce((acc, r) => {
       const rate = Number(r.counterPrice || r.offerPrice) || p.price;
-      const sp = TDATA && typeof TDATA.commissionSplit === "function"
-        ? TDATA.commissionSplit(rate)
-        : { payout: Math.round(rate * 0.95) };
+      const sp = TDATA && typeof TDATA.commissionSplit === "function" ? TDATA.commissionSplit(rate) : { payout: Math.round(rate * 0.95) };
       return acc + sp.payout;
     }, 0);
+    const baseSplit = TDATA && typeof TDATA.commissionSplit === "function" ? TDATA.commissionSplit(p.price) : { total: p.price, fee: Math.round(p.price * 0.05), payout: Math.round(p.price * 0.95), pct: 5 };
+    const comp = profileCompleteness(p, st.slots);
+    const activeTab = ["requests", "profile", "calendar", "stats", "students"].includes(st.tab) ? st.tab : "requests";
+    const bookedCalendarCount = allReqs.filter((r) => r.status !== "declined").length;
 
-    const activeDayObj = DAY_LIST.find((d) => d.dow === st.activeDow) || DAY_LIST[5];
-    const daySlots = Array.isArray(st.slots[activeDayObj.dow]) ? st.slots[activeDayObj.dow] : [];
-    const totalSlotsCount = Object.keys(st.slots).reduce((s, k) => s + (Array.isArray(st.slots[k]) ? st.slots[k].length : 0), 0);
-    const subjects = (TDATA && TDATA.SUBJECTS) ? TDATA.SUBJECTS : [{ id: "bio", name: "Биология" }];
-    const hours = (TDATA && TDATA.HOURS) ? TDATA.HOURS : ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
-    const baseSplit = TDATA && typeof TDATA.commissionSplit === "function"
-      ? TDATA.commissionSplit(p.price)
-      : { total: p.price, fee: Math.round(p.price * 0.05), payout: Math.round(p.price * 0.95), pct: 5 };
+    let bodyHTML = "";
+    if (activeTab === "profile") bodyHTML = renderProfileHHTab(st, TDATA, baseSplit);
+    else if (activeTab === "calendar") bodyHTML = renderCalendarTab(st, TDATA, allReqs);
+    else if (activeTab === "stats") bodyHTML = renderStatsTab(st, TDATA, allReqs, acceptedList, totalPayout);
+    else if (activeTab === "students") bodyHTML = renderStudentsTab(st);
+    else bodyHTML = renderRequestsTab(st, TDATA, allReqs, pendingList, acceptedList, baseSplit);
 
     return `
       <div class="head">
@@ -303,8 +1073,12 @@
           <div>
             <div class="eyebrow">Саха сирэ · Личный кабинет преподавателя</div>
             <h1 class="h1">${esc(p.name)}</h1>
+            <div class="small muted">${esc(p.headline || "Репетитор ЕГЭ / ОГЭ")} · Профиль hh заполнен на ${comp.pct}%</div>
           </div>
           <div class="row" style="gap:8px;flex-wrap:wrap">
+            <button type="button" class="btn ${st.autoBump24h ? "gold" : "soft"} sm" data-a="tc-autobump-toggle" aria-pressed="${!!st.autoBump24h}">
+              ${icon("spark")}<span>${st.autoBump24h ? "Авто-24ч: " : "Вкл. авто-24ч"}</span>${st.autoBump24h ? `<b class="num" data-tc-countdown>${formatCountdown(autoBumpRemainingMs(st))}</b>` : ""}
+            </button>
             <button type="button" class="btn sakha-pattern${st.bumpedToday ? " is-confirmed" : ""}" data-a="tc-bump">
               ${sakhaPatternSVG("rhombus", 18)}
               <span>${st.bumpedToday ? "✓ Анкета поднята сегодня" : "Сөп · Актуален сегодня (0 ₽)"}</span>
@@ -312,13 +1086,13 @@
             </button>
           </div>
         </div>
-        <p class="lead">Управляйте входящими ставками ±100 ₽, открывайте окна 10:00–20:00 и поднимайте анкету в начало каталога без скрытых сборов.</p>
+        <p class="lead">Управляйте заявками ±100 ₽, собирайте профиль как на hh.ru, ведите календарь записанных учеников и включайте автопродвижение каждые 24 часа.</p>
       </div>
 
       <div class="tc-role-bar" role="region" aria-label="Режим профиля">
         <div class="row" style="gap:8px;flex-wrap:wrap">
           <span class="chip gold">${icon("users")}<span>Режим: Преподаватель</span></span>
-          <span class="small ink2">Нужно позаниматься по тестам или найти коллегу? Переключитесь в режим ученика в один клик.</span>
+          <span class="small ink2">${st.published ? "Ваша анкета опубликована в каталоге /market." : "Заполните профиль как на hh и опубликуйте его на витрину /market."}</span>
         </div>
         <div class="row" style="gap:8px;flex-wrap:wrap">
           <button type="button" class="btn soft sm" data-a="role-set" data-role="student">Перейти как ученик</button>
@@ -351,122 +1125,27 @@
         </div>
       </div>
 
-      <div class="tc-grid">
-        <section class="stack" style="gap:12px" aria-label="Входящие заявки учеников">
-          <div class="row between" style="gap:8px;flex-wrap:wrap">
-            <div>
-              <div class="eyebrow">Торг в реальном времени</div>
-              <h2 class="h2">Входящие заявки учеников</h2>
-            </div>
-            <div class="chip-rail" role="group" aria-label="Фильтр заявок">
-              <button type="button" class="chip-btn${st.filter === "all" ? " on" : ""}" data-a="tc-filter" data-v="all">Все (${allReqs.length})</button>
-              <button type="button" class="chip-btn${st.filter === "pending" ? " on" : ""}" data-a="tc-filter" data-v="pending">Ждут ответа (${pendingList.length})</button>
-              <button type="button" class="chip-btn${st.filter === "accepted" ? " on" : ""}" data-a="tc-filter" data-v="accepted">Подтверждено (${acceptedList.length})</button>
-            </div>
-          </div>
+      <div class="chip-rail swipe" role="tablist" aria-label="Разделы кабинета преподавателя">
+        <button type="button" role="tab" aria-selected="${activeTab === "requests"}" class="chip-btn${activeTab === "requests" ? " on" : ""}" data-a="tc-tab" data-tab="requests">Заявки (${allReqs.length})</button>
+        <button type="button" role="tab" aria-selected="${activeTab === "profile"}" class="chip-btn${activeTab === "profile" ? " on" : ""}" data-a="tc-tab" data-tab="profile">Профиль hh · ${comp.pct}%</button>
+        <button type="button" role="tab" aria-selected="${activeTab === "calendar"}" class="chip-btn${activeTab === "calendar" ? " on" : ""}" data-a="tc-tab" data-tab="calendar">Календарь учеников (${bookedCalendarCount})</button>
+        <button type="button" role="tab" aria-selected="${activeTab === "stats"}" class="chip-btn${activeTab === "stats" ? " on" : ""}" data-a="tc-tab" data-tab="stats">Статистика и 24ч</button>
+        <button type="button" role="tab" aria-selected="${activeTab === "students"}" class="chip-btn${activeTab === "students" ? " on" : ""}" data-a="tc-tab" data-tab="students">Мои ученики (${st.students.length})</button>
+      </div>
 
-          ${visibleReqs.length
-            ? visibleReqs.map((req) => renderRequestCard(req, st)).join("")
-            : `<div class="empty"><b>По этому фильтру заявок нет</b><span class="small muted">Переключите фильтр или проверьте расписание открытых окон справа.</span><button type="button" class="btn soft sm" data-a="tc-reset-demo">Показать пример заявок</button></div>`}
-        </section>
+      ${bodyHTML}`;
+  }
 
-        <aside class="stack" style="gap:16px" aria-label="Настройки анкеты и окна">
-          <form class="card stack" style="gap:12px" data-f="tc-profile">
-            <div class="row between" style="gap:8px;flex-wrap:wrap">
-              <div>
-                <div class="eyebrow">Ваша анкета</div>
-                <h2 class="h2">Ставка и профиль</h2>
-              </div>
-              <span class="chip${p.price >= 1400 ? " pro" : " accent"}">${p.price >= 1400 ? "Профи выше рынка" : "В рынке"}</span>
-            </div>
-
-            <div class="field">
-              <label for="tc-name">Имя в каталоге</label>
-              <input class="input" id="tc-name" name="name" data-tc="name" value="${esc(p.name)}" maxlength="48">
-            </div>
-
-            <div class="field">
-              <span class="label">Основной предмет</span>
-              <input type="hidden" name="subject" value="${esc(p.subject)}">
-              ${typeof hhSelectHTML === "function"
-                ? hhSelectHTML({
-                    id: "tc-subject",
-                    options: subjects.map((sb) => ({ id: sb.id, label: sb.name })),
-                    value: p.subject,
-                    open: !!st.subjMenuOpen,
-                    toggleAction: "tc-subj-toggle",
-                    pickAction: "tc-subj-pick",
-                    ariaLabel: "Основной предмет"
-                  })
-                : `<select class="select" id="tc-subject" data-tc="subject">${subjects.map((sb) => `<option value="${esc(sb.id)}"${sb.id === p.subject ? " selected" : ""}>${esc(sb.name)}</option>`).join("")}</select>`}
-            </div>
-
-            <div class="field">
-              <span class="label">Стандартная ставка (₽/ч)</span>
-              <div class="hh-price-stepper compact">
-                <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="price" data-step="-100">−100 ₽</button>
-                <div class="hh-step-readout"><b class="num">${p.price.toLocaleString("ru-RU")} ₽/ч</b></div>
-                <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="price" data-step="100">+100 ₽</button>
-              </div>
-            </div>
-
-            <div class="field">
-              <span class="label">Минимальный порог торга от учеников</span>
-              <div class="hh-price-stepper compact">
-                <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="minFair" data-step="-100">−100 ₽</button>
-                <div class="hh-step-readout"><b class="num">${p.minFair.toLocaleString("ru-RU")} ₽/ч</b></div>
-                <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="minFair" data-step="100">+100 ₽</button>
-              </div>
-              <span class="hint">Ученики видят кнопки ±100 ₽ не ниже ${p.minFair.toLocaleString("ru-RU")} ₽/ч.</span>
-            </div>
-
-            <div class="bid-fee-row">${feeSplitHTML(p.price, TDATA)}</div>
-            <span class="small muted">На руки <b class="num">${baseSplit.payout.toLocaleString("ru-RU")} ₽</b> за каждый урок. <button type="button" class="link-btn small" data-a="go" data-v="fees">Правила оплаты →</button></span>
-
-            <div class="field">
-              <label for="tc-bio">Коротко об опыте и подходе</label>
-              <textarea class="textarea" id="tc-bio" name="bio" data-tc="bio" rows="3" maxlength="240">${esc(p.bio || "")}</textarea>
-            </div>
-
-            <div class="row" style="gap:8px;flex-wrap:wrap">
-              <button type="submit" class="btn sm">Сохранить анкету</button>
-              <button type="button" class="btn ghost sm" data-a="tc-reset-demo">Сбросить демо</button>
-            </div>
-          </form>
-
-          <section class="card stack" style="gap:12px" aria-label="Окна времени 10:00–20:00">
-            <div class="row between" style="gap:8px;flex-wrap:wrap">
-              <div>
-                <div class="eyebrow">Слоты 10:00–20:00</div>
-                <h2 class="h2">Свободные окна (${totalSlotsCount})</h2>
-              </div>
-              <span class="chip accent num">${esc(activeDayObj.wd)}: ${daySlots.length} ч</span>
-            </div>
-
-            <div class="cal-days" aria-label="День недели">
-              ${DAY_LIST.map((d) => {
-                const cnt = Array.isArray(st.slots[d.dow]) ? st.slots[d.dow].length : 0;
-                return `<button type="button" class="day-cir${st.activeDow === d.dow ? " on" : ""}" data-a="tc-day" data-dow="${d.dow}">
-                  <span class="day-wd">${d.wd}</span>
-                  <span class="day-dot">${cnt}</span>
-                  <span class="day-cnt">${cnt ? "откр." : "выкл."}</span>
-                </button>`;
-              }).join("")}
-            </div>
-
-            <div class="hour-circles" aria-label="Часы на день">
-              ${hours.map((h) => {
-                const on = daySlots.includes(h);
-                return `<button type="button" class="hr-cir${on ? " on" : ""}" data-a="tc-slot-toggle" data-hour="${h}" aria-pressed="${on}">
-                  <span>${h}</span>
-                  <span class="hr-cnt">${on ? "✓" : "—"}</span>
-                </button>`;
-              }).join("")}
-            </div>
-            <span class="small muted">Нажмите на кружок часа, чтобы открыть или закрыть запись на ${esc(activeDayObj.full.toLowerCase())}.</span>
-          </section>
-        </aside>
-      </div>`;
+  function toggleArrayVal(arr, val, minOne) {
+    const list = Array.isArray(arr) ? arr.slice() : [];
+    const idx = list.indexOf(val);
+    if (idx >= 0) {
+      if (minOne && list.length <= 1) return list;
+      list.splice(idx, 1);
+    } else {
+      list.push(val);
+    }
+    return list;
   }
 
   function handleAction(act, el) {
@@ -474,8 +1153,20 @@
     const d = (el && el.dataset) || {};
     const id = d.id || "";
 
+    if (act === "tc-tab") {
+      st.tab = ["requests", "profile", "calendar", "stats", "students"].includes(d.tab) ? d.tab : "requests";
+      saveState();
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return true;
+    }
+
     if (act === "tc-bump") {
       st.bumpedToday = !st.bumpedToday;
+      if (st.bumpedToday) {
+        st.lastBumpAt = Date.now();
+        st.bumpCount = (Number(st.bumpCount) || 0) + 1;
+      }
+      syncPublishedTutor(st);
       saveState();
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       if (typeof _ctx.notifySide === "function") {
@@ -484,6 +1175,76 @@
           st.bumpedToday ? "Вы среди первых репетиторов в разделе «Актуален сегодня» (0 ₽)." : "Статус анкеты возвращён к обычному."
         );
       }
+      return true;
+    }
+
+    if (act === "tc-autobump-toggle") {
+      st.autoBump24h = !st.autoBump24h;
+      if (st.autoBump24h) st.lastBumpAt = Date.now();
+      syncPublishedTutor(st);
+      saveState();
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      if (typeof _ctx.notifySide === "function") {
+        _ctx.notifySide(
+          st.autoBump24h ? "Автопродвижение 24 ч включено" : "Автопродвижение на паузе",
+          st.autoBump24h ? `Анкета будет автоматически подниматься каждые 24 часа (к ${st.autoBumpHour} Якт).` : "Поднятие доступно вручную кнопкой «Актуален сегодня»."
+        );
+      }
+      return true;
+    }
+
+    if (act === "tc-autobump-hour") {
+      if (AUTO_BUMP_HOURS.includes(d.hour)) {
+        st.autoBumpHour = d.hour;
+        syncPublishedTutor(st);
+        saveState();
+        if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      }
+      return true;
+    }
+
+    if (act === "tc-stats-period") {
+      st.statsPeriod = d.v === "30d" ? "30d" : "7d";
+      saveState();
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-goal") {
+      st.monthlyGoal = Math.max(20000, Math.min(300000, Number(d.v) || 60000));
+      saveState();
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-preview-toggle") {
+      st.profilePreview = !st.profilePreview;
+      saveState();
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-exam-toggle") {
+      if (d.v) st.profile.exams = toggleArrayVal(st.profile.exams, d.v, true);
+      syncPublishedTutor(st);
+      saveState();
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-format-toggle") {
+      if (d.v) st.profile.formats = toggleArrayVal(st.profile.formats, d.v, true);
+      syncPublishedTutor(st);
+      saveState();
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-skill-toggle") {
+      if (d.v) st.profile.skills = toggleArrayVal(st.profile.skills, d.v, false);
+      syncPublishedTutor(st);
+      saveState();
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       return true;
     }
 
@@ -503,6 +1264,7 @@
       } else {
         st.profile.minFair = clampStep(st.profile.minFair, step, 500, st.profile.price);
       }
+      syncPublishedTutor(st);
       saveState();
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       return true;
@@ -537,9 +1299,7 @@
     }
 
     if (act === "tc-req-counter") {
-      const updated = updateReq(id, (req) => {
-        req.status = "countered";
-      });
+      const updated = updateReq(id, (req) => { req.status = "countered"; });
       if (updated && typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       const who = findReq(id);
       if (typeof _ctx.notifySide === "function") {
@@ -567,10 +1327,7 @@
     if (act === "tc-req-msg") {
       const who = findReq(id);
       if (typeof _ctx.notifySide === "function") {
-        _ctx.notifySide(
-          "Чат с учеником",
-          who ? `Открыт диалог с ${who.studentName} (${who.dayLabel}, ${who.hour})` : "Сообщение ученику подготовлено"
-        );
+        _ctx.notifySide("Чат с учеником", who ? `Открыт диалог с ${who.studentName} (${who.dayLabel}, ${who.hour})` : "Сообщение ученику подготовлено");
       }
       return true;
     }
@@ -579,6 +1336,37 @@
       st.activeDow = DAY_LIST.some((x) => x.dow === d.dow) ? d.dow : "6";
       saveState();
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-cal-week") {
+      st.calWeek = d.w === "1" ? 1 : 0;
+      saveState();
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-cal-open-add") {
+      st.calAddHour = d.hour || "14:00";
+      st.calAddOpen = true;
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-cal-close-add") {
+      st.calAddOpen = false;
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-copy-day") {
+      const activeDayObj = DAY_LIST.find((x) => x.dow === st.activeDow) || DAY_LIST[5];
+      const lessons = syncedRequests().filter((r) => r.status !== "declined" && String(r.dow || dayDowFromLabel(r.dayLabel)) === activeDayObj.dow);
+      const summary = lessons.length
+        ? lessons.map((r) => `${r.hour} — ${r.studentName} (${r.offerPrice} ₽/ч)`).join("\n")
+        : "На выбранный день уроки ещё не назначены.";
+      copyStr(`${activeDayObj.full}:\n${summary}`);
+      if (typeof _ctx.toast === "function") _ctx.toast("Расписание дня скопировано");
       return true;
     }
 
@@ -592,6 +1380,7 @@
       else list.push(hour);
       list.sort();
       st.slots[dow] = list;
+      syncPublishedTutor(st);
       saveState();
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       return true;
@@ -606,8 +1395,40 @@
     if (act === "tc-subj-pick") {
       st.profile.subject = String(d.v || "bio");
       st.subjMenuOpen = false;
+      syncPublishedTutor(st);
       saveState();
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-student-score") {
+      const s = (st.students || []).find((x) => x.id === id);
+      if (s) {
+        s.curScore = Math.min(s.targetScore, (Number(s.curScore) || 0) + (Number(d.delta) || 2));
+        saveState();
+        if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+        if (typeof _ctx.notifySide === "function") _ctx.notifySide("Пробник обновлён", `${s.name}: текущий балл ${s.curScore} / ${s.targetScore}`);
+      }
+      return true;
+    }
+
+    if (act === "tc-student-lesson") {
+      const s = (st.students || []).find((x) => x.id === id);
+      if (s) {
+        s.lessonsDone = (Number(s.lessonsDone) || 0) + 1;
+        saveState();
+        if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+        if (typeof _ctx.toast === "function") _ctx.toast(`${s.name}: учтён урок №${s.lessonsDone}`);
+      }
+      return true;
+    }
+
+    if (act === "tc-copy-tpl") {
+      const tpl = QUICK_TEMPLATES.find((t) => t.id === id);
+      if (tpl) {
+        copyStr(tpl.build(st.profile));
+        if (typeof _ctx.notifySide === "function") _ctx.notifySide("Шаблон скопирован", tpl.title);
+      }
       return true;
     }
 
@@ -628,24 +1449,92 @@
     if (!el || !el.dataset || !el.dataset.tc) return false;
     const key = el.dataset.tc;
     const st = tState();
-    if (key === "name") st.profile.name = String(el.value || "").slice(0, 48);
-    else if (key === "subject") st.profile.subject = String(el.value || "bio");
-    else if (key === "bio") st.profile.bio = String(el.value || "").slice(0, 240);
+    const p = st.profile;
+    if (key === "name") p.name = String(el.value || "").slice(0, 48);
+    else if (key === "headline") p.headline = String(el.value || "").slice(0, 72);
+    else if (key === "city") p.city = String(el.value || "").slice(0, 48);
+    else if (key === "education") p.education = String(el.value || "").slice(0, 90);
+    else if (key === "whatsapp") p.whatsapp = String(el.value || "").slice(0, 32);
+    else if (key === "expYears") p.expYears = Math.max(1, Math.min(50, Number(el.value) || 1));
+    else if (key === "avgScore") p.avgScore = Math.max(40, Math.min(100, Number(el.value) || 80));
+    else if (key === "highScorers") p.highScorers = Math.max(0, Math.min(500, Number(el.value) || 0));
+    else if (key === "trialFree") p.trialFree = !!el.checked;
+    else if (key === "subject") p.subject = String(el.value || "bio");
+    else if (key === "bio") p.bio = String(el.value || "").slice(0, 320);
+    syncPublishedTutor(st);
     saveState();
     return true;
   }
 
   function handleSubmit(form) {
-    if (!form || !form.dataset || form.dataset.f !== "tc-profile") return false;
+    if (!form || !form.dataset) return false;
     const st = tState();
     const els = form.elements || {};
-    if (els.name && String(els.name.value || "").trim()) st.profile.name = String(els.name.value).trim().slice(0, 48);
-    if (els.subject) st.profile.subject = String(els.subject.value || "bio");
-    if (els.bio) st.profile.bio = String(els.bio.value || "").trim().slice(0, 240);
+
+    if (form.dataset.f === "tc-cal-add") {
+      const sName = els.studentName ? String(els.studentName.value || "").trim().slice(0, 40) : "";
+      if (!sName) return true;
+      const dowObj = DAY_LIST.find((x) => x.dow === st.activeDow) || DAY_LIST[5];
+      const hour = els.hour ? String(els.hour.value || "14:00") : "14:00";
+      const rate = Math.max(500, Math.min(5000, Number(els.offerPrice && els.offerPrice.value) || st.profile.price));
+      const note = els.note ? String(els.note.value || "").trim().slice(0, 100) : "";
+      const subjObj = (getTDATA() && getTDATA().SUBJECTS) ? getTDATA().SUBJECTS.find((s) => s.id === st.profile.subject) : null;
+      const item = {
+        id: "tc-man-" + Date.now(),
+        studentName: sName,
+        exam: (st.profile.exams && st.profile.exams[0]) || "ЕГЭ",
+        subjectName: subjObj ? subjObj.name : "Подготовка",
+        format: (st.profile.formats && st.profile.formats[0]) || "Онлайн",
+        dow: dowObj.dow,
+        dayLabel: `${dowObj.wd}, своё окно`,
+        hour,
+        offerPrice: rate,
+        counterPrice: rate,
+        tutorPrice: st.profile.price,
+        marketPrice: Math.round(rate * 1.25),
+        note: note || "Запись добавлена преподавателем вручную",
+        status: "accepted",
+        createdLabel: "Календарь"
+      };
+      st.requests.unshift(item);
+      if (!st.students.some((s) => s.name === sName)) {
+        st.students.unshift({
+          id: "st-" + Date.now(),
+          name: sName,
+          exam: `${item.exam} · ${item.subjectName}`,
+          startScore: 60,
+          curScore: 60,
+          targetScore: 85,
+          lessonsDone: 1,
+          hw: note || "Стартовая диагностика по варианту КИМ"
+        });
+      }
+      st.calAddOpen = false;
+      saveState();
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      if (typeof _ctx.notifySide === "function") _ctx.notifySide("Ученик записан в календарь", `${sName} · ${dowObj.wd} в ${hour} (${rate.toLocaleString("ru-RU")} ₽/ч)`);
+      return true;
+    }
+
+    if (form.dataset.f !== "tc-profile") return false;
+    const p = st.profile;
+    if (els.name && String(els.name.value || "").trim()) p.name = String(els.name.value).trim().slice(0, 48);
+    if (els.headline) p.headline = String(els.headline.value || "").trim().slice(0, 72);
+    if (els.city) p.city = String(els.city.value || "").trim().slice(0, 48);
+    if (els.education) p.education = String(els.education.value || "").trim().slice(0, 90);
+    if (els.whatsapp) p.whatsapp = String(els.whatsapp.value || "").trim().slice(0, 32);
+    if (els.expYears) p.expYears = Math.max(1, Math.min(50, Number(els.expYears.value) || p.expYears));
+    if (els.avgScore) p.avgScore = Math.max(40, Math.min(100, Number(els.avgScore.value) || p.avgScore));
+    if (els.highScorers) p.highScorers = Math.max(0, Math.min(500, Number(els.highScorers.value) || 0));
+    if (els.trialFree) p.trialFree = !!els.trialFree.checked;
+    if (els.subject) p.subject = String(els.subject.value || "bio");
+    if (els.bio) p.bio = String(els.bio.value || "").trim().slice(0, 320);
+    st.published = true;
+    syncPublishedTutor(st);
     saveState();
     if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
     if (typeof _ctx.notifySide === "function") {
-      _ctx.notifySide("Анкета сохранена", `${st.profile.name} · ${st.profile.price.toLocaleString("ru-RU")} ₽/ч (торг от ${st.profile.minFair.toLocaleString("ru-RU")} ₽/ч)`);
+      _ctx.notifySide("Анкета опубликована в /market", `${p.name} · ${p.price.toLocaleString("ru-RU")} ₽/ч (торг от ${p.minFair.toLocaleString("ru-RU")} ₽/ч)`);
     }
     return true;
   }

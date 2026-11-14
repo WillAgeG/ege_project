@@ -1084,7 +1084,7 @@
   function authModalHTML() {
     if (!ui.authModal) return "";
     return `<div class="modal-back" role="dialog" aria-modal="true" aria-label="Вход в аккаунт">
-      <div style="width:min(480px,100%);min-width:0">${authCard({ modal: true })}</div>
+      <div class="auth-modal-shell">${authCard({ modal: true })}</div>
     </div>`;
   }
   function tutorApplyModalHTML() {
@@ -1386,7 +1386,7 @@
     const a = ui.auth, reg = a.tab === "register";
     const isTutor = ui.role === "tutor";
     const hasGoogle = !!(store.authProviders && store.authProviders.google);
-    return `<form class="card pad-lg form${opts.standalone ? " auth-card" : ""}" data-f="auth">
+    return `<form class="card pad-lg form${opts.standalone ? " auth-card" : ""}${opts.modal ? " is-modal" : ""}" data-f="auth">
       <div class="row between" style="flex-wrap:wrap">
         <div>
           <div class="eyebrow">Аккаунт · Вектор ЕГЭ</div>
@@ -1394,9 +1394,9 @@
         </div>
         ${opts.modal ? `<button type="button" class="icon-btn sm" data-a="auth-modal-close" aria-label="Закрыть">${icon("x")}</button>` : ""}
       </div>
-      <div class="hh-seg" role="group" aria-label="Режим входа">
-        <button type="button" data-a="auth-tab" data-tab="login" aria-pressed="${!reg}">Вход</button>
-        <button type="button" data-a="auth-tab" data-tab="register" aria-pressed="${reg}">Регистрация</button>
+      <div class="hh-seg equal" role="group" aria-label="Режим входа">
+        <button type="button" data-a="auth-tab" data-tab="login" aria-pressed="${!reg}"><span>Вход</span></button>
+        <button type="button" data-a="auth-tab" data-tab="register" aria-pressed="${reg}"><span>Регистрация</span></button>
       </div>
       <p class="ink2 small">${reg ? "Создай личный аккаунт — прогресс, расписание и баланс сохранятся на сервере." : "Выбери удобный способ входа и укажи, как открыть кабинет — учеником или преподавателем."}</p>
       ${hasGoogle
@@ -1420,16 +1420,19 @@
       ${reg && hasLocalProgress() ? `<label class="row" style="gap:8px;align-items:center"><input type="checkbox" class="check" id="auth-migrate" name="migrate" checked><span class="small">Перенести текущий прогресс из этого браузера в новый аккаунт</span></label>` : ""}
       <div class="field">
         <span class="label">Кем войти <span class="muted">(по умолчанию — ученик)</span></span>
-        <div class="hh-seg" role="group" aria-label="Роль входа">
+        <div class="hh-seg equal" role="group" aria-label="Роль входа">
           <button type="button" data-a="auth-role" data-role="student" aria-pressed="${!isTutor}">${icon("book")}<span>Как ученик</span></button>
           <button type="button" data-a="auth-role" data-role="tutor" aria-pressed="${isTutor}">${icon("users")}<span>Как преподаватель</span></button>
         </div>
       </div>
       ${a.error ? `<div class="notice">${esc(a.error)}</div>` : ""}
-      <div class="row" style="flex-wrap:wrap;gap:10px">
+      <div class="auth-actions-row">
         <button class="btn" type="submit"${a.busy ? " disabled" : ""}>${a.busy ? "Подожди…" : reg ? "Создать аккаунт" : "Войти"}</button>
         ${!reg ? `<button type="button" class="btn soft" data-a="auth-guest">${isTutor ? "Кабинет препода (демо)" : "Демо-вход ученика"}</button>` : ""}
-        <button type="button" class="link-btn" data-a="auth-tab" data-tab="${reg ? "login" : "register"}">${reg ? "Уже есть аккаунт? Войти" : "Нет аккаунта? Создать"}</button>
+      </div>
+      <div class="auth-foot-row">
+        <span class="small muted">${reg ? "Уже есть аккаунт?" : "Впервые на платформе?"}</span>
+        <button type="button" class="link-btn" data-a="auth-tab" data-tab="${reg ? "login" : "register"}">${reg ? "Войти по логину" : "Создать аккаунт"}</button>
       </div>
     </form>`;
   }
@@ -1441,7 +1444,7 @@
   });
   if (EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.configure === "function") {
     EGE.views.tutorCabinet.configure({
-      ui, mkt, saveMkt, TDATA, store, profile, toast, notifySide, scheduleRender, go
+      ui, mkt, saveMkt, TDATA, store, profile, toast, notifySide, scheduleRender, go, copyText: copyTextSafe
     });
   }
 
@@ -3503,7 +3506,8 @@
     "auth-tab": (el) => {
       ui.auth.tab = el.dataset.tab === "register" ? "register" : "login";
       ui.auth.error = "";
-      scheduleRender();
+      if (ui.authModal) renderModal();
+      else scheduleRender();
     },
     "auth-modal-open": () => {
       ui.auth.error = "";
@@ -4658,7 +4662,7 @@
     const f = e.target.closest("form[data-f]");
     if (!f) return;
     e.preventDefault();
-    if (f.dataset.f === "tc-profile" && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.handleSubmit === "function") {
+    if (f.dataset.f && f.dataset.f.indexOf("tc-") === 0 && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.handleSubmit === "function") {
       EGE.views.tutorCabinet.handleSubmit(f);
       return;
     }

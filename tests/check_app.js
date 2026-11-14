@@ -1272,9 +1272,13 @@
     await flushMicrotasks(3);
     const authModalDefault = env5.elements.get("modal-root").innerHTML;
     assert(
+      authModalDefault.includes('class="auth-modal-shell"') &&
+      authModalDefault.includes('class="hh-seg equal"') &&
+      authModalDefault.includes('class="auth-actions-row"') &&
+      authModalDefault.includes('class="auth-foot-row"') &&
       authModalDefault.includes('data-a="auth-role" data-role="student" aria-pressed="true"') &&
       authModalDefault.includes('data-a="auth-role" data-role="tutor" aria-pressed="false"'),
-      "expected auth modal role selector to default to Как ученик"
+      "expected auth modal role selector to default to Как ученик with clean .hh-seg.equal and bounded shell"
     );
     clickAction(env5, { a: "auth-guest" });
     await flushMicrotasks(6);
@@ -1322,6 +1326,55 @@
     clickAction(env5, { a: "tc-slot-toggle", hour: "13:00" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes('data-a="tc-slot-toggle" data-hour="13:00" aria-pressed="true"'), "expected tc-slot-toggle to toggle 13:00 availability slot");
+
+    // Профиль hh, предпросмотр и публикация в /market
+    clickAction(env5, { a: "tc-tab", tab: "profile" });
+    await flushMicrotasks(2);
+    const tcProfHtml = env5.elements.get("main").innerHTML;
+    assert(tcProfHtml.includes("Заполненность профиля") && tcProfHtml.includes("tc-hh-meter"), "expected hh-style profile completeness meter");
+    clickAction(env5, { a: "tc-preview-toggle" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("Живой вид вашей карточки"), "expected live /market tutor card preview in hh profile builder");
+    env5.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "tc-profile" }, elements: { name: { value: "Анна Соколова hh" }, headline: { value: "Эксперт ЕГЭ · СФУ" }, subject: { value: "bio" } } }) }, preventDefault() {} });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("Опубликован в /market") && globalThis.EGE.tutors.LIST.some((t) => t.id === "tc-my-profile" && t.name === "Анна Соколова hh"), "expected submitted hh profile to publish live into EGE.tutors.LIST");
+
+    // Календарь записанных учеников + ручная запись ученика в слот
+    clickAction(env5, { a: "tc-tab", tab: "calendar" });
+    await flushMicrotasks(2);
+    const tcCalHtml = env5.elements.get("main").innerHTML;
+    assert(tcCalHtml.includes("Календарь записанных учеников") && tcCalHtml.includes("Алина С."), "expected student booking calendar with enrolled students");
+    clickAction(env5, { a: "tc-cal-open-add", hour: "11:00" });
+    await flushMicrotasks(2);
+    env5.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "tc-cal-add" }, elements: { studentName: { value: "Максим Р." }, hour: { value: "11:00" }, offerPrice: { value: "1300" }, note: { value: "Генетика №28" } } }) }, preventDefault() {} });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("Максим Р.") && env5.elements.get("main").innerHTML.includes("Генетика №28"), "expected manually booked student to appear in hourly calendar");
+
+    // Статистика + Автопродвижение каждые 24 часа
+    clickAction(env5, { a: "tc-tab", tab: "stats" });
+    await flushMicrotasks(2);
+    const tcStatsHtml = env5.elements.get("main").innerHTML;
+    assert(tcStatsHtml.includes("Автопродвижение каждые 24 часа") && tcStatsHtml.includes("data-tc-countdown") && tcStatsHtml.includes("Статистика преподавателя") && tcStatsHtml.includes("Цель дохода на месяц"), "expected 24h auto-bump countdown, analytics funnel chart and monthly goal planner");
+    clickAction(env5, { a: "tc-stats-period", v: "30d" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("прогноз за месяц"), "expected 30d period switch in stats");
+    clickAction(env5, { a: "tc-autobump-toggle" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("Автоподнятие на паузе"), "expected 24h auto-bump toggle to pause");
+    clickAction(env5, { a: "tc-autobump-toggle" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("Автоподнятие активно"), "expected 24h auto-bump toggle to reactivate");
+
+    // Мои ученики (трекер баллов ЕГЭ + быстрые шаблоны)
+    clickAction(env5, { a: "tc-tab", tab: "students" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("Мои ученики и трекер баллов ЕГЭ") && env5.elements.get("main").innerHTML.includes("Быстрые шаблоны ответов"), "expected student score tracker and reply templates");
+    clickAction(env5, { a: "tc-student-score", id: "st-alina", delta: "2" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("78") && env5.elements.get("toast").innerHTML.includes("Пробник обновлён"), "expected +2 score increment on student tracker");
+
+    clickAction(env5, { a: "tc-tab", tab: "requests" });
+    await flushMicrotasks(2);
 
     clickAction(env5, { a: "role-set", role: "student" });
     await flushMicrotasks(4);

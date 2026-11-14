@@ -385,10 +385,10 @@
               <span class="hint">Тематический список в цветах Светлой/Тёмной темы без системного тёмного меню браузера.</span>
             </div>
             <div class="field">
-              <span class="label">Вход и выбор роли по умолчанию (.hh-seg · authCard)</span>
-              <div class="hh-seg" role="group" aria-label="Демо выбора роли при входе">
-                <button type="button" data-a="bb-app-role" data-role="student" aria-pressed="${(bb.appRole || "student") !== "tutor"}">${icon("users")} Как ученик</button>
-                <button type="button" data-a="bb-app-role" data-role="tutor" aria-pressed="${bb.appRole === "tutor"}">${icon("award")} Как преподаватель</button>
+              <span class="label">Вход и выбор роли по умолчанию (.hh-seg.equal · authCard)</span>
+              <div class="hh-seg equal" role="group" aria-label="Демо выбора роли при входе">
+                <button type="button" data-a="bb-app-role" data-role="student" aria-pressed="${(bb.appRole || "student") !== "tutor"}">${icon("book")}<span>Как ученик</span></button>
+                <button type="button" data-a="bb-app-role" data-role="tutor" aria-pressed="${bb.appRole === "tutor"}">${icon("users")}<span>Как преподаватель</span></button>
               </div>
               <div class="row" style="gap:8px;flex-wrap:wrap;padding-top:4px">
                 <button type="button" class="btn ghost sm" data-a="auth-modal-open">Продолжить через Google</button>
@@ -665,6 +665,12 @@
             <button type="button" class="btn gold sm" data-a="bb-demo-toast">${icon("spark")} Сөп · Актуален сегодня</button>
             <button type="button" class="btn ${accepted ? "confirm" : ""} sm" data-a="bb-market-req-toggle">${accepted ? "✓ Подтверждено" : "✓ Подтвердить"}</button>
           </div>
+        </div>
+        <div class="row" style="gap:6px;flex-wrap:wrap">
+          <span class="chip gold">${icon("spark")} Автоподнятие 24 ч</span>
+          <span class="chip">Профиль hh: 100%</span>
+          <span class="chip accent">Календарь учеников 10:00–20:00</span>
+          <span class="chip">Статистика + Трекер баллов</span>
         </div>
       </div>` : ""}
 
