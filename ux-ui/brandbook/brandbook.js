@@ -4,7 +4,7 @@
 
   const root = typeof globalThis !== "undefined" ? globalThis : window;
   const EGE = (root.EGE = root.EGE || {});
-  const { icon, BRAND_MARK_HTML, getIconCatalog } = EGE.ui;
+  const { icon, sakhaOhyorHTML, BRAND_MARK_HTML, getIconCatalog } = EGE.ui;
   const {
     feeSplitHTML,
     bidBtnLabelHTML,
@@ -41,7 +41,9 @@
       pickedPlan: "month10k",
       quizOpt: 1,
       cancelDemoUndone: false,
-      previewToastDismissed: false
+      previewToastDismissed: false,
+      sakhaSent: false,
+      faqOpen: 0
     });
   }
 
@@ -104,7 +106,7 @@
           <button type="button" class="btn soft" data-a="bb-chip">Подробнее</button>
           <button type="button" class="btn ghost" data-a="bb-chip">Фильтры</button>
           <button type="button" class="btn" disabled>Неактивна</button>
-          <button type="button" class="fav-btn bb-heart-pop" data-a="bb-fav" aria-pressed="${favOn}" aria-label="Избранное">${icon(favOn ? "heartFill" : "heart")}</button>
+          <button type="button" class="fav-btn" data-a="bb-fav" aria-pressed="${favOn}" aria-label="Избранное">${icon(favOn ? "heartFill" : "heart")}</button>
           <span class="icon-btn sm" aria-hidden="true">${icon("eyeOff")}</span>
           <span class="bb-bell-wrap" aria-hidden="true"><span class="icon-btn sm">${icon("bell")}</span><span class="bb-notif-badge">3</span></span>
         </div>
@@ -141,7 +143,7 @@
             </div>
             <div class="row" style="gap:2px;flex:none">
               <span class="fav-btn" aria-hidden="true">${icon("eyeOff")}</span>
-              <button type="button" class="fav-btn bb-heart-pop" data-a="bb-fav" aria-pressed="${favOn}" aria-label="В избранное">${icon(favOn ? "heartFill" : "heart")}</button>
+              <button type="button" class="fav-btn" data-a="bb-fav" aria-pressed="${favOn}" aria-label="В избранное">${icon(favOn ? "heartFill" : "heart")}</button>
             </div>
           </div>
           <div class="tutor-name-line">
@@ -284,6 +286,7 @@
       <div class="grid-3">
         ${plans.map(([id, price, name, badge, perks, extraCls]) => {
           const isPick = picked === id;
+          const btnCls = isPick ? "btn sm is-confirmed" : (extraCls ? "btn sm" : "btn soft sm");
           return `<div class="card plan-card${extraCls ? " " + extraCls : ""}${isPick ? " picked" : ""}">
             <div class="stack" style="gap:8px">
               <div class="row between" style="gap:6px">
@@ -295,7 +298,7 @@
                 ${perks.map((p) => `<span class="small ink2">✓ ${p}</span>`).join("")}
               </div>
             </div>
-            <button type="button" class="btn sm${isPick ? " is-confirmed" : " soft"}" data-a="bb-plan-pick" data-v="${id}" style="margin-top:12px;width:100%">${isPick ? "✓ Выбран в макете (.picked)" : "Примерить .picked"}</button>
+            <button type="button" class="${btnCls}" data-a="bb-plan-pick" data-v="${id}" style="margin-top:12px;width:100%">${isPick ? "✓ Выбран в макете (.picked)" : "Примерить .picked"}</button>
           </div>`;
         }).join("")}
       </div>
@@ -442,6 +445,172 @@
     </section>`;
   }
 
+  function yakutiaAndMediaSectionHTML(bb) {
+    const sakhaOn = !!bb.sakhaSent;
+    const renderSakhaCard = (isDark) => `<div class="bb-pane ${isDark ? "is-dark" : "is-light"}">
+      <div class="row between" style="gap:8px;flex-wrap:wrap">
+        <b>${isDark ? "Саха UI · Чёрный OLED" : "Саха UI · Белый день"}</b>
+        <span class="chip sakha">${icon("sakha")}<span>Оһуор × Дьүкээбил</span></span>
+      </div>
+      ${sakhaOhyorHTML("Көҕүөр ойуу · Якутский орнамент")}
+      <div class="row" style="gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn sakha${sakhaOn ? " is-confirmed" : ""}" data-a="bb-sakha-toggle">${icon("sakha")}<span>${sakhaOn ? "✓ Сөп · Ставка отправлена" : "Сөп · Предложить ставку"}</span></button>
+        <button type="button" class="btn sakha-aurora" data-a="go" data-v="landing">${icon("aurora")}<span>Дьүкээбил · Якутия</span></button>
+        <button type="button" class="btn confirm sm" data-a="bb-demo-toast">${icon("msg")}<span>Написать (единая .btn.confirm)</span></button>
+      </div>
+      <div class="row" style="gap:6px;flex-wrap:wrap">
+        <span class="chip sakha">${icon("pin")}<span>Саха сирэ · Дьокуускай</span></span>
+        <span class="chip sakha">${icon("aurora")}<span>Северное сияние · Ленские столбы</span></span>
+        <span class="chip">Доска Ykt · TG · MAX</span>
+      </div>
+      <span class="small muted">Официальные якутские компоненты для /brandbook и /landing: кнопка Оһуор (.btn.sakha), градиент сияния (.btn.sakha-aurora), разделитель Көҕүөр ойуу и подтверждённая чат-кнопка .btn.confirm для всех переписок и карточек.</span>
+    </div>`;
+
+    return `<section class="land-sec" id="bb-yakutia">
+      <div class="land-sec-head">
+        <div>
+          <div class="eyebrow">Саха сирэ · Культурный код · Медиа-правила</div>
+          <h2 class="h2">Якутские кнопки Оһуор / Дьүкээбил + фото iPhone и Ленских столбов</h2>
+        </div>
+        <span class="chip sakha">${icon("sakha")}<span>Якутск → Вся Россия</span></span>
+      </div>
+      <div class="bb-cols">${renderSakhaCard(false)}${renderSakhaCard(true)}</div>
+      <div class="bb-media-grid" id="bb-media">
+        <article class="bb-media-card">
+          <div class="bb-media-frame">
+            <img src="/assets/iphone-motion.jpg" alt="Новейший iPhone Pro Max с моушен-интерфейсом ставок" loading="lazy">
+            <div class="bb-media-scrim"></div>
+            <div class="bb-media-badges">
+              <span class="chip" style="background:rgba(15,23,42,.82);color:#fff;border:1px solid rgba(255,255,255,.22)">iPhone Pro · Моушен 60 fps</span>
+              <span class="chip confirm">Живой стейдж на /landing</span>
+            </div>
+          </div>
+          <div class="card-body stack" style="padding:14px;gap:6px">
+            <b>Стандарт фото новейшего iPhone + моушен-интерфейса</b>
+            <span class="small muted">Контейнер 16:10, скругление 18 px, мягкий нижний scrim для читаемости бейджей. На /landing работает в паре с живым #hero-motion-stage и титановой рамкой .hero-iphone-bezel.</span>
+          </div>
+        </article>
+        <article class="bb-media-card">
+          <div class="bb-media-frame">
+            <img src="/assets/lena-pillars.jpg" alt="Природа Якутии — Ленские столбы на рассвете с сиянием Дьүкээбил" loading="lazy">
+            <div class="bb-media-scrim"></div>
+            <div class="bb-media-badges">
+              <span class="chip sakha" style="background:rgba(9,30,50,.85);color:#bae6fd;border-color:rgba(125,211,252,.45)">${icon("aurora")}<span>Ленские столбы · 61°N</span></span>
+              <span class="chip" style="background:rgba(15,23,42,.82);color:#fff">Саха сирэ · ЮНЕСКО</span>
+            </div>
+          </div>
+          <div class="card-body stack" style="padding:14px;gap:6px">
+            <b>Природа Якутии · Ленские столбы (.lena-showcase)</b>
+            <span class="small muted">Полноформатный природный баннер в холодно-синей и золотой палитре республики Саха, объединённый с орнаментом Оһуор и кнопкой Дьүкээбил.</span>
+          </div>
+        </article>
+      </div>
+    </section>`;
+  }
+
+  function landingKitSectionHTML(bb) {
+    const faqOpen = Number.isInteger(bb.faqOpen) ? bb.faqOpen : 0;
+    const faqs = [
+      ["Чем отличается от обычных анкет?", "Показываем честную рыночную цену рядом с твоей ставкой и сразу выводим подтверждённую запись через единую .btn.confirm."],
+      ["Как устроены кнопки на /landing и /brandbook?", "Ни одного дубля: все карточки, степпер ±100 ₽, сердечки, подтверждения и якутские кнопки Оһуор используют одни классы ux-ui/styles/base.css."]
+    ];
+    return `<section class="land-sec" id="bb-landing-kit">
+      <div class="land-sec-head">
+        <div>
+          <div class="eyebrow">Все паттерны /landing в одном месте</div>
+          <h2 class="h2">Полный каталог секций витрины: подбор 15 сек, ставки, ИИ-разбор и FAQ</h2>
+        </div>
+        <button type="button" class="btn soft sm" data-a="go" data-v="landing">Открыть живой /landing →</button>
+      </div>
+
+      <div class="card pad stack" style="gap:10px">
+        <div class="row between" style="gap:8px;flex-wrap:wrap">
+          <b>01 · Бегущая лента предметов и тегов (.marquee-pill)</b>
+          <span class="bb-spec-pill">16:9 / 999 px pill · hover pause</span>
+        </div>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <span class="marquee-pill">UX/UI и Моушен <span class="num muted">от 1 200 ₽</span></span>
+          <span class="marquee-pill">Python / КЕГЭ <span class="num muted">от 1 300 ₽</span></span>
+          <span class="marquee-pill">Биология · 90+ <span class="num muted">от 1 000 ₽</span></span>
+          <span class="marquee-pill" style="border-color:color-mix(in srgb,#0ea5e9 45%,var(--line))">Саха сирэ · Ykt / MAX <span class="num muted">60 мин</span></span>
+        </div>
+      </div>
+
+      <div class="bb-kit-grid">
+        <div class="card pad stack" style="gap:10px">
+          <div class="row between"><b>02 · Быстрый подбор за 15 секунд</b><span class="bb-spec-pill">.land-match-result</span></div>
+          <div class="land-match-result">
+            <div class="stack" style="gap:2px">
+              <b>Найдено 14 преподавателей от 900 ₽/ч</b>
+              <span class="small muted">После применения — фильтр каталога и боковое уведомление.</span>
+            </div>
+            <div class="row" style="gap:8px;flex-wrap:wrap">
+              <button type="button" class="btn sm" data-a="bb-bid">Показать на /landing</button>
+              <span class="chip-btn on">+ Онлайн</span>
+            </div>
+          </div>
+          <div class="land-trust-strip" style="margin-top:2px">
+            <div class="row" style="gap:8px;align-items:center"><span class="land-trust-ico">${icon("shield")}</span><span class="small"><b>Полоса доверия</b> (.land-trust-strip) · оплата после ответа</span></div>
+            <div class="row" style="gap:8px;align-items:center"><span class="land-trust-ico">${icon("repeat")}</span><span class="small"><b>Смена в 1 клик</b> · бесплатный перенос</span></div>
+          </div>
+        </div>
+
+        <div class="card pad stack" style="gap:10px">
+          <div class="row between"><b>03 · Аналитика ставок и шаги проверки</b><span class="bb-spec-pill">.rate-bench-card</span></div>
+          <div class="rate-bench-card" style="padding:12px">
+            <div class="row between"><b>Биология · ЕГЭ 2027</b><span class="chip confirm num">−34% к рынку</span></div>
+            <div class="rate-bars">
+              <div class="row between small"><span class="muted">Средний рынок</span><span class="num muted">1 800 ₽/ч</span></div>
+              <div class="rate-bar-track"><div class="rate-bar-fill" style="width:92%"></div></div>
+              <div class="row between small"><b>На платформе</b><b class="num" style="color:var(--accent)">1 100 ₽/ч</b></div>
+              <div class="rate-bar-track"><div class="rate-bar-fill ours" style="width:58%"></div></div>
+            </div>
+          </div>
+          <div class="row" style="gap:10px;align-items:center;padding-top:4px">
+            <span class="how-num">01</span>
+            <div class="stack" style="gap:1px"><b>Проверка актуальности (.how-num)</b><span class="small muted">Ежедневный обход Доски Ykt · TG · MAX</span></div>
+            <span class="verified-badge" aria-hidden="true">${icon("check")}</span>
+          </div>
+        </div>
+
+        <div class="card pad stack" style="gap:10px">
+          <div class="row between"><b>04 · ИИ-разбор ошибок (.ai-err-box / .ai-fix-box)</b><span class="bb-spec-pill pro">.ai-spark-ico</span></div>
+          <div class="ai-err-box">
+            <span class="small" style="color:var(--bad);font-weight:700">Частая ошибка №28 (Генетика)</span>
+            <span class="small ink2">Потеря одного типа гамет при сцепленном наследовании с кроссинговером.</span>
+          </div>
+          <div class="ai-fix-box">
+            <div class="row" style="gap:8px;align-items:center"><span class="ai-spark-ico">${icon("spark")}</span><b class="small" style="color:var(--accent)">Подсказка Вектор ИИ</b></div>
+            <span class="small ink2">Пошаговая схема Моргана + 3 тренировочных задачи на закрепление.</span>
+          </div>
+        </div>
+
+        <div class="card pad stack" style="gap:10px">
+          <div class="row between"><b>05 · Карточка отзыва, FAQ и мобильная панель</b><span class="bb-spec-pill">.faq-item</span></div>
+          <article class="review-card" style="padding:12px">
+            <div class="row between"><div class="row" style="gap:8px"><span class="review-avatar">АН</span><b>Айтал Н., Якутск</b></div><span class="chip confirm">64 → 91 балл</span></div>
+            <p class="small ink2" style="margin:0">«Нашли преподавателя на 700 ₽/ч дешевле, занимались 2 раза в неделю без срывов».</p>
+          </article>
+          <div class="stack" style="gap:6px">
+            ${faqs.map(([q, a], idx) => {
+              const isOpen = faqOpen === idx;
+              return `<div class="faq-item${isOpen ? " open" : ""}">
+                <button type="button" class="faq-btn" data-a="bb-faq-toggle" data-i="${idx}" aria-expanded="${isOpen}">
+                  <span>${q}</span><span class="faq-chev">${icon("chevDown")}</span>
+                </button>
+                ${isOpen ? `<div class="faq-ans">${a}</div>` : ""}
+              </div>`;
+            }).join("")}
+          </div>
+          <div class="bb-sticky-mock">
+            <div class="stack" style="gap:1px"><b class="small">Мобильная липкая панель (.land-mobile-sticky)</b><span class="small muted">Показывается на ≤ 680 px</span></div>
+            <button type="button" class="btn sm" data-a="go" data-v="landing">Выбрать репетитора</button>
+          </div>
+        </div>
+      </div>
+    </section>`;
+  }
+
   function viewBrandbook(opts, ctx) {
     opts = opts || {};
     ctx = ctx || {};
@@ -495,11 +664,10 @@
         </div>
         <nav class="land-links" aria-label="Разделы брендбука">
           <a href="#bb-logo" data-a="land-scroll" data-target="bb-logo">Лого</a>
+          <a href="#bb-yakutia" data-a="land-scroll" data-target="bb-yakutia">Саха UI</a>
           <a href="#bb-sliders" data-a="land-scroll" data-target="bb-sliders">Ползунки</a>
-          <a href="#bb-forms" data-a="land-scroll" data-target="bb-forms">Формы</a>
-          <a href="#bb-cards-sys" data-a="land-scroll" data-target="bb-cards-sys">Тарифы</a>
           <a href="#bb-buttons" data-a="land-scroll" data-target="bb-buttons">Иконки</a>
-          <a href="#bb-study-states" data-a="land-scroll" data-target="bb-study-states">Состояния</a>
+          <a href="#bb-landing-kit" data-a="land-scroll" data-target="bb-landing-kit">Витрина</a>
           <a href="#bb-responsive" data-a="land-scroll" data-target="bb-responsive">Адаптив</a>
         </nav>
         <div class="land-top-actions">
@@ -634,7 +802,7 @@
             <div class="row between"><b>03 · Пружина ♥ и пульс уведомления</b><span class="bb-spec-pill notif">1.8 s</span></div>
             <p class="small muted">Избранное пружинит (scale 1.26 → 1), а новые ответы бота дышат спокойным оранжевым импульсом.</p>
             <div class="row" style="gap:10px;align-items:center;flex-wrap:wrap">
-              <button type="button" class="fav-btn bb-heart-pop" data-a="bb-fav" aria-pressed="${favOn}" aria-label="Пружина избранного">${icon(favOn ? "heartFill" : "heart")}</button>
+              <button type="button" class="fav-btn" data-a="bb-fav" aria-pressed="${favOn}" aria-label="Пружина избранного">${icon(favOn ? "heartFill" : "heart")}</button>
               <span class="chip notif"><span class="bb-pulse-dot"></span>Уведомление · 3 ответа</span>
             </div>
           </div>
@@ -664,6 +832,9 @@
               <button type="button" class="btn${bb.sent ? " is-confirmed" : ""}" data-a="bb-bid">${bidBtnLabelHTML(bb.sent, bb.price)}</button>
               <button type="button" class="btn soft" data-a="bb-chip">Подробнее</button>
               <button type="button" class="btn ghost" data-a="bb-chip">Фильтры</button>
+              <button type="button" class="btn confirm" data-a="bb-demo-toast">${icon("msg")}<span>Написать</span></button>
+              <button type="button" class="btn sakha${bb.sakhaSent ? " is-confirmed" : ""}" data-a="bb-sakha-toggle">${icon("sakha")}<span>${bb.sakhaSent ? "✓ Сөп" : "Оһуор · Саха"}</span></button>
+              <button type="button" class="btn sakha-aurora" data-a="bb-sakha-toggle">${icon("aurora")}<span>Дьүкээбил</span></button>
               <button type="button" class="btn" disabled>Неактивна</button>
             </div>
             <span class="small muted">Минимум 8 px между кнопками; при наведении кнопки приподнимаются на 2 px и не сливаются с белой карточкой.</span>
@@ -684,7 +855,7 @@
           <div class="card pad stack" style="gap:10px">
             <div class="row between"><b class="h3">Сердечко ♥ и оранжевые уведомления</b><span class="bb-spec-pill notif">#F97316 · 36 px</span></div>
             <div class="row" style="gap:10px;flex-wrap:wrap;align-items:center">
-              <button type="button" class="fav-btn bb-heart-pop" data-a="bb-fav" aria-pressed="${favOn}" aria-label="Избранное">${icon(favOn ? "heartFill" : "heart")}</button>
+              <button type="button" class="fav-btn" data-a="bb-fav" aria-pressed="${favOn}" aria-label="Избранное">${icon(favOn ? "heartFill" : "heart")}</button>
               <button type="button" class="btn ghost sm" data-a="bb-fav">${favOn ? "В избранном ♥" : "Добавить ♡"}</button>
               <span class="bb-bell-wrap" title="Оранжевый бейдж уведомлений">
                 <span class="icon-btn">${icon("bell")}</span>
@@ -699,7 +870,7 @@
         <div class="card pad stack" style="gap:10px">
           <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
             <div class="stack" style="gap:2px">
-              <b>Полный набор иконок (36 шт. · 38×38 px и 32×32 px)</b>
+              <b>Полный набор иконок (${iconCatalog.length} шт. · 38×38 px и 32×32 px)</b>
               <span class="small muted">Единая толщина штриха 1.8 px · скругления round · нажми на любую иконку</span>
             </div>
             <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
@@ -757,7 +928,7 @@
                 <span class="small"><b>Заголовок + ставка</b></span>
                 <div class="bb-bp-zone row" style="gap:4px">
                   <span class="fav-btn" aria-hidden="true">${icon("eyeOff")}</span>
-                  <button type="button" class="fav-btn bb-heart-pop" data-a="bb-fav" aria-pressed="${favOn}" aria-label="Проверка угла">${icon(favOn ? "heartFill" : "heart")}</button>
+                  <button type="button" class="fav-btn" data-a="bb-fav" aria-pressed="${favOn}" aria-label="Проверка угла">${icon(favOn ? "heartFill" : "heart")}</button>
                 </div>
               </div>
               <div class="row" style="gap:0;align-items:center">
@@ -836,7 +1007,7 @@
                         ${priceDiffTagsHTML({ tutorPrice: tutorRate, marketPrice: market, offerPrice: bb.price, qualBadge: "К.т.н. · профи" })}
                       </div>
                     </div>
-                    <button type="button" class="fav-btn bb-heart-pop" data-a="bb-fav" aria-pressed="${favOn}" aria-label="Избранное на мобилке">${icon(favOn ? "heartFill" : "heart")}</button>
+                    <button type="button" class="fav-btn" data-a="bb-fav" aria-pressed="${favOn}" aria-label="Избранное на мобилке">${icon(favOn ? "heartFill" : "heart")}</button>
                   </div>
                   <div class="hh-time-picker" style="padding:9px 10px">
                     <div class="row between">
@@ -911,6 +1082,10 @@
 
       ${studyAndStatesSectionHTML(bb)}
 
+      ${yakutiaAndMediaSectionHTML(bb)}
+
+      ${landingKitSectionHTML(bb)}
+
       ${doDontSectionHTML()}
 
       <section class="land-sec" id="bb-responsive">
@@ -953,7 +1128,7 @@
                       <b style="font-size:15px">Математика ЕГЭ · Анна С.</b>
                       <div class="hh-price-row" style="margin-top:3px">${priceHeadlineHTML(market, bb.price, false)}</div>
                     </div>
-                    <button type="button" class="fav-btn bb-heart-pop" data-a="bb-fav" aria-pressed="${favOn}" aria-label="Избранное в стенде">${icon(favOn ? "heartFill" : "heart")}</button>
+                    <button type="button" class="fav-btn" data-a="bb-fav" aria-pressed="${favOn}" aria-label="Избранное в стенде">${icon(favOn ? "heartFill" : "heart")}</button>
                   </div>
                   <div class="hh-diff-strip">
                     ${priceDiffTagsHTML({ tutorPrice: tutorRate, marketPrice: market, offerPrice: bb.price, qualBadge: "Эксперт ЕГЭ 95+" })}

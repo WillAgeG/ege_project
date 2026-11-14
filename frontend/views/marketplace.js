@@ -54,7 +54,7 @@
           <ul class="plan-feats">${p.features.map((f) => `<li><span>${esc(f)}</span></li>`).join("")}</ul>
         </div>
         <div class="stack" style="gap:8px">
-          <button type="button" class="btn${p.featured || p.super || picked ? "" : " soft"}" data-a="mkt-plan" data-id="${p.id}"${picked && p.id !== "free" ? ' aria-current="true"' : ""}>${picked && p.id !== "free" ? "Баланс активен · " + st.balance.toLocaleString("ru-RU") + " ₽" : esc(p.cta)}</button>
+          <button type="button" class="btn${picked && p.id !== "free" ? " is-confirmed" : (p.featured || p.super ? "" : " soft")}" data-a="mkt-plan" data-id="${p.id}"${picked && p.id !== "free" ? ' aria-current="true"' : ""}>${picked && p.id !== "free" ? "✓ Баланс активен · " + st.balance.toLocaleString("ru-RU") + " ₽" : esc(p.cta)}</button>
           ${p.balance > 0 ? `<button type="button" class="link-btn small muted" data-a="go" data-v="fees" style="justify-self:start">Условия оплаты и сервисный сбор →</button>` : ""}
         </div>
       </article>`;
@@ -153,9 +153,9 @@
           <div class="small ink2">${esc(bk.dayLabel)} в ${esc(bk.hour)} (${esc(bk.format)}) · твоя ставка <b class="num">${bk.offerPrice} ₽/ч</b> <span class="muted">(вместо ${bk.tutorPrice} ₽)</span></div>
         </div>
         <div class="row" style="gap:8px;flex-wrap:wrap">
-          ${accepted ? `<a class="wa-btn" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>Написать</span></a>` : ""}
+          ${accepted ? `<a class="btn confirm sm" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>Написать</span></a>` : ""}
           ${!accepted ? `<button type="button" class="btn soft sm" data-a="mkt-sim-accept" data-id="${esc(bk.id)}">Тест: подтвердить</button>` : ""}
-          <button type="button" class="btn ghost sm" data-a="mkt-cancel-book" data-id="${esc(bk.id)}">${accepted ? "Сменить репетитора" : "Отменить"}</button>
+          <button type="button" class="btn ${accepted ? "ghost" : "danger bb-btn-adaptive"} sm" data-a="mkt-cancel-book" data-id="${esc(bk.id)}">${accepted ? "Сменить репетитора" : "Отменить"}</button>
         </div>
       </div>`;
     }).join("")}</div>`;
@@ -254,10 +254,10 @@
           <div class="hh-diff-strip" id="bid-diff-strip" style="margin-bottom:4px">
             ${priceDiffTagsHTML({ tutorPrice: tutor.price, marketPrice: tutor.marketPrice || tutor.price, offerPrice: b.offerPrice, qualBadge: tutor.qualBadge })}
           </div>
-          <div class="bid-stepper">
-            <button type="button" class="btn ghost sm" data-a="bid-step" data-step="-100">−100 ₽</button>
+          <div class="hh-price-stepper">
+            <button type="button" class="hh-step-btn" data-a="bid-step" data-step="-100">−100 ₽</button>
             <input class="input bid-input num" id="bid-price" type="number" min="500" max="5000" step="50" inputmode="numeric" value="${b.offerPrice}">
-            <button type="button" class="btn ghost sm" data-a="bid-step" data-step="100">+100 ₽</button>
+            <button type="button" class="hh-step-btn" data-a="bid-step" data-step="100">+100 ₽</button>
           </div>
           <div id="bid-signal" class="small"><span class="chip ${sig.tone}">${esc(sig.label)}</span></div>
         </div>
@@ -598,7 +598,7 @@
           </div>
           <div class="stack" style="gap:4px;justify-items:end">
             <span class="small muted num">${esc(slot)}</span>
-            <span class="wa-btn">${icon("msg")}<span>Чат</span></span>
+            <span class="btn confirm sm">${icon("msg")}<span>Чат</span></span>
           </div>
         </a>`;
       }).join("");
@@ -651,7 +651,7 @@
             <div class="small muted">Окна: ${slots.join(", ")} · от ${t.price} ₽/ч</div>
           </div>
           <div class="row" style="gap:6px;flex-wrap:wrap">
-            <a class="wa-btn" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>WhatsApp</span></a>
+            <a class="btn confirm sm" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>WhatsApp</span></a>
             <button type="button" class="btn sm" data-a="book-open" data-id="${esc(t.id)}" data-hour="${esc(slots[0] || "10:00")}">Записаться</button>
           </div>
         </div>`;

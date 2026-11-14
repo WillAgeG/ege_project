@@ -464,6 +464,18 @@ h1{margin:0 0 12px;font-size:24px}h2{margin:20px 0 8px;font-size:17px}p,li{color
             top = clean.split("/", 1)[0]
             target = (FRONTEND_DIR / clean).resolve()
             allowed_dir = (FRONTEND_DIR / top).resolve()
+        elif clean.startswith("assets/") and clean.lower().endswith((".png", ".jpg", ".jpeg", ".webp", ".svg")):
+            target = (FRONTEND_DIR / clean).resolve()
+            allowed_dir = (FRONTEND_DIR / "assets").resolve()
+            ext = target.suffix.lower()
+            if ext in {".jpg", ".jpeg"}:
+                media_type = "image/jpeg"
+            elif ext == ".png":
+                media_type = "image/png"
+            elif ext == ".webp":
+                media_type = "image/webp"
+            else:
+                media_type = "image/svg+xml; charset=utf-8"
         else:
             raise HTTPException(status_code=404, detail="Not found")
 

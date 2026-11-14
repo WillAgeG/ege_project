@@ -5,7 +5,7 @@
   const root = typeof globalThis !== "undefined" ? globalThis : window;
   const EGE = (root.EGE = root.EGE || {});
   const { esc, rich, plural, initials } = EGE.utils;
-  const { icon, BRAND_MARK_HTML } = EGE.ui;
+  const { icon, sakhaOhyorHTML, BRAND_MARK_HTML } = EGE.ui;
   const { bidBtnLabelHTML, priceHeadlineHTML, priceDiffTagsHTML, sliderTicksHTML, hhSelectHTML } = EGE.hh;
 
   let _ctx = {};
@@ -158,8 +158,16 @@
   function heroMotionStageHTML() {
     const ui = getUi();
     const m = ui.motion || { playing: true };
-    return `<div class="motion-stage${m.playing ? "" : " paused"}" id="hero-motion-stage" aria-label="Быстрый выбор времени и цены">
-      ${heroMotionInnerHTML()}
+    return `<div class="hero-iphone-bezel" aria-label="Демонстрация моушен-дизайна на новейшем iPhone Pro">
+      <div class="hero-iphone-top">
+        <span class="hero-iphone-spec">5G · YKT / РФ</span>
+        <span class="hero-iphone-island"><i aria-hidden="true"></i><span>iPhone 17 Pro · Motion UI</span></span>
+        <span class="hero-iphone-spec">120 Hz</span>
+      </div>
+      <div class="motion-stage${m.playing ? "" : " paused"}" id="hero-motion-stage" aria-label="Быстрый выбор времени и цены">
+        ${heroMotionInnerHTML()}
+      </div>
+      <div class="hero-iphone-bar" aria-hidden="true"></div>
     </div>`;
   }
 
@@ -1025,6 +1033,66 @@
     </section>`;
   }
 
+  function yakutiaAndIphoneSectionHTML() {
+    const ui = getUi();
+    const sakhaOn = !!ui.landSakhaSent;
+    const m = ui.motion || { preset: "design" };
+    return `<section class="land-sec" id="land-yakutia-iphone" aria-label="Новый iPhone и природа Якутии">
+      <div class="land-sec-head">
+        <div>
+          <div class="eyebrow">iPhone Pro Motion × Саха сирэ · Ленские столбы</div>
+          <h2 class="h2">Мобильный моушен-дизайн и корни проекта в Якутии</h2>
+        </div>
+        <span class="chip sakha">${icon("sakha")}<span>Единые компоненты из /brandbook</span></span>
+      </div>
+      <div class="land-media-showcase">
+        <article class="land-photo-card is-iphone">
+          <div class="land-photo-frame">
+            <img src="/assets/iphone-motion.jpg" alt="Новейший титановый iPhone Pro Max с моушен-интерфейсом подбора цены" loading="lazy">
+            <div class="land-photo-scrim"></div>
+            <div class="land-photo-badges">
+              <span class="chip" style="background:rgba(15,23,42,.82);color:#fff;border:1px solid rgba(255,255,255,.22)">${icon("video")}<span>iPhone 17 Pro · Моушен-интерфейс</span></span>
+              <span class="chip confirm">Плавный шаг ±100 ₽</span>
+            </div>
+          </div>
+          <div class="land-photo-body">
+            <div class="stack" style="gap:6px">
+              <b>Новейший iPhone и живой моушен-подбор в 120 Гц</b>
+              <p class="small ink2" style="margin:0">Титановая рамка Hero переносит мобильный моушен-дизайн прямо на первый экран: переключение предмета, выбор часа ползунком 10:00–20:00 и перевод кнопки #0070FF в зелёный статус подтверждения.</p>
+            </div>
+            <div class="row" style="gap:8px;flex-wrap:wrap">
+              <button type="button" class="btn soft sm${m.preset === "design" ? " is-confirmed" : ""}" data-a="land-iphone-preset" data-v="design">Моушен-дизайн · 1 200 ₽</button>
+              <button type="button" class="btn soft sm${m.preset === "inf" ? " is-confirmed" : ""}" data-a="land-iphone-preset" data-v="inf">Python / IT · 1 300 ₽</button>
+              <button type="button" class="btn ghost sm" data-a="go" data-v="brandbook">Правила в брендбуке →</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="land-photo-card is-lena">
+          <div class="land-photo-frame">
+            <img src="/assets/lena-pillars.jpg" alt="Природа Якутии — Ленские столбы на рассвете над рекой Леной и северное сияние" loading="lazy">
+            <div class="land-photo-scrim"></div>
+            <div class="land-photo-badges">
+              <span class="chip sakha" style="background:rgba(9,30,50,.85);color:#bae6fd;border-color:rgba(125,211,252,.45)">${icon("aurora")}<span>Ленские столбы · Якутия</span></span>
+              <span class="chip" style="background:rgba(15,23,42,.82);color:#fff">Саха сирэ · 61°N</span>
+            </div>
+          </div>
+          <div class="land-photo-body">
+            <div class="stack" style="gap:8px">
+              ${sakhaOhyorHTML("Саха сирэ · Оһуор × Дьүкээбил")}
+              <b>Родом из Якутии — от Доски Ykt и MAX по всей стране</b>
+              <p class="small ink2" style="margin:0">Проект вырос в республике Саха, чтобы объединить разрозненные объявления Доски Ykt, Telegram, WhatsApp и MAX в единый интерфейс брендбука с якутскими кнопками Оһуор и Дьүкээбил.</p>
+            </div>
+            <div class="row" style="gap:8px;flex-wrap:wrap">
+              <button type="button" class="btn sakha${sakhaOn ? " is-confirmed" : ""}" data-a="land-sakha-bid">${icon("sakha")}<span>${sakhaOn ? "✓ Сөп · Заявка отправлена" : "Сөп · Предложить ставку"}</span></button>
+              <button type="button" class="btn sakha-aurora" data-a="land-sakha-filter">${icon("aurora")}<span>Дьүкээбил · Все анкеты Ykt / MAX</span></button>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>`;
+  }
+
   function landingPageHTML(opts) {
     opts = opts || {};
     const TDATA = getTDATA();
@@ -1055,11 +1123,11 @@
           </div>
         </div>
         <nav class="land-links" aria-label="Разделы лендинга">
+          <a href="#land-yakutia-iphone" data-a="land-scroll" data-target="land-yakutia-iphone">iPhone и Саха</a>
           <a href="#land-match" data-a="land-scroll" data-target="land-match">Подбор</a>
           <a href="#land-rates" data-a="land-scroll" data-target="land-rates">Ставки</a>
           <a href="#land-ai-study" data-a="land-scroll" data-target="land-ai-study">ИИ-разбор</a>
           <a href="#land-market" data-a="land-scroll" data-target="land-market">Репетиторы</a>
-          <a href="#land-plans" data-a="land-scroll" data-target="land-plans">Тарифы</a>
           <a href="#land-faq" data-a="land-scroll" data-target="land-faq">FAQ</a>
           <a href="/brandbook" data-a="go" data-v="brandbook">Брендбук</a>
         </nav>
@@ -1077,6 +1145,7 @@
         <section class="land-hero">
           <div class="land-hero-copy">
             <div class="row" style="gap:6px;flex-wrap:wrap">
+              <span class="chip sakha">${icon("sakha")}<span>Саха сирэ × Вектор ЕГЭ</span></span>
               <span class="chip accent">${catalogTotal}+ анкет · Ykt, TG, WA, MAX и др.</span>
               <span class="chip">Ниже рынка на 35–53%</span>
               <span class="chip pro">Ставка ±100 ₽ в 1 клик</span>
@@ -1100,6 +1169,8 @@
       </div>
 
       ${marqueeSectionHTML()}
+
+      ${yakutiaAndIphoneSectionHTML()}
 
       <div class="hh-blue-banner">
         <div class="stack" style="gap:4px;max-width:58ch">
@@ -1160,6 +1231,8 @@
       </section>
 
       ${faqSectionHTML()}
+
+      ${sakhaOhyorHTML("Оһуор · Саха сирэ · Вектор ЕГЭ")}
 
       <footer class="row between small muted" style="flex-wrap:wrap;gap:10px;padding:8px 0 18px;border-top:1px solid var(--line)">
         <span>Вектор ЕГЭ · тесты, конспекты и маркетплейс репетиторов</span>

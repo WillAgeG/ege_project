@@ -4083,6 +4083,47 @@
       const hhStr = String(bb.hour || 14).padStart(2, "0") + ":00";
       notifySide("Демо бокового уведомления", `Ставка ${bb.price.toLocaleString("ru-RU")} ₽/ч на ${hhStr} отправлена преподавателю`);
     },
+    "bb-sakha-toggle": () => {
+      const bb = bbState();
+      bb.sakhaSent = !bb.sakhaSent;
+      if (bb.sakhaSent) {
+        notifySide("Сөп · Ставка отправлена", "Якутская кнопка Оһуор перешла в подтверждённый статус --confirm");
+      }
+      scheduleRender();
+    },
+    "bb-faq-toggle": (el) => {
+      const idx = Number(el.dataset.i);
+      const bb = bbState();
+      bb.faqOpen = bb.faqOpen === idx ? -1 : idx;
+      scheduleRender();
+    },
+    "land-sakha-bid": () => {
+      ui.landSakhaSent = !ui.landSakhaSent;
+      if (ui.landSakhaSent) {
+        notifySide("Сөп · Предложение передано", "Заявка с кнопкой Оһуор отправлена — уведомим об ответе преподавателя");
+      }
+      scheduleRender();
+    },
+    "land-sakha-filter": () => {
+      const st = mkt();
+      st.subject = "all";
+      st.exam = "all";
+      st.format = "all";
+      st.day = "all";
+      st.hour = "all";
+      st.q = "";
+      st.maxPrice = 2000;
+      st.sort = "price_asc";
+      saveMkt();
+      scheduleRender();
+      if (typeof setTimeout === "function") setTimeout(() => scrollToEl("land-market"), 40);
+      notifySide("Дьүкээбил · Анкеты Саха и РФ", "Показаны проверенные преподаватели с Доски Ykt, Telegram, WhatsApp и MAX");
+    },
+    "land-iphone-preset": (el) => {
+      const preset = el.dataset.v === "inf" ? "inf" : "design";
+      if (ACTIONS["motion-preset"]) ACTIONS["motion-preset"]({ dataset: { v: preset } });
+      if (typeof setTimeout === "function") setTimeout(() => scrollToEl("hero-stage-wrap"), 40);
+    },
     "bb-modal-open": () => {
       ui.bbModal = true;
       renderModal();
@@ -4106,7 +4147,7 @@
       mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true,
       vpWidth: 390, chipOn: true, sent: false, fav: true, switchVal: "online",
       subj: "bio", subjMenuOpen: false, pickedPlan: "month10k", quizOpt: 1,
-      cancelDemoUndone: false, previewToastDismissed: false
+      cancelDemoUndone: false, previewToastDismissed: false, sakhaSent: false, faqOpen: 0
     });
   }
   function applyBrandbookViewport(rawW) { return EGE.views.brandbook.applyBrandbookViewport(ui, rawW); }

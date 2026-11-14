@@ -990,7 +990,8 @@
     await flushMicrotasks(2);
     assert(!env5.elements.get("modal-root").innerHTML.trim(), "expected sample brandbook modal to close");
     const iconMatches = bbHtml.match(/data-a="bb-icon-play"/g) || [];
-    assert(iconMatches.length === 36 && bbHtml.includes('data-icon="wallet"') && bbHtml.includes('data-icon="shield"') && bbHtml.includes('data-icon="send"') && bbHtml.includes('data-a="bb-icons-wave"'), "expected expanded 36-icon interactive catalog with animations");
+    assert(iconMatches.length === 38 && bbHtml.includes('data-icon="wallet"') && bbHtml.includes('data-icon="shield"') && bbHtml.includes('data-icon="send"') && bbHtml.includes('data-icon="sakha"') && bbHtml.includes('data-icon="aurora"') && bbHtml.includes('data-a="bb-icons-wave"'), "expected expanded 38-icon interactive catalog with Yakut animations");
+    assert(bbHtml.includes('id="bb-yakutia"') && bbHtml.includes('id="bb-media"') && bbHtml.includes('id="bb-landing-kit"') && bbHtml.includes('/assets/iphone-motion.jpg') && bbHtml.includes('/assets/lena-pillars.jpg') && bbHtml.includes("btn sakha") && bbHtml.includes("btn sakha-aurora") && bbHtml.includes("sakha-divider"), "expected Yakut buttons/ornaments, media showcase, and complete landing UI catalog inside brandbook");
     clickAction(env5, { a: "bb-icon-play", icon: "bell", label: "Уведомление (оранж.)", animDesc: "Звон" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes('bb-icon-tile is-active is-anim') && env5.elements.get("main").innerHTML.includes("Уведомление (оранж.) · Звон"), "expected clicking an icon tile to activate its animation and update status readout");
@@ -1073,11 +1074,27 @@
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes("bb-preview-toast-close"), "expected restored preview toast close button");
 
+    clickAction(env5, { a: "bb-sakha-toggle" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("✓ Сөп · Ставка отправлена"), "expected Sakha Ohyor button in brandbook to transition to confirmed state");
+    const sakhaBbToast = env5.elements.get("toast");
+    assert(sakhaBbToast && sakhaBbToast.className === "toast is-side" && sakhaBbToast.innerHTML.includes("Сөп · Ставка отправлена"), "expected Sakha toggle in brandbook to show side toast");
+    clickAction(env5, { a: "bb-faq-toggle", i: "1" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes('data-a="bb-faq-toggle" data-i="1" aria-expanded="true"'), "expected FAQ item in brandbook landing catalog to expand on click");
+
     clickAction(env5, { a: "go", v: "landing" });
     await flushMicrotasks(2);
     const landFullHtml = env5.elements.get("main").innerHTML;
     assert(
       landFullHtml.includes('id="land-match"') &&
+      landFullHtml.includes('id="land-yakutia-iphone"') &&
+      landFullHtml.includes("hero-iphone-bezel") &&
+      landFullHtml.includes('/assets/iphone-motion.jpg') &&
+      landFullHtml.includes('/assets/lena-pillars.jpg') &&
+      landFullHtml.includes("sakha-divider") &&
+      landFullHtml.includes("btn sakha") &&
+      landFullHtml.includes("btn sakha-aurora") &&
       landFullHtml.includes('id="land-rates"') &&
       landFullHtml.includes('id="land-verify"') &&
       landFullHtml.includes('id="land-ai-study"') &&
@@ -1134,6 +1151,19 @@
     const tutorSideToast = env5.elements.get("toast");
     assert(tutorSideToast && tutorSideToast.className === "toast is-side" && tutorSideToast.innerHTML.includes("Анкета принята на проверку"), "expected side notification after submitting tutor application");
     assert(env5.elements.get("main").innerHTML.includes("✓ Анкета отправлена (Анна Соколова)"), "expected #land-tutors button to transition to green confirmed state");
+
+    clickAction(env5, { a: "land-sakha-bid" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("✓ Сөп · Заявка отправлена"), "expected Sakha Ohyor CTA on /landing to toggle to confirmed state");
+    clickAction(env5, { a: "land-iphone-preset", v: "inf" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("Python / КЕГЭ"), "expected iPhone showcase preset button to switch hero motion preset");
+    clickAction(env5, { a: "land-sakha-filter" });
+    await flushMicrotasks(2);
+    const sakhaFilterToast = env5.elements.get("toast");
+    assert(sakhaFilterToast && sakhaFilterToast.className === "toast is-side" && sakhaFilterToast.innerHTML.includes("Дьүкээбил"), "expected Sakha Aurora filter button to filter marketplace and show side toast");
+    assert(!env5.elements.get("main").innerHTML.includes("wa-btn") && !env5.elements.get("main").innerHTML.includes("bid-stepper"), "expected zero legacy wa-btn or bid-stepper classes remaining in rendered landing HTML");
+
     clickAction(env5, { a: "mkt-reset" });
     await flushMicrotasks(2);
 

@@ -54,7 +54,9 @@
     share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>',
     pin: '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>',
     lock: '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
-    plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>'
+    plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+    sakha: '<path d="M12 4c-2.8 0-4.2 1.8-4.2 4.2 0 1.8 1.4 3.1 2.7 3.8-1.9.8-3.5 2.4-3.5 4.8 0 1.9 1.3 3.2 3 3.2 1.1 0 2-.9 2-2.2V4z"/><path d="M12 4c2.8 0 4.2 1.8 4.2 4.2 0 1.8-1.4 3.1-2.7 3.8 1.9.8 3.5 2.4 3.5 4.8 0 1.9-1.3 3.2-3 3.2-1.1 0-2-.9-2-2.2V4z"/><circle cx="12" cy="12" r="1.2"/>',
+    aurora: '<path d="M3 18l5-6 4 4 4-5 5 7"/><path d="M5 9c2.5-3 4.5-3 7 0s4.5 3 7 0"/><circle cx="12" cy="4.5" r=".8"/>'
   };
 
   function icon(name) {
@@ -63,6 +65,16 @@
       (ICONS[name] || "") +
       "</svg>"
     );
+  }
+
+  function sakhaOhyorHTML(label) {
+    const ornament =
+      '<svg width="56" height="16" viewBox="0 0 56 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M3 8h10M43 8h10"/>' +
+      '<path d="M28 2.2c-3.2 0-5 2-5 4.5 0 1.7 1.3 2.8 2.8 3.2-1.8.6-3.1 1.9-3.1 3.5 0 1.4 1.1 2 2.3 2 1.6 0 3-1.4 3-3.6V2.2z"/>' +
+      '<path d="M28 2.2c3.2 0 5 2 5 4.5 0 1.7-1.3 2.8-2.8 3.2 1.8.6 3.1 1.9 3.1 3.5 0 1.4-1.1 2-2.3 2-1.6 0-3-1.4-3-3.6V2.2z"/>' +
+      "</svg>";
+    return `<div class="sakha-divider" aria-label="${label || "Орнамент Оһуор"}"><span class="sakha-div-line" aria-hidden="true"></span><span class="sakha-div-emblem">${ornament}${label ? `<span class="sakha-div-label">${label}</span>` : ""}</span><span class="sakha-div-line" aria-hidden="true"></span></div>`;
   }
 
   const BRAND_MARK_HTML =
@@ -108,7 +120,9 @@
       ["bug", "Баг-репорт", "var(--ink-2)", "", "jiggle", "Проверка"],
       ["gear", "Настройки", "var(--ink-2)", "", "spin-180", "Поворот 180°"],
       [dark ? "sun" : "moon", "Смена темы", "var(--ink-2)", "", "spin-pop", "Тема 360°"],
-      ["logout", "Выход", "var(--bad)", "", "fly", "Выход"]
+      ["logout", "Выход", "var(--bad)", "", "fly", "Выход"],
+      ["sakha", "Орнамент Оһуор", "var(--accent)", "", "twinkle", "Узор Саха"],
+      ["aurora", "Дьүкээбил (Сияние)", "var(--confirm)", "", "twinkle", "Сияние"]
     ];
   }
 
@@ -128,6 +142,7 @@
   EGE.ui = {
     ICONS,
     icon,
+    sakhaOhyorHTML,
     BRAND_MARK_HTML,
     GOOGLE_SVG,
     getIconCatalog,

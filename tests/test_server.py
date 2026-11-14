@@ -100,6 +100,14 @@ def test_static_asset_allowlist(tmp_path: Path) -> None:
             assert resp.status_code == 200, css_path
             assert "text/css" in resp.headers["content-type"]
 
+        for img_path in (
+            "/assets/iphone-motion.jpg",
+            "/assets/lena-pillars.jpg",
+        ):
+            resp = client.get(img_path)
+            assert resp.status_code == 200, img_path
+            assert resp.headers["content-type"].startswith("image/")
+
         for blocked_path in (
             "/tools/bank.html",
             "/tools/bank-tools.js",
@@ -112,6 +120,8 @@ def test_static_asset_allowlist(tmp_path: Path) -> None:
             "/ux-ui/README.md",
             "/requirements.txt",
             "/data/plan.txt",
+            "/assets/readme.txt",
+            "/assets/../.env",
             "/subjects/../.env",
             "/styles/../.env",
             "/ux-ui/styles/../../backend/main.py",
