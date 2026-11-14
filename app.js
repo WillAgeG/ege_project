@@ -921,7 +921,7 @@
     demo: { tab: "quiz", sid: firstSubject.id, qIdx: 0, pick: null, revealed: false, topicIdx: 0, bidRate: 800, bidHour: "10:00" },
     motion: { playing: true, preset: "design", step: 0, slot: "10:00", offer: 1200, sent: false, clicking: false, hitTarget: "" },
     savings: { freq: 2, marketRate: 1600, offerRate: 950 },
-    brandbook: { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, chipOn: true, sent: false, fav: true }
+    brandbook: { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, vpWidth: 390, chipOn: true, sent: false, fav: true }
   };
   const MARKET_LS_KEY = "vektor-ege:market";
   const TDATA = EGE.tutors || null;
@@ -999,11 +999,12 @@
       if (TOPICS[h]) { ui.view = "topic"; ui.topicId = h; ui.sid = TOPICS[h].sid; return; }
       if (SUBJ[h]) { ui.view = "subject"; ui.sid = h; return; }
       if (h === "essay" && EGE.essay && SUBJ.rus) { ui.view = "essay"; ui.sid = "rus"; return; }
-      if (["home", "tests", "study", "plan", "stats", "tutor", "market", "landing", "brandbook", "profile"].includes(h)) { ui.view = h; return; }
+      if (["home", "tests", "study", "plan", "stats", "tutor", "market", "landing", "brandbook", "fees", "profile"].includes(h)) { ui.view = h; return; }
     }
     try {
       if (!h && typeof location !== "undefined") {
         if (location.pathname === "/brandbook") { ui.view = "brandbook"; return; }
+        if (location.pathname === "/fees") { ui.view = "fees"; return; }
         if (location.pathname === "/landing") { ui.view = "landing"; return; }
       }
     } catch (e) { /* игнор */ }
@@ -1023,7 +1024,7 @@
     renderQueued = true;
     Promise.resolve().then(() => { renderQueued = false; render(); });
   }
-  const VIEWS = { home: viewHome, tests: viewTests, study: viewStudy, subject: viewSubject, topic: viewTopic, quiz: viewQuiz, essay: viewEssay, plan: viewPlan, stats: viewStats, tutor: viewTutor, market: viewMarket, landing: viewLanding, brandbook: () => viewBrandbook({ inside: true }), profile: viewProfile };
+  const VIEWS = { home: viewHome, tests: viewTests, study: viewStudy, subject: viewSubject, topic: viewTopic, quiz: viewQuiz, essay: viewEssay, plan: viewPlan, stats: viewStats, tutor: viewTutor, market: viewMarket, landing: viewLanding, brandbook: () => viewBrandbook({ inside: true }), fees: () => viewFees({ inside: true }), profile: viewProfile };
   function setAuthLayout(on) {
     try {
       if (document.body && document.body.dataset) {
@@ -1051,7 +1052,7 @@
     let html;
     if (authGate) {
       html = store.ready
-        ? (ui.view === "brandbook" ? viewBrandbook({ inside: false }) : authScreen())
+        ? (ui.view === "brandbook" ? viewBrandbook({ inside: false }) : ui.view === "fees" ? viewFees({ inside: false }) : authScreen())
         : `<div class="auth-wrap"><div class="auth-brand">${BRAND_MARK_HTML}<div class="brand-name">Вектор ЕГЭ</div><p class="muted">Подключаюсь к серверу…</p></div></div>`;
       main.innerHTML = html;
     } else {
@@ -1094,7 +1095,7 @@
     syncHeroMotion();
   }
   const BUG_EMAIL = "willagegg@gmail.com";
-  const VIEW_LABELS = { home: "Тесты", tests: "Тесты", study: "Учёба", subject: "Предмет", topic: "Тема", quiz: "Тест", plan: "План поступления", stats: "Показатели", tutor: "Справочник", essay: "Сочинение", market: "Репетиторы", landing: "О сервисе и тарифы", brandbook: "Брендбук и UI Kit", profile: "Настройки" };
+  const VIEW_LABELS = { home: "Тесты", tests: "Тесты", study: "Учёба", subject: "Предмет", topic: "Тема", quiz: "Тест", plan: "План поступления", stats: "Показатели", tutor: "Справочник", essay: "Сочинение", market: "Репетиторы", landing: "О сервисе и тарифы", brandbook: "Брендбук и UI Kit", fees: "Оплата и сервисный сбор", profile: "Настройки" };
   function bugMailtoHref(bug) {
     return `mailto:${BUG_EMAIL}?subject=${encodeURIComponent(bug.subject)}&body=${encodeURIComponent(bug.body)}`;
   }
@@ -1231,7 +1232,7 @@
           </div>
         </div>
         <div class="field">
-          <label for="bid-price">Твоя цена за занятие (₽/ч) — комиссия сервиса 5%</label>
+          <label for="bid-price">Твоя цена за занятие (₽/ч)</label>
           <div class="hh-price-row" id="bid-price-row" style="margin-bottom:4px">
             ${priceHeadlineHTML(tutor.marketPrice, b.offerPrice, false)}
           </div>
@@ -1244,7 +1245,6 @@
             <button type="button" class="btn ghost sm" data-a="bid-step" data-step="100">+100 ₽</button>
           </div>
           <div id="bid-signal" class="small"><span class="chip ${sig.tone}">${esc(sig.label)}</span></div>
-          <div class="fee-split-box" id="bid-fee-split">${feeSplitHTML(b.offerPrice)}</div>
         </div>
         <div class="field">
           <label for="bid-note">Пожелания по подготовке (необязательно)</label>
@@ -1253,11 +1253,14 @@
         <div class="bot-preview">
           <b class="small">Детали заявки (уведомим о подтверждении):</b>
           <span id="bot-preview-txt">${esc(preview)}</span>
-          <span class="small muted">На «Пробник» (5 000 ₽) хватит на <b>${n5} ур.</b> · на «Месяц» (10 000 ₽) на <b>${n10} ур.</b> Комиссия 5% уже учтена.</span>
+          <span class="small muted">На «Пробник» (5 000 ₽) хватит на <b>${n5} ур.</b> · на «Месяц» (10 000 ₽) на <b>${n10} ур.</b></span>
         </div>
-        <div class="row" style="flex-wrap:wrap;gap:8px">
-          <button type="button" class="btn" id="bid-submit-btn" data-a="book-submit">Предложить ${b.offerPrice.toLocaleString("ru-RU")} ₽</button>
-          <button type="button" class="btn ghost" data-a="book-close">Отмена</button>
+        <div class="row between" style="flex-wrap:wrap;gap:8px;align-items:center">
+          <div class="row" style="flex-wrap:wrap;gap:8px">
+            <button type="button" class="btn" id="bid-submit-btn" data-a="book-submit">Предложить ${b.offerPrice.toLocaleString("ru-RU")} ₽</button>
+            <button type="button" class="btn ghost" data-a="book-close">Отмена</button>
+          </div>
+          <button type="button" class="link-btn small muted" data-a="go-fees">Условия оплаты и сбор системы →</button>
         </div>
       </div>
     </div>`;
@@ -1603,12 +1606,11 @@
     const st = mkt();
     const rate = st.calcRate || 800;
     const rates = [800, 1000, 1250, 1500];
-    const sp = typeof TDATA.commissionSplit === "function" ? TDATA.commissionSplit(rate) : { total: rate, payout: Math.round(rate * 0.95), fee: Math.round(rate * 0.05), pct: 5 };
     const cards = TDATA.PLANS.map((p) => {
       const picked = st.planId === p.id;
       const lessons = p.balance > 0 ? Math.max(1, Math.floor(p.balance / rate)) : 0;
       const note = p.balance > 0
-        ? `≈ ${lessons} ${plural(lessons, "урок", "урока", "уроков")} по ${sp.total} ₽ · ${sp.payout} ₽ преподу + ${sp.fee} ₽ (${sp.pct}%)`
+        ? `≈ ${lessons} ${plural(lessons, "урок", "урока", "уроков")} по ${rate} ₽/ч с баланса`
         : "Тесты, конспекты и огромная база репетиторов";
       return `<article class="card pad-lg plan-card${p.featured ? " featured" : ""}${p.super ? " super" : ""}${picked ? " picked" : ""}">
         <div class="stack" style="gap:10px">
@@ -1627,15 +1629,16 @@
         </div>
         <div class="stack" style="gap:8px">
           <button type="button" class="btn${p.featured || p.super || picked ? "" : " soft"}" data-a="mkt-plan" data-id="${p.id}"${picked && p.id !== "free" ? ' aria-current="true"' : ""}>${picked && p.id !== "free" ? "Баланс активен · " + st.balance.toLocaleString("ru-RU") + " ₽" : esc(p.cta)}</button>
+          ${p.balance > 0 ? `<button type="button" class="link-btn small muted" data-a="go" data-v="fees" style="justify-self:start">Условия оплаты и сервисный сбор →</button>` : ""}
         </div>
       </article>`;
     }).join("");
     return `<section class="land-sec" id="land-plans" aria-label="Тарифы и баланс">
       <div class="land-sec-head">
         <div>
-          <div class="eyebrow">3 вида подписки · комиссия ${sp.pct}%</div>
+          <div class="eyebrow">3 вида подписки · баланс на занятия</div>
           <h2 class="h2">Баланс 5 000 / 10 000 ₽ на репетиторов или базовый доступ</h2>
-          <p class="small muted">Оплата проходит через сервис с прозрачной комиссией 5%: например, с урока ${sp.total} ₽ преподаватель получает ${sp.payout} ₽, а ${sp.fee} ₽ — комиссия платформы.</p>
+          <p class="small muted">Средства хранятся на балансе и списываются только после согласия преподавателя. <a href="/fees" data-a="go" data-v="fees" style="color:var(--accent)">Подробнее об оплате и правилах сервиса →</a></p>
         </div>
         <div class="row" style="gap:6px;flex-wrap:wrap">
           <span class="small muted">Ставка для расчёта:</span>
@@ -1691,7 +1694,7 @@
         <p class="tutor-bio">${esc(t.bio)}</p>
         <div class="row between small muted" style="gap:6px;flex-wrap:wrap">
           <span>${esc(t.bumpText)}</span>
-          <span class="num">Можно −100 ₽ от ${t.minFair} ₽/ч · 5%</span>
+          <span class="num">Можно −100 ₽ от ${t.minFair} ₽/ч</span>
         </div>
         ${daySlots.length ? `<div class="slot-mini-row">
           <span class="small muted">${opts.dayLabel ? esc(opts.dayLabel) + ":" : "Слоты:"}</span>
@@ -1899,9 +1902,10 @@
     } else if (dm.tab === "calc") {
       const rate = Math.max(500, Math.min(3000, Number(dm.bidRate) || 800));
       const rates = [700, 800, 1000, 1200];
-      const sp = TDATA && typeof TDATA.commissionSplit === "function"
-        ? TDATA.commissionSplit(rate)
-        : { total: rate, payout: Math.round(rate * 0.95), fee: Math.round(rate * 0.05), pct: 5 };
+      const n5 = Math.max(1, Math.floor(5000 / rate));
+      const n10 = Math.max(1, Math.floor(10000 / rate));
+      const marketEx = 1650;
+      const saveRub = Math.max(0, marketEx - rate);
       const sampleTut = TDATA && TDATA.LIST[0];
       const winLabel = sampleTut ? sampleTut.windowLabel : "с 09:00 до 19:00";
       const previewTxt = TDATA ? TDATA.botPreviewText({
@@ -1910,21 +1914,25 @@
         format: "онлайн",
         dayLabel: "ближайшая суббота",
         hour: dm.bidHour || "10:00",
-        offerPrice: sp.total,
+        offerPrice: rate,
         tutorPrice: sampleTut ? sampleTut.price : 1200
       }) : "";
       body = `<div class="demo-grid">
         <div class="card stack" style="gap:12px">
           <div class="row between" style="gap:8px;flex-wrap:wrap">
-            <b>Выбери ставку за урок (комиссия ${sp.pct}%)</b>
+            <b>Выбери свою ставку за урок</b>
             <span class="chip">${esc(winLabel)} · Ykt, TG, WA, MAX</span>
           </div>
           <div class="chip-rail">
             ${rates.map((r) => `<button type="button" class="chip-btn${rate === r ? " on" : ""}" data-a="demo-rate" data-rate="${r}">${r} ₽/ч</button>`).join("")}
             <input class="input num" id="demo-rate-inp" type="number" min="500" max="3000" step="50" value="${rate}" aria-label="Своя ставка в рублях" style="width:110px">
           </div>
-          <div class="fee-split-box">${feeSplitHTML(sp.total)}</div>
-          <p class="small muted">С каждой оплаты платформа берёт фиксированные 5%: например, с 800 ₽ преподаватель получает 760 ₽, а 40 ₽ остаётся сервису. Баланс защищён до начала урока.</p>
+          <div class="fee-split-box">
+            <div class="fee-pill"><span>Цена часа</span><b class="num">${rate.toLocaleString("ru-RU")} ₽/ч</b></div>
+            <div class="fee-pill"><span>Выгода от рынка</span><b class="num">${saveRub > 0 ? "−" + saveRub.toLocaleString("ru-RU") + " ₽" : "По рынку"}</b></div>
+            <div class="fee-pill"><span>На «Пробнике» 5 000 ₽</span><b class="num">${n5} ${plural(n5, "урок", "урока", "уроков")}</b></div>
+          </div>
+          <p class="small muted">На тарифе 10 000 ₽ выйдет примерно <b>${n10} ${plural(n10, "урок", "урока", "уроков")}</b>. Оплата замораживается только после согласия преподавателя. <button type="button" class="link-btn small" data-a="go" data-v="fees">Правила оплаты →</button></p>
         </div>
         <div class="card stack" style="gap:10px">
           <b class="small">Карточка заявки (пришлём уведомление при ответе)</b>
@@ -1982,15 +1990,15 @@
       <div class="land-sec-head">
         <div>
           <div class="eyebrow">Пример работы · Бета</div>
-          <h2 class="h2">Потыкай прямо сейчас: тест ЕГЭ, конспект и расчёт 5%</h2>
-          <p class="small muted">Без регистрации можно проверить задания по биологии, русскому и химии, полистать шпаргалку и посчитать выплату репетитору.</p>
+          <h2 class="h2">Потыкай прямо сейчас: тест ЕГЭ, конспект и калькулятор ставки</h2>
+          <p class="small muted">Без регистрации можно проверить задания по биологии, русскому и химии, полистать шпаргалку и прикинуть стоимость урока.</p>
         </div>
       </div>
       <div class="demo-box">
         <div class="hh-seg" role="group" aria-label="Режим бета-примера">
           <button type="button" data-a="demo-tab" data-tab="quiz" aria-pressed="${dm.tab === "quiz"}">Мини-тест ЕГЭ</button>
           <button type="button" data-a="demo-tab" data-tab="notes" aria-pressed="${dm.tab === "notes"}">Конспекты</button>
-          <button type="button" data-a="demo-tab" data-tab="calc" aria-pressed="${dm.tab === "calc"}">Торг и 5%</button>
+          <button type="button" data-a="demo-tab" data-tab="calc" aria-pressed="${dm.tab === "calc"}">Калькулятор ставки</button>
         </div>
         ${body}
       </div>
@@ -2132,7 +2140,7 @@
       return `<span class="row" style="gap:7px;align-items:center"><span class="live-dot" style="background:var(--confirm)" aria-hidden="true"></span><b style="color:var(--confirm)">Подтверждено · ${esc(meta.slot)} · ${meta.offer.toLocaleString("ru-RU")} ₽</b></span>
         <span class="chip confirm">Заявка отправлена · уведомим</span>`;
     }
-    return `<span class="small muted">Преподу: <b class="num">${meta.split.payout} ₽</b> · комиссия 5% (${meta.split.fee} ₽)</span>
+    return `<span class="small muted">Заявка уйдёт с ценой <b class="num">${meta.offer.toLocaleString("ru-RU")} ₽/ч</b> на ${esc(meta.slot)}</span>
       <button type="button" class="link-btn small" data-a="motion-book-now">Выбрать день →</button>`;
   }
 
@@ -2430,7 +2438,7 @@
         <div>
           <div class="eyebrow">Ниже рынка · честная экономика</div>
           <h2 class="h2">Почему занятия здесь обходятся дешевле на 35–53%</h2>
-          <p class="small muted">Онлайн-школы закладывают до 50% наценки. Мы собираем анкеты с Доски Ykt, Telegram, WhatsApp, MAX и других сервисов — предлагай свою ставку с комиссией всего 5%.</p>
+          <p class="small muted">Онлайн-школы закладывают до 50% наценки. Мы собираем анкеты с Доски Ykt, Telegram, WhatsApp, MAX и других сервисов — предлагай свою ставку напрямую без лишних переплат.</p>
         </div>
       </div>
       <div class="savings-grid">
@@ -2455,7 +2463,7 @@
               <button type="button" class="hh-step-btn" data-a="save-step" data-which="off" data-step="100">+100 ₽</button>
             </div>
           </div>
-          <div class="badge" style="justify-content:space-between;width:100%" data-s="split-txt">При ${st.offRate} ₽/ч репетитор получает ${st.split.payout} ₽ (5% = ${st.split.fee} ₽ сервис)</div>
+          <div class="badge" style="justify-content:space-between;width:100%" data-s="split-txt">При ${st.offRate} ₽/ч экономия с каждого урока: ${Math.max(0, st.mktRate - st.offRate)} ₽</div>
         </div>
         <div class="card pad stack" style="gap:14px;justify-content:space-between">
           <div class="stack" style="gap:10px">
@@ -2489,7 +2497,7 @@
     const setT = (sel, val) => { const el = box.querySelector(sel); if (el) el.textContent = val; };
     setT('[data-s="mkt-val"]', st.mktRate.toLocaleString("ru-RU") + " ₽/ч");
     setT('[data-s="off-val"]', st.offRate.toLocaleString("ru-RU") + " ₽/ч");
-    setT('[data-s="split-txt"]', `При ${st.offRate} ₽/ч репетитор получает ${st.split.payout} ₽ (5% = ${st.split.fee} ₽ сервис)`);
+    setT('[data-s="split-txt"]', `При ${st.offRate} ₽/ч экономия с каждого урока: ${Math.max(0, st.mktRate - st.offRate)} ₽`);
     setT('[data-s="month-mkt"]', st.monthMkt.toLocaleString("ru-RU") + " ₽/мес");
     setT('[data-s="month-off"]', st.monthOff.toLocaleString("ru-RU") + " ₽/мес");
     setT('[data-s="month-save"]', `−${st.monthSave.toLocaleString("ru-RU")} ₽/мес (−${st.pct}%)`);
@@ -2520,7 +2528,6 @@
     const dayObj = bbDayObj(bb.day || "all");
     const dayPrefix = dayObj.id === "all" ? "Сб" : dayObj.wd;
     const sStyle = bb.sliderStyle || "ticks";
-    const split = TDATA && TDATA.commissionSplit ? TDATA.commissionSplit(bb.price) : { payout: Math.round(bb.price * 0.95), fee: Math.round(bb.price * 0.05) };
     const swatches = isDark
       ? [
           ["#000000", "Фон страницы", "--bg"],
@@ -2585,7 +2592,7 @@
       </div>
       <div class="hh-price-stepper">
         <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-100">−100 ₽</button>
-        <div class="hh-step-readout"><b class="num">${bb.price.toLocaleString("ru-RU")} ₽/ч</b><span class="small muted">5%: ${split.payout} / ${split.fee} ₽</span></div>
+        <div class="hh-step-readout"><b class="num">${bb.price.toLocaleString("ru-RU")} ₽/ч</b><span class="small muted">твоя ставка за час</span></div>
         <button type="button" class="hh-step-btn" data-a="bb-step" data-step="100">+100 ₽</button>
       </div>
       <article class="card tutor-card" style="box-shadow:none">
@@ -2624,8 +2631,10 @@
     opts = opts || {};
     const inside = !!opts.inside;
     const dark = effectiveDark();
-    const bb = ui.brandbook || (ui.brandbook = { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, chipOn: true, sent: false, fav: true });
+    const bb = ui.brandbook || (ui.brandbook = { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, chipOn: true, sent: false, fav: true, vpWidth: 390 });
     const favOn = bb.fav !== false;
+    const vpW = Math.max(320, Math.min(1100, Number(bb.vpWidth) || 390));
+    const vpModeLabel = vpW <= 359 ? "Mini · 1 кол. узкая" : vpW <= 480 ? "Mobile · 1 кол." : vpW <= 760 ? "Compact · 1–2 кол." : vpW <= 1040 ? "Tablet · 2 кол." : "Desktop · сетка";
     const market = 2000;
     const tutorRate = 1200;
     const mode = bb.mode || "both";
@@ -2689,6 +2698,7 @@
           <a href="#bb-motion" data-a="land-scroll" data-target="bb-motion">Переходы</a>
           <a href="#bb-buttons" data-a="land-scroll" data-target="bb-buttons">Кнопки</a>
           <a href="#bb-bounds" data-a="land-scroll" data-target="bb-bounds">Границы</a>
+          <a href="#bb-responsive" data-a="land-scroll" data-target="bb-responsive">Адаптив</a>
           <a href="#bb-compare" data-a="land-scroll" data-target="bb-compare">Темы</a>
         </nav>
         <div class="land-top-actions">
@@ -2801,10 +2811,10 @@
         <div class="bb-motion-grid">
           <div class="bb-motion-card">
             <div class="row between"><b>01 · Синий → Зелёный «Подтверждено»</b><span class="bb-spec-pill confirm">380 ms</span></div>
-            <p class="small muted">Нажатие переводит CTA из #0070FF в изумрудный --confirm с мягким подтверждающим импульсом.</p>
-            <div class="stack" style="gap:8px">
+            <p class="small muted">Нажатие переводит CTA из #0070FF в изумрудный --confirm и сразу показывает сбоку уведомление об отправке.</p>
+            <div class="stack" style="gap:6px">
               <button type="button" class="btn${bb.sent ? " is-confirmed" : ""}" id="bb-motion-bid-btn" data-a="bb-bid">${bidBtnLabelHTML(bb.sent, bb.price)}</button>
-              <span class="chip${bb.sent ? " confirm" : ""}" data-bb="bid-status">${bb.sent ? "Статус: Подтверждено · переход выполнен" : "Нажми «Предложить» для перехода"}</span>
+              <p class="small${bb.sent ? "" : " muted"}" data-bb="bid-status" style="margin:0;line-height:1.35;${bb.sent ? "color:var(--confirm);font-weight:600" : ""}">${bb.sent ? "✓ Подтверждено · уведомление показано сбоку" : "Обычное состояние CTA · #0070FF"}</p>
             </div>
           </div>
 
@@ -2978,8 +2988,13 @@
           </div>
 
           <div class="stack" style="gap:8px;align-items:center">
-            <span class="small muted">Живой макет «Как на мобилке · 390 px» · нажимай дни Сб / Вс / Пн</span>
-            <div class="bb-phone-frame" aria-label="Предпросмотр мобильной версии 390 px">
+            <div class="row" style="gap:6px;flex-wrap:wrap;justify-content:center">
+              <button type="button" class="chip-btn${vpW <= 340 ? " on" : ""}" data-a="bb-vp" data-w="320" style="min-height:28px;padding:3px 10px;font-size:12px">320 px</button>
+              <button type="button" class="chip-btn${vpW > 340 && vpW <= 420 ? " on" : ""}" data-a="bb-vp" data-w="390" style="min-height:28px;padding:3px 10px;font-size:12px">390 px</button>
+              <button type="button" class="chip-btn${vpW > 420 && vpW <= 820 ? " on" : ""}" data-a="bb-vp" data-w="768" style="min-height:28px;padding:3px 10px;font-size:12px">768 px</button>
+            </div>
+            <span class="small muted">Живой макет «Как на мобилке · <span data-bb="phone-w">${Math.min(410, vpW)}</span> px» · нажимай дни Сб / Вс / Пн</span>
+            <div class="bb-phone-frame" style="max-width:${Math.min(410, vpW)}px" aria-label="Предпросмотр мобильной версии ${Math.min(410, vpW)} px">
               <div class="bb-phone-status">
                 <span class="num">09:41 · Вектор ЕГЭ · <span data-bb="day-label">${curDay.full}</span></span>
                 <span class="row" style="gap:6px;align-items:center">
@@ -3052,6 +3067,104 @@
         </div>
       </section>
 
+      <section class="land-sec" id="bb-responsive">
+        <div class="land-sec-head">
+          <div>
+            <div class="eyebrow">Адаптивность · Container Queries + Breakpoints</div>
+            <h2 class="h2">Живой стенд адаптивности: 320 → 1100 px</h2>
+          </div>
+          <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
+            <span class="chip accent" id="bb-vp-mode">${vpModeLabel}</span>
+            <b class="num" id="bb-vp-readout">${vpW} px</b>
+          </div>
+        </div>
+
+        <div class="card pad stack" style="gap:12px">
+          <div class="bb-resp-toolbar">
+            <div class="row" style="gap:6px;flex-wrap:wrap">
+              <button type="button" class="chip-btn${vpW <= 340 ? " on" : ""}" data-a="bb-vp" data-w="320">Mini 320 px</button>
+              <button type="button" class="chip-btn${vpW > 340 && vpW <= 420 ? " on" : ""}" data-a="bb-vp" data-w="390">Mobile 390 px</button>
+              <button type="button" class="chip-btn${vpW > 420 && vpW <= 820 ? " on" : ""}" data-a="bb-vp" data-w="768">Tablet 768 px</button>
+              <button type="button" class="chip-btn${vpW > 820 ? " on" : ""}" data-a="bb-vp" data-w="1100">Desktop 1100 px</button>
+            </div>
+            <div class="bb-resp-width-ctl" style="flex:1;min-width:220px">
+              <span class="small muted num">320</span>
+              <input class="hh-time-range" id="bb-vp-slider" type="range" min="320" max="1100" step="10" value="${vpW}" style="--pct:${Math.round(((vpW - 320) / 780) * 100)}%;flex:1" aria-label="Ширина адаптивного стенда">
+              <span class="small muted num">1100</span>
+            </div>
+          </div>
+
+          <div class="bb-resp-stage">
+            <div class="bb-resp-viewport" id="bb-resp-viewport" style="max-width:${vpW}px">
+              <div class="bb-resp-metrics">
+                <b>@container · живая перестройка карточки</b>
+                <span class="num">Ширина контейнера: <b id="bb-resp-cur">${vpW} px</b></span>
+              </div>
+              <div class="bb-resp-grid">
+                <div class="card" style="padding:14px;display:grid;gap:10px;box-shadow:none">
+                  <div class="row between" style="gap:8px;align-items:flex-start">
+                    <div style="min-width:0">
+                      <b style="font-size:15px">Математика ЕГЭ · Анна С.</b>
+                      <div class="hh-price-row" style="margin-top:3px">${priceHeadlineHTML(market, bb.price, false)}</div>
+                    </div>
+                    <button type="button" class="fav-btn bb-heart-pop" data-a="bb-fav" aria-pressed="${favOn}" aria-label="Избранное в стенде">${icon(favOn ? "heartFill" : "heart")}</button>
+                  </div>
+                  <div class="hh-diff-strip">
+                    ${priceDiffTagsHTML({ tutorPrice: tutorRate, marketPrice: market, offerPrice: bb.price, qualBadge: "Эксперт ЕГЭ 95+" })}
+                  </div>
+                  <div class="hh-price-stepper compact">
+                    <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-100">−100 ₽</button>
+                    <div class="hh-step-readout"><b class="num">${bb.price.toLocaleString("ru-RU")} ₽/ч</b></div>
+                    <button type="button" class="hh-step-btn" data-a="bb-step" data-step="100">+100 ₽</button>
+                  </div>
+                </div>
+
+                <div class="card" style="padding:14px;display:grid;gap:10px;box-shadow:none">
+                  <div class="row between" style="gap:8px">
+                    <span class="small muted">${curDay.full}</span>
+                    <span class="hh-time-val num" data-bb="hour-short">${hourStr}</span>
+                  </div>
+                  <input class="hh-time-range${sStyle === "ruler" ? " is-ruler" : ""}" id="bb-hour-range-resp" type="range" min="10" max="20" step="1" value="${bb.hour}" style="--pct:${hourPct}%" aria-label="Время в стенде адаптивности">
+                  <div class="bb-days-rail" role="group" aria-label="Дни в стенде">
+                    ${BB_DAYS.map((d) => `<button type="button" class="day-cir${curDay.id === d.id ? " on" : ""}" data-a="bb-day" data-v="${d.id}" style="flex:0 0 56px;padding:6px 4px">
+                      <span class="day-wd">${d.wd}</span>
+                      <span class="day-dot">${d.num}</span>
+                    </button>`).join("")}
+                  </div>
+                  <div class="bb-resp-actions">
+                    <button type="button" class="btn${bb.sent ? " is-confirmed" : ""}" data-a="bb-bid">${bidBtnLabelHTML(bb.sent, bb.price)}</button>
+                    <button type="button" class="btn soft" data-a="bb-chip">Подробнее</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bb-bp-rules-cards">
+            <div class="card pad stack" style="gap:4px;box-shadow:none">
+              <span class="bb-spec-pill">Mini &lt; 360 px</span>
+              <b>Узкие экраны SE</b>
+              <p class="small muted">Степпер сжимается до 60 px, кнопки CTA встают одна под другой на всю ширину без переполнения.</p>
+            </div>
+            <div class="card pad stack" style="gap:4px;box-shadow:none">
+              <span class="bb-spec-pill">Mobile 360–680 px</span>
+              <b>Мобильный стек</b>
+              <p class="small muted">1 колонка карточек, нижний таб-бар, свайп дней 6 px сверху, боковое уведомление — сверху по ширине.</p>
+            </div>
+            <div class="card pad stack" style="gap:4px;box-shadow:none">
+              <span class="bb-spec-pill confirm">Tablet 681–1080 px</span>
+              <b>2-колоночный планшет</b>
+              <p class="small muted">Тарифы, анкеты, моушен и справочник перестраиваются в 2 равные колонки без пустых дыр.</p>
+            </div>
+            <div class="card pad stack" style="gap:4px;box-shadow:none">
+              <span class="bb-spec-pill pro">Desktop ≥ 1360 px</span>
+              <b>Широкий экран</b>
+              <p class="small muted">Контейнер 1 200 px, боковое уведомление справа, а @container держит ритм внутри любых сеток.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section class="land-sec" id="bb-compare">
         <div class="land-sec-head">
           <div>
@@ -3069,6 +3182,75 @@
         </div>
         <button type="button" class="btn white" data-a="go" data-v="landing">Открыть сайт /landing →</button>
       </div>
+    </div>`;
+  }
+
+  function viewFees(opts) {
+    opts = opts || {};
+    const inside = !!opts.inside;
+    const dark = effectiveDark();
+    const rate = Math.max(600, Math.min(3500, Number(ui.feesRate) || 800));
+    const presets = [800, 1000, 1200, 1500, 2000];
+    return `<div class="land-page" id="fees-page">
+      <header class="land-top">
+        <div class="brand-lockup">
+          ${BRAND_MARK_HTML}
+          <div class="brand-text">
+            <div class="brand-name">Вектор ЕГЭ · Оплата</div>
+            <div class="brand-sub">Условия оплаты и сервисный сбор</div>
+          </div>
+        </div>
+        <div class="land-top-actions">
+          <button type="button" class="btn ghost sm" data-a="go" data-v="${inside ? "market" : "landing"}">${inside ? "← К репетиторам" : "← На главную"}</button>
+          <button type="button" class="icon-btn sm" data-a="theme-toggle" aria-label="Сменить тему" title="Сменить тему">${icon(dark ? "sun" : "moon")}</button>
+          ${inside ? `<button type="button" class="btn sm" data-a="go" data-v="tests">В кабинет</button>` : `<button type="button" class="btn sm" data-a="auth-modal-open">Войти</button>`}
+        </div>
+      </header>
+
+      <section class="card pad-lg stack" style="gap:16px">
+        <div class="stack" style="gap:6px">
+          <div class="eyebrow">Оплата занятий · Сервисный сбор системы</div>
+          <h1 class="h1">Условия оплаты и комиссия за систему</h1>
+          <p class="lead">При выборе репетитора ученик ориентируется только на удобное время и свою цену за урок. Комиссия системы 5% учитывается на этапе расчёта оплаты — никаких скрытых доплат сверх ставки ученика нет.</p>
+        </div>
+
+        <div class="grid-3">
+          <div class="card pad stack" style="gap:6px;box-shadow:none">
+            <span class="chip accent" style="justify-self:start">01 · Баланс 5 000 / 10 000 ₽</span>
+            <b>Пополнение без сгорания</b>
+            <p class="small ink2">Вы пополняете баланс на 5 000 или 10 000 ₽ и расходуете средства по мере подтверждённых занятий.</p>
+          </div>
+          <div class="card pad stack" style="gap:6px;box-shadow:none">
+            <span class="chip confirm" style="justify-self:start">02 · Защита оплаты</span>
+            <b>Заморозка после ответа</b>
+            <p class="small ink2">Пока преподаватель не подтвердил время и предложенную ставку, деньги не списываются с вашего баланса.</p>
+          </div>
+          <div class="card pad stack" style="gap:6px;box-shadow:none">
+            <span class="chip pro" style="justify-self:start">03 · Фиксированно 5%</span>
+            <b>Сервисный сбор системы</b>
+            <p class="small ink2">С проведённого занятия 95% получает преподаватель, а 5% составляет сервисный сбор системы.</p>
+          </div>
+        </div>
+
+        <div class="card pad-lg stack" style="gap:12px;background:var(--surface-2);box-shadow:none">
+          <div class="row between" style="gap:10px;flex-wrap:wrap;align-items:center">
+            <div class="stack" style="gap:2px">
+              <b>Калькулятор при оплате урока</b>
+              <span class="small muted">Выбери стоимость часа для точного расчёта:</span>
+            </div>
+            <div class="row" style="gap:6px;flex-wrap:wrap">
+              ${presets.map((p) => `<button type="button" class="chip-btn${rate === p ? " on" : ""}" data-a="fees-rate" data-rate="${p}">${p.toLocaleString("ru-RU")} ₽</button>`).join("")}
+            </div>
+          </div>
+          <div class="bid-fee-row">${feeSplitHTML(rate)}</div>
+          <p class="small muted">С каждой подтверждённой ставки <b class="num">${rate.toLocaleString("ru-RU")} ₽/ч</b> расчёт происходит автоматически при оплате урока.</p>
+        </div>
+
+        <div class="row" style="gap:10px;flex-wrap:wrap">
+          <button type="button" class="btn" data-a="go" data-v="${inside ? "market" : "landing"}">${inside ? "Выбрать репетитора" : "Перейти к подбору репетиторов"}</button>
+          <button type="button" class="btn soft" data-a="go" data-v="brandbook">Открыть Брендбук</button>
+        </div>
+      </section>
     </div>`;
   }
 
@@ -3119,7 +3301,7 @@
             <div class="row" style="gap:6px;flex-wrap:wrap">
               <span class="chip accent">${catalogTotal}+ анкет · Ykt, TG, WA, MAX и др.</span>
               <span class="chip">Ниже рынка на 35–53%</span>
-              <span class="chip">Комиссия 5%</span>
+              <span class="chip pro">Ставка ±100 ₽ в 1 клик</span>
             </div>
             <h1 class="land-h1">Ищи репетиторов <span class="land-h1-grad">ниже рынка</span> для подготовки к чему угодно</h1>
             <p class="land-lead">Единая база анкет с Доски Ykt, Telegram, WhatsApp, MAX и других сервисов: ЕГЭ и ОГЭ, Python, UX/UI и моушен-дизайн, физика, вокал и ВУЗ. Выбирай час с 10:00 до 20:00, нажимай −100 ₽ и отправляй свою ставку.</p>
@@ -3132,7 +3314,7 @@
             <div class="land-stats">
               <div class="land-stat"><b>${catalogTotal}+ анкет</b><span>Ykt, Telegram, WhatsApp, MAX и др.</span></div>
               <div class="land-stat"><b>Шаг ±100 ₽</b><span>Простая ставка ниже рынка</span></div>
-              <div class="land-stat"><b>Комиссия 5%</b><span>Из 800 ₽ — 760 ₽ преподу, 40 ₽ сервису</span></div>
+              <div class="land-stat"><b>10:00 – 20:00</b><span>Быстрый выбор окна и ответа</span></div>
             </div>
           </div>
           ${heroMotionStageHTML()}
@@ -3164,7 +3346,7 @@
         <div class="how-grid">
           <div class="card how-card"><span class="how-num">01</span><b>Единая база из 5+ источников</b><p class="small ink2">Собираем анкеты с Доски Ykt, Telegram, WhatsApp, MAX и других сервисов по всем предметам и навыкам.</p></div>
           <div class="card how-card"><span class="how-num">02</span><b>Ползунок времени 10:00–20:00</b><p class="small ink2">Двигай удобный час с 10:00 до 20:00 и сразу видишь свободных репетиторов в нужный интервал.</p></div>
-          <div class="card how-card"><span class="how-num">03</span><b>Ставка кнопками ±100 ₽</b><p class="small ink2">Выбирай цену без лишних форм и нажимай «Предложить» — комиссия сервиса фиксированные 5%.</p></div>
+          <div class="card how-card"><span class="how-num">03</span><b>Ставка кнопками ±100 ₽</b><p class="small ink2">Выбирай удобную цену без лишних форм и нажимай «Предложить» — запрос сразу уходит преподавателю.</p></div>
           <div class="card how-card"><span class="how-num">04</span><b>Уведомление и расписание</b><p class="small ink2">Когда преподаватель подтвердит время и ставку, придёт уведомление — всё расписание в «Учёбе».</p></div>
         </div>
       </section>
@@ -3178,14 +3360,14 @@
           <div class="row between" style="flex-wrap:wrap;gap:10px">
             <div>
               <div class="eyebrow">Для преподавателей</div>
-              <h2 class="h2">Анкеты с Доски Ykt, Telegram, WhatsApp, MAX и комиссия 5%</h2>
+              <h2 class="h2">Анкеты с Доски Ykt, Telegram, WhatsApp, MAX без наценок школ</h2>
             </div>
-            <span class="chip leaf">Из 800 ₽ — 760 ₽ на руки</span>
+            <a href="/fees" class="chip accent" data-a="go" data-v="fees">Условия оплаты и расчётов →</a>
           </div>
           <div class="grid-3">
             <div class="stack" style="gap:4px"><b>Готовые заявки по времени и цене</b><p class="small ink2">Ученик выбирает час и ставку — сервис аккуратно передаёт предложение и уведомляет при ответе.</p></div>
             <div class="stack" style="gap:4px"><b>Бесплатный топ каждый день</b><p class="small ink2">Раз в сутки нажимаете «Актуален сегодня» — ваша анкета сразу поднимается вверх каталога.</p></div>
-            <div class="stack" style="gap:4px"><b>Комиссия 5% и защита оплаты</b><p class="small ink2">Ученик вносит баланс 5 000 или 10 000 ₽: с 800 ₽ вы получаете 760 ₽ (5% = 40 ₽ платформа).</p></div>
+            <div class="stack" style="gap:4px"><b>Безопасный баланс и расчёты</b><p class="small ink2">Ученик пополняет баланс 5 000 или 10 000 ₽ — средства бронируются только после вашего подтверждения. <a href="/fees" data-a="go" data-v="fees" style="color:var(--accent)">Подробнее об оплате →</a></p></div>
           </div>
         </div>
       </section>
@@ -3193,6 +3375,7 @@
       <footer class="row between small muted" style="flex-wrap:wrap;gap:10px;padding:8px 0 18px;border-top:1px solid var(--line)">
         <span>Вектор ЕГЭ · тесты, конспекты и маркетплейс репетиторов</span>
         <div class="row" style="gap:14px;flex-wrap:wrap">
+          <a href="/fees" data-a="go" data-v="fees">Условия оплаты и сбор системы</a>
           <a href="/privacy">Политика конфиденциальности</a>
           <button type="button" class="link-btn small" data-a="bug-site">Сообщить о баге (${BUG_EMAIL})</button>
         </div>
@@ -5142,11 +5325,26 @@
 
   // ---------- тосты и подсказки ----------
   let toastTimer = null;
-  function toast(msg) {
+  function toast(msg, opts) {
     const el = $("#toast");
-    el.textContent = msg; el.hidden = false;
+    if (!el) return;
+    opts = opts || {};
+    if (opts.side) {
+      el.className = "toast is-side";
+      el.innerHTML = `<span class="toast-side-row"><span class="bb-pulse-dot" style="margin-top:5px;flex:0 0 auto"></span><span class="toast-side-copy"><b>${esc(opts.title || "Уведомление")}</b><span>${esc(msg)}</span></span></span>`;
+    } else {
+      el.className = "toast";
+      el.textContent = msg;
+    }
+    el.hidden = false;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { el.hidden = true; }, 2600);
+    toastTimer = setTimeout(() => {
+      el.hidden = true;
+      el.className = "toast";
+    }, opts.duration || 2600);
+  }
+  function notifySide(title, msg) {
+    toast(msg, { side: true, title: title || "Предложение передано", duration: 3600 });
   }
   const tipEl = $("#tip");
   function moveTip(e) {
@@ -5572,9 +5770,12 @@
       ui.booking = null;
       saveMkt();
       renderModal();
-      toast(reserved
-        ? `Отклик отправлен · ${reserved.toLocaleString("ru-RU")} ₽ зарезервировано · уведомим о подтверждении`
-        : "Отклик создан в демо — выбери тариф 5 000 или 10 000 ₽ для оплаты с баланса");
+      notifySide(
+        "Предложение передано преподавателю",
+        reserved
+          ? `Ставка ${offerPrice.toLocaleString("ru-RU")} ₽/ч (${dayObj.shortLabel}, ${hour}) · зарезервировано ${reserved.toLocaleString("ru-RU")} ₽ · уведомим о подтверждении`
+          : `Ставка ${offerPrice.toLocaleString("ru-RU")} ₽/ч (${dayObj.shortLabel}, ${hour}) отправлена — уведомим о подтверждении`
+      );
       scheduleRender();
     },
     "demo-tab": (el) => {
@@ -5701,6 +5902,11 @@
       ui.motion.clicking = true;
       ui.motion.hitTarget = "bid";
       patchHeroMotionDOM({ liveOnly: true });
+      const meta = heroMotionMeta();
+      notifySide(
+        "Предложение передано преподавателю",
+        `${meta.tutor.subjectName}: ставка ${meta.offer.toLocaleString("ru-RU")} ₽/ч на ${meta.slot} отправлена — уведомим об ответе`
+      );
       if (typeof setTimeout === "function") {
         if (motionPulseTimer && typeof clearTimeout === "function") clearTimeout(motionPulseTimer);
         motionPulseTimer = setTimeout(() => {
@@ -5808,8 +6014,15 @@
       scheduleRender();
     },
     "bb-bid": () => {
-      const bb = ui.brandbook || (ui.brandbook = { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, chipOn: true, sent: false, fav: true });
+      const bb = ui.brandbook || (ui.brandbook = { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, chipOn: true, sent: false, fav: true, vpWidth: 390 });
       bb.sent = !bb.sent;
+      if (bb.sent) {
+        const hhStr = String(bb.hour || 14).padStart(2, "0") + ":00";
+        notifySide(
+          "Предложение передано преподавателю",
+          `Ставка ${bb.price.toLocaleString("ru-RU")} ₽/ч на ${hhStr} отправлена — уведомим об ответе`
+        );
+      }
       const btns = typeof document.querySelectorAll === "function" ? document.querySelectorAll('[data-a="bb-bid"]') : null;
       if (btns && btns.length) {
         btns.forEach((btn) => {
@@ -5819,14 +6032,69 @@
             : bidBtnLabelHTML(bb.sent, bb.price);
         });
         document.querySelectorAll('[data-bb="bid-status"]').forEach((st) => {
-          if (st.classList) st.classList.toggle("confirm", !!bb.sent);
-          st.textContent = bb.sent ? "Статус: Подтверждено · переход выполнен" : "Нажми «Предложить» для перехода";
+          st.textContent = bb.sent ? "✓ Подтверждено · уведомление показано сбоку" : "Обычное состояние CTA · #0070FF";
+          if (st.classList) st.classList.toggle("muted", !bb.sent);
+          if (st.style) {
+            st.style.color = bb.sent ? "var(--confirm)" : "";
+            st.style.fontWeight = bb.sent ? "600" : "";
+          }
         });
       } else {
         scheduleRender();
       }
+    },
+    "bb-vp": (el) => {
+      const w = Number(el.dataset.w) || 390;
+      const vpEl = typeof document.getElementById === "function" ? document.getElementById("bb-resp-viewport") : null;
+      applyBrandbookViewport(w);
+      if (!vpEl) scheduleRender();
+    },
+    "go-fees": () => {
+      ui.booking = null;
+      renderModal();
+      go("fees");
+    },
+    "fees-rate": (el) => {
+      ui.feesRate = Math.max(600, Math.min(3500, Number(el.dataset.rate) || 800));
+      scheduleRender();
     }
   };
+  function applyBrandbookViewport(rawW) {
+    const bb = ui.brandbook || (ui.brandbook = { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, chipOn: true, sent: false, fav: true, vpWidth: 390 });
+    const vpW = Math.max(320, Math.min(1100, Math.round(Number(rawW) || 390)));
+    bb.vpWidth = vpW;
+    const vpModeLabel = vpW <= 359 ? "Mini · 1 кол. узкая" : vpW <= 480 ? "Mobile · 1 кол." : vpW <= 760 ? "Compact · 1–2 кол." : vpW <= 1040 ? "Tablet · 2 кол." : "Desktop · сетка";
+    const vpEl = typeof document.getElementById === "function" ? document.getElementById("bb-resp-viewport") : null;
+    if (vpEl && vpEl.style) vpEl.style.maxWidth = vpW + "px";
+    const roEl = typeof document.getElementById === "function" ? document.getElementById("bb-vp-readout") : null;
+    if (roEl) roEl.textContent = vpW + " px";
+    const curEl = typeof document.getElementById === "function" ? document.getElementById("bb-resp-cur") : null;
+    if (curEl) curEl.textContent = vpW + " px";
+    const modeEl = typeof document.getElementById === "function" ? document.getElementById("bb-vp-mode") : null;
+    if (modeEl) modeEl.textContent = vpModeLabel;
+    const slEl = typeof document.getElementById === "function" ? document.getElementById("bb-vp-slider") : null;
+    if (slEl) {
+      slEl.value = String(vpW);
+      if (slEl.style && typeof slEl.style.setProperty === "function") {
+        slEl.style.setProperty("--pct", Math.round(((vpW - 320) / 780) * 100) + "%");
+      }
+    }
+    if (typeof document.querySelectorAll === "function") {
+      const phoneW = Math.min(410, vpW);
+      document.querySelectorAll(".bb-phone-frame").forEach((pf) => {
+        if (pf.style) pf.style.maxWidth = phoneW + "px";
+      });
+      document.querySelectorAll('[data-bb="phone-w"]').forEach((pw) => { pw.textContent = String(phoneW); });
+      document.querySelectorAll('[data-a="bb-vp"]').forEach((btn) => {
+        const bw = Number(btn.dataset && btn.dataset.w) || 390;
+        const active = (bw === 320 && vpW <= 340) ||
+          (bw === 390 && vpW > 340 && vpW <= 420) ||
+          (bw === 768 && vpW > 420 && vpW <= 820) ||
+          (bw === 1100 && vpW > 820);
+        if (btn.classList) btn.classList.toggle("on", active);
+      });
+    }
+  }
   function authErrorText(e) {
     const code = e && e.code;
     if (code === "unavailable") return "Нет связи с сервером. Попробуй через несколько секунд.";
@@ -5959,8 +6227,6 @@
       const sig = TDATA.offerSignal(tutor.price, b.offerPrice);
       sigEl.innerHTML = `<span class="chip ${sig.tone}">${esc(sig.label)}</span>`;
     }
-    const feeEl = document.getElementById("bid-fee-split");
-    if (feeEl) feeEl.innerHTML = feeSplitHTML(b.offerPrice);
     const winEl = document.getElementById("bid-win-status");
     if (winEl && typeof TDATA.tutorInWindow === "function") {
       const winTxt = tutor.windowLabel || ("с " + tutor.availableFrom + " до " + tutor.availableTo);
@@ -6087,7 +6353,11 @@
       }
       return;
     }
-    const BB_SLIDER_IDS = ["bb-hour-range", "bb-hour-range-dark", "bb-hour-range-mobile", "bb-hour-range-clean", "bb-hour-range-ticks", "bb-hour-range-ruler", "bb-hour-range-bounds"];
+    if (el.id === "bb-vp-slider") {
+      applyBrandbookViewport(el.value);
+      return;
+    }
+    const BB_SLIDER_IDS = ["bb-hour-range", "bb-hour-range-dark", "bb-hour-range-mobile", "bb-hour-range-clean", "bb-hour-range-ticks", "bb-hour-range-ruler", "bb-hour-range-bounds", "bb-hour-range-resp"];
     if (BB_SLIDER_IDS.includes(el.id)) {
       const bb = ui.brandbook || (ui.brandbook = { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, chipOn: true, sent: false, fav: true });
       const hNum = Math.max(10, Math.min(20, parseInt(el.value, 10) || 14));
@@ -6120,6 +6390,7 @@
   });
   document.addEventListener("change", (e) => {
     const el = e.target;
+    if (el.id === "bb-vp-slider") { applyBrandbookViewport(el.value); return; }
     if (el.id === "mkt-max-price") { mkt().maxPrice = Number(el.value) || 2000; saveMkt(); scheduleRender(); return; }
     if (el.id === "mkt-hour-range") {
       const hNum = Math.max(10, Math.min(20, parseInt(el.value, 10) || 10));

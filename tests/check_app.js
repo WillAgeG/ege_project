@@ -873,7 +873,7 @@
     assert(landHtml.includes("5 000 ₽") && landHtml.includes("10 000 ₽"), "expected 5k and 10k prices on landing");
     assert(landHtml.includes("Дмитрий Волков") && landHtml.includes("выше рынка") && landHtml.includes("diff-tag pro"), "expected above-market high-qualification expert tutor visible on default Любая filter");
     assert(landHtml.includes('data-a="mkt-day"') && landHtml.includes('id="mkt-hour-range"') && landHtml.includes('<span class="day-dot">7</span>') && !landHtml.includes(">7 дн<") && !landHtml.includes(">7д<"), "expected clean 7 number badge (without 7д/7 дн) and 10:00-20:00 hour range slider on landing");
-    assert(landHtml.includes('id="land-demo"') && landHtml.includes("Доска Ykt") && landHtml.includes("Telegram") && landHtml.includes("MAX") && landHtml.includes("5%"), "expected interactive beta demo, multi-channel sources (Ykt/TG/WA/MAX) and 5% fee on landing");
+    assert(landHtml.includes('id="land-demo"') && landHtml.includes("Доска Ykt") && landHtml.includes("Telegram") && landHtml.includes("MAX") && !landHtml.includes("Комиссия 5%") && !landHtml.includes("760 ₽") && landHtml.includes('data-v="fees"'), "expected interactive beta demo, multi-channel sources (Ykt/TG/WA/MAX), hidden 5% commission on landing and separate /fees link");
     assert(landHtml.includes('id="hero-motion-stage"') && landHtml.includes('id="hero-motion-bid-btn"') && landHtml.includes('id="hero-hour-range"') && landHtml.includes('id="hero-price-minus"') && !landHtml.includes("01 Выбор") && landHtml.includes("hh-price-old") && landHtml.includes("hh-blue-banner") && hasNum(landHtml, "Предложить 1 200 ₽") && landHtml.includes("Денис Ковалёв") && landHtml.includes("marquee-band") && landHtml.includes('id="land-savings"'), "expected clean hh-style UX/UI motion stage with strikethrough price, blue banner, brandbook link and simple Предложить 1 200 ₽ CTA");
 
     clickAction(env5, { a: "motion-step-price", step: "-100" });
@@ -883,7 +883,9 @@
     clickAction(env5, { a: "motion-bid-press" });
     await flushMicrotasks(2);
     const motionBidHtml = env5.elements.get("main").innerHTML;
+    const motionSideToast = env5.elements.get("toast");
     assert(motionBidHtml.includes("is-confirmed") && motionBidHtml.includes("Подтверждено") && motionBidHtml.includes("уведомим"), "expected pressing Предложить to transition smoothly into green Подтверждено state");
+    assert(motionSideToast.className === "toast is-side" && motionSideToast.innerHTML.includes("Предложение передано преподавателю") && !motionSideToast.innerHTML.includes("WhatsApp"), "expected side notification without literal WhatsApp word on motion bid");
     for (let k = 0; k < 10; k += 1) clickAction(env5, { a: "motion-step-price", step: "100" });
     await flushMicrotasks(2);
     const motionProHtml = env5.elements.get("main").innerHTML;
@@ -906,7 +908,7 @@
     clickAction(env5, { a: "demo-tab", tab: "calc" });
     await flushMicrotasks(2);
     const calcDemoHtml = env5.elements.get("main").innerHTML;
-    assert(calcDemoHtml.includes("760 ₽") && calcDemoHtml.includes("40 ₽"), "expected 760 payout and 40 fee (5%) in calc beta tab");
+    assert(!calcDemoHtml.includes("760 ₽") && !calcDemoHtml.includes("40 ₽") && calcDemoHtml.includes('data-v="fees"') && calcDemoHtml.includes("850"), "expected student calc demo tab to hide 5% split and link to /fees");
 
     clickAction(env5, { a: "mkt-preset" });
     await flushMicrotasks(4);
@@ -928,15 +930,17 @@
     clickAction(env5, { a: "book-open", id: "tut-sokolova", hour: "10:00" });
     await flushMicrotasks(2);
     const modalBefore = env5.elements.get("modal-root").innerHTML;
-    assert(modalBefore.includes("Запись · Анна Соколова") && modalBefore.includes('id="bid-hour-range"') && modalBefore.includes('id="bid-price"') && modalBefore.includes('id="bid-custom-time"') && modalBefore.includes('id="bid-fee-split"'), "expected booking modal with hour slider, custom time and 5% split");
+    assert(modalBefore.includes("Запись · Анна Соколова") && modalBefore.includes('id="bid-hour-range"') && modalBefore.includes('id="bid-price"') && modalBefore.includes('id="bid-custom-time"') && !modalBefore.includes('id="bid-fee-split"') && modalBefore.includes('data-a="go-fees"'), "expected booking modal with hour slider, custom time, hidden commission split and separate /fees link");
     clickAction(env5, { a: "bid-step", step: "-100" });
     await flushMicrotasks(2);
     const modalStepped = env5.elements.get("modal-root").innerHTML;
-    assert(modalStepped.includes('value="900"') && modalStepped.includes("900 ₽/ч") && modalStepped.includes("855 ₽") && modalStepped.includes("45 ₽"), "expected -100 step to update offerPrice to 900 with 855/45 split");
+    assert(modalStepped.includes('value="900"') && hasNum(modalStepped, "900 ₽/ч") && !modalStepped.includes("855 ₽") && !modalStepped.includes("45 ₽"), "expected -100 step to update offerPrice to 900 without showing commission split");
 
     clickAction(env5, { a: "book-submit" });
     await flushMicrotasks(4);
     assert(!env5.elements.get("modal-root").innerHTML.trim(), "expected booking modal closed after submit");
+    const bookSideToast = env5.elements.get("toast");
+    assert(bookSideToast.className === "toast is-side" && bookSideToast.innerHTML.includes("Предложение передано преподавателю"), "expected side notification after submitting booking bid");
     const afterBookHtml = env5.elements.get("main").innerHTML;
     assert(afterBookHtml.includes("На рассмотрении · уведомим") && (afterBookHtml.includes("4\u00a0100 ₽") || afterBookHtml.includes("4 100 ₽")), "expected 900 ₽ reserved from 5 000 ₽ balance");
 
@@ -963,10 +967,16 @@
     await flushMicrotasks(4);
     const bbHtml = env5.elements.get("main").innerHTML;
     assert(bbHtml.includes('id="brandbook-page"') && bbHtml.includes('data-bb-pane="light"') && bbHtml.includes('data-bb-pane="dark"') && bbHtml.includes("Синий фон") && bbHtml.includes("hh-price-old") && bbHtml.includes("Inter") && bbHtml.includes("#F97316") && bbHtml.includes('id="bb-buttons"') && bbHtml.includes('id="bb-bounds"') && bbHtml.includes("bb-phone-frame"), "expected brandbook with white/dark/blue surfaces, orange notifications #F97316, full button/heart/icon catalog, spacing boundaries and mobile 390px frame");
-    assert(bbHtml.includes('id="bb-sliders"') && bbHtml.includes('id="bb-hour-range-clean"') && bbHtml.includes('id="bb-hour-range-ticks"') && bbHtml.includes('id="bb-hour-range-ruler"') && bbHtml.includes('id="bb-motion"') && bbHtml.includes("bb-blueprint-grid") && bbHtml.includes('data-a="bb-day" data-v="sat"'), "expected 3 brandbook sliders, motion transitions section, visual blueprint boundary cards and clickable Сб/Вс/Пн day buttons");
+    assert(bbHtml.includes('id="bb-sliders"') && bbHtml.includes('id="bb-hour-range-clean"') && bbHtml.includes('id="bb-hour-range-ticks"') && bbHtml.includes('id="bb-hour-range-ruler"') && bbHtml.includes('id="bb-motion"') && bbHtml.includes('id="bb-responsive"') && bbHtml.includes('id="bb-vp-slider"') && bbHtml.includes("bb-blueprint-grid") && bbHtml.includes('data-a="bb-day" data-v="sat"') && !bbHtml.includes("Нажми «Предложить» для перехода") && !bbHtml.includes("5%:"), "expected 3 brandbook sliders, responsive lab, clean CTA card without clipped hint or commission string");
     clickAction(env5, { a: "bb-day", v: "sat" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes('class="day-cir on" data-a="bb-day" data-v="sat"') && env5.elements.get("main").innerHTML.includes('data-bb="day-label">Сб 14'), "expected clicking Сб 14 in brandbook to activate Saturday and update mobile day readout");
+    clickAction(env5, { a: "bb-vp", w: "320" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("max-width:320px") && env5.elements.get("main").innerHTML.includes("Mini · 1 кол. узкая"), "expected bb-vp=320 to resize responsive container sandbox and update mode badge");
+    clickAction(env5, { a: "bb-vp", w: "768" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("max-width:768px") && env5.elements.get("main").innerHTML.includes("Tablet · 2 кол."), "expected bb-vp=768 to switch responsive container sandbox to Tablet mode");
     clickAction(env5, { a: "bb-slider-style", v: "ruler" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes("hh-time-range is-ruler"), "expected selecting ruler slider variant to apply is-ruler style across previews");
@@ -975,7 +985,10 @@
     assert(hasNum(env5.elements.get("main").innerHTML, "2 400 ₽") && env5.elements.get("main").innerHTML.includes("выше рынка") && env5.elements.get("main").innerHTML.includes("diff-tag pro"), "expected above-market preset 2 400 ₽ to display purple high-qualification tags");
     clickAction(env5, { a: "bb-bid" });
     await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("is-confirmed") && env5.elements.get("main").innerHTML.includes("✓ Подтверждено"), "expected brandbook Подтвердить CTA to transition into green Подтверждено state");
+    const bbAfterBid = env5.elements.get("main").innerHTML;
+    const bbSideToast = env5.elements.get("toast");
+    assert(bbAfterBid.includes("is-confirmed") && bbAfterBid.includes("✓ Подтверждено") && !bbAfterBid.includes("переход выполнен"), "expected brandbook Подтвердить CTA to transition into green Подтверждено without overflow hint");
+    assert(bbSideToast.className === "toast is-side" && bbSideToast.innerHTML.includes("Предложение передано преподавателю") && !bbSideToast.innerHTML.includes("WhatsApp"), "expected brandbook Подтвердить CTA to trigger side notification without literal WhatsApp text");
     clickAction(env5, { a: "bb-bounds-toggle" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes("hide-guides"), "expected bounds toggle to switch blueprint guide visibility");
@@ -989,6 +1002,16 @@
     await flushMicrotasks(2);
     const bbDarkOnly = env5.elements.get("main").innerHTML;
     assert(!bbDarkOnly.includes('data-bb-pane="light"') && bbDarkOnly.includes('data-bb-pane="dark"'), "expected brandbook dark-only mode toggle");
+
+    clickAction(env5, { a: "go", v: "fees" });
+    await flushMicrotasks(4);
+    const feesHtml = env5.elements.get("main").innerHTML;
+    assert(feesHtml.includes('id="fees-page"') && feesHtml.includes("5%") && hasNum(feesHtml, "760 ₽") && feesHtml.includes("40 ₽"), "expected dedicated /fees page showing 5% system fee and 760/40 split");
+    clickAction(env5, { a: "fees-rate", rate: "2000" });
+    await flushMicrotasks(2);
+    const feesUpdated = env5.elements.get("main").innerHTML;
+    assert(hasNum(feesUpdated, "1 900 ₽") && feesUpdated.includes("100 ₽"), "expected /fees calculator preset to recalculate 95%/5% split for 2000");
+
     clickAction(env5, { a: "go", v: "landing" });
     await flushMicrotasks(2);
 

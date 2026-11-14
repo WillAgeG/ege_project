@@ -623,6 +623,11 @@ def test_landing_and_tutors_catalog(tmp_path: Path) -> None:
         assert r_bb.status_code == 200
         assert 'src="app.js"' in r_bb.text
 
+        r_fees = client.get("/fees")
+        assert r_fees.status_code == 200
+        assert "window.EGE_HOST={backend:true,landing:true}" in r_fees.text
+        assert 'src="app.js"' in r_fees.text
+
         r_js = client.get("/data/tutors.js")
         assert r_js.status_code == 200
         assert "javascript" in r_js.headers["content-type"]
