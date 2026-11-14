@@ -1,4 +1,4 @@
-/* SVG-иконки, логотип «Вектор ЕГЭ», каталог 38 иконок (вкл. Оһуор/Дьүкээбил) и триггер анимации. */
+/* SVG-иконки, логотип «Вектор ЕГЭ», каталог 40 иконок, якутские узоры Оһуор / Харысхал / Күн и триггер анимации. */
 (function () {
   "use strict";
 
@@ -55,8 +55,10 @@
     pin: '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>',
     lock: '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
     plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
-    sakha: '<path d="M12 4c-2.8 0-4.2 1.8-4.2 4.2 0 1.8 1.4 3.1 2.7 3.8-1.9.8-3.5 2.4-3.5 4.8 0 1.9 1.3 3.2 3 3.2 1.1 0 2-.9 2-2.2V4z"/><path d="M12 4c2.8 0 4.2 1.8 4.2 4.2 0 1.8-1.4 3.1-2.7 3.8 1.9.8 3.5 2.4 3.5 4.8 0 1.9-1.3 3.2-3 3.2-1.1 0-2-.9-2-2.2V4z"/><circle cx="12" cy="12" r="1.2"/>',
-    aurora: '<path d="M3 18l5-6 4 4 4-5 5 7"/><path d="M5 9c2.5-3 4.5-3 7 0s4.5 3 7 0"/><circle cx="12" cy="4.5" r=".8"/>'
+    ohyorCross: '<polygon points="12,3 21,12 12,21 3,12"/><polygon points="12,8 16,12 12,16 8,12"/><line x1="12" y1="1.2" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="22.8"/><line x1="1.2" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="22.8" y2="12"/><line x1="7.5" y1="7.5" x2="5.2" y2="5.2"/><line x1="16.5" y1="7.5" x2="18.8" y2="5.2"/><line x1="7.5" y1="16.5" x2="5.2" y2="18.8"/><line x1="16.5" y1="16.5" x2="18.8" y2="18.8"/>',
+    sakhaStar: '<polygon points="12,2 14,7.5 12,10.5 10,7.5"/><polygon points="12,22 14,16.5 12,13.5 10,16.5"/><polygon points="2,12 7.5,10 10.5,12 7.5,14"/><polygon points="22,12 16.5,10 13.5,12 16.5,14"/><polygon points="4.8,4.8 9.2,7.2 10.5,10.5 7.2,9.2"/><polygon points="19.2,4.8 16.8,9.2 13.5,10.5 14.8,7.2"/><polygon points="19.2,19.2 14.8,16.8 13.5,13.5 16.8,14.8"/><polygon points="4.8,19.2 7.2,14.8 10.5,13.5 9.2,16.8"/><circle cx="12" cy="12" r="1.2"/>',
+    sakhaLattice: '<polygon points="12,2.5 21.5,12 12,21.5 2.5,12"/><polygon points="12,7 17,12 12,17 7,12"/><line x1="7.2" y1="7.2" x2="16.8" y2="16.8"/><line x1="16.8" y1="7.2" x2="7.2" y2="16.8"/>',
+    sakhaKun: '<circle cx="12" cy="12" r="9.5"/><circle cx="12" cy="12" r="5"/><polygon points="12,2 13.6,4 12,6 10.4,4"/><polygon points="12,18 13.6,20 12,22 10.4,20"/><polygon points="2,12 4,10.4 6,12 4,13.6"/><polygon points="18,12 20,10.4 22,12 20,13.6"/><path d="M9.6 9.6c1.5-1.2 3.3-1.2 4.8 0M9.6 14.4c1.5 1.2 3.3 1.2 4.8 0"/>'
   };
 
   function icon(name) {
@@ -67,18 +69,106 @@
     );
   }
 
+  function sakhaStarCoreSVG() {
+    // Точная D4-симметрия 8-лучевого якутского узора (параллелограммы 45°, 4 внешних ромба, полый центр)
+    const pts = [[1.55, 3.55], [1.55, 12.80], [10.80, 22.05], [10.80, 12.80]];
+    const petals = [];
+    for (const [sa, sb] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) {
+      const p1 = pts.map(([a, b]) => `${(32 + sa * a).toFixed(2)},${(32 - sb * b).toFixed(2)}`).join(" ");
+      const p2 = pts.map(([a, b]) => `${(32 + sa * b).toFixed(2)},${(32 - sb * a).toFixed(2)}`).join(" ");
+      petals.push(`<polygon points="${p1}" fill="currentColor" stroke="none"/><polygon points="${p2}" fill="currentColor" stroke="none"/>`);
+    }
+    const cardinal = [
+      "32,4.50 36.06,8.56 32,12.62 27.94,8.56",
+      "51.38,32 55.44,27.94 59.50,32 55.44,36.06",
+      "32,51.38 36.06,55.44 32,59.50 27.94,55.44",
+      "4.50,32 8.56,27.94 12.62,32 8.56,36.06"
+    ].map((p) => `<polygon points="${p}" fill="currentColor" stroke="none"/>`).join("");
+    const center = '<path d="M32 29.30L34.70 32 32 34.70 29.30 32ZM32 30.50L30.50 32 32 33.50 33.50 32Z" fill="currentColor" fill-rule="evenodd" stroke="none"/>';
+    return petals.join("") + cardinal + center;
+  }
+
+  function sakhaPatternSVG(kind, size) {
+    const px = Number(size) || 44;
+    let body = "";
+    if (kind === "kun") {
+      body =
+        '<circle cx="32" cy="32" r="29" stroke-width="2" stroke-dasharray="2.1 2.4"/>' +
+        '<circle cx="32" cy="32" r="24.5" stroke-width="1.8"/>' +
+        '<circle cx="32" cy="32" r="14.5" stroke-width="1.5"/>' +
+        '<polygon points="32,14.5 36.2,19.5 32,24.5 27.8,19.5" stroke-width="1.4"/>' +
+        '<polygon points="32,39.5 36.2,44.5 32,49.5 27.8,44.5" stroke-width="1.4"/>' +
+        '<polygon points="14.5,32 19.5,27.8 24.5,32 19.5,36.2" stroke-width="1.4"/>' +
+        '<polygon points="39.5,32 44.5,27.8 49.5,32 44.5,36.2" stroke-width="1.4"/>' +
+        '<path d="M32 32c-4-3.2-5.8-8-2.4-9.8 2.2-1.2 3.8 1.5 2.4 4.2M32 32c4-3.2 5.8-8 2.4-9.8-2.2-1.2-3.8 1.5-2.4 4.2M32 32c-4 3.2-5.8 8-2.4 9.8 2.2 1.2 3.8-1.5 2.4-4.2M32 32c4 3.2 5.8 8 2.4 9.8-2.2 1.2-3.8-1.5-2.4-4.2" stroke-width="1.5"/>' +
+        '<path d="M32 32c-3.2-4-8-5.8-9.8-2.4-1.2 2.2 1.5 3.8 4.2 2.4M32 32c3.2-4 8-5.8 9.8-2.4 1.2 2.2-1.5 3.8-4.2 2.4M32 32c-3.2 4-8 5.8-9.8 2.4-1.2-2.2 1.5-3.8 4.2-2.4M32 32c3.2 4 8 5.8 9.8 2.4 1.2-2.2-1.5-3.8-4.2-2.4" stroke-width="1.5"/>';
+    } else if (kind === "star") {
+      body = sakhaStarCoreSVG();
+    } else if (kind === "lattice") {
+      body =
+        '<polygon points="32,6 58,32 32,58 6,32" stroke-width="2.2"/>' +
+        '<polygon points="32,16 48,32 32,48 16,32" stroke-width="2"/>' +
+        '<polygon points="32,25 39,32 32,39 25,32" stroke-width="2"/>' +
+        '<line x1="15" y1="15" x2="49" y2="49" stroke-width="2"/>' +
+        '<line x1="49" y1="15" x2="15" y2="49" stroke-width="2"/>' +
+        '<line x1="21" y1="11" x2="53" y2="43" stroke-width="1.4" opacity=".7"/>' +
+        '<line x1="11" y1="21" x2="43" y2="53" stroke-width="1.4" opacity=".7"/>' +
+        '<line x1="43" y1="11" x2="11" y2="43" stroke-width="1.4" opacity=".7"/>' +
+        '<line x1="53" y1="21" x2="21" y2="53" stroke-width="1.4" opacity=".7"/>';
+    } else {
+      body =
+        '<polygon points="32,10 54,32 32,54 10,32" stroke-width="2.4"/>' +
+        '<polygon points="32,20 44,32 32,44 20,32" stroke-width="2"/>' +
+        '<polygon points="32,27 37,32 32,37 27,32" fill="currentColor" stroke="none"/>' +
+        '<path d="M21 21l-5-5M26.5 15.5l-5-5M15.5 26.5l-5-5M43 21l5-5M37.5 15.5l5-5M48.5 26.5l5-5M21 43l-5 5M26.5 48.5l-5 5M15.5 37.5l-5 5M43 43l5 5M37.5 48.5l5 5M48.5 37.5l5 5" stroke-width="2.1"/>';
+    }
+    return `<svg width="${px}" height="${px}" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+  }
+
   function sakhaOhyorHTML(label) {
     const ornament =
-      '<svg width="56" height="16" viewBox="0 0 56 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-      '<path d="M3 8h10M43 8h10"/>' +
-      '<path d="M28 2.2c-3.2 0-5 2-5 4.5 0 1.7 1.3 2.8 2.8 3.2-1.8.6-3.1 1.9-3.1 3.5 0 1.4 1.1 2 2.3 2 1.6 0 3-1.4 3-3.6V2.2z"/>' +
-      '<path d="M28 2.2c3.2 0 5 2 5 4.5 0 1.7-1.3 2.8-2.8 3.2 1.8.6 3.1 1.9 3.1 3.5 0 1.4-1.1 2-2.3 2-1.6 0-3-1.4-3-3.6V2.2z"/>' +
+      '<svg width="64" height="18" viewBox="0 0 64 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M2 9h14M48 9h14"/>' +
+      '<polygon points="32,2 40,9 32,16 24,9"/>' +
+      '<polygon points="32,5.5 35.5,9 32,12.5 28.5,9"/>' +
+      '<polygon points="20,9 22,7 24,9 22,11" fill="currentColor" stroke="none"/>' +
+      '<polygon points="40,9 42,7 44,9 42,11" fill="currentColor" stroke="none"/>' +
       "</svg>";
-    return `<div class="sakha-divider" aria-label="${label || "Орнамент Оһуор"}"><span class="sakha-div-line" aria-hidden="true"></span><span class="sakha-div-emblem">${ornament}${label ? `<span class="sakha-div-label">${label}</span>` : ""}</span><span class="sakha-div-line" aria-hidden="true"></span></div>`;
+    return `<div class="sakha-divider" aria-label="${label || "Якутский узор Оһуор"}"><span class="sakha-div-line" aria-hidden="true"></span><span class="sakha-div-emblem">${ornament}${label ? `<span class="sakha-div-label">${label}</span>` : ""}</span><span class="sakha-div-line" aria-hidden="true"></span></div>`;
   }
 
   const BRAND_MARK_HTML =
-    '<span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><rect x="5" y="20" width="4" height="7" rx="2" fill="#fff" opacity=".7"/><rect x="11" y="16.5" width="4" height="10.5" rx="2" fill="#fff" opacity=".85"/><rect x="17" y="12.5" width="4" height="14.5" rx="2" fill="#fff"/><path d="M5.5 15Q15 9.5 26.5 4.9" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/><path d="M21.8 4.9h4.8v4.8" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
+    `<span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 64 64" fill="none">${sakhaStarCoreSVG()}</svg></span>`;
+
+  const BRAND_WORDMARK_HTML =
+    '<span class="brand-wordmark-wrap">' +
+    '<svg class="brand-wordmark" viewBox="0 0 144 30" fill="none" stroke="currentColor" stroke-width="2.55" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<g class="wm-main">' +
+    '<path d="M3 22.5V6h7.2l2.6 2.6v3.2l-2.4 2.4H3"/>' +
+    '<path d="M10.4 14.2l3 2.6v3.2l-2.6 2.5H3"/>' +
+    '<path d="M17.5 16.4H27v-2.9L24.5 11H20l-2.5 2.5V20l2.5 2.5h5l1.8-1.8"/>' +
+    '<path d="M31.5 11v11.5M40.8 11l-6.6 5.7 7 5.8M31.5 16.7h3"/>' +
+    '<path d="M44.5 11h11M50 11v11.5"/>' +
+    '<path d="M61 11h5l2.5 2.5V20L66 22.5h-5L58.5 20v-6.5Z"/>' +
+    '<path d="M73 11v16.5M73 11h7.2l2.6 2.6v6.3l-2.6 2.6H73"/>' +
+    '</g>' +
+    '<polygon class="wm-diamond" points="90,11.6 93,14.6 90,17.6 87,14.6" fill="currentColor" stroke="none"/>' +
+    '<g class="wm-ege">' +
+    '<path d="M108 6h-8.2L97.5 8.3v11.9l2.3 2.3H108M97.5 14.2h8.5"/>' +
+    '<path d="M113.5 22.5V8.3l2.3-2.3h8"/>' +
+    '<path d="M128.5 6h9l2.7 2.7v11.1l-2.7 2.7h-9M130.5 14.2h9.7"/>' +
+    '</g>' +
+    "</svg>" +
+    '<span class="sr">Вектор ЕГЭ</span>' +
+    "</span>";
+
+  function brandLockupHTML(opts) {
+    opts = opts || {};
+    const surfAttr = opts.surface ? ` data-surface="${opts.surface}"` : "";
+    const tagHTML = opts.tag ? `<span class="brand-tag">${opts.tag}</span>` : "";
+    const subHTML = opts.sub ? `<div class="brand-sub">${opts.sub}</div>` : "";
+    return `<div class="brand-lockup"${surfAttr}>${BRAND_MARK_HTML}<div class="brand-text"><div class="brand-name">${BRAND_WORDMARK_HTML}${tagHTML}</div>${subHTML}</div></div>`;
+  }
 
   const GOOGLE_SVG =
     '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5a5.6 5.6 0 0 1-2.4 3.6v3h3.9c2.3-2.1 3.5-5.2 3.5-8.8z"/><path fill="#34A853" d="M12 24c3.2 0 6-1.1 8-3l-3.9-3c-1.1.7-2.5 1.2-4.1 1.2-3.1 0-5.8-2.1-6.8-5H1.2v3.1A12 12 0 0 0 12 24z"/><path fill="#FBBC05" d="M5.2 14.2A7.2 7.2 0 0 1 4.8 12c0-.8.1-1.5.4-2.2V6.7H1.2A12 12 0 0 0 0 12c0 1.9.5 3.8 1.2 5.3l4-3.1z"/><path fill="#EA4335" d="M12 4.8c1.8 0 3.3.6 4.6 1.8l3.4-3.4A11.9 11.9 0 0 0 12 0 12 12 0 0 0 1.2 6.7l4 3.1c1-2.9 3.7-5 6.8-5z"/></svg>';
@@ -121,8 +211,10 @@
       ["gear", "Настройки", "var(--ink-2)", "", "spin-180", "Поворот 180°"],
       [dark ? "sun" : "moon", "Смена темы", "var(--ink-2)", "", "spin-pop", "Тема 360°"],
       ["logout", "Выход", "var(--bad)", "", "fly", "Выход"],
-      ["sakha", "Орнамент Оһуор", "var(--accent)", "", "twinkle", "Узор Саха"],
-      ["aurora", "Дьүкээбил (Сияние)", "var(--confirm)", "", "twinkle", "Сияние"]
+      ["ohyorCross", "Харысхал · Ромб", "var(--ink)", "", "pop-bounce", "Геометрия"],
+      ["sakhaStar", "Сулус · Звезда Саха", "var(--accent)", "", "spin-pop", "8 лучей"],
+      ["sakhaLattice", "Тоҕус харах · Узор", "var(--ink-2)", "", "twinkle", "Решётка"],
+      ["sakhaKun", "Күн Оһуор · Солнце", "#C59B5F", "", "spin-pop", "Медальон"]
     ];
   }
 
@@ -142,8 +234,11 @@
   EGE.ui = {
     ICONS,
     icon,
+    sakhaPatternSVG,
     sakhaOhyorHTML,
     BRAND_MARK_HTML,
+    BRAND_WORDMARK_HTML,
+    brandLockupHTML,
     GOOGLE_SVG,
     getIconCatalog,
     triggerIconTileAnim

@@ -5,8 +5,18 @@
   const root = typeof globalThis !== "undefined" ? globalThis : window;
   const EGE = (root.EGE = root.EGE || {});
   const { esc, rich, plural, initials } = EGE.utils;
-  const { icon, sakhaOhyorHTML, BRAND_MARK_HTML } = EGE.ui;
-  const { bidBtnLabelHTML, priceHeadlineHTML, priceDiffTagsHTML, sliderTicksHTML, hhSelectHTML } = EGE.hh;
+  const { icon, sakhaPatternSVG, sakhaOhyorHTML, BRAND_MARK_HTML, brandLockupHTML } = EGE.ui;
+  const { bidBtnLabelHTML, sakhaBidInnerHTML, priceHeadlineHTML, priceDiffTagsHTML, sliderTicksHTML, hhSelectHTML } = EGE.hh;
+  const {
+    heroBannerHTML,
+    sentNoticeHTML,
+    marqueePillsHTML,
+    rateBenchCardHTML,
+    trustStripHTML,
+    aiErrorBoxesHTML,
+    reviewCardHTML,
+    faqListHTML
+  } = EGE.kit;
 
   let _ctx = {};
 
@@ -85,8 +95,11 @@
 
   function motionStatusHTML(meta) {
     if (meta.m.sent) {
-      return `<span class="row" style="gap:7px;align-items:center"><span class="live-dot" style="background:var(--confirm)" aria-hidden="true"></span><b style="color:var(--confirm)">Подтверждено · ${esc(meta.slot)} · ${meta.offer.toLocaleString("ru-RU")} ₽</b></span>
-        <span class="chip confirm">Заявка отправлена · уведомим</span>`;
+      return sentNoticeHTML({
+        slot: meta.slot,
+        offer: meta.offer,
+        badgeText: "Уведомим"
+      });
     }
     return `<span class="small muted">Заявка уйдёт с ценой <b class="num">${meta.offer.toLocaleString("ru-RU")} ₽/ч</b> на ${esc(meta.slot)}</span>
       <button type="button" class="link-btn small" data-a="motion-book-now">Выбрать день →</button>`;
@@ -146,8 +159,8 @@
           </div>
           <button type="button" class="hh-step-btn${m.hitTarget === "plus" ? " is-hit" : ""}" id="hero-price-plus" data-a="motion-step-price" data-step="100" aria-label="Повысить цену на 100 рублей">+100 ₽</button>
         </div>
-        <button type="button" class="btn motion-bid-btn${(m.clicking && m.hitTarget === "bid") ? " is-pressed" : ""}${m.sent ? " is-confirmed" : ""}" id="hero-motion-bid-btn" data-a="motion-bid-press" data-mstep-target="2">
-          <span data-m="offer-btn-lbl">${bidBtnLabelHTML(m.sent, offer)}</span>
+        <button type="button" class="btn sakha-pattern motion-bid-btn${(m.clicking && m.hitTarget === "bid") ? " is-pressed" : ""}${m.sent ? " is-confirmed" : ""}" id="hero-motion-bid-btn" data-a="motion-bid-press" data-mstep-target="2">
+          ${sakhaBidInnerHTML(m.sent, offer, { attr: 'data-m="offer-btn-lbl"' })}
         </button>
         <div class="hh-motion-status${m.sent ? " sent" : ""}" id="hero-motion-status" data-mstep-target="3" data-m="status-strip">
           ${motionStatusHTML(meta)}
@@ -158,16 +171,8 @@
   function heroMotionStageHTML() {
     const ui = getUi();
     const m = ui.motion || { playing: true };
-    return `<div class="hero-iphone-bezel" aria-label="Демонстрация моушен-дизайна на новейшем iPhone Pro">
-      <div class="hero-iphone-top">
-        <span class="hero-iphone-spec">5G · YKT / РФ</span>
-        <span class="hero-iphone-island"><i aria-hidden="true"></i><span>iPhone 17 Pro · Motion UI</span></span>
-        <span class="hero-iphone-spec">120 Hz</span>
-      </div>
-      <div class="motion-stage${m.playing ? "" : " paused"}" id="hero-motion-stage" aria-label="Быстрый выбор времени и цены">
-        ${heroMotionInnerHTML()}
-      </div>
-      <div class="hero-iphone-bar" aria-hidden="true"></div>
+    return `<div class="motion-stage${m.playing ? "" : " paused"}" id="hero-motion-stage" aria-label="Быстрый выбор времени и цены">
+      ${heroMotionInnerHTML()}
     </div>`;
   }
 
@@ -375,15 +380,10 @@
   function marqueeSectionHTML() {
     const TDATA = getTDATA();
     if (!TDATA || !TDATA.PREP_UNIVERSE || !TDATA.LIVE_DEALS) return "";
-    const uItems = TDATA.PREP_UNIVERSE.concat(TDATA.PREP_UNIVERSE);
-    const dItems = TDATA.LIVE_DEALS.concat(TDATA.LIVE_DEALS);
-    const row1 = uItems.map((it) => {
-      const goal = it.label.indexOf("ЕГЭ") >= 0 ? "ЕГЭ" : (it.label.indexOf("ОГЭ") >= 0 ? "ОГЭ" : "all");
-      return `<button type="button" class="marquee-pill" data-a="hero-cat" data-subj="${esc(it.subject)}" data-exam="${goal}"><b>${esc(it.label)}</b><span>${esc(it.meta)}</span></button>`;
-    }).join("");
-    const row2 = dItems.map((d) => {
-      return `<button type="button" class="marquee-pill" data-a="land-scroll" data-target="land-market"><b>${esc(d.topic)} · ${d.paid.toLocaleString("ru-RU")} ₽/ч</b><span>${esc(d.tag)}</span></button>`;
-    }).join("");
+    const { row1, row2 } = marqueePillsHTML({
+      universe: TDATA.PREP_UNIVERSE.concat(TDATA.PREP_UNIVERSE),
+      deals: TDATA.LIVE_DEALS.concat(TDATA.LIVE_DEALS)
+    });
     return `<section class="stack" style="gap:8px" aria-label="Направления подготовки и недавние ставки ниже рынка">
       <div class="marquee-band">
         <div class="marquee-row left">${row1}</div>
@@ -859,30 +859,16 @@
       const avgMarket = Math.round(tutors.reduce((s, t) => s + (t.marketPrice || Math.round(t.price * 1.45)), 0) / tutors.length / 50) * 50;
       const savePct = avgMarket > minRate ? Math.round(((avgMarket - minRate) / avgMarket) * 100) : 35;
       const barPct = Math.max(32, Math.min(88, Math.round((minRate / Math.max(1, avgMarket)) * 100)));
-      const hasPro = maxRate >= 1400;
-      return `<button type="button" class="rate-bench-card" data-a="hero-cat" data-subj="${sid}" data-exam="all">
-        <div class="row between" style="gap:6px;flex-wrap:wrap">
-          <b style="font-size:15px">${esc(sb.short)}</b>
-          ${hasPro ? `<span class="diff-tag pro">Профи до ${maxRate.toLocaleString("ru-RU")} ₽</span>` : `<span class="diff-tag save-cyan num">−${savePct}%</span>`}
-        </div>
-        <div class="hh-price-row">
-          <s class="hh-price-old num">${avgMarket.toLocaleString("ru-RU")} ₽</s>
-          <b class="hh-price-now num">от ${minRate.toLocaleString("ru-RU")} ₽/ч</b>
-        </div>
-        <div class="rate-bars">
-          <div class="rate-bar-row">
-            <span class="muted">Рынок</span>
-            <div class="rate-bar-track"><div class="rate-bar-fill" style="width:100%"></div></div>
-            <span class="muted num">${avgMarket.toLocaleString("ru-RU")} ₽</span>
-          </div>
-          <div class="rate-bar-row">
-            <span>У нас</span>
-            <div class="rate-bar-track"><div class="rate-bar-fill ours" style="width:${barPct}%"></div></div>
-            <b class="num" style="color:var(--accent)">${minRate.toLocaleString("ru-RU")} ₽</b>
-          </div>
-        </div>
-        <span class="small muted">Нажми, чтобы открыть анкеты →</span>
-      </button>`;
+      return rateBenchCardHTML({
+        sid,
+        title: esc(sb.short),
+        minRate,
+        maxRate,
+        avgMarket,
+        savePct,
+        barPct,
+        hasPro: maxRate >= 1400
+      });
     }).join("");
     return `<section class="land-sec" id="land-rates" aria-label="Аналитика ставок по предметам">
       <div class="land-sec-head">
@@ -937,43 +923,12 @@
         </div>
         <div class="chip-rail">${subjButtons}</div>
       </div>
-      <div class="land-ai-grid">
-        <div class="ai-err-box">
-          <div class="row between"><span class="chip">${esc(item.topic)}</span><span class="small muted">Задание КИМ</span></div>
-          <b>${esc(item.question)}</b>
-          <span class="small muted" style="padding:8px 10px;border-radius:10px;background:var(--surface);border:1px solid var(--line)">${esc(item.mistake)}</span>
-        </div>
-        <div class="ai-fix-box">
-          <div class="row between" style="gap:8px;flex-wrap:wrap">
-            <span class="row" style="gap:6px"><span class="ai-spark-ico" aria-hidden="true">${icon("spark")}</span><b>Разбор ИИ-помощника</b></span>
-            <span class="diff-tag pro num">${esc(item.delta)}</span>
-          </div>
-          <p class="small ink2" style="line-height:1.55">${esc(item.aiFix)}</p>
-          <div class="stack" style="gap:5px">
-            <div class="row between small"><span>Прогноз готовности к ЕГЭ</span><b class="num">${item.before} → ${item.after} / 100</b></div>
-            <div class="meter"><i style="width:${item.after}%"></i></div>
-          </div>
-          <div class="row" style="gap:8px;flex-wrap:wrap">
-            ${inside
-              ? `<button type="button" class="btn sm" data-a="go" data-v="tests">${esc(item.cta)} →</button>`
-              : `<button type="button" class="btn sm" data-a="auth-modal-open">Попробовать бесплатно (0 ₽) →</button>`}
-          </div>
-        </div>
-      </div>
+      ${aiErrorBoxesHTML(item, { inside })}
     </section>`;
   }
 
   function trustUnderPlansHTML() {
-    return `<div class="land-trust-strip" aria-label="Гарантии оплаты и баланса">
-      <div class="row" style="gap:12px;align-items:center;flex:1 1 320px;min-width:0">
-        <span class="land-trust-ico" aria-hidden="true">${icon("shield")}</span>
-        <div class="stack" style="gap:2px;min-width:0">
-          <b>Защита баланса · 0 ₽ лишних списаний до подтверждения</b>
-          <span class="small ink2">Деньги бронируются только на время ожидания ответа. Если репетитор не подошёл — бесплатная замена за 15 мин с сохранением остатка.</span>
-        </div>
-      </div>
-      <a href="/fees" class="btn ghost sm" data-a="go" data-v="fees">Правила оплаты и защиты →</a>
-    </div>`;
+    return trustStripHTML();
   }
 
   function reviewsSectionHTML() {
@@ -984,27 +939,7 @@
           <h2 class="h2">Как ученики находят преподавателей и экономят до 53% бюджета</h2>
         </div>
       </div>
-      <div class="land-reviews-grid">
-        ${LAND_REVIEWS.map((r) => `<article class="review-card">
-          <div class="stack" style="gap:10px">
-            <div class="row between" style="gap:6px;flex-wrap:wrap">
-              <span class="diff-tag ${r.pro ? "pro" : "confirm"}">${esc(r.badge)}</span>
-            </div>
-            <p class="review-quote">«${esc(r.text)}»</p>
-          </div>
-          <div class="stack" style="gap:8px;padding-top:8px;border-top:1px dashed var(--line)">
-            <div class="hh-price-row">
-              ${r.pro
-                ? `<b class="num" style="font-size:15px">Ставка от ${r.newPrice.toLocaleString("ru-RU")} ₽/ч</b><span class="diff-tag pro">Профи</span>`
-                : `<s class="hh-price-old num">${r.oldPrice.toLocaleString("ru-RU")} ₽</s><b class="num" style="font-size:15px;color:var(--accent)">${r.newPrice.toLocaleString("ru-RU")} ₽/ч</b>`}
-            </div>
-            <div class="stack" style="gap:1px">
-              <b style="font-size:14px">${esc(r.name)}</b>
-              <span class="small muted">${esc(r.role)}</span>
-            </div>
-          </div>
-        </article>`).join("")}
-      </div>
+      <div class="land-reviews-grid">${LAND_REVIEWS.map((r) => reviewCardHTML(r)).join("")}</div>
     </section>`;
   }
 
@@ -1018,79 +953,23 @@
           <h2 class="h2">Частые вопросы перед первой заявкой</h2>
         </div>
       </div>
-      <div class="land-faq-list">
-        ${LAND_FAQ_ITEMS.map((item, idx) => {
-          const isOpen = openIdx === idx;
-          return `<div class="faq-item${isOpen ? " open" : ""}">
-            <button type="button" class="faq-btn" data-a="land-faq" data-i="${idx}" aria-expanded="${isOpen}">
-              <span>${esc(item.q)}</span>
-              <span class="faq-chev">${icon("chevDown")}</span>
-            </button>
-            ${isOpen ? `<div class="faq-ans">${esc(item.a)}${item.hasFeesLink ? ` <a href="/fees" data-a="go" data-v="fees" style="color:var(--accent);font-weight:600">Подробнее об оплате и правилах расчётов →</a>` : ""}</div>` : ""}
-          </div>`;
-        }).join("")}
-      </div>
+      ${faqListHTML(LAND_FAQ_ITEMS, openIdx, "land-faq")}
     </section>`;
   }
 
-  function yakutiaAndIphoneSectionHTML() {
+  function heroPhotoBannerHTML(opts) {
+    opts = opts || {};
+    const TDATA = getTDATA();
     const ui = getUi();
-    const sakhaOn = !!ui.landSakhaSent;
-    const m = ui.motion || { preset: "design" };
-    return `<section class="land-sec" id="land-yakutia-iphone" aria-label="Новый iPhone и природа Якутии">
-      <div class="land-sec-head">
-        <div>
-          <div class="eyebrow">iPhone Pro Motion × Саха сирэ · Ленские столбы</div>
-          <h2 class="h2">Мобильный моушен-дизайн и корни проекта в Якутии</h2>
-        </div>
-        <span class="chip sakha">${icon("sakha")}<span>Единые компоненты из /brandbook</span></span>
-      </div>
-      <div class="land-media-showcase">
-        <article class="land-photo-card is-iphone">
-          <div class="land-photo-frame">
-            <img src="/assets/iphone-motion.jpg" alt="Новейший титановый iPhone Pro Max с моушен-интерфейсом подбора цены" decoding="sync">
-            <div class="land-photo-scrim"></div>
-            <div class="land-photo-badges">
-              <span class="chip" style="background:rgba(15,23,42,.82);color:#fff;border:1px solid rgba(255,255,255,.22)">${icon("video")}<span>iPhone 17 Pro · Моушен-интерфейс</span></span>
-              <span class="chip confirm">Плавный шаг ±100 ₽</span>
-            </div>
-          </div>
-          <div class="land-photo-body">
-            <div class="stack" style="gap:6px">
-              <b>Новейший iPhone и живой моушен-подбор в 120 Гц</b>
-              <p class="small ink2" style="margin:0">Титановая рамка Hero переносит мобильный моушен-дизайн прямо на первый экран: переключение предмета, выбор часа ползунком 10:00–20:00 и перевод кнопки #0070FF в зелёный статус подтверждения.</p>
-            </div>
-            <div class="row" style="gap:8px;flex-wrap:wrap">
-              <button type="button" class="btn soft sm${m.preset === "design" ? " is-confirmed" : ""}" data-a="land-iphone-preset" data-v="design">Моушен-дизайн · 1 200 ₽</button>
-              <button type="button" class="btn soft sm${m.preset === "inf" ? " is-confirmed" : ""}" data-a="land-iphone-preset" data-v="inf">Python / IT · 1 300 ₽</button>
-              <button type="button" class="btn ghost sm" data-a="go" data-v="brandbook">Правила в брендбуке →</button>
-            </div>
-          </div>
-        </article>
-
-        <article class="land-photo-card is-lena">
-          <div class="land-photo-frame">
-            <img src="/assets/lena-pillars.jpg" alt="Природа Якутии — Ленские столбы на рассвете над рекой Леной и северное сияние" decoding="sync">
-            <div class="land-photo-scrim"></div>
-            <div class="land-photo-badges">
-              <span class="chip sakha" style="background:rgba(9,30,50,.85);color:#bae6fd;border-color:rgba(125,211,252,.45)">${icon("aurora")}<span>Ленские столбы · Якутия</span></span>
-              <span class="chip" style="background:rgba(15,23,42,.82);color:#fff">Саха сирэ · 61°N</span>
-            </div>
-          </div>
-          <div class="land-photo-body">
-            <div class="stack" style="gap:8px">
-              ${sakhaOhyorHTML("Саха сирэ · Оһуор × Дьүкээбил")}
-              <b>Родом из Якутии — от Доски Ykt и MAX по всей стране</b>
-              <p class="small ink2" style="margin:0">Проект вырос в республике Саха, чтобы объединить разрозненные объявления Доски Ykt, Telegram, WhatsApp и MAX в единый интерфейс брендбука с якутскими кнопками Оһуор и Дьүкээбил.</p>
-            </div>
-            <div class="row" style="gap:8px;flex-wrap:wrap">
-              <button type="button" class="btn sakha${sakhaOn ? " is-confirmed" : ""}" data-a="land-sakha-bid">${icon("sakha")}<span>${sakhaOn ? "✓ Сөп · Заявка отправлена" : "Сөп · Предложить ставку"}</span></button>
-              <button type="button" class="btn sakha-aurora" data-a="land-sakha-filter">${icon("aurora")}<span>Дьүкээбил · Все анкеты Ykt / MAX</span></button>
-            </div>
-          </div>
-        </article>
-      </div>
-    </section>`;
+    const catalogTotal = TDATA && TDATA.CATALOG_TOTAL ? TDATA.CATALOG_TOTAL.toLocaleString("ru-RU") : "2 480";
+    const isDemo = !!opts.brandbookDemo;
+    const bb = (ui && ui.brandbook) || {};
+    return heroBannerHTML({
+      brandbookDemo: isDemo,
+      catalogTotal,
+      primaryActive: isDemo ? !!bb.heroSubmitted : !!ui.heroBannerSubmitted,
+      betaActive: isDemo ? !!bb.heroBetaOn : !!ui.heroBetaActive
+    });
   }
 
   function landingPageHTML(opts) {
@@ -1100,14 +979,6 @@
     const dark = typeof _ctx.effectiveDark === "function" ? _ctx.effectiveDark() : false;
     const catalogTotal = TDATA && TDATA.CATALOG_TOTAL ? TDATA.CATALOG_TOTAL.toLocaleString("ru-RU") : "2 480";
     const mktApi = EGE.views && EGE.views.marketplace;
-    const quickCats = [
-      ["design", "UX/UI и Моушен"],
-      ["inf", "Python и IT"],
-      ["eng", "Английский"],
-      ["bio", "Биология / Мед"],
-      ["math", "Математика"],
-      ["music", "Вокал и гитара"]
-    ];
 
     const ui = getUi();
     const minSamplePrice = (TDATA && TDATA.LIST && TDATA.LIST.length) ? Math.min(...TDATA.LIST.map((t) => t.price)) : 900;
@@ -1115,18 +986,11 @@
 
     return `<div class="land-page" data-inside="${inside ? 1 : 0}">
       <header class="land-top">
-        <div class="brand-lockup">
-          ${BRAND_MARK_HTML}
-          <div class="brand-text">
-            <div class="brand-name">Вектор ЕГЭ</div>
-            <div class="brand-sub">Огромная база · ниже рынка</div>
-          </div>
-        </div>
+        ${brandLockupHTML({ sub: "Огромная база · ниже рынка" })}
         <nav class="land-links" aria-label="Разделы лендинга">
-          <a href="#land-yakutia-iphone" data-a="land-scroll" data-target="land-yakutia-iphone">iPhone и Саха</a>
+          <a href="#land-motion-showcase" data-a="land-scroll" data-target="land-motion-showcase">Моушен</a>
           <a href="#land-match" data-a="land-scroll" data-target="land-match">Подбор</a>
           <a href="#land-rates" data-a="land-scroll" data-target="land-rates">Ставки</a>
-          <a href="#land-ai-study" data-a="land-scroll" data-target="land-ai-study">ИИ-разбор</a>
           <a href="#land-market" data-a="land-scroll" data-target="land-market">Репетиторы</a>
           <a href="#land-faq" data-a="land-scroll" data-target="land-faq">FAQ</a>
           <a href="/brandbook" data-a="go" data-v="brandbook">Брендбук</a>
@@ -1139,48 +1003,34 @@
         </div>
       </header>
 
+      ${heroPhotoBannerHTML({ brandbookDemo: false })}
+
+      ${marqueeSectionHTML()}
+
       <div class="hero-stage-wrap" id="hero-stage-wrap">
         <span class="hero-orb a" aria-hidden="true"></span>
         <span class="hero-orb b" aria-hidden="true"></span>
-        <section class="land-hero">
+        <section class="land-below-grid" id="land-motion-showcase">
           <div class="land-hero-copy">
             <div class="row" style="gap:6px;flex-wrap:wrap">
-              <span class="chip sakha">${icon("sakha")}<span>Саха сирэ × Вектор ЕГЭ</span></span>
-              <span class="chip accent">${catalogTotal}+ анкет · Ykt, TG, WA, MAX и др.</span>
-              <span class="chip">Ниже рынка на 35–53%</span>
-              <span class="chip pro">Ставка ±100 ₽ в 1 клик</span>
+              <span class="chip accent">${icon("ohyorCross")}<span>Живой подбор · шаг ±100 ₽</span></span>
+              <span class="chip pro">Без комиссии при выборе</span>
             </div>
-            <h1 class="land-h1">Ищи репетиторов <span class="land-h1-grad">ниже рынка</span> для подготовки к чему угодно</h1>
-            <p class="land-lead">Единая база анкет с Доски Ykt, Telegram, WhatsApp, MAX и других сервисов: ЕГЭ и ОГЭ, Python, UX/UI и моушен-дизайн, физика, вокал и ВУЗ. Выбирай час с 10:00 до 20:00, нажимай −100 ₽ и отправляй свою ставку.</p>
+            <h2 class="land-h1" style="font-size:clamp(24px,3vw,33px)">Назначай свою цену <span class="land-h1-grad">в один клик</span> и смотри отклики</h2>
+            <p class="land-lead">Ниже баннера — интерактивный виджет выбора преподавателя: двигай ползунок удобного времени 10:00–20:00, нажимай −100 ₽ / +100 ₽ и нажимай узорную кнопку «Сөп · Предложить» с мгновенным подтверждением и уведомлением.</p>
             <div class="land-hero-ctas">
-              <button type="button" class="btn" data-a="land-scroll" data-target="land-market">Найти ниже рынка</button>
+              <button type="button" class="btn" data-a="land-scroll" data-target="land-market">К каталогу анкет</button>
               <button type="button" class="btn soft" data-a="land-scroll" data-target="land-demo">Попробовать бета-тест</button>
               ${inside ? `<button type="button" class="btn ghost" data-a="go" data-v="tests">Перейти к тестам</button>` : ""}
             </div>
-            <div class="chip-rail" role="group" aria-label="Быстрый выбор направления">${quickCats.map(([sid, label]) => `<button type="button" class="chip-btn" data-a="hero-cat" data-subj="${sid}">${esc(label)}</button>`).join("")}</div>
             <div class="land-stats">
-              <div class="land-stat"><b>${catalogTotal}+ анкет</b><span>Ykt, Telegram, WhatsApp, MAX и др.</span></div>
-              <div class="land-stat"><b>Шаг ±100 ₽</b><span>Простая ставка ниже рынка</span></div>
-              <div class="land-stat"><b>10:00 – 20:00</b><span>Быстрый выбор окна и ответа</span></div>
+              <div class="land-stat"><b>${catalogTotal}+ анкет</b><span>Ykt, Telegram, WhatsApp, MAX</span></div>
+              <div class="land-stat"><b>Шаг ±100 ₽</b><span>Гибкая ставка ученика</span></div>
+              <div class="land-stat"><b>10:00 – 20:00</b><span>Почасовая сетка окон</span></div>
             </div>
           </div>
           ${heroMotionStageHTML()}
         </section>
-      </div>
-
-      ${marqueeSectionHTML()}
-
-      ${yakutiaAndIphoneSectionHTML()}
-
-      <div class="hh-blue-banner">
-        <div class="stack" style="gap:4px;max-width:58ch">
-          <b style="font-size:20px">Дизайн-система и брендбук hh-стиля (Белый + Чёрный + Синий)</b>
-          <span class="small">Посмотри кнопки, ползунок 10:00–20:00, прочерк цены и палитру в обеих темах отдельно на /brandbook.</span>
-        </div>
-        <div class="row" style="gap:8px;flex-wrap:wrap">
-          <button type="button" class="btn white" data-a="go" data-v="brandbook">Открыть брендбук</button>
-          <button type="button" class="btn blue-ghost" data-a="land-scroll" data-target="land-market">К каталогу</button>
-        </div>
       </div>
 
       ${quickMatchSectionHTML()}
@@ -1197,7 +1047,7 @@
         <div class="how-grid">
           <div class="card how-card"><span class="how-num">01</span><b>Единая база из 5+ источников</b><p class="small ink2">Собираем анкеты с Доски Ykt, Telegram, WhatsApp, MAX и других сервисов по всем предметам и навыкам.</p></div>
           <div class="card how-card"><span class="how-num">02</span><b>Ползунок времени 10:00–20:00</b><p class="small ink2">Двигай удобный час с 10:00 до 20:00 и сразу видишь свободных репетиторов в нужный интервал.</p></div>
-          <div class="card how-card"><span class="how-num">03</span><b>Ставка кнопками ±100 ₽</b><p class="small ink2">Выбирай удобную цену без лишних форм и нажимай «Предложить» — запрос сразу уходит преподавателю.</p></div>
+          <div class="card how-card"><span class="how-num">03</span><b>Ставка кнопками ±100 ₽</b><p class="small ink2">Выбирай удобную цену без лишних форм и нажимай «Сөп · Предложить» — запрос сразу уходит преподавателю.</p></div>
           <div class="card how-card"><span class="how-num">04</span><b>Уведомление и расписание</b><p class="small ink2">Когда преподаватель подтвердит время и ставку, придёт уведомление — всё расписание в «Учёбе».</p></div>
         </div>
       </section>
@@ -1265,6 +1115,7 @@
     pulseMotionReset,
     patchSavingsDOM,
     computeQuickMatchMeta,
+    heroPhotoBannerHTML,
     landingPageHTML,
     demoSectionHTML,
     marqueeSectionHTML,

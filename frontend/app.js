@@ -29,7 +29,7 @@
     newId, range, shuffle, sleep, clampInt, norm, normTight, parseNum, byDue,
     initials, scrollToEl
   } = EGE.utils;
-  const { ICONS, icon, BRAND_MARK_HTML, GOOGLE_SVG, triggerIconTileAnim } = EGE.ui;
+  const { ICONS, icon, BRAND_MARK_HTML, BRAND_WORDMARK_HTML, brandLockupHTML, GOOGLE_SVG, triggerIconTileAnim } = EGE.ui;
   const { isValidHHMM, feeSplitHTML, bidBtnLabelHTML, priceHeadlineHTML, priceDiffTagsHTML, sliderTicksHTML, BB_DAYS, bbDayObj } = EGE.hh;
   const hash = EGE.hash;
   // ---------- содержание ----------
@@ -961,7 +961,7 @@
     if (authGate) {
       html = store.ready
         ? (ui.view === "brandbook" ? viewBrandbook({ inside: false }) : ui.view === "fees" ? viewFees({ inside: false }) : authScreen())
-        : `<div class="auth-wrap"><div class="auth-brand">${BRAND_MARK_HTML}<div class="brand-name">Вектор ЕГЭ</div><p class="muted">Подключаюсь к серверу…</p></div></div>`;
+        : `<div class="auth-wrap"><div class="auth-brand">${brandLockupHTML()}<p class="muted">Подключаюсь к серверу…</p></div></div>`;
       main.innerHTML = html;
     } else {
       try { html = (VIEWS[ui.view] || viewTests)(); }
@@ -1232,6 +1232,19 @@
     if (topProf) {
       if (ui.view === "profile") topProf.setAttribute("aria-current", "page");
       else topProf.removeAttribute("aria-current");
+    }
+    const sideBrand = $("#side-brand");
+    if (sideBrand && sideBrand.dataset && !sideBrand.dataset.logoReady) {
+      sideBrand.innerHTML = brandLockupHTML({ sub: "ЕГЭ 2027 · 3 предмета" });
+      sideBrand.dataset.logoReady = "1";
+    }
+    const topLockup = $("#top-brand-lockup");
+    if (topLockup && topLockup.dataset && !topLockup.dataset.logoReady && typeof topLockup.querySelector === "function") {
+      const topMark = topLockup.querySelector(".brand-mark");
+      const topName = topLockup.querySelector(".brand-name");
+      if (topMark) topMark.outerHTML = BRAND_MARK_HTML;
+      if (topName) topName.innerHTML = BRAND_WORDMARK_HTML;
+      topLockup.dataset.logoReady = "1";
     }
     const topLogout = $("#top-logout");
     if (topLogout) topLogout.hidden = !(store.backend && store.user);
@@ -3476,7 +3489,20 @@
     },
     "land-scroll": (el) => {
       const id = el.dataset.target;
-      const node = id ? document.getElementById(id) : null;
+      let node = id ? document.getElementById(id) : null;
+      if (!node && ui.view === "brandbook" && id) {
+        const bb = bbState();
+        bb.cat = "all";
+        bb.catQ = "";
+        scheduleRender();
+        if (typeof setTimeout === "function") {
+          setTimeout(() => {
+            const n = document.getElementById(id);
+            if (n && typeof n.scrollIntoView === "function") n.scrollIntoView({ behavior: "smooth", block: "start" });
+          }, 40);
+        }
+        return;
+      }
       if (node && typeof node.scrollIntoView === "function") {
         node.scrollIntoView({ behavior: "smooth", block: "start" });
       }
@@ -3876,8 +3902,8 @@
     "bb-bid": () => {
       const bb = ui.brandbook || (ui.brandbook = { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, chipOn: true, sent: false, fav: true, vpWidth: 390 });
       bb.sent = !bb.sent;
+      const hhStr = String(bb.hour || 14).padStart(2, "0") + ":00";
       if (bb.sent) {
-        const hhStr = String(bb.hour || 14).padStart(2, "0") + ":00";
         notifySide(
           "Предложение передано преподавателю",
           `Ставка ${bb.price.toLocaleString("ru-RU")} ₽/ч на ${hhStr} отправлена — уведомим об ответе`
@@ -3886,18 +3912,28 @@
       const btns = typeof document.querySelectorAll === "function" ? document.querySelectorAll('[data-a="bb-bid"]') : null;
       if (btns && btns.length) {
         btns.forEach((btn) => {
+          const isShort = !!(btn.dataset && btn.dataset.bbShort);
           if (btn.classList) btn.classList.toggle("is-confirmed", !!bb.sent);
-          btn.textContent = (btn.dataset && btn.dataset.bbShort)
-            ? (bb.sent ? "✓ Подтверждено" : "Предложить")
-            : bidBtnLabelHTML(bb.sent, bb.price);
+          const lbl = btn.querySelector && (btn.querySelector("[data-bid-lbl]") || btn.querySelector("span"));
+          if (lbl) {
+            lbl.textContent = isShort
+              ? (bb.sent ? "✓ Подтверждено" : "Сөп · Предложить")
+              : bidBtnLabelHTML(bb.sent, bb.price);
+          } else if (EGE.hh && typeof EGE.hh.sakhaBidInnerHTML === "function") {
+            btn.innerHTML = EGE.hh.sakhaBidInnerHTML(bb.sent, bb.price, isShort ? { short: true, size: 15 } : undefined);
+          } else {
+            btn.textContent = isShort
+              ? (bb.sent ? "✓ Подтверждено" : "Сөп · Предложить")
+              : bidBtnLabelHTML(bb.sent, bb.price);
+          }
         });
         document.querySelectorAll('[data-bb="bid-status"]').forEach((st) => {
-          st.textContent = bb.sent ? "✓ Подтверждено · уведомление показано сбоку" : "Обычное состояние CTA · #0070FF";
-          if (st.classList) st.classList.toggle("muted", !bb.sent);
-          if (st.style) {
-            st.style.color = bb.sent ? "var(--confirm)" : "";
-            st.style.fontWeight = bb.sent ? "600" : "";
-          }
+          if (st.classList) st.classList.toggle("sent", !!bb.sent);
+          st.innerHTML = bb.sent
+            ? (EGE.kit && typeof EGE.kit.sentNoticeHTML === "function"
+                ? EGE.kit.sentNoticeHTML({ slot: hhStr, offer: bb.price, badgeText: "Уведомим" })
+                : "Предложение передано преподавателю · Уведомим")
+            : `<span class="small muted">Обычное состояние CTA · Узор Саха</span><span class="chip notif">Уведомим оранжевым</span>`;
         });
       } else {
         scheduleRender();
@@ -4087,8 +4123,20 @@
       const bb = bbState();
       bb.sakhaSent = !bb.sakhaSent;
       if (bb.sakhaSent) {
-        notifySide("Сөп · Ставка отправлена", "Якутская кнопка Оһуор перешла в подтверждённый статус --confirm");
+        notifySide("Сөп · Ставка отправлена", "Узорная кнопка Оһуор перешла в подтверждённый статус .is-confirmed");
       }
+      scheduleRender();
+    },
+    "bb-sakha-medallion": () => {
+      const bb = bbState();
+      bb.sakhaKunOn = !bb.sakhaKunOn;
+      notifySide(bb.sakhaKunOn ? "Күн Оһуор · Активен" : "Күн Оһуор · Сброшен", "Солнечный медальон в стиле Саха (.sakha-medallion-btn)");
+      scheduleRender();
+    },
+    "bb-sakha-diamond": () => {
+      const bb = bbState();
+      bb.sakhaStarOn = !bb.sakhaStarOn;
+      notifySide(bb.sakhaStarOn ? "Сулус · Ромб выбран" : "Сулус · Сброшен", "Геометрический узор 8-лучевой звезды (.sakha-diamond-btn)");
       scheduleRender();
     },
     "bb-faq-toggle": (el) => {
@@ -4097,14 +4145,15 @@
       bb.faqOpen = bb.faqOpen === idx ? -1 : idx;
       scheduleRender();
     },
-    "land-sakha-bid": () => {
+    "land-sakha-pattern": () => {
       ui.landSakhaSent = !ui.landSakhaSent;
       if (ui.landSakhaSent) {
-        notifySide("Сөп · Предложение передано", "Заявка с кнопкой Оһуор отправлена — уведомим об ответе преподавателя");
+        notifySide("Сөп · Предложение передано", "Узорная кнопка Оһуор перешла в статус .is-confirmed — уведомим об ответе преподавателя");
       }
       scheduleRender();
     },
-    "land-sakha-filter": () => {
+    "land-sakha-medallion": () => {
+      ui.landKunActive = !ui.landKunActive;
       const st = mkt();
       st.subject = "all";
       st.exam = "all";
@@ -4112,17 +4161,18 @@
       st.day = "all";
       st.hour = "all";
       st.q = "";
-      st.maxPrice = 2000;
+      st.maxPrice = ui.landKunActive ? 1400 : 2000;
       st.sort = "price_asc";
       saveMkt();
       scheduleRender();
-      if (typeof setTimeout === "function") setTimeout(() => scrollToEl("land-market"), 40);
-      notifySide("Дьүкээбил · Анкеты Саха и РФ", "Показаны проверенные преподаватели с Доски Ykt, Telegram, WhatsApp и MAX");
+      notifySide("Күн Оһуор · Анкеты Саха и РФ", ui.landKunActive ? "Выборка до 1 400 ₽/ч (Доска Ykt, Telegram, WhatsApp, MAX)" : "Фильтр солнечного медальона сброшен");
     },
-    "land-iphone-preset": (el) => {
-      const preset = el.dataset.v === "inf" ? "inf" : "design";
+    "land-sakha-diamond": () => {
+      ui.landStarActive = !ui.landStarActive;
+      const preset = ui.landStarActive ? "inf" : "design";
       if (ACTIONS["motion-preset"]) ACTIONS["motion-preset"]({ dataset: { v: preset } });
-      if (typeof setTimeout === "function") setTimeout(() => scrollToEl("hero-stage-wrap"), 40);
+      scheduleRender();
+      notifySide("Сулус · Звёздный фильтр Саха", ui.landStarActive ? "Включён трек Информатика КЕГЭ в живом моушене" : "Возвращён трек UX/UI и Моушен");
     },
     "bb-modal-open": () => {
       ui.bbModal = true;
@@ -4137,6 +4187,29 @@
       renderModal();
       go("fees");
     },
+    "bb-cat": (el) => {
+      bbState().cat = el.dataset.v || "all";
+      scheduleRender();
+    },
+    "bb-cat-clear": () => {
+      const bb = bbState();
+      bb.cat = "all";
+      bb.catQ = "";
+      ui.focusNext = "bb-catalog-q";
+      scheduleRender();
+    },
+    "bb-hero-primary": () => {
+      const bb = bbState();
+      bb.heroSubmitted = !bb.heroSubmitted;
+      scheduleRender();
+      notifySide("Hero CTA №1 · Найти ниже рынка", bb.heroSubmitted ? "Кнопка на фото перешла в статус .is-confirmed" : "Возврат в основной синий #0070FF");
+    },
+    "bb-hero-beta": () => {
+      const bb = bbState();
+      bb.heroBetaOn = !bb.heroBetaOn;
+      scheduleRender();
+      notifySide("Hero CTA №2 · Бета-тест", bb.heroBetaOn ? "Кнопка бета-теста на фото -> .is-confirmed" : "Возврат в полупрозрачный контур на фото");
+    },
     "fees-rate": (el) => {
       ui.feesRate = Math.max(600, Math.min(3500, Number(el.dataset.rate) || 800));
       scheduleRender();
@@ -4147,7 +4220,8 @@
       mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true,
       vpWidth: 390, chipOn: true, sent: false, fav: true, switchVal: "online",
       subj: "bio", subjMenuOpen: false, pickedPlan: "month10k", quizOpt: 1,
-      cancelDemoUndone: false, previewToastDismissed: false, sakhaSent: false, faqOpen: 0
+      cancelDemoUndone: false, previewToastDismissed: false, sakhaSent: false, sakhaKunOn: false, sakhaStarOn: false,
+      heroSubmitted: false, heroBetaOn: false, heroSearchSubmitted: false, heroQ: "", cat: "all", catQ: "", faqOpen: 0
     });
   }
   function applyBrandbookViewport(rawW) { return EGE.views.brandbook.applyBrandbookViewport(ui, rawW); }
@@ -4263,6 +4337,36 @@
       renderModal();
       scheduleRender();
       notifySide("Анкета принята на проверку", `${name} · ${subjName} · ${rate.toLocaleString("ru-RU")} ₽/ч — появится в каталоге сегодня`);
+    },
+    "hero-quick-go": (form) => {
+      const qEl = (form && form.elements && form.elements.q) || $("#hero-banner-q");
+      const val = String((qEl && qEl.value) || ui.heroQuickQ || "").trim();
+      ui.heroQuickQ = val;
+      ui.heroBannerSubmitted = true;
+      const st = mkt();
+      st.q = val;
+      saveMkt();
+      scheduleRender();
+      if (typeof setTimeout === "function") setTimeout(() => scrollToEl("land-market"), 40);
+      notifySide("Поиск по базе применён", val ? `Фильтр «${val}» — лучшие ставки ниже рынка` : "Показаны лучшие ставки ниже рынка");
+    },
+    "landing-search": (form) => {
+      const qEl = (form && form.elements && form.elements.q) || $("#landing-q");
+      const val = String((qEl && qEl.value) || "").trim();
+      const st = mkt();
+      st.q = val;
+      saveMkt();
+      scheduleRender();
+      if (typeof setTimeout === "function") setTimeout(() => scrollToEl("land-market"), 40);
+      notifySide("Поиск по каталогу", val ? `Запрос: «${val}»` : "Показана вся база репетиторов");
+    },
+    "bb-hero-demo": (form) => {
+      const qEl = (form && form.elements && form.elements.q) || $("#bb-hero-demo-q");
+      const bb = bbState();
+      bb.heroQ = String((qEl && qEl.value) || bb.heroQ || "").trim();
+      bb.heroSearchSubmitted = !bb.heroSearchSubmitted;
+      scheduleRender();
+      notifySide("Строка поиска под Hero", bb.heroSearchSubmitted ? "Строка поиска .land-search-bar -> статус .is-confirmed" : "Строка поиска сброшена");
     }
   };
 
@@ -4305,6 +4409,10 @@
     if (el.id === "subj-q") { ui.subjQ = el.value; scheduleRender(); return; }
     if (el.id === "guide-q") { ui.guideQ = el.value; scheduleRender(); return; }
     if (el.id === "mkt-q" || el.id === "mkt-q-modal") { mkt().q = el.value; saveMkt(); scheduleRender(); return; }
+    if (el.id === "hero-banner-q") { ui.heroQuickQ = el.value; return; }
+    if (el.id === "bb-hero-demo-q") { bbState().heroQ = el.value; return; }
+    if (el.id === "bb-catalog-q") { bbState().catQ = el.value; scheduleRender(); return; }
+    if (el.id === "landing-q") { mkt().q = el.value; saveMkt(); return; }
     if (el.id === "bug-body") {
       if (ui.bug) {
         ui.bug.body = el.value;

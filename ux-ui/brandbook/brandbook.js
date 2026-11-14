@@ -4,10 +4,26 @@
 
   const root = typeof globalThis !== "undefined" ? globalThis : window;
   const EGE = (root.EGE = root.EGE || {});
-  const { icon, sakhaOhyorHTML, BRAND_MARK_HTML, getIconCatalog } = EGE.ui;
+  const { icon, sakhaOhyorHTML, sakhaPatternSVG, BRAND_MARK_HTML, BRAND_WORDMARK_HTML, brandLockupHTML, getIconCatalog } = EGE.ui;
+  const { esc } = EGE.utils || { esc: (s) => String(s || "") };
+  const {
+    CATALOG_CATEGORIES = [],
+    CATALOG_ITEMS = [],
+    heroBannerHTML,
+    sentNoticeHTML,
+    sakhaButtonsHTML,
+    marqueePillsHTML,
+    rateBenchCardHTML,
+    trustStripHTML,
+    aiErrorBoxesHTML,
+    reviewCardHTML,
+    faqListHTML,
+    blueBannerHTML
+  } = EGE.kit || {};
   const {
     feeSplitHTML,
     bidBtnLabelHTML,
+    sakhaBidInnerHTML,
     priceHeadlineHTML,
     priceDiffTagsHTML,
     sliderTicksHTML,
@@ -15,6 +31,25 @@
     bbDayObj,
     hhSelectHTML
   } = EGE.hh;
+
+  const BB_SECTION_CATS = {
+    "bb-logo": "brand",
+    "bb-surfaces": "brand",
+    "bb-fonts": "brand",
+    "bb-dodont": "brand",
+    "bb-hero-banner": "hero",
+    "bb-yakutia": "sakha",
+    "bb-buttons": "controls",
+    "bb-forms": "controls",
+    "bb-cards-sys": "controls",
+    "bb-study-states": "controls",
+    "bb-sliders": "motion",
+    "bb-motion": "motion",
+    "bb-bounds": "motion",
+    "bb-responsive": "motion",
+    "bb-compare": "motion",
+    "bb-landing-kit": "sections"
+  };
 
   const BB_SUBJECTS = [
     { id: "bio", label: "Биология · ЕГЭ 2027", meta: "Естественные" },
@@ -43,8 +78,70 @@
       cancelDemoUndone: false,
       previewToastDismissed: false,
       sakhaSent: false,
+      sakhaKunOn: false,
+      sakhaStarOn: false,
+      heroSubmitted: false,
+      heroBetaOn: false,
+      heroSearchSubmitted: false,
+      heroQ: "",
+      cat: "all",
+      catQ: "",
       faqOpen: 0
     });
+  }
+
+  function filterCatalogItems(bb) {
+    const cat = bb.cat || "all";
+    const q = String(bb.catQ || "").trim().toLowerCase();
+    return CATALOG_ITEMS.filter((it) => {
+      if (cat !== "all" && it.cat !== cat) return false;
+      if (!q) return true;
+      return `${it.title} ${it.desc} ${it.api} ${it.css} ${it.targetId}`.toLowerCase().includes(q);
+    });
+  }
+
+  function catalogNavigatorHTML(bb) {
+    const curCat = bb.cat || "all";
+    const curQ = String(bb.catQ || "").trim();
+    const hits = filterCatalogItems(bb);
+    const hitCount = hits.length;
+    return `<section class="bb-catalog-bar" id="bb-catalog" aria-label="Единый каталог компонентов EGE.kit">
+      <div class="bb-catalog-head">
+        <div class="stack" style="gap:2px">
+          <div class="eyebrow">Single Source of Truth · EGE.kit &amp; EGE.ui</div>
+          <h2 class="h2" style="margin:0">Каталог компонентов — всё берётся на /landing отсюда</h2>
+        </div>
+        <span class="chip accent num">Компонентов: ${hitCount} из ${CATALOG_ITEMS.length}</span>
+      </div>
+      <div class="bb-catalog-controls">
+        <div class="chip-rail swipe" role="group" aria-label="Категории дизайн-системы">
+          ${CATALOG_CATEGORIES.map((c) => `<button type="button" class="chip-btn${curCat === c.id ? " on" : ""}" data-a="bb-cat" data-v="${esc(c.id)}">${esc(c.label)}</button>`).join("")}
+        </div>
+        <label class="bb-catalog-search">
+          ${icon("search")}
+          <input type="search" id="bb-catalog-q" value="${esc(bb.catQ || "")}" placeholder="Поиск: Hero, Оһуор, .btn, slider, FAQ…" autocomplete="off">
+          ${(curCat !== "all" || curQ) ? `<button type="button" class="btn ghost sm" data-a="bb-cat-clear">Сброс</button>` : ""}
+        </label>
+      </div>
+      ${hits.length ? `<div class="bb-catalog-grid">
+        ${hits.map((it) => `<article class="bb-catalog-card">
+          <div class="stack" style="gap:4px">
+            <div class="row between" style="gap:6px;align-items:flex-start">
+              <b style="font-size:13.5px;line-height:1.25">${esc(it.title)}</b>
+              <span class="bb-spec-pill">#${esc(it.targetId)}</span>
+            </div>
+            <p class="small muted" style="margin:0;line-height:1.35">${esc(it.desc)}</p>
+          </div>
+          <div class="stack" style="gap:6px">
+            <code class="bb-catalog-code" title="${esc(it.api + " · " + it.css)}">${esc(it.api)}</code>
+            <div class="row between" style="gap:6px">
+              <button type="button" class="btn soft sm" data-a="bb-copy-token" data-copy="${esc(it.api)}">Копировать API</button>
+              <button type="button" class="btn ghost sm" data-a="land-scroll" data-target="${esc(it.targetId)}">К разделу ↓</button>
+            </div>
+          </div>
+        </article>`).join("")}
+      </div>` : `<div class="empty"><b>По запросу «${esc(curQ)}» компоненты не найдены</b><span>Попробуй: Hero, Оһуор, .btn, slider или FAQ.</span><button type="button" class="btn soft sm" data-a="bb-cat-clear">Показать все разделы</button></div>`}
+    </section>`;
   }
 
   function brandbookPaneHTML(isDark, bb) {
@@ -102,7 +199,7 @@
           <span class="chip notif"><span class="bb-pulse-dot"></span>3 новых</span>
         </div>
         <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
-          <button type="button" class="btn${bb.sent ? " is-confirmed" : ""}" data-a="bb-bid">${bidBtnLabelHTML(bb.sent, bb.price)}</button>
+          <button type="button" class="btn sakha-pattern${bb.sent ? " is-confirmed" : ""}" data-a="bb-bid">${sakhaBidInnerHTML(bb.sent, bb.price)}</button>
           <button type="button" class="btn soft" data-a="bb-chip">Подробнее</button>
           <button type="button" class="btn ghost" data-a="bb-chip">Фильтры</button>
           <button type="button" class="btn" disabled>Неактивна</button>
@@ -157,7 +254,7 @@
           </div>
         </div>
         <div class="tutor-actions single">
-          <button type="button" class="btn${bb.sent ? " is-confirmed" : ""}" data-a="bb-bid">${bidBtnLabelHTML(bb.sent, bb.price)}</button>
+          <button type="button" class="btn sakha-pattern${bb.sent ? " is-confirmed" : ""}" data-a="bb-bid">${sakhaBidInnerHTML(bb.sent, bb.price)}</button>
         </div>
       </article>
     </div>`;
@@ -167,34 +264,43 @@
     return `<section class="land-sec" id="bb-logo">
       <div class="land-sec-head">
         <div>
-          <div class="eyebrow">Знак бренда · Охранное поле · Размеры</div>
-          <h2 class="h2">Логотип, безопасная зона и предметные акценты</h2>
+          <div class="eyebrow">Круглый знак Саха · Кастомный вектор «Вектор ЕГЭ» · Адаптив 3 фонов</div>
+          <h2 class="h2">Адаптивный логотип: белый, чёрный и синий фоны + собственный векторный шрифт</h2>
         </div>
-        <span class="bb-spec-pill">min 32×32 px · safe pad 8 px</span>
+        <span class="bb-spec-pill">circle · #0E1116 / #FFF / #0070FF · vector wordmark</span>
       </div>
       <div class="bb-logo-grid">
         <div class="card pad stack" style="gap:8px">
-          <span class="small muted">На светлом фоне (#FFFFFF / #F4F5F7)</span>
-          <div class="bb-logo-stage" style="background:#ffffff;color:#141517">
-            <div class="bb-logo-safe"><div class="brand-lockup">${BRAND_MARK_HTML}<div class="brand-text"><div class="brand-name" style="color:#141517">Вектор ЕГЭ</div><div class="brand-sub" style="color:#7c828e">Подготовка и репетиторы</div></div></div></div>
+          <span class="small muted">01 · На белом фоне (#FFFFFF)</span>
+          <div class="bb-logo-stage" data-surface="light" style="background:#ffffff;color:#0e1116">
+            <div class="bb-logo-safe">${brandLockupHTML({ surface: "light", sub: "Подготовка и репетиторы" })}</div>
           </div>
-          <span class="small muted">Топбар: 36×36 px · авторизация: 52×52 px · favicon: 32×32 px.</span>
+          <span class="small muted">Чёткие чёрные линии орнамента в белом круге без розового оттенка + векторная надпись «Вектор ЕГЭ» сразу после лого.</span>
         </div>
         <div class="card pad stack" style="gap:8px">
-          <span class="small muted">На чёрном OLED (#000000 / #16181D)</span>
-          <div class="bb-logo-stage" style="background:#000000;color:#ffffff">
-            <div class="bb-logo-safe"><div class="brand-lockup">${BRAND_MARK_HTML}<div class="brand-text"><div class="brand-name" style="color:#ffffff">Вектор ЕГЭ</div><div class="brand-sub" style="color:#8b909d">Dark OLED hh.ru</div></div></div></div>
+          <span class="small muted">02 · На чёрном OLED (#000000)</span>
+          <div class="bb-logo-stage" data-surface="dark" style="background:#000000;color:#ffffff">
+            <div class="bb-logo-safe">${brandLockupHTML({ surface: "dark", sub: "Dark OLED · Инверсия" })}</div>
           </div>
-          <span class="small muted">Градиент #1652C8 → #2F7CFF всегда читается без рамки.</span>
+          <span class="small muted">Линии и кольцо круга автоматически становятся чисто-белыми, а «ЕГЭ» подсвечивается в OLED-синий #3B8FFF.</span>
         </div>
         <div class="card pad stack" style="gap:8px">
-          <span class="small muted">Предметы + копируемые токены из <code>tokens.json</code></span>
-          <div class="row" style="gap:6px;flex-wrap:wrap">
-            <button type="button" class="chip" style="border:1px solid var(--line);cursor:pointer;background:rgba(124,58,237,.12);color:#7c3aed" data-a="bb-copy-token" data-copy="#7C3AED · --c-bio">Биология · #7C3AED</button>
-            <button type="button" class="chip" style="border:1px solid var(--line);cursor:pointer;background:rgba(2,132,199,.12);color:#0284c7" data-a="bb-copy-token" data-copy="#0284C7 · --c-chem">Химия · #0284C7</button>
-            <button type="button" class="chip" style="border:1px solid var(--line);cursor:pointer;background:rgba(234,88,12,.12);color:#ea580c" data-a="bb-copy-token" data-copy="#EA580C · --c-rus">Русский · #EA580C</button>
+          <span class="small muted">03 · На синем фоне (#0070FF)</span>
+          <div class="bb-logo-stage" data-surface="blue">
+            <div class="bb-logo-safe">${brandLockupHTML({ surface: "blue", sub: "Фирменный синий фон" })}</div>
           </div>
-          <p class="small muted">Нажми на любой цвет или токен в палитре ниже — HEX и CSS-переменная сразу скопируются.</p>
+          <span class="small muted">На синем фоне круг превращается в белый медальон с синим орнаментом #0057D9, а надпись «Вектор ЕГЭ» — в белый вектор.</span>
+        </div>
+      </div>
+      <div class="card pad row between" style="gap:10px;flex-wrap:wrap;align-items:center">
+        <div class="stack" style="gap:2px">
+          <b>Предметные акценты и копируемые токены <code>tokens.json</code></b>
+          <span class="small muted">Топбар: 34–40 px круг · авторизация: 56 px круг · favicon: круг 32×32 px без розового фона</span>
+        </div>
+        <div class="row" style="gap:6px;flex-wrap:wrap">
+          <button type="button" class="chip" style="border:1px solid var(--line);cursor:pointer;background:rgba(124,58,237,.12);color:#7c3aed" data-a="bb-copy-token" data-copy="#7C3AED · --c-bio">Биология · #7C3AED</button>
+          <button type="button" class="chip" style="border:1px solid var(--line);cursor:pointer;background:rgba(2,132,199,.12);color:#0284c7" data-a="bb-copy-token" data-copy="#0284C7 · --c-chem">Химия · #0284C7</button>
+          <button type="button" class="chip" style="border:1px solid var(--line);cursor:pointer;background:rgba(234,88,12,.12);color:#ea580c" data-a="bb-copy-token" data-copy="#EA580C · --c-rus">Русский · #EA580C</button>
         </div>
       </div>
     </section>`;
@@ -311,14 +417,11 @@
                 <button type="button" class="btn soft sm" data-a="bb-preview-toast-reset">Показать снова</button>
               </div>`
             : `<div class="bb-toast-preview" data-swipe-toast="preview">
-                <span class="toast-side-row">
-                  <span class="bb-pulse-dot" style="margin-top:5px;flex:0 0 auto"></span>
-                  <span class="toast-side-copy">
-                    <b>Предложение передано преподавателю</b>
-                    <span>Ставка ${bb.price.toLocaleString("ru-RU")} ₽/ч на ${String(bb.hour).padStart(2, "0")}:00 отправлена — уведомим об ответе</span>
-                  </span>
-                  <button type="button" class="toast-close" data-a="bb-preview-toast-close" aria-label="Убрать уведомление">×</button>
-                </span>
+                ${sentNoticeHTML({
+                  slot: `${String(bb.hour).padStart(2, "0")}:00`,
+                  offer: bb.price,
+                  closeAction: "bb-preview-toast-close"
+                })}
                 <div class="bb-toast-swipe-hint">
                   <span>← смахни влево или нажми ×</span>
                   <span>right 20 px</span>
@@ -445,127 +548,121 @@
     </section>`;
   }
 
-  function yakutiaAndMediaSectionHTML(bb) {
-    const sakhaOn = !!bb.sakhaSent;
+  function heroBannerAndYakutiaSectionHTML(bb, showSec) {
+    const vis = typeof showSec === "function" ? showSec : () => true;
     const renderSakhaCard = (isDark) => `<div class="bb-pane ${isDark ? "is-dark" : "is-light"}">
       <div class="row between" style="gap:8px;flex-wrap:wrap">
         <b>${isDark ? "Саха UI · Чёрный OLED" : "Саха UI · Белый день"}</b>
-        <span class="chip sakha">${icon("sakha")}<span>Оһуор × Дьүкээбил</span></span>
+        <span class="chip sakha">${icon("sakhaKun")}<span>Узоры Күн Оһуор × Сулус</span></span>
       </div>
-      ${sakhaOhyorHTML("Көҕүөр ойуу · Якутский орнамент")}
-      <div class="row" style="gap:8px;flex-wrap:wrap">
-        <button type="button" class="btn sakha${sakhaOn ? " is-confirmed" : ""}" data-a="bb-sakha-toggle">${icon("sakha")}<span>${sakhaOn ? "✓ Сөп · Ставка отправлена" : "Сөп · Предложить ставку"}</span></button>
-        <button type="button" class="btn sakha-aurora" data-a="go" data-v="landing">${icon("aurora")}<span>Дьүкээбил · Якутия</span></button>
+      ${sakhaOhyorHTML("Харысхал · Тоҕус харах · Күн Оһуор")}
+      ${sakhaButtonsHTML({
+        kunActive: !!bb.sakhaKunOn,
+        starActive: !!bb.sakhaStarOn,
+        patternSent: !!bb.sakhaSent,
+        medallionAction: "bb-sakha-medallion",
+        diamondAction: "bb-sakha-diamond",
+        patternAction: "bb-sakha-toggle",
+        compact: true
+      })}
+      <div class="row" style="gap:6px;flex-wrap:wrap">
+        <span class="chip sakha">${icon("ohyorCross")}<span>Тоҕус харах</span></span>
+        <span class="chip sakha">${icon("sakhaLattice")}<span>Орто Дойду · Ленские столбы</span></span>
         <button type="button" class="btn confirm sm" data-a="bb-demo-toast">${icon("msg")}<span>Написать (единая .btn.confirm)</span></button>
       </div>
-      <div class="row" style="gap:6px;flex-wrap:wrap">
-        <span class="chip sakha">${icon("pin")}<span>Саха сирэ · Дьокуускай</span></span>
-        <span class="chip sakha">${icon("aurora")}<span>Северное сияние · Ленские столбы</span></span>
-        <span class="chip">Доска Ykt · TG · MAX</span>
-      </div>
-      <span class="small muted">Официальные якутские компоненты для /brandbook и /landing: кнопка Оһуор (.btn.sakha), градиент сияния (.btn.sakha-aurora), разделитель Көҕүөр ойуу и подтверждённая чат-кнопка .btn.confirm для всех переписок и карточек.</span>
+      <span class="small muted">Официальные якутские кнопки EGE.kit.sakhaButtonsHTML() в /brandbook: медальон Күн Оһуор, ромб Сулус и главная узорная кнопка .btn.sakha-pattern (используется для «Сөп · Предложить» без обрезанных краёв).</span>
     </div>`;
 
-    return `<section class="land-sec" id="bb-yakutia">
-      <div class="land-sec-head">
-        <div>
-          <div class="eyebrow">Саха сирэ · Культурный код · Медиа-правила</div>
-          <h2 class="h2">Якутские кнопки Оһуор / Дьүкээбил + фото iPhone и Ленских столбов</h2>
+    let out = "";
+    if (vis("bb-hero-banner")) {
+      out += `<section class="land-sec" id="bb-hero-banner" aria-label="Эталон Hero-баннера">
+        <div class="land-sec-head">
+          <div>
+            <div class="eyebrow">Первый экран /landing · Фото-баннер hh.kz × Ленские столбы</div>
+            <h2 class="h2">Hero-баннер /assets/lena-pillars.jpg и 2 кнопки CTA без поисковика</h2>
+          </div>
+          <button type="button" class="bb-spec-pill" data-a="bb-copy-token" data-copy="EGE.kit.heroBannerHTML()">Копировать EGE.kit.heroBannerHTML()</button>
         </div>
-        <span class="chip sakha">${icon("sakha")}<span>Якутск → Вся Россия</span></span>
-      </div>
-      <div class="bb-cols">${renderSakhaCard(false)}${renderSakhaCard(true)}</div>
-      <div class="bb-media-grid" id="bb-media">
-        <article class="bb-media-card">
-          <div class="bb-media-frame">
-            <img src="/assets/iphone-motion.jpg" alt="Новейший iPhone Pro Max с моушен-интерфейсом ставок" decoding="sync">
-            <div class="bb-media-scrim"></div>
-            <div class="bb-media-badges">
-              <span class="chip" style="background:rgba(15,23,42,.82);color:#fff;border:1px solid rgba(255,255,255,.22)">iPhone Pro · Моушен 60 fps</span>
-              <span class="chip confirm">Живой стейдж на /landing</span>
-            </div>
+        ${heroBannerHTML({
+          brandbookDemo: true,
+          catalogTotal: "2 480",
+          primaryActive: !!bb.heroSubmitted,
+          betaActive: !!bb.heroBetaOn
+        })}
+        <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
+          <span class="bb-spec-pill">.hero-banner-scrim · светлый градиент справа (0% над скалами)</span>
+          <span class="bb-spec-pill confirm">2 CTA-кнопки без верхнего поиска и 3 плашек</span>
+          <span class="bb-spec-pill">Сразу под Hero начинается бегущая лента тем</span>
+        </div>
+      </section>`;
+    }
+    if (vis("bb-yakutia")) {
+      out += `<section class="land-sec" id="bb-yakutia" aria-label="Кнопки в форме якутских узоров">
+        <div class="land-sec-head">
+          <div>
+            <div class="eyebrow">Саха сирэ · Культурный код · Орнаменты</div>
+            <h2 class="h2">Якутские кнопки в форме узоров Күн Оһуор, Сулус и Харысхал</h2>
           </div>
-          <div class="card-body stack" style="padding:14px;gap:6px">
-            <b>Стандарт фото новейшего iPhone + моушен-интерфейса</b>
-            <span class="small muted">Контейнер 16:10, скругление 18 px, мягкий нижний scrim для читаемости бейджей. На /landing работает в паре с живым #hero-motion-stage и титановой рамкой .hero-iphone-bezel.</span>
-          </div>
-        </article>
-        <article class="bb-media-card">
-          <div class="bb-media-frame">
-            <img src="/assets/lena-pillars.jpg" alt="Природа Якутии — Ленские столбы на рассвете с сиянием Дьүкээбил" decoding="sync">
-            <div class="bb-media-scrim"></div>
-            <div class="bb-media-badges">
-              <span class="chip sakha" style="background:rgba(9,30,50,.85);color:#bae6fd;border-color:rgba(125,211,252,.45)">${icon("aurora")}<span>Ленские столбы · 61°N</span></span>
-              <span class="chip" style="background:rgba(15,23,42,.82);color:#fff">Саха сирэ · ЮНЕСКО</span>
-            </div>
-          </div>
-          <div class="card-body stack" style="padding:14px;gap:6px">
-            <b>Природа Якутии · Ленские столбы (.lena-showcase)</b>
-            <span class="small muted">Полноформатный природный баннер в холодно-синей и золотой палитре республики Саха, объединённый с орнаментом Оһуор и кнопкой Дьүкээбил.</span>
-          </div>
-        </article>
-      </div>
-    </section>`;
+          <button type="button" class="bb-spec-pill" data-a="bb-copy-token" data-copy="EGE.kit.sakhaButtonsHTML()">Копировать EGE.kit.sakhaButtonsHTML()</button>
+        </div>
+        <div class="bb-cols">${renderSakhaCard(false)}${renderSakhaCard(true)}</div>
+      </section>`;
+    }
+    return out;
   }
 
   function landingKitSectionHTML(bb) {
     const faqOpen = Number.isInteger(bb.faqOpen) ? bb.faqOpen : 0;
     const faqs = [
-      ["Чем отличается от обычных анкет?", "Показываем честную рыночную цену рядом с твоей ставкой и сразу выводим подтверждённую запись через единую .btn.confirm."],
-      ["Как устроены кнопки на /landing и /brandbook?", "Ни одного дубля: все карточки, степпер ±100 ₽, сердечки, подтверждения и якутские кнопки Оһуор используют одни классы ux-ui/styles/base.css."]
+      { q: "Чем отличается от обычных анкет?", a: "Показываем честную рыночную цену рядом с твоей ставкой и сразу выводим подтверждённую запись через единую .btn.confirm." },
+      { q: "Как устроены кнопки на /landing и /brandbook?", a: "Ни одного дубля: все секции берут разметку из единого каталога EGE.kit и единых токенов ux-ui/styles/base.css." }
     ];
+    const demoPills = marqueePillsHTML({
+      universe: [
+        { subject: "design", label: "UX/UI и Моушен", meta: "от 1 200 ₽" },
+        { subject: "inf", label: "Python / КЕГЭ", meta: "от 1 300 ₽" },
+        { subject: "bio", label: "Биология · 90+", meta: "от 1 000 ₽" }
+      ],
+      deals: [
+        { topic: "Саха сирэ · Ykt / MAX", paid: 950, tag: "60 мин" }
+      ]
+    });
     return `<section class="land-sec" id="bb-landing-kit">
       <div class="land-sec-head">
         <div>
-          <div class="eyebrow">Все паттерны /landing в одном месте</div>
-          <h2 class="h2">Полный каталог секций витрины: подбор 15 сек, ставки, ИИ-разбор и FAQ</h2>
+          <div class="eyebrow">Все паттерны /landing в одном месте · EGE.kit</div>
+          <h2 class="h2">Полный каталог секций витрины: лента, ставки, ИИ-разбор и FAQ</h2>
         </div>
         <button type="button" class="btn soft sm" data-a="go" data-v="landing">Открыть живой /landing →</button>
       </div>
 
       <div class="card pad stack" style="gap:10px">
         <div class="row between" style="gap:8px;flex-wrap:wrap">
-          <b>01 · Бегущая лента предметов и тегов (.marquee-pill)</b>
-          <span class="bb-spec-pill">16:9 / 999 px pill · hover pause</span>
+          <b>01 · Бегущая лента предметов и тегов (EGE.kit.marqueePillsHTML)</b>
+          <button type="button" class="bb-spec-pill" data-a="bb-copy-token" data-copy="EGE.kit.marqueePillsHTML()">16:9 / 999 px pill · copy API</button>
         </div>
-        <div class="row" style="gap:8px;flex-wrap:wrap">
-          <span class="marquee-pill">UX/UI и Моушен <span class="num muted">от 1 200 ₽</span></span>
-          <span class="marquee-pill">Python / КЕГЭ <span class="num muted">от 1 300 ₽</span></span>
-          <span class="marquee-pill">Биология · 90+ <span class="num muted">от 1 000 ₽</span></span>
-          <span class="marquee-pill" style="border-color:color-mix(in srgb,#0ea5e9 45%,var(--line))">Саха сирэ · Ykt / MAX <span class="num muted">60 мин</span></span>
-        </div>
+        <div class="row" style="gap:8px;flex-wrap:wrap">${demoPills.row1}${demoPills.row2}</div>
       </div>
 
       <div class="bb-kit-grid">
         <div class="card pad stack" style="gap:10px">
-          <div class="row between"><b>02 · Быстрый подбор за 15 секунд</b><span class="bb-spec-pill">.land-match-result</span></div>
+          <div class="row between"><b>02 · Быстрый подбор и полоса доверия</b><span class="bb-spec-pill">EGE.kit.trustStripHTML()</span></div>
           <div class="land-match-result">
             <div class="stack" style="gap:2px">
               <b>Найдено 14 преподавателей от 900 ₽/ч</b>
               <span class="small muted">После применения — фильтр каталога и боковое уведомление.</span>
             </div>
             <div class="row" style="gap:8px;flex-wrap:wrap">
-              <button type="button" class="btn sm" data-a="bb-bid">Показать на /landing</button>
+              <button type="button" class="btn sm" data-a="go" data-v="landing">Показать на /landing</button>
               <span class="chip-btn on">+ Онлайн</span>
             </div>
           </div>
-          <div class="land-trust-strip" style="margin-top:2px">
-            <div class="row" style="gap:8px;align-items:center"><span class="land-trust-ico">${icon("shield")}</span><span class="small"><b>Полоса доверия</b> (.land-trust-strip) · оплата после ответа</span></div>
-            <div class="row" style="gap:8px;align-items:center"><span class="land-trust-ico">${icon("repeat")}</span><span class="small"><b>Смена в 1 клик</b> · бесплатный перенос</span></div>
-          </div>
+          ${trustStripHTML({ hideLink: true, title: "Полоса доверия (.land-trust-strip)", desc: "Оплата после ответа и бесплатная замена за 15 мин" })}
         </div>
 
         <div class="card pad stack" style="gap:10px">
-          <div class="row between"><b>03 · Аналитика ставок и шаги проверки</b><span class="bb-spec-pill">.rate-bench-card</span></div>
-          <div class="rate-bench-card" style="padding:12px">
-            <div class="row between"><b>Биология · ЕГЭ 2027</b><span class="chip confirm num">−34% к рынку</span></div>
-            <div class="rate-bars">
-              <div class="row between small"><span class="muted">Средний рынок</span><span class="num muted">1 800 ₽/ч</span></div>
-              <div class="rate-bar-track"><div class="rate-bar-fill" style="width:92%"></div></div>
-              <div class="row between small"><b>На платформе</b><b class="num" style="color:var(--accent)">1 100 ₽/ч</b></div>
-              <div class="rate-bar-track"><div class="rate-bar-fill ours" style="width:58%"></div></div>
-            </div>
-          </div>
+          <div class="row between"><b>03 · Аналитика ставок и шаги проверки</b><span class="bb-spec-pill">EGE.kit.rateBenchCardHTML()</span></div>
+          ${rateBenchCardHTML({ sid: "bio", title: "Биология · ЕГЭ 2027", minRate: 1100, avgMarket: 1800, savePct: 39, barPct: 58, clickable: false, pillText: "−39% к рынку", footNote: "", hideHeadline: true })}
           <div class="row" style="gap:10px;align-items:center;padding-top:4px">
             <span class="how-num">01</span>
             <div class="stack" style="gap:1px"><b>Проверка актуальности (.how-num)</b><span class="small muted">Ежедневный обход Доски Ykt · TG · MAX</span></div>
@@ -574,34 +671,29 @@
         </div>
 
         <div class="card pad stack" style="gap:10px">
-          <div class="row between"><b>04 · ИИ-разбор ошибок (.ai-err-box / .ai-fix-box)</b><span class="bb-spec-pill pro">.ai-spark-ico</span></div>
-          <div class="ai-err-box">
-            <span class="small" style="color:var(--bad);font-weight:700">Частая ошибка №28 (Генетика)</span>
-            <span class="small ink2">Потеря одного типа гамет при сцепленном наследовании с кроссинговером.</span>
-          </div>
-          <div class="ai-fix-box">
-            <div class="row" style="gap:8px;align-items:center"><span class="ai-spark-ico">${icon("spark")}</span><b class="small" style="color:var(--accent)">Подсказка Вектор ИИ</b></div>
-            <span class="small ink2">Пошаговая схема Моргана + 3 тренировочных задачи на закрепление.</span>
-          </div>
+          <div class="row between"><b>04 · ИИ-разбор ошибок (EGE.kit.aiErrorBoxesHTML)</b><span class="bb-spec-pill pro">.ai-spark-ico</span></div>
+          ${aiErrorBoxesHTML({
+            topic: "Задание №28 · Генетика",
+            question: "Сцепленное наследование с кроссинговером",
+            mistake: "Частая ошибка: потеря одного типа гамет при записи скрещивания.",
+            aiFix: "Пошаговая схема Моргана + 3 тренировочных задачи на закрепление.",
+            delta: "+14 баллов к прогнозу",
+            before: 64,
+            after: 88
+          }, { hideCta: true })}
         </div>
 
         <div class="card pad stack" style="gap:10px">
-          <div class="row between"><b>05 · Карточка отзыва, FAQ и мобильная панель</b><span class="bb-spec-pill">.faq-item</span></div>
-          <article class="review-card" style="padding:12px">
-            <div class="row between"><div class="row" style="gap:8px"><span class="review-avatar">АН</span><b>Айтал Н., Якутск</b></div><span class="chip confirm">64 → 91 балл</span></div>
-            <p class="small ink2" style="margin:0">«Нашли преподавателя на 700 ₽/ч дешевле, занимались 2 раза в неделю без срывов».</p>
-          </article>
-          <div class="stack" style="gap:6px">
-            ${faqs.map(([q, a], idx) => {
-              const isOpen = faqOpen === idx;
-              return `<div class="faq-item${isOpen ? " open" : ""}">
-                <button type="button" class="faq-btn" data-a="bb-faq-toggle" data-i="${idx}" aria-expanded="${isOpen}">
-                  <span>${q}</span><span class="faq-chev">${icon("chevDown")}</span>
-                </button>
-                ${isOpen ? `<div class="faq-ans">${a}</div>` : ""}
-              </div>`;
-            }).join("")}
-          </div>
+          <div class="row between"><b>05 · Карточка отзыва, FAQ и мобильная панель</b><span class="bb-spec-pill">reviewCardHTML / faqListHTML</span></div>
+          ${reviewCardHTML({
+            badge: "64 → 91 балл",
+            oldPrice: 1800,
+            newPrice: 1100,
+            text: "Нашли преподавателя на 700 ₽/ч дешевле, занимались 2 раза в неделю без срывов.",
+            name: "Айтал Н., Якутск",
+            role: "ЕГЭ · Биология"
+          })}
+          ${faqListHTML(faqs, faqOpen, "bb-faq-toggle")}
           <div class="bb-sticky-mock">
             <div class="stack" style="gap:1px"><b class="small">Мобильная липкая панель (.land-mobile-sticky)</b><span class="small muted">Показывается на ≤ 680 px</span></div>
             <button type="button" class="btn sm" data-a="go" data-v="landing">Выбрать репетитора</button>
@@ -634,9 +726,21 @@
 
     const iconCatalog = getIconCatalog(dark);
     const activeIconItem = bb.activeIcon ? iconCatalog.find((it) => it[0] === bb.activeIcon) : null;
+    const catHits = filterCatalogItems(bb);
+    const hasFilter = (bb.cat && bb.cat !== "all") || String(bb.catQ || "").trim().length > 0;
+    const matchTargetIds = new Set(catHits.map((it) => it.targetId));
+    const showSec = (id) => {
+      if (!hasFilter) return true;
+      if (matchTargetIds.has(id)) return true;
+      if (!String(bb.catQ || "").trim() && bb.cat && bb.cat !== "all") {
+        return BB_SECTION_CATS[id] === bb.cat;
+      }
+      return false;
+    };
 
     const specRules = [
-      ["Контейнер страниц / лендинга", "max-width: 1140 px · 0 px переполнения", ""],
+      ["Контейнер страниц / лендинга", "max-width: 1260 px (≥1360 px: 1340 px) · 0 px переполнения", ""],
+      ["Hero-баннер hh.kz × Ленские столбы", "465–495 px (моб. 430 px) · 2 CTA · светлый ским", ""],
       ["Поля экрана (Desktop / Планшет / Моб.)", "28 px / 16 px / 12 px", ""],
       ["Главная кнопка CTA (.btn / Подтверждено)", "h ≥ 42 px · Синий → Зелёный 380 ms", "confirm"],
       ["Вторичная «Подробнее» (.btn.soft)", "Тинт темнеет при hover + подъём −2 px", ""],
@@ -655,16 +759,12 @@
 
     return `<div class="land-page" id="brandbook-page">
       <header class="land-top">
-        <div class="brand-lockup">
-          ${BRAND_MARK_HTML}
-          <div class="brand-text">
-            <div class="brand-name">Вектор ЕГЭ · Брендбук</div>
-            <div class="brand-sub">UX/UI дизайн-система в стиле hh.ru</div>
-          </div>
-        </div>
+        ${brandLockupHTML({ tag: "Брендбук", sub: "UX/UI дизайн-система в стиле hh.ru" })}
         <nav class="land-links" aria-label="Разделы брендбука">
+          <a href="#bb-catalog" data-a="land-scroll" data-target="bb-catalog">Каталог</a>
           <a href="#bb-logo" data-a="land-scroll" data-target="bb-logo">Лого</a>
-          <a href="#bb-yakutia" data-a="land-scroll" data-target="bb-yakutia">Саха UI</a>
+          <a href="#bb-hero-banner" data-a="land-scroll" data-target="bb-hero-banner">Hero Ленские</a>
+          <a href="#bb-yakutia" data-a="land-scroll" data-target="bb-yakutia">Узоры Саха</a>
           <a href="#bb-sliders" data-a="land-scroll" data-target="bb-sliders">Ползунки</a>
           <a href="#bb-buttons" data-a="land-scroll" data-target="bb-buttons">Иконки</a>
           <a href="#bb-landing-kit" data-a="land-scroll" data-target="bb-landing-kit">Витрина</a>
@@ -692,9 +792,11 @@
         </div>
       </section>
 
-      ${logoSectionHTML()}
+      ${catalogNavigatorHTML(bb)}
 
-      <section class="land-sec" id="bb-surfaces">
+      ${showSec("bb-logo") ? logoSectionHTML() : ""}
+
+      ${showSec("bb-surfaces") ? `<section class="land-sec" id="bb-surfaces">
         <div class="land-sec-head">
           <div>
             <div class="eyebrow">Поверхности · Ниже и выше рынка</div>
@@ -720,7 +822,7 @@
             <div class="hh-diff-strip">
               ${priceDiffTagsHTML({ tutorPrice: tutorRate, marketPrice: market, offerPrice: bb.price, qualBadge: "К.т.н. · эксперт ВсОШ" })}
             </div>
-            <button type="button" class="btn${bb.sent ? " is-confirmed" : ""}" data-a="bb-bid">${bidBtnLabelHTML(bb.sent, bb.price)}</button>
+            <button type="button" class="btn sakha-pattern${bb.sent ? " is-confirmed" : ""}" data-a="bb-bid">${sakhaBidInnerHTML(bb.sent, bb.price)}</button>
           </div>
           <div class="bb-pane is-dark">
             <span class="small muted">Чёрный фон · #000000 / #16181D</span>
@@ -728,21 +830,21 @@
             <div class="hh-diff-strip">
               ${priceDiffTagsHTML({ tutorPrice: tutorRate, marketPrice: market, offerPrice: bb.price, qualBadge: "К.т.н. · эксперт ВсОШ" })}
             </div>
-            <button type="button" class="btn${bb.sent ? " is-confirmed" : ""}" data-a="bb-bid">${bidBtnLabelHTML(bb.sent, bb.price)}</button>
+            <button type="button" class="btn sakha-pattern${bb.sent ? " is-confirmed" : ""}" data-a="bb-bid">${sakhaBidInnerHTML(bb.sent, bb.price)}</button>
           </div>
           <div class="bb-pane is-blue">
             <span class="small">Синий фон · #0070FF → #0055D4</span>
             <div class="hh-price-row">${priceHeadlineHTML(market, bb.price, true)}</div>
             <span class="small" style="opacity:.9">${bb.price > market ? "Выше рынка · к.т.н., победители олимпиад и ЕГЭ 95+" : (bb.price < market ? `Экономия ${(market - bb.price).toLocaleString("ru-RU")} ₽ от средней по рынку` : "Равно средней ставке по рынку")}</span>
             <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:auto">
-              <button type="button" class="btn white${bb.sent ? " is-confirmed" : ""}" data-a="bb-bid">${bidBtnLabelHTML(bb.sent, bb.price)}</button>
+              <button type="button" class="btn sakha-pattern white${bb.sent ? " is-confirmed" : ""}" data-a="bb-bid">${sakhaBidInnerHTML(bb.sent, bb.price)}</button>
               <button type="button" class="btn blue-ghost" data-a="go" data-v="landing">К сайту /landing</button>
             </div>
           </div>
         </div>
-      </section>
+      </section>` : ""}
 
-      <section class="land-sec" id="bb-sliders">
+      ${showSec("bb-sliders") ? `<section class="land-sec" id="bb-sliders">
         <div class="land-sec-head">
           <div>
             <div class="eyebrow">Выбор времени · 3 вида ползунка</div>
@@ -770,9 +872,9 @@
             </div>`;
           }).join("")}
         </div>
-      </section>
+      </section>` : ""}
 
-      <section class="land-sec" id="bb-motion">
+      ${showSec("bb-motion") ? `<section class="land-sec" id="bb-motion">
         <div class="land-sec-head">
           <div>
             <div class="eyebrow">Переходы и микровзаимодействия</div>
@@ -781,11 +883,15 @@
         </div>
         <div class="bb-motion-grid">
           <div class="bb-motion-card">
-            <div class="row between"><b>01 · Синий → Зелёный «Подтверждено»</b><span class="bb-spec-pill confirm">380 ms</span></div>
-            <p class="small muted">Нажатие переводит CTA из #0070FF в изумрудный --confirm и сразу показывает сбоку уведомление об отправке.</p>
-            <div class="stack" style="gap:6px">
-              <button type="button" class="btn${bb.sent ? " is-confirmed" : ""}" id="bb-motion-bid-btn" data-a="bb-bid">${bidBtnLabelHTML(bb.sent, bb.price)}</button>
-              <p class="small${bb.sent ? "" : " muted"}" data-bb="bid-status" style="margin:0;line-height:1.35;${bb.sent ? "color:var(--confirm);font-weight:600" : ""}">${bb.sent ? "✓ Подтверждено · уведомление показано сбоку" : "Обычное состояние CTA · #0070FF"}</p>
+            <div class="row between"><b>01 · Сөп Саха → Зелёный CTA + Оранжевое уведомление</b><span class="bb-spec-pill notif">CTA + --notif</span></div>
+            <p class="small muted">Нажатие переводит узорную кнопку Сөп (без обрезанных углов) в зелёный --confirm и сразу показывает оранжевое уведомление --notif (#F97316).</p>
+            <div class="stack" style="gap:8px">
+              <button type="button" class="btn sakha-pattern${bb.sent ? " is-confirmed" : ""}" id="bb-motion-bid-btn" data-a="bb-bid">${sakhaBidInnerHTML(bb.sent, bb.price)}</button>
+              <div class="hh-motion-status${bb.sent ? " sent" : ""}" data-bb="bid-status">
+                ${bb.sent
+                  ? sentNoticeHTML({ slot: `${String(bb.hour || 14).padStart(2, "0")}:00`, offer: bb.price, badgeText: "Уведомим" })
+                  : `<span class="small muted">Обычное состояние CTA · Узор Саха</span><span class="chip notif">Уведомим оранжевым</span>`}
+              </div>
             </div>
           </div>
 
@@ -816,9 +922,9 @@
             </div>
           </div>
         </div>
-      </section>
+      </section>` : ""}
 
-      <section class="land-sec" id="bb-buttons">
+      ${showSec("bb-buttons") ? `<section class="land-sec" id="bb-buttons">
         <div class="land-sec-head">
           <div>
             <div class="eyebrow">Все элементы интерфейса</div>
@@ -828,13 +934,14 @@
         <div class="bb-btn-matrix">
           <div class="card pad stack" style="gap:10px">
             <div class="row between"><b class="h3">Основные кнопки CTA</b><span class="bb-spec-pill">h 42–46 px · r 12</span></div>
-            <div class="row" style="gap:8px;flex-wrap:wrap">
-              <button type="button" class="btn${bb.sent ? " is-confirmed" : ""}" data-a="bb-bid">${bidBtnLabelHTML(bb.sent, bb.price)}</button>
+            <div class="row" style="gap:10px;flex-wrap:wrap;align-items:center">
+              <button type="button" class="btn sakha-pattern${bb.sent ? " is-confirmed" : ""}" data-a="bb-bid">${sakhaBidInnerHTML(bb.sent, bb.price)}</button>
               <button type="button" class="btn soft" data-a="bb-chip">Подробнее</button>
               <button type="button" class="btn ghost" data-a="bb-chip">Фильтры</button>
               <button type="button" class="btn confirm" data-a="bb-demo-toast">${icon("msg")}<span>Написать</span></button>
-              <button type="button" class="btn sakha${bb.sakhaSent ? " is-confirmed" : ""}" data-a="bb-sakha-toggle">${icon("sakha")}<span>${bb.sakhaSent ? "✓ Сөп" : "Оһуор · Саха"}</span></button>
-              <button type="button" class="btn sakha-aurora" data-a="bb-sakha-toggle">${icon("aurora")}<span>Дьүкээбил</span></button>
+              <button type="button" class="btn sakha-pattern${bb.sakhaSent ? " is-confirmed" : ""}" data-a="bb-sakha-toggle">${sakhaPatternSVG("rhombus", 18)}<span>${bb.sakhaSent ? "✓ Сөп" : "Оһуор · Саха"}</span></button>
+              <button type="button" class="sakha-medallion-btn sm${bb.sakhaKunOn ? " is-confirmed" : ""}" data-a="bb-sakha-medallion" aria-pressed="${!!bb.sakhaKunOn}" aria-label="Күн Оһуор" title="Күн Оһуор">${sakhaPatternSVG("kun", 36)}</button>
+              <button type="button" class="sakha-diamond-btn sm${bb.sakhaStarOn ? " is-confirmed" : ""}" data-a="bb-sakha-diamond" aria-pressed="${!!bb.sakhaStarOn}" aria-label="Сулус" title="Сулус"><span class="sakha-diamond-frame">${sakhaPatternSVG("star", 22)}</span></button>
               <button type="button" class="btn" disabled>Неактивна</button>
             </div>
             <span class="small muted">Минимум 8 px между кнопками; при наведении кнопки приподнимаются на 2 px и не сливаются с белой карточкой.</span>
@@ -843,7 +950,7 @@
           <div class="card pad stack" style="gap:10px">
             <div class="row between"><b class="h3">Компактные 32 px и пиллы</b><span class="bb-spec-pill">h 32 px · gap 6 px</span></div>
             <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center">
-              <button type="button" class="btn sm${bb.sent ? " is-confirmed" : ""}" data-a="bb-bid" data-bb-short="1">${bb.sent ? "✓ Подтверждено" : "Предложить"}</button>
+              <button type="button" class="btn sm sakha-pattern${bb.sent ? " is-confirmed" : ""}" data-a="bb-bid" data-bb-short="1">${sakhaBidInnerHTML(bb.sent, bb.price, { short: true, size: 15 })}</button>
               <button type="button" class="btn soft sm" data-a="bb-chip">Сбросить</button>
               <button type="button" class="bb-filter-active" data-a="bb-chip">ЕГЭ 2027 ×</button>
               <button type="button" class="chip-btn" data-a="bb-chip">+ Онлайн</button>
@@ -892,9 +999,9 @@
             }).join("")}
           </div>
         </div>
-      </section>
+      </section>` : ""}
 
-      <section class="land-sec" id="bb-bounds">
+      ${showSec("bb-bounds") ? `<section class="land-sec" id="bb-bounds">
         <div class="land-sec-head">
           <div>
             <div class="eyebrow">Ограничения · Визуальные границы · Mobile 390 px</div>
@@ -932,7 +1039,7 @@
                 </div>
               </div>
               <div class="row" style="gap:0;align-items:center">
-                <button type="button" class="btn sm${bb.sent ? " is-confirmed" : ""}" data-a="bb-bid" data-bb-short="1">${bb.sent ? "✓ Подтверждено" : "Предложить"}</button>
+                <button type="button" class="btn sm sakha-pattern${bb.sent ? " is-confirmed" : ""}" data-a="bb-bid" data-bb-short="1">${sakhaBidInnerHTML(bb.sent, bb.price, { short: true, size: 15 })}</button>
                 <span class="bb-bp-gap" title="Минимальный зазор 8 px" aria-hidden="true"></span>
                 <button type="button" class="btn soft sm" data-a="bb-chip">Подробнее</button>
               </div>
@@ -1022,7 +1129,7 @@
                     <div class="hh-step-readout"><b class="num" style="font-size:15px">${bb.price.toLocaleString("ru-RU")} ₽/ч</b></div>
                     <button type="button" class="hh-step-btn" data-a="bb-step" data-step="100">+100 ₽</button>
                   </div>
-                  <button type="button" class="btn${bb.sent ? " is-confirmed" : ""}" style="width:100%" data-a="bb-bid">${bidBtnLabelHTML(bb.sent, bb.price)}</button>
+                  <button type="button" class="btn sakha-pattern${bb.sent ? " is-confirmed" : ""}" style="width:100%" data-a="bb-bid">${sakhaBidInnerHTML(bb.sent, bb.price)}</button>
                 </div>
               </div>
               <div class="bb-phone-tabs" aria-hidden="true">
@@ -1034,13 +1141,13 @@
             </div>
           </div>
         </div>
-      </section>
+      </section>` : ""}
 
-      ${formsSectionHTML(bb)}
+      ${showSec("bb-forms") ? formsSectionHTML(bb) : ""}
 
-      ${cardsAndOverlaysSectionHTML(bb)}
+      ${showSec("bb-cards-sys") ? cardsAndOverlaysSectionHTML(bb) : ""}
 
-      <section class="land-sec" id="bb-fonts">
+      ${showSec("bb-fonts") ? `<section class="land-sec" id="bb-fonts">
         <div class="land-sec-head">
           <div>
             <div class="eyebrow">Шрифты · Inter + IBM Plex Mono · Отступы и радиусы</div>
@@ -1078,17 +1185,17 @@
             <span class="small muted">Кнопки и инпуты: --r-sm (12 px) · Карточки: --r (16 px) · Чипы и бейджи: 999 px.</span>
           </div>
         </div>
-      </section>
+      </section>` : ""}
 
-      ${studyAndStatesSectionHTML(bb)}
+      ${showSec("bb-study-states") ? studyAndStatesSectionHTML(bb) : ""}
 
-      ${yakutiaAndMediaSectionHTML(bb)}
+      ${heroBannerAndYakutiaSectionHTML(bb, showSec)}
 
-      ${landingKitSectionHTML(bb)}
+      ${showSec("bb-landing-kit") ? landingKitSectionHTML(bb) : ""}
 
-      ${doDontSectionHTML()}
+      ${showSec("bb-dodont") ? doDontSectionHTML() : ""}
 
-      <section class="land-sec" id="bb-responsive">
+      ${showSec("bb-responsive") ? `<section class="land-sec" id="bb-responsive">
         <div class="land-sec-head">
           <div>
             <div class="eyebrow">Адаптивность · Container Queries + Breakpoints</div>
@@ -1153,7 +1260,7 @@
                     </button>`).join("")}
                   </div>
                   <div class="bb-resp-actions">
-                    <button type="button" class="btn${bb.sent ? " is-confirmed" : ""}" data-a="bb-bid">${bidBtnLabelHTML(bb.sent, bb.price)}</button>
+                    <button type="button" class="btn sakha-pattern${bb.sent ? " is-confirmed" : ""}" data-a="bb-bid">${sakhaBidInnerHTML(bb.sent, bb.price)}</button>
                     <button type="button" class="btn soft" data-a="bb-chip">Подробнее</button>
                   </div>
                 </div>
@@ -1180,13 +1287,13 @@
             <div class="card pad stack" style="gap:4px;box-shadow:none">
               <span class="bb-spec-pill pro">Desktop ≥ 1360 px</span>
               <b>Широкий экран</b>
-              <p class="small muted">Контейнер 1 200 px, боковое уведомление справа, а @container держит ритм внутри любых сеток.</p>
+              <p class="small muted">Контейнер 1 260–1 340 px, боковое уведомление справа, а @container держит ритм внутри любых сеток.</p>
             </div>
           </div>
         </div>
-      </section>
+      </section>` : ""}
 
-      <section class="land-sec" id="bb-compare">
+      ${showSec("bb-compare") ? `<section class="land-sec" id="bb-compare">
         <div class="land-sec-head">
           <div>
             <div class="eyebrow">UI Kit в действии</div>
@@ -1194,15 +1301,15 @@
           </div>
         </div>
         <div class="${mode === "both" ? "bb-cols" : "stack"}">${panes}</div>
-      </section>
+      </section>` : ""}
 
-      <div class="hh-blue-banner">
-        <div class="stack" style="gap:4px;max-width:60ch">
-          <b style="font-size:20px">Готово по брендбуку — посмотри собранный сайт /landing</b>
-          <span class="small">На странице /landing применены именно эти шрифты, палитра (Серый + Синий + Оранжевый), ползунок-палка, степпер ±100 ₽ и границы.</span>
-        </div>
-        <button type="button" class="btn white" data-a="go" data-v="landing">Открыть сайт /landing →</button>
-      </div>
+      ${blueBannerHTML({
+        title: "Готово по брендбуку — посмотри собранный сайт /landing",
+        subtitle: "Все секции /landing теперь собираются напрямую из единого каталога EGE.kit (/brandbook) без дублирующей разметки.",
+        primaryLabel: "Открыть сайт /landing →",
+        primaryAction: "go",
+        primaryVal: "landing"
+      })}
     </div>`;
   }
 
@@ -1216,13 +1323,7 @@
     const presets = [800, 1000, 1200, 1500, 2000];
     return `<div class="land-page" id="fees-page">
       <header class="land-top">
-        <div class="brand-lockup">
-          ${BRAND_MARK_HTML}
-          <div class="brand-text">
-            <div class="brand-name">Вектор ЕГЭ · Оплата</div>
-            <div class="brand-sub">Условия оплаты и сервисный сбор</div>
-          </div>
-        </div>
+        ${brandLockupHTML({ tag: "Оплата", sub: "Условия оплаты и сервисный сбор" })}
         <div class="land-top-actions">
           <button type="button" class="btn ghost sm" data-a="go" data-v="${inside ? "market" : "landing"}">${inside ? "← К репетиторам" : "← На главную"}</button>
           <button type="button" class="icon-btn sm" data-a="theme-toggle" aria-label="Сменить тему" title="Сменить тему">${icon(dark ? "sun" : "moon")}</button>

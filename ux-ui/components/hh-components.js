@@ -21,7 +21,18 @@
 
   function bidBtnLabelHTML(sent, price) {
     const pStr = Number(price || 0).toLocaleString("ru-RU");
-    return sent ? ("✓ Подтверждено · " + pStr + " ₽") : ("Предложить " + pStr + " ₽");
+    return sent ? ("✓ Подтверждено · " + pStr + " ₽") : ("Сөп · Предложить " + pStr + " ₽");
+  }
+
+  function sakhaBidInnerHTML(sent, price, opts) {
+    opts = opts || {};
+    const sz = Number(opts.size) || 18;
+    const svgFn = (EGE.ui && typeof EGE.ui.sakhaPatternSVG === "function") ? EGE.ui.sakhaPatternSVG : (() => "");
+    const label = opts.short
+      ? (sent ? "✓ Подтверждено" : "Сөп · Предложить")
+      : bidBtnLabelHTML(sent, price);
+    const attr = opts.attr ? (" " + opts.attr) : ' data-bid-lbl="1"';
+    return `${svgFn("rhombus", sz)}<span${attr}>${esc(label)}</span>${svgFn("lattice", sz)}`;
   }
 
   function priceHeadlineHTML(marketPrice, offerPrice, isLg) {
@@ -125,6 +136,7 @@
     isValidHHMM,
     feeSplitHTML,
     bidBtnLabelHTML,
+    sakhaBidInnerHTML,
     priceHeadlineHTML,
     priceDiffTagsHTML,
     sliderTicksHTML,

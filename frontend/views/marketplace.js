@@ -6,7 +6,7 @@
   const EGE = (root.EGE = root.EGE || {});
   const { esc, plural, initials } = EGE.utils;
   const { icon } = EGE.ui;
-  const { isValidHHMM, priceHeadlineHTML, priceDiffTagsHTML } = EGE.hh;
+  const { isValidHHMM, bidBtnLabelHTML, sakhaBidInnerHTML, priceHeadlineHTML, priceDiffTagsHTML } = EGE.hh;
 
   let _ctx = {};
 
@@ -129,7 +129,7 @@
         </div>` : ""}
       </div>
       <div class="tutor-actions single">
-        <button type="button" class="btn" data-a="book-open" data-id="${esc(t.id)}" data-hour="${esc(pickHour)}">Предложить ${t.price.toLocaleString("ru-RU")} ₽</button>
+        <button type="button" class="btn sakha-pattern" data-a="book-open" data-id="${esc(t.id)}" data-hour="${esc(pickHour)}">${sakhaBidInnerHTML(false, t.price)}</button>
       </div>
     </article>`;
   }
@@ -272,7 +272,7 @@
         </div>
         <div class="row between" style="flex-wrap:wrap;gap:8px;align-items:center">
           <div class="row" style="flex-wrap:wrap;gap:8px">
-            <button type="button" class="btn" id="bid-submit-btn" data-a="book-submit">Предложить ${b.offerPrice.toLocaleString("ru-RU")} ₽</button>
+            <button type="button" class="btn sakha-pattern" id="bid-submit-btn" data-a="book-submit">${sakhaBidInnerHTML(false, b.offerPrice, { attr: 'data-bid-lbl="1"' })}</button>
             <button type="button" class="btn ghost" data-a="book-close">Отмена</button>
           </div>
           <button type="button" class="link-btn small muted" data-a="go-fees">Условия оплаты и сбор системы →</button>
@@ -312,7 +312,11 @@
       diffEl.innerHTML = priceDiffTagsHTML({ tutorPrice: tutor.price, marketPrice: tutor.marketPrice || tutor.price, offerPrice: b.offerPrice, qualBadge: tutor.qualBadge });
     }
     const subBtn = document.getElementById("bid-submit-btn");
-    if (subBtn) subBtn.textContent = `Предложить ${b.offerPrice.toLocaleString("ru-RU")} ₽`;
+    if (subBtn) {
+      const subLbl = subBtn.querySelector && (subBtn.querySelector("[data-bid-lbl]") || subBtn.querySelector("span"));
+      if (subLbl) subLbl.textContent = bidBtnLabelHTML(false, b.offerPrice);
+      else subBtn.innerHTML = sakhaBidInnerHTML(false, b.offerPrice, { attr: 'data-bid-lbl="1"' });
+    }
     const sigEl = document.getElementById("bid-signal");
     if (sigEl) {
       const sig = TDATA.offerSignal(tutor.price, b.offerPrice);

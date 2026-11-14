@@ -882,17 +882,17 @@
     assert(landHtml.includes("Дмитрий Волков") && landHtml.includes("выше рынка") && landHtml.includes("diff-tag pro"), "expected above-market high-qualification expert tutor visible on default Любая filter");
     assert(landHtml.includes('data-a="mkt-day"') && landHtml.includes('id="mkt-hour-range"') && landHtml.includes('<span class="day-dot">7</span>') && !landHtml.includes(">7 дн<") && !landHtml.includes(">7д<"), "expected clean 7 number badge (without 7д/7 дн) and 10:00-20:00 hour range slider on landing");
     assert(landHtml.includes('id="land-demo"') && landHtml.includes("Доска Ykt") && landHtml.includes("Telegram") && landHtml.includes("MAX") && !landHtml.includes("Комиссия 5%") && !landHtml.includes("760 ₽") && landHtml.includes('data-v="fees"'), "expected interactive beta demo, multi-channel sources (Ykt/TG/WA/MAX), hidden 5% commission on landing and separate /fees link");
-    assert(landHtml.includes('id="hero-motion-stage"') && landHtml.includes('id="hero-motion-bid-btn"') && landHtml.includes('id="hero-hour-range"') && landHtml.includes('id="hero-price-minus"') && !landHtml.includes("01 Выбор") && landHtml.includes("hh-price-old") && landHtml.includes("hh-blue-banner") && hasNum(landHtml, "Предложить 1 200 ₽") && landHtml.includes("Денис Ковалёв") && landHtml.includes("marquee-band") && landHtml.includes('id="land-savings"'), "expected clean hh-style UX/UI motion stage with strikethrough price, blue banner, brandbook link and simple Предложить 1 200 ₽ CTA");
+    assert(landHtml.includes('id="hero-motion-stage"') && landHtml.includes('id="hero-motion-bid-btn"') && landHtml.includes('id="hero-hour-range"') && landHtml.includes('id="hero-price-minus"') && !landHtml.includes("01 Выбор") && landHtml.includes("hh-price-old") && !landHtml.includes("hh-blue-banner") && landHtml.includes("btn sakha-pattern motion-bid-btn") && hasNum(landHtml, "Сөп · Предложить 1 200 ₽") && landHtml.includes("Денис Ковалёв") && landHtml.includes("marquee-band") && landHtml.includes('id="land-savings"'), "expected clean hh-style UX/UI motion stage with Sakha Предложить CTA, strikethrough price, no brandbook blue banner, and Денис Ковалёв");
 
     clickAction(env5, { a: "motion-step-price", step: "-100" });
     await flushMicrotasks(2);
     const motionSteppedHtml = env5.elements.get("main").innerHTML;
-    assert(hasNum(motionSteppedHtml, "Предложить 1 100 ₽") && motionSteppedHtml.includes("на 100 ₽ ниже анкеты") && motionSteppedHtml.includes("ниже рынка"), "expected -100 ₽ stepper to update simple Предложить CTA and separate colored diff tags");
+    assert(hasNum(motionSteppedHtml, "Сөп · Предложить 1 100 ₽") && motionSteppedHtml.includes("на 100 ₽ ниже анкеты") && motionSteppedHtml.includes("ниже рынка"), "expected -100 ₽ stepper to update Sakha Предложить CTA and separate colored diff tags");
     clickAction(env5, { a: "motion-bid-press" });
     await flushMicrotasks(2);
     const motionBidHtml = env5.elements.get("main").innerHTML;
     const motionSideToast = env5.elements.get("toast");
-    assert(motionBidHtml.includes("is-confirmed") && motionBidHtml.includes("Подтверждено") && motionBidHtml.includes("уведомим"), "expected pressing Предложить to transition smoothly into green Подтверждено state");
+    assert(motionBidHtml.includes("is-confirmed") && motionBidHtml.includes("Подтверждено") && motionBidHtml.includes("Предложение передано преподавателю") && motionBidHtml.includes("bb-pulse-dot") && motionBidHtml.includes("chip notif") && !motionBidHtml.includes("Заявка отправлена · уведомим"), "expected pressing Предложить to transition smoothly into green Подтверждено CTA with orange Brandbook notification below");
     assert(motionSideToast.className === "toast is-side" && motionSideToast.innerHTML.includes("Предложение передано преподавателю") && !motionSideToast.innerHTML.includes("WhatsApp"), "expected side notification without literal WhatsApp word on motion bid");
     for (let k = 0; k < 10; k += 1) clickAction(env5, { a: "motion-step-price", step: "100" });
     await flushMicrotasks(2);
@@ -975,7 +975,7 @@
     await flushMicrotasks(4);
     const bbHtml = env5.elements.get("main").innerHTML;
     assert(bbHtml.includes('id="brandbook-page"') && bbHtml.includes('data-bb-pane="light"') && bbHtml.includes('data-bb-pane="dark"') && bbHtml.includes("Синий фон") && bbHtml.includes("hh-price-old") && bbHtml.includes("Inter") && bbHtml.includes("#F97316") && bbHtml.includes('id="bb-buttons"') && bbHtml.includes('id="bb-bounds"') && bbHtml.includes("bb-phone-frame"), "expected brandbook with white/dark/blue surfaces, orange notifications #F97316, full button/heart/icon catalog, spacing boundaries and mobile 390px frame");
-    assert(bbHtml.includes('id="bb-logo"') && bbHtml.includes('id="bb-forms"') && bbHtml.includes('id="bb-cards-sys"') && bbHtml.includes('id="bb-study-states"') && bbHtml.includes('id="bb-dodont"') && bbHtml.includes("bb-input-error") && bbHtml.includes("plan-card featured super") && bbHtml.includes("bb-skel-bar") && bbHtml.includes('data-a="bb-copy-token"'), "expected extended brandbook sections: logo, forms/errors, tariffs/modals/toasts, study/skeleton/empty/danger states, Do/Dont, and copyable tokens");
+    assert(bbHtml.includes('id="bb-logo"') && bbHtml.includes('data-surface="light"') && bbHtml.includes('data-surface="dark"') && bbHtml.includes('data-surface="blue"') && bbHtml.includes('class="brand-wordmark"') && !bbHtml.includes("M5.5 15Q15") && bbHtml.includes('id="bb-forms"') && bbHtml.includes('id="bb-cards-sys"') && bbHtml.includes('id="bb-study-states"') && bbHtml.includes('id="bb-dodont"') && bbHtml.includes("bb-input-error") && bbHtml.includes("plan-card featured super") && bbHtml.includes("bb-skel-bar") && bbHtml.includes('data-a="bb-copy-token"'), "expected extended brandbook sections: 3-surface circular Sakha logo + custom vector wordmark, forms/errors, tariffs/modals/toasts, study/skeleton/empty/danger states, Do/Dont, and copyable tokens");
     assert(bbHtml.includes('id="bb-sliders"') && bbHtml.includes('id="bb-hour-range-clean"') && bbHtml.includes('id="bb-hour-range-ticks"') && bbHtml.includes('id="bb-hour-range-ruler"') && bbHtml.includes('id="bb-motion"') && bbHtml.includes('id="bb-responsive"') && bbHtml.includes('id="bb-vp-slider"') && bbHtml.includes("bb-blueprint-grid") && bbHtml.includes('data-a="bb-day" data-v="sat"') && !bbHtml.includes("Нажми «Предложить» для перехода") && !bbHtml.includes("5%:"), "expected 3 brandbook sliders, responsive lab, clean CTA card without clipped hint or commission string");
     clickAction(env5, { a: "bb-copy-token", copy: "#0070FF · --accent" });
     await flushMicrotasks(2);
@@ -990,8 +990,20 @@
     await flushMicrotasks(2);
     assert(!env5.elements.get("modal-root").innerHTML.trim(), "expected sample brandbook modal to close");
     const iconMatches = bbHtml.match(/data-a="bb-icon-play"/g) || [];
-    assert(iconMatches.length === 38 && bbHtml.includes('data-icon="wallet"') && bbHtml.includes('data-icon="shield"') && bbHtml.includes('data-icon="send"') && bbHtml.includes('data-icon="sakha"') && bbHtml.includes('data-icon="aurora"') && bbHtml.includes('data-a="bb-icons-wave"'), "expected expanded 38-icon interactive catalog with Yakut animations");
-    assert(bbHtml.includes('id="bb-yakutia"') && bbHtml.includes('id="bb-media"') && bbHtml.includes('id="bb-landing-kit"') && bbHtml.includes('/assets/iphone-motion.jpg') && bbHtml.includes('/assets/lena-pillars.jpg') && bbHtml.includes("btn sakha") && bbHtml.includes("btn sakha-aurora") && bbHtml.includes("sakha-divider"), "expected Yakut buttons/ornaments, media showcase, and complete landing UI catalog inside brandbook");
+    assert(iconMatches.length === 40 && bbHtml.includes('data-icon="wallet"') && bbHtml.includes('data-icon="shield"') && bbHtml.includes('data-icon="send"') && bbHtml.includes('data-icon="ohyorCross"') && bbHtml.includes('data-icon="sakhaStar"') && bbHtml.includes('data-icon="sakhaLattice"') && bbHtml.includes('data-icon="sakhaKun"') && !bbHtml.includes('data-icon="sakha"') && !bbHtml.includes('data-icon="aurora"') && bbHtml.includes('data-a="bb-icons-wave"'), "expected 40-icon catalog with Photo 2/3 Yakut ornaments and Photo 4 icons removed");
+    assert(bbHtml.includes('id="bb-catalog"') && bbHtml.includes('id="bb-catalog-q"') && bbHtml.includes('id="bb-hero-banner"') && bbHtml.includes('id="bb-yakutia"') && bbHtml.includes('id="bb-landing-kit"') && bbHtml.includes('/assets/lena-pillars.jpg') && !bbHtml.includes('/assets/iphone-motion.jpg') && !bbHtml.includes('hero-iphone-bezel') && !bbHtml.includes('hero-banner-form') && !bbHtml.includes('hero-banner-badges') && !bbHtml.includes('id="bb-hero-demo-q"') && !bbHtml.includes('land-search-strip') && bbHtml.includes('hero-banner-ctas') && bbHtml.includes('Найти ниже рынка') && bbHtml.includes('Попробовать бета-тест') && bbHtml.includes("sakha-medallion-btn") && bbHtml.includes("sakha-diamond-btn") && bbHtml.includes("btn sakha-pattern") && bbHtml.includes("sakha-divider"), "expected searchable brandbook catalog + Hero banner with Lena Pillars & 2 CTAs (no top search strip/input/3 pills) + Photo 2/3 Yakut ornament buttons + landing kit");
+    clickAction(env5, { a: "bb-cat", v: "hero" });
+    await flushMicrotasks(2);
+    const bbFilteredHero = env5.elements.get("main").innerHTML;
+    assert(bbFilteredHero.includes('id="bb-hero-banner"') && !bbFilteredHero.includes('id="bb-sliders"'), "expected bb-cat=hero filter to narrow brandbook down to hero components");
+    clickAction(env5, { a: "bb-hero-primary" });
+    clickAction(env5, { a: "bb-hero-beta" });
+    await flushMicrotasks(2);
+    const bbHeroClicked = env5.elements.get("main").innerHTML;
+    assert(bbHeroClicked.includes("hero-cta-primary is-confirmed") && bbHeroClicked.includes("hero-cta-secondary is-confirmed"), "expected both hero CTA buttons in brandbook to toggle confirmed status");
+    clickAction(env5, { a: "bb-cat-clear" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes('id="bb-sliders"'), "expected bb-cat-clear to restore all brandbook sections");
     clickAction(env5, { a: "bb-icon-play", icon: "bell", label: "Уведомление (оранж.)", animDesc: "Звон" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes('bb-icon-tile is-active is-anim') && env5.elements.get("main").innerHTML.includes("Уведомление (оранж.) · Звон"), "expected clicking an icon tile to activate its animation and update status readout");
@@ -1016,7 +1028,7 @@
     await flushMicrotasks(2);
     const bbAfterBid = env5.elements.get("main").innerHTML;
     const bbSideToast = env5.elements.get("toast");
-    assert(bbAfterBid.includes("is-confirmed") && bbAfterBid.includes("✓ Подтверждено") && !bbAfterBid.includes("переход выполнен"), "expected brandbook Подтвердить CTA to transition into green Подтверждено without overflow hint");
+    assert(bbAfterBid.includes("is-confirmed") && bbAfterBid.includes("✓ Подтверждено") && bbAfterBid.includes("Предложение передано преподавателю") && bbAfterBid.includes("chip notif") && !bbAfterBid.includes("переход выполнен"), "expected brandbook Подтвердить CTA to transition into green Подтверждено with orange Brandbook notification below");
     assert(bbSideToast.className === "toast is-side" && bbSideToast.innerHTML.includes("Предложение передано преподавателю") && !bbSideToast.innerHTML.includes("WhatsApp"), "expected brandbook Подтвердить CTA to trigger side notification without literal WhatsApp text");
     clickAction(env5, { a: "bb-bounds-toggle" });
     await flushMicrotasks(2);
@@ -1076,9 +1088,15 @@
 
     clickAction(env5, { a: "bb-sakha-toggle" });
     await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("✓ Сөп · Ставка отправлена"), "expected Sakha Ohyor button in brandbook to transition to confirmed state");
+    assert(env5.elements.get("main").innerHTML.includes("✓ Сөп · Ставка отправлена"), "expected Sakha Ohyor pattern button in brandbook to transition to confirmed state");
     const sakhaBbToast = env5.elements.get("toast");
     assert(sakhaBbToast && sakhaBbToast.className === "toast is-side" && sakhaBbToast.innerHTML.includes("Сөп · Ставка отправлена"), "expected Sakha toggle in brandbook to show side toast");
+    clickAction(env5, { a: "bb-sakha-medallion" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes('class="sakha-medallion-btn is-confirmed"'), "expected Kun Ohyor medallion in brandbook to transition to confirmed state");
+    clickAction(env5, { a: "bb-sakha-diamond" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes('class="sakha-diamond-btn is-confirmed"'), "expected Sulus diamond in brandbook to transition to confirmed state");
     clickAction(env5, { a: "bb-faq-toggle", i: "1" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes('data-a="bb-faq-toggle" data-i="1" aria-expanded="true"'), "expected FAQ item in brandbook landing catalog to expand on click");
@@ -1088,13 +1106,28 @@
     const landFullHtml = env5.elements.get("main").innerHTML;
     assert(
       landFullHtml.includes('id="land-match"') &&
-      landFullHtml.includes('id="land-yakutia-iphone"') &&
-      landFullHtml.includes("hero-iphone-bezel") &&
-      landFullHtml.includes('/assets/iphone-motion.jpg') &&
+      landFullHtml.includes('class="land-hero-banner"') &&
+      landFullHtml.includes('class="hero-banner-ctas"') &&
+      landFullHtml.includes("Найти ниже рынка") &&
+      landFullHtml.includes("Попробовать бета-тест") &&
+      !landFullHtml.includes("hero-banner-form") &&
+      !landFullHtml.includes("hero-banner-badges") &&
+      !landFullHtml.includes("hero-banner-pill") &&
+      landFullHtml.includes('class="brand-wordmark"') &&
+      !landFullHtml.includes("land-search-strip") &&
+      !landFullHtml.includes('id="landing-q"') &&
+      !landFullHtml.includes('id="land-sakha"') &&
+      !landFullHtml.includes("hh-blue-banner") &&
+      !landFullHtml.includes("Дизайн-система и брендбук hh-стиля") &&
+      !landFullHtml.includes("hero-iphone-bezel") &&
+      !landFullHtml.includes('/assets/iphone-motion.jpg') &&
       landFullHtml.includes('/assets/lena-pillars.jpg') &&
       landFullHtml.includes("sakha-divider") &&
-      landFullHtml.includes("btn sakha") &&
-      landFullHtml.includes("btn sakha-aurora") &&
+      !landFullHtml.includes("sakha-medallion-btn") &&
+      !landFullHtml.includes("sakha-diamond-btn") &&
+      landFullHtml.includes("btn sakha-pattern") &&
+      landFullHtml.includes("Сөп · Предложить") &&
+      !landFullHtml.includes("btn sakha-aurora") &&
       landFullHtml.includes('id="land-rates"') &&
       landFullHtml.includes('id="land-verify"') &&
       landFullHtml.includes('id="land-ai-study"') &&
@@ -1152,16 +1185,12 @@
     assert(tutorSideToast && tutorSideToast.className === "toast is-side" && tutorSideToast.innerHTML.includes("Анкета принята на проверку"), "expected side notification after submitting tutor application");
     assert(env5.elements.get("main").innerHTML.includes("✓ Анкета отправлена (Анна Соколова)"), "expected #land-tutors button to transition to green confirmed state");
 
-    clickAction(env5, { a: "land-sakha-bid" });
+    clickAction(env5, { a: "book-open", id: globalThis.EGE.tutors.LIST[0].id, hour: "14:00" });
     await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("✓ Сөп · Заявка отправлена"), "expected Sakha Ohyor CTA on /landing to toggle to confirmed state");
-    clickAction(env5, { a: "land-iphone-preset", v: "inf" });
+    const modalBookHtml = env5.elements.get("modal-root").innerHTML;
+    assert(modalBookHtml.includes('id="bid-submit-btn"') && modalBookHtml.includes("btn sakha-pattern") && modalBookHtml.includes("Сөп · Предложить"), "expected booking modal to use rounded Sakha pattern CTA button for Предложить");
+    clickAction(env5, { a: "book-close" });
     await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("Python / КЕГЭ"), "expected iPhone showcase preset button to switch hero motion preset");
-    clickAction(env5, { a: "land-sakha-filter" });
-    await flushMicrotasks(2);
-    const sakhaFilterToast = env5.elements.get("toast");
-    assert(sakhaFilterToast && sakhaFilterToast.className === "toast is-side" && sakhaFilterToast.innerHTML.includes("Дьүкээбил"), "expected Sakha Aurora filter button to filter marketplace and show side toast");
     assert(!env5.elements.get("main").innerHTML.includes("wa-btn") && !env5.elements.get("main").innerHTML.includes("bid-stepper"), "expected zero legacy wa-btn or bid-stepper classes remaining in rendered landing HTML");
 
     clickAction(env5, { a: "mkt-reset" });
