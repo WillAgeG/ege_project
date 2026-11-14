@@ -526,6 +526,35 @@
         6: ["10:00", "14:00", "18:00"],
         0: ["10:00", "15:00"]
       }
+    },
+    {
+      id: "tut-prof",
+      name: "Дмитрий Волков",
+      subject: "phys",
+      subjectName: "Физика и олимпиады",
+      exams: ["ЕГЭ", "ДВИ", "Навыки"],
+      tier: "pro",
+      qualBadge: "К.т.н. · эксперт жюри ВсОШ",
+      price: 2300,
+      marketPrice: 1700,
+      minFair: 2100,
+      formats: ["Онлайн"],
+      city: "Москва · Онлайн",
+      rating: 5.0,
+      reviews: 64,
+      exp: "14 лет · 31 стобалльник и призёры олимпиад",
+      tag: "Выше рынка · углублённая квалификация",
+      bumpedToday: true,
+      bumpText: "Высокий спрос · топ-рейтинг",
+      bio: "Преподаватель вуза и член жюри профильных олимпиад. Дороже средней ставки, но закрываем сложные задачи ДВИ, Физтеха и ЕГЭ 95+ без лишней воды.",
+      slots: {
+        1: ["16:00", "19:00"],
+        2: ["18:00", "20:00"],
+        3: ["16:00", "18:00"],
+        5: ["17:00", "19:00"],
+        6: ["11:00", "14:00", "17:00"],
+        0: ["12:00", "15:00"]
+      }
     }
   ];
 
@@ -557,7 +586,9 @@
     t.source = t.source || SOURCE_CHANNELS[idx % SOURCE_CHANNELS.length];
     t.marketPrice = t.marketPrice || Math.round((t.price * 1.38) / 50) * 50;
     t.belowRub = Math.max(0, t.marketPrice - t.price);
-    t.belowPct = Math.max(10, Math.round((1 - (t.minFair || t.price) / t.marketPrice) * 100));
+    t.aboveRub = Math.max(0, t.price - t.marketPrice);
+    t.belowPct = t.belowRub > 0 ? Math.max(10, Math.round((1 - (t.minFair || t.price) / t.marketPrice) * 100)) : 0;
+    t.abovePct = t.aboveRub > 0 ? Math.max(5, Math.round((t.aboveRub / t.marketPrice) * 100)) : 0;
     t.responseMin = t.bumpedToday ? 10 : 25;
     if (!t.availableFrom || !t.availableTo) {
       var allH = [];
@@ -618,7 +649,7 @@
     if (filters.exam && filters.exam !== "all" && tutor.exams.indexOf(filters.exam) < 0) return false;
     if (filters.subject && filters.subject !== "all" && tutor.subject !== filters.subject) return false;
     if (filters.format && filters.format !== "all" && tutor.formats.indexOf(filters.format) < 0) return false;
-    if (filters.maxPrice && tutor.price > filters.maxPrice) return false;
+    if (filters.maxPrice && filters.maxPrice < 2000 && tutor.price > filters.maxPrice) return false;
     if (filters.onlyBumped && !tutor.bumpedToday) return false;
     if (filters.q) {
       var q = String(filters.q).trim().toLowerCase();
@@ -681,9 +712,13 @@
   function offerSignal(tutorPrice, offerPrice) {
     var ratio = offerPrice / tutorPrice;
     var diff = Math.round(tutorPrice - offerPrice);
-    if (ratio >= 1) return { tone: "good", label: "Ставка анкеты — преподаватель почти сразу подтвердит время" };
+    if (offerPrice > tutorPrice) {
+      var extra = Math.round(offerPrice - tutorPrice);
+      return { tone: "pro", label: "Выше анкеты на +" + extra + " ₽ — приоритетная запись и разбор у эксперта" };
+    }
+    if (ratio >= 1) return { tone: "confirm", label: "Ставка анкеты — преподаватель почти сразу подтвердит время" };
     if (ratio >= 0.85) return { tone: "good", label: "Ниже анкеты на " + diff + " ₽ (−" + Math.round((1 - ratio) * 100) + "%) — высокий шанс отклика за 10–15 мин" };
-    if (ratio >= 0.72) return { tone: "warn", label: "Смелая ставка (−" + diff + " ₽) — отправим запрос и уведомим об ответе" };
+    if (ratio >= 0.72) return { tone: "notif", label: "Смелая ставка (−" + diff + " ₽) — отправим запрос и уведомим об ответе" };
     return { tone: "bad", label: "Сильно ниже ставки — преподаватель может предложить свою цену" };
   }
 
