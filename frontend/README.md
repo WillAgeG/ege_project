@@ -3,7 +3,7 @@
 ## Технологический стек
 
 - **Рендеринг и архитектура:** Zero-bundler SPA на чистом **HTML5 / CSS3 / ES6+ (IIFE с пространством имён `EGE`)** без Webpack/Vite — мгновенная загрузка и прямой запуск в браузере, `node` и `jsc`.
-- **Адаптивность и анимации:** CSS Custom Properties (`--bg`, `--accent`, `--notif`, `--pro`), `@container` queries, CSS Transitions/Keyframes (36 анимированных иконок, авто-моушен на лендинге).
+- **Адаптивность и анимации:** CSS Custom Properties (`--bg`, `--accent`, `--notif`, `--pro`), `@container` queries, CSS Transitions/Keyframes (38 анимированных иконок, авто-моушен на лендинге).
 - **Хранение состояния на клиенте:** Оптимистичный кэш в `localStorage` + синхронизация документов с FastAPI REST API (`/api/docs/*`).
 
 ## Структура `frontend/`

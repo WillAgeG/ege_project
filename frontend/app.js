@@ -3937,7 +3937,7 @@
       const tiles = typeof document.querySelectorAll === "function" ? document.querySelectorAll(".bb-icon-tile") : null;
       if (tiles && tiles.length) {
         document.querySelectorAll('[data-bb="icon-status"]').forEach((st) => {
-          st.textContent = "Каскад · 36 анимаций";
+          st.textContent = "Каскад · " + tiles.length + " анимаций";
         });
         tiles.forEach((tile, idx) => {
           const run = () => triggerIconTileAnim(tile);

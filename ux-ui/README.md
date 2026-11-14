@@ -8,8 +8,8 @@
 | :--- | :--- |
 | [`tokens.json`](tokens.json) | Машиночитаемый реестр цветовых токенов Light (`#FFFFFF` / `#F4F5F7` / `#0070FF`) и OLED Dark (`#000000` / `#16181D` / `#1D7BFF`), оранжевых уведомлений (`#F97316`), фиолетовых профи-тегов (`#7C3AED`), зелёного подтверждения (`#16A34A`), типографики `Inter` + `IBM Plex Mono` и отступов. |
 | [`styles/base.css`](styles/base.css) | Базовые стили дизайн-системы: `.shell`, кнопки `.btn`, `.soft`, `.is-confirmed`, `.icon-btn`, `.fav-btn`, боковые тосты `.toast.is-side`, формы и модальные окна. |
-| [`styles/brandbook.css`](styles/brandbook.css) | Стили живого брендбука `/brandbook`: белая/чёрная/синяя поверхности, 3 вида ползунков, сетка 36 иконок с CSS-анимациями `@keyframes`, чертёж границ `.bb-blueprint-grid`, мобильный макет 390px и стенд адаптива `@container`. |
-| [`components/icons.js`](components/icons.js) | Библиотека из **36 SVG-иконок** (`stroke-width: 1.8`, `viewBox="0 0 24 24"`), логотип `BRAND_MARK_HTML`, `GOOGLE_SVG` и триггер анимаций плиток `triggerIconTileAnim`. |
+| [`styles/brandbook.css`](styles/brandbook.css) | Стили живого брендбука `/brandbook`: белая/чёрная/синяя поверхности, 3 вида ползунков, сетка 38 иконок с CSS-анимациями `@keyframes`, чертёж границ `.bb-blueprint-grid`, якутские акценты и медиа-карточки, мобильный макет 390px и стенд адаптива `@container`. |
+| [`components/icons.js`](components/icons.js) | Библиотека из **38 SVG-иконок** (`stroke-width: 1.8`, `viewBox="0 0 24 24"`, включая `sakha` и `aurora`), орнамент `sakhaOhyorHTML`, логотип `BRAND_MARK_HTML`, `GOOGLE_SVG` и триггер анимаций плиток `triggerIconTileAnim`. |
 | [`components/hh-components.js`](components/hh-components.js) | Переиспользуемые UI-паттерны hh.ru (`EGE.hh`): зачёркнутая рыночная цена `priceHeadlineHTML`, бейджи ниже/выше рынка `priceDiffTagsHTML`, плавный CTA `bidBtnLabelHTML`, засечки ползунков `sliderTicksHTML`, расчёт комиссии `feeSplitHTML` (для `/fees`). |
 | [`brandbook/brandbook.js`](brandbook/brandbook.js) | Интерактивные страницы `/brandbook` и `/fees` (подробный UI-кит и отдельная страница расчёта 5% системного сбора). |
 
