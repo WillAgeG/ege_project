@@ -168,6 +168,8 @@
           ["#282B36", "Граница 1 px", "--line"],
           ["#1D7BFF", "Синий hh (CTA)", "--accent"],
           ["#102548", "Мягкий синий", "--accent-soft"],
+          ["#C59B5F", "Золото Саха (Бета / Ставка)", "--gold"],
+          ["#E5C185", "Золотой текст ставки", "--gold-ink"],
           ["#22C55E", "Подтверждено ✓", "--confirm"],
           ["#A78BFA", "Выше рынка (профи)", "--pro"],
           ["#FB923C", "Уведомление", "--notif"],
@@ -182,6 +184,8 @@
           ["#E4E6EC", "Граница 1 px", "--line"],
           ["#0070FF", "Синий hh (CTA)", "--accent"],
           ["#EBF3FF", "Мягкий синий", "--accent-soft"],
+          ["#C59B5F", "Золото Саха (Бета / Ставка)", "--gold"],
+          ["#8C6327", "Золотой текст ставки", "--gold-ink"],
           ["#16A34A", "Подтверждено ✓", "--confirm"],
           ["#7C3AED", "Выше рынка (профи)", "--pro"],
           ["#F97316", "Уведомление", "--notif"],
@@ -379,6 +383,18 @@
                 ariaLabel: "Предмет подготовки"
               })}
               <span class="hint">Тематический список в цветах Светлой/Тёмной темы без системного тёмного меню браузера.</span>
+            </div>
+            <div class="field">
+              <span class="label">Вход и выбор роли по умолчанию (.hh-seg · authCard)</span>
+              <div class="hh-seg" role="group" aria-label="Демо выбора роли при входе">
+                <button type="button" data-a="bb-app-role" data-role="student" aria-pressed="${(bb.appRole || "student") !== "tutor"}">${icon("users")} Как ученик</button>
+                <button type="button" data-a="bb-app-role" data-role="tutor" aria-pressed="${bb.appRole === "tutor"}">${icon("award")} Как преподаватель</button>
+              </div>
+              <div class="row" style="gap:8px;flex-wrap:wrap;padding-top:4px">
+                <button type="button" class="btn ghost sm" data-a="auth-modal-open">Продолжить через Google</button>
+                <button type="button" class="btn sm" data-a="auth-modal-open">Войти</button>
+              </div>
+              <span class="hint">По умолчанию выбрано «Как ученик». Обе кнопки входа сохраняют выбранную роль перед рендером кабинета.</span>
             </div>
             <div class="field">
               <span class="label">Сегмент-переключатель (.switch)</span>
@@ -597,17 +613,60 @@
   function marketAndAppSectionHTML(bb) {
     const accepted = !!bb.marketDemoAccepted;
     const pickedHour = String(bb.hour || 14).padStart(2, "0") + ":00";
+    const appRole = bb.appRole === "tutor" ? "tutor" : "student";
+    const tutorSide = appRole === "tutor";
+    const tabItems = tutorSide
+      ? [
+          { ico: "award", label: "Заявки", active: true, badge: "2" },
+          { ico: "users", label: "Репетиторы" },
+          { ico: "book", label: "Справочник" },
+          { ico: "list", label: "Тесты" },
+          { ico: "cal", label: "Учёба" }
+        ]
+      : [
+          { ico: "list", label: "Тесты", active: true },
+          { ico: "users", label: "Репетиторы" },
+          { ico: "book", label: "Справочник" },
+          { ico: "cal", label: "Учёба" },
+          { ico: "chart", label: "Показатели" }
+        ];
     return `<section class="land-sec" id="bb-market-app">
       <div class="land-sec-head">
         <div>
-          <div class="eyebrow">Реальное приложение · /market + кабинет ученика</div>
-          <h2 class="h2">Каталог репетиторов со слотами, полоса откликов и навигация</h2>
+          <div class="eyebrow">Реальное приложение · /market + кабинет ${tutorSide ? "преподавателя" : "ученика"}</div>
+          <h2 class="h2">Каталог репетиторов, кабинет преподавателя и нижний .tabbar (5 вкладок)</h2>
         </div>
         <div class="row" style="gap:6px;flex-wrap:wrap">
+          <div class="hh-seg" role="group" aria-label="Режим кабинета в брендбуке">
+            <button type="button" data-a="bb-app-role" data-role="student" aria-pressed="${!tutorSide}">Ученик</button>
+            <button type="button" data-a="bb-app-role" data-role="tutor" aria-pressed="${tutorSide}">Преподаватель</button>
+          </div>
           <button type="button" class="btn soft sm" data-a="bb-market-req-toggle">${accepted ? "Вернуть «На рассмотрении»" : "Симулировать ответ ✓"}</button>
-          <button type="button" class="btn ghost sm" data-a="go" data-v="market">Открыть /market →</button>
+          <button type="button" class="btn ghost sm" data-a="go" data-v="${tutorSide ? "cabinet" : "market"}">${tutorSide ? "Открыть кабинет →" : "Открыть /market →"}</button>
         </div>
       </div>
+
+      ${tutorSide ? `<div class="tc-req-card ${accepted ? "is-accepted" : "is-pending"}">
+        <div class="row between" style="gap:8px;flex-wrap:wrap">
+          <div class="row" style="gap:8px;flex-wrap:wrap">
+            <b>Айтал Никифоров · 11 класс</b>
+            <span class="chip">Биология · ЕГЭ 2027</span>
+            <span class="chip ${accepted ? "confirm" : "gold"}">${accepted ? "✓ Вы подтвердили" : "Новая заявка · 95% на руки"}</span>
+          </div>
+          <span class="small muted num">Суббота · ${pickedHour} · Онлайн</span>
+        </div>
+        <div class="tc-req-quote">«Нужен разбор №28 на кроссинговер и два пробника в неделю.»</div>
+        <div class="row between" style="gap:10px;flex-wrap:wrap">
+          <div class="row" style="gap:8px;flex-wrap:wrap">
+            <b class="num" style="font-size:17px">${bb.price.toLocaleString("ru-RU")} ₽/ч</b>
+            <span class="small muted">(на руки 95%: <b class="num">${Math.round(bb.price * 0.95).toLocaleString("ru-RU")} ₽</b>)</span>
+          </div>
+          <div class="row" style="gap:8px;flex-wrap:wrap">
+            <button type="button" class="btn gold sm" data-a="bb-demo-toast">${icon("spark")} Сөп · Актуален сегодня</button>
+            <button type="button" class="btn ${accepted ? "confirm" : ""} sm" data-a="bb-market-req-toggle">${accepted ? "✓ Подтверждено" : "✓ Подтвердить"}</button>
+          </div>
+        </div>
+      </div>` : ""}
 
       <div class="reqs-strip" aria-label="Полоса откликов ученика">
         <div class="req-item">
@@ -627,14 +686,16 @@
       </div>
 
       <div class="bb-nav-arch">
-        <aside class="bb-side-mock" aria-label="Архитектура боковой панели кабинета (.side)">
-          ${brandLockupHTML({ tag: "ЕГЭ 2027", sub: "Десктопный .side · 256 px" })}
-          <div class="bb-side-item"><span>${icon("list")} Тесты ЕГЭ</span><span class="chip">12</span></div>
-          <div class="bb-side-item"><span>${icon("book")} Учёба и темы</span><span class="muted small">84%</span></div>
-          <div class="bb-side-item on"><span>${icon("users")} Репетиторы</span><span class="chip accent">17+</span></div>
-          <div class="bb-side-item"><span>${icon("cal")} План вуза</span><span class="chip notif">1</span></div>
-          <div class="small muted" style="padding-top:6px;border-top:1px solid var(--line)">На ≤ 960 px сайдбар сворачивается в нижний <code>.tabbar</code> без пересечения с тостом.</div>
-        </aside>
+        <div class="stack" style="gap:10px">
+          <aside class="bb-side-mock" aria-label="Архитектура боковой панели кабинета (.side)">
+            ${brandLockupHTML({ tag: tutorSide ? "Препод · ЕГЭ" : "ЕГЭ 2027", sub: "Десктопный .side · 256 px" })}
+            ${tabItems.map((it) => `<div class="bb-side-item${it.active ? " on" : ""}"><span>${icon(it.ico)} ${it.label}</span>${it.badge ? `<span class="chip notif">${it.badge}</span>` : `<span class="chip ${it.label === "Справочник" ? "gold" : ""}">${it.label === "Справочник" ? "5-tab" : "·"}</span>`}</div>`).join("")}
+            <div class="small muted" style="padding-top:6px;border-top:1px solid var(--line)">На ≤ 960 px сайдбар сворачивается в 5-вкладочный <code>.tabbar</code> со «Справочником» — без дубля кнопки в шапке.</div>
+          </aside>
+          <div class="bb-tabbar-mock" role="navigation" aria-label="Мобильный нижний .tabbar (5 вкладок)">
+            ${tabItems.map((it) => `<div class="bb-tabbar-mock-item${it.active ? " on" : ""}">${it.badge ? `<span class="bb-tabbar-mock-badge">${it.badge}</span>` : ""}${icon(it.ico)}<span>${it.label}</span></div>`).join("")}
+          </div>
+        </div>
 
         <article class="card tutor-card" style="box-shadow:none">
           <div class="stack" style="gap:10px">
@@ -722,7 +783,7 @@
         })}
         <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
           <span class="bb-spec-pill">.hero-banner-scrim · светлый градиент справа (0% над скалами)</span>
-          <span class="bb-spec-pill confirm">2 CTA-кнопки без верхнего поиска и 3 плашек</span>
+          <span class="bb-spec-pill confirm">2 CTA: Синий «Найти ниже рынка» + Золото Саха «Попробовать бета-тест» (.btn.gold)</span>
           <span class="bb-spec-pill">Сразу под Hero начинается бегущая лента тем</span>
         </div>
       </section>`;
@@ -834,6 +895,18 @@
             <button type="button" class="btn sm" data-a="go" data-v="landing">Выбрать репетитора</button>
           </div>
         </div>
+
+        <div class="card pad stack" style="gap:10px">
+          <div class="row between"><b>06 · Золотой акцент Саха (#C59B5F) · «Вектор ЕГЭ · твоя ставка» и «Бета-тест»</b><span class="bb-spec-pill">.btn.gold / .savings-bar-fill.gold-fill</span></div>
+          <div class="stack" style="gap:6px">
+            <div class="row between small"><span class="savings-gold-label">${icon("spark")} <span>Вектор ЕГЭ · твоя ставка</span></span><b class="num savings-gold-txt">27 000 ₽/мес</b></div>
+            <div class="savings-bar-track"><div class="savings-bar-fill gold-fill" style="width:78%"></div></div>
+          </div>
+          <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
+            <button type="button" class="btn gold sm" data-a="go" data-v="landing">${icon("spark")}<span>Попробовать бета-тест</span></button>
+            <span class="chip gold">Саха золото #C59B5F · 7.33:1 AAA</span>
+          </div>
+        </div>
       </div>
     </section>`;
   }
@@ -894,6 +967,8 @@
 
     const wcagPairs = [
       ["Синий CTA", "#FFFFFF", "#0070FF", "4.68:1", "AA · UI", "aa"],
+      ["Золотой CTA (--gold)", "#141517", "#C59B5F", "7.33:1", "AAA · Попробовать бета-тест", "aaa"],
+      ["Золотой текст ставок", "#8C6327", "#FFFFFF", "4.92:1", "AA · Вектор ЕГЭ ставка", "aa"],
       ["Основной текст", "#141517", "#FFFFFF", "18.1:1", "AAA", "aaa"],
       ["Ночной OLED", "#FFFFFF", "#16181D", "17.7:1", "AAA", "aaa"],
       ["Подтверждено", "#FFFFFF", "#16A34A", "3.30:1", "AA Large · CTA bold", "aa"],
@@ -974,7 +1049,7 @@
         <div class="land-top-actions">
           <button type="button" class="btn ghost sm" data-a="go" data-v="landing">На /landing</button>
           <button type="button" class="icon-btn sm" data-a="theme-toggle" aria-label="Сменить тему" title="Сменить тему">${icon(dark ? "sun" : "moon")}</button>
-          ${inside ? `<button type="button" class="btn sm" data-a="go" data-v="tests">В кабинет</button>` : `<button type="button" class="btn sm" data-a="auth-modal-open">Войти</button>`}
+          ${inside ? `<button type="button" class="btn sm" data-a="go" data-v="${ctx.ui && ctx.ui.role === "tutor" ? "cabinet" : "tests"}">В кабинет</button>` : `<button type="button" class="btn sm" data-a="auth-modal-open">Войти</button>`}
         </div>
       </header>
 
@@ -1563,7 +1638,7 @@
         <div class="land-top-actions">
           <button type="button" class="btn ghost sm" data-a="go" data-v="${inside ? "market" : "landing"}">${inside ? "← К репетиторам" : "← На главную"}</button>
           <button type="button" class="icon-btn sm" data-a="theme-toggle" aria-label="Сменить тему" title="Сменить тему">${icon(dark ? "sun" : "moon")}</button>
-          ${inside ? `<button type="button" class="btn sm" data-a="go" data-v="tests">В кабинет</button>` : `<button type="button" class="btn sm" data-a="auth-modal-open">Войти</button>`}
+          ${inside ? `<button type="button" class="btn sm" data-a="go" data-v="${ctx.ui && ctx.ui.role === "tutor" ? "cabinet" : "tests"}">В кабинет</button>` : `<button type="button" class="btn sm" data-a="auth-modal-open">Войти</button>`}
         </div>
       </header>
 

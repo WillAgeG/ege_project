@@ -439,11 +439,11 @@
             <span class="small muted">Твоя цена на платформе</span>
             <div class="hh-price-stepper">
               <button type="button" class="hh-step-btn" data-a="save-step" data-which="off" data-step="-100">−100 ₽</button>
-              <div class="hh-step-readout"><b class="num" style="color:var(--accent)" data-s="off-val">${st.offRate.toLocaleString("ru-RU")} ₽/ч</b></div>
+              <div class="hh-step-readout"><b class="num savings-gold-txt" data-s="off-val">${st.offRate.toLocaleString("ru-RU")} ₽/ч</b></div>
               <button type="button" class="hh-step-btn" data-a="save-step" data-which="off" data-step="100">+100 ₽</button>
             </div>
           </div>
-          <div class="chip" style="justify-content:space-between;width:100%;white-space:normal;padding:6px 12px;border-radius:10px" data-s="split-txt">При ${st.offRate} ₽/ч экономия с каждого урока: ${Math.max(0, st.mktRate - st.offRate)} ₽</div>
+          <div class="chip gold" style="justify-content:space-between;width:100%;white-space:normal;padding:6px 12px;border-radius:10px" data-s="split-txt">При ${st.offRate} ₽/ч экономия с каждого урока: ${Math.max(0, st.mktRate - st.offRate)} ₽</div>
         </div>
         <div class="card pad stack" style="gap:14px;justify-content:space-between">
           <div class="stack" style="gap:10px">
@@ -452,8 +452,8 @@
               <div class="savings-bar-track"><div class="savings-bar-fill muted-fill" style="width:100%"></div></div>
             </div>
             <div class="stack" style="gap:4px">
-              <div class="row between small"><span>Вектор ЕГЭ · твоя ставка</span><b class="num" style="color:var(--accent)" data-s="month-off">${st.monthOff.toLocaleString("ru-RU")} ₽/мес</b></div>
-              <div class="savings-bar-track"><div class="savings-bar-fill" data-s="off-bar" style="width:${st.barPct}%"></div></div>
+              <div class="row between small"><span class="savings-gold-label">Вектор ЕГЭ · твоя ставка</span><b class="num savings-gold-txt" data-s="month-off">${st.monthOff.toLocaleString("ru-RU")} ₽/мес</b></div>
+              <div class="savings-bar-track"><div class="savings-bar-fill gold-fill" data-s="off-bar" style="width:${st.barPct}%"></div></div>
             </div>
           </div>
           <div class="card" style="padding:12px 14px;background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 42%,var(--line))">
@@ -1001,7 +1001,7 @@
         <div class="land-top-actions">
           <button type="button" class="icon-btn sm" data-a="theme-toggle" aria-label="Сменить тему" title="Сменить тему">${icon(dark ? "sun" : "moon")}</button>
           ${inside
-            ? `<button type="button" class="btn sm" data-a="go" data-v="tests">В кабинет</button>`
+            ? `<button type="button" class="btn sm" data-a="go" data-v="${ui.role === "tutor" ? "cabinet" : "tests"}">В кабинет</button>`
             : `<button type="button" class="btn sm" data-a="auth-modal-open">Войти</button>`}
         </div>
       </header>
@@ -1023,8 +1023,8 @@
             <p class="land-lead">Ниже баннера — интерактивный виджет выбора преподавателя: двигай ползунок удобного времени 10:00–20:00, нажимай −100 ₽ / +100 ₽ и нажимай узорную кнопку «Сөп · Предложить» с мгновенным подтверждением и уведомлением.</p>
             <div class="land-hero-ctas">
               <button type="button" class="btn" data-a="land-scroll" data-target="land-market">К каталогу анкет</button>
-              <button type="button" class="btn soft" data-a="land-scroll" data-target="land-demo">Попробовать бета-тест</button>
-              ${inside ? `<button type="button" class="btn ghost" data-a="go" data-v="tests">Перейти к тестам</button>` : ""}
+              <button type="button" class="btn gold" data-a="land-scroll" data-target="land-demo">${icon("spark")}<span>Попробовать бета-тест</span></button>
+              ${inside ? `<button type="button" class="btn ghost" data-a="go" data-v="${ui.role === "tutor" ? "cabinet" : "tests"}">В кабинет</button>` : ""}
             </div>
             <div class="land-stats">
               <div class="land-stat"><b>${catalogTotal}+ анкет</b><span>Ykt, Telegram, WhatsApp, MAX</span></div>

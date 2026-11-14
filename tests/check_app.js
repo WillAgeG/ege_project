@@ -646,13 +646,13 @@
     await flushMicrotasks(6);
     assert(!globalThis.document.documentElement.dataset.theme, "expected auto theme to clear data-theme");
 
-    // Нижняя шестерёнка + «Выйти» в сайдбаре, 4 вкладки (Тесты, Репетиторы, Учёба, Показатели)
+    // Нижняя шестерёнка + «Выйти» в сайдбаре, 5 вкладок (Тесты, Справочник, Репетиторы, Учёба, Показатели) без дубля вверху
     const sideNavHtml = env4.elements.get("side-nav").innerHTML;
     const sideFootHtml = env4.elements.get("side-foot").innerHTML;
     const tabHtml = env4.elements.get("tabbar").innerHTML;
     assert(!sideNavHtml.includes('data-v="profile"'), "expected Settings removed from top sidebar nav");
     assert(sideFootHtml.includes('data-v="profile"') && sideFootHtml.includes('data-a="auth-logout"') && sideFootHtml.includes("Выйти"), "expected Settings gear and Logout button in sidebar footer");
-    for (const label of ["Тесты", "Репетиторы", "Учёба", "Показатели"]) {
+    for (const label of ["Тесты", "Справочник", "Репетиторы", "Учёба", "Показатели"]) {
       assert(sideNavHtml.includes(label) && tabHtml.includes(label), `expected ${label} in sidebar and bottom tabbar`);
     }
 
@@ -1134,11 +1134,16 @@
       bbV2Html.includes('id="bb-toc"') &&
       bbV2Html.includes("bb-logo-donts") &&
       bbV2Html.includes("bb-wcag-grid") &&
+      bbV2Html.includes("#C59B5F") &&
+      bbV2Html.includes("bb-tabbar-mock") &&
+      bbV2Html.includes("Как ученик") &&
+      bbV2Html.includes("Как преподаватель") &&
+      bbV2Html.includes("savings-bar-fill gold-fill") &&
       bbV2Html.includes("bb-elev-grid") &&
       bbV2Html.includes('id="bb-market-app"') &&
       bbV2Html.includes("bb-tone-grid") &&
       bbV2Html.includes("Шкала слоёв интерфейса (z-index)"),
-      "expected updated brandbook sections: Inter + IBM Plex Mono typography, quick TOC, logo don'ts, WCAG contrast grid, elevation grid, /market anatomy, Tone of Voice, and z-index table"
+      "expected updated brandbook sections: Gold #C59B5F, 5-tab mobile bar, role selector, Inter + IBM Plex Mono, quick TOC, logo don'ts, WCAG contrast grid, elevation grid, /market anatomy, Tone of Voice, and z-index table"
     );
 
     const directSvg = globalThis.EGE.ui.brandLogoSVG("blue", "lockup");
@@ -1165,6 +1170,12 @@
     clickAction(env5, { a: "bb-market-req-toggle" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes("Преподаватель подтвердил") && env5.elements.get("main").innerHTML.includes("Написать"), "expected bb-market-req-toggle to switch demo request into confirmed state with chat action");
+    clickAction(env5, { a: "bb-app-role", role: "tutor" });
+    await flushMicrotasks(2);
+    const bbTutorAppHtml = env5.elements.get("main").innerHTML;
+    assert(bbTutorAppHtml.includes("tc-req-card") && bbTutorAppHtml.includes("Актуален сегодня") && bbTutorAppHtml.includes("на руки 95%"), "expected bb-app-role=tutor in brandbook to display Tutor Cabinet card and 95% payout");
+    clickAction(env5, { a: "bb-app-role", role: "student" });
+    await flushMicrotasks(2);
 
     clickAction(env5, { a: "bb-reduced-toggle" });
     await flushMicrotasks(2);
@@ -1186,7 +1197,8 @@
     await flushMicrotasks(2);
     const landFullHtml = env5.elements.get("main").innerHTML;
     assert(landFullHtml.includes('id="land-match"') && landFullHtml.includes('class="land-hero-banner"'), "expected hero banner and quick match on landing");
-    assert(landFullHtml.includes("Найти ниже рынка") && landFullHtml.includes("Попробовать бета-тест") && !landFullHtml.includes("hero-banner-form"), "expected hero banner CTAs without top search form");
+    assert(landFullHtml.includes("Найти ниже рынка") && landFullHtml.includes("Попробовать бета-тест") && landFullHtml.includes("hero-cta-secondary") && !landFullHtml.includes("hero-banner-form"), "expected hero banner gold and blue CTAs without top search form");
+    assert(landFullHtml.includes("savings-bar-fill gold-fill") && landFullHtml.includes("savings-gold-txt") && landFullHtml.includes("Вектор ЕГЭ · твоя ставка"), "expected Sakha Gold Вектор ЕГЭ твоя ставка progress bar and text class");
     assert(!landFullHtml.includes("land-search-strip") && !landFullHtml.includes("hh-blue-banner") && !landFullHtml.includes("hero-iphone-bezel") && landFullHtml.includes("/assets/lena-pillars.jpg"), "expected Lena Pillars hero without iPhone or search strip or blue brandbook banner");
     assert(landFullHtml.includes("sakha-divider is-gold-logo") && landFullHtml.includes("sakha-gold-emblem") && !landFullHtml.includes("Оһуор · Саха сирэ · Вектор ЕГЭ"), "expected single gold circular logo bottom divider without text label");
     assert(landFullHtml.includes("hh-slider-ticks ruler") && landFullHtml.includes("btn sakha-pattern") && landFullHtml.includes("Сөп · Предложить"), "expected ruler ticks and rounded Sakha CTA");
@@ -1255,13 +1267,65 @@
     clickAction(env5, { a: "mkt-reset" });
     await flushMicrotasks(2);
 
+    // 8. Проверка выбора роли при входе (по умолчанию — ученик), 5-вкладочного .tabbar и личного кабинета преподавателя
+    clickAction(env5, { a: "auth-modal-open" });
+    await flushMicrotasks(3);
+    const authModalDefault = env5.elements.get("modal-root").innerHTML;
+    assert(
+      authModalDefault.includes('data-a="auth-role" data-role="student" aria-pressed="true"') &&
+      authModalDefault.includes('data-a="auth-role" data-role="tutor" aria-pressed="false"'),
+      "expected auth modal role selector to default to Как ученик"
+    );
     clickAction(env5, { a: "auth-guest" });
     await flushMicrotasks(6);
-    assert(env5.elements.get("side-nav").innerHTML.includes("Репетиторы"), "expected side-nav Репетиторы link");
-    assert(env5.elements.get("main").innerHTML.includes("Тесты и справочник"), "expected default Tests hub after login/guest");
+    const studentSideHtml = env5.elements.get("side-nav").innerHTML;
+    const studentTabHtml = env5.elements.get("tabbar").innerHTML;
+    const studentMainHtml = env5.elements.get("main").innerHTML;
+    assert(studentSideHtml.includes("Репетиторы") && studentSideHtml.includes("Справочник") && studentTabHtml.includes("Справочник"), "expected 5-tab nav with Справочник for student");
+    assert(studentMainHtml.includes("Тесты ЕГЭ") && !studentMainHtml.slice(0, studentMainHtml.indexOf("grid-3")).includes('data-v="tutor"'), "expected Тесты ЕГЭ hub without duplicate top Справочник button in head");
+    assert(!readFileText("frontend/index.html").includes('id="top-market"'), "expected top-market removed from mobile topbar");
+
     clickAction(env5, { a: "go", v: "market" });
     await flushMicrotasks(4);
     assert(env5.elements.get("main").innerHTML.includes("Подбор репетитора"), "expected market view");
+
+    clickAction(env5, { a: "go", v: "profile" });
+    await flushMicrotasks(3);
+    assert(env5.elements.get("main").innerHTML.includes("Режим кабинета"), "expected role switcher inside Profile");
+
+    // Переключение в режим преподавателя через окно входа -> Личный кабинет преподавателя
+    clickAction(env5, { a: "auth-modal-open" });
+    await flushMicrotasks(3);
+    clickAction(env5, { a: "auth-role", role: "tutor" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("modal-root").innerHTML.includes('data-role="tutor" aria-pressed="true"'), "expected auth modal to highlight Как преподаватель");
+    clickAction(env5, { a: "auth-guest" });
+    await flushMicrotasks(6);
+
+    const tutorMain1 = env5.elements.get("main").innerHTML;
+    const tutorTabHtml = env5.elements.get("tabbar").innerHTML;
+    assert(tutorMain1.includes("Личный кабинет преподавателя") && tutorMain1.includes("tc-req-card") && tutorMain1.includes("На руки 95%") && tutorMain1.includes("Актуален сегодня"), "expected full Teacher Personal Cabinet view");
+    assert(tutorTabHtml.includes("Кабинет") && tutorTabHtml.includes("Справочник") && tutorTabHtml.includes("Выплаты"), "expected tutor 5-tab bottom bar including Справочник and Выплаты");
+
+    clickAction(env5, { a: "tc-bump" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("Анкета поднята сегодня") && env5.elements.get("toast").innerHTML.includes("Анкета поднята в топ"), "expected tc-bump to mark tutor card active today with side toast");
+
+    clickAction(env5, { a: "tc-req-step", id: "tc-req-1", step: "100" });
+    await flushMicrotasks(2);
+    assert(hasNum(env5.elements.get("main").innerHTML, "1 200 ₽/ч") && env5.elements.get("main").innerHTML.includes("Отправить контр-ставку"), "expected tc-req-step to step incoming offer +100 and reveal counter CTA");
+
+    clickAction(env5, { a: "tc-req-accept", id: "tc-req-1" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("Написать ученику") && env5.elements.get("toast").innerHTML.includes("Урок подтверждён"), "expected tc-req-accept to confirm lesson and show side toast");
+
+    clickAction(env5, { a: "tc-slot-toggle", hour: "13:00" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes('data-a="tc-slot-toggle" data-hour="13:00" aria-pressed="true"'), "expected tc-slot-toggle to toggle 13:00 availability slot");
+
+    clickAction(env5, { a: "role-set", role: "student" });
+    await flushMicrotasks(4);
+    assert(env5.elements.get("main").innerHTML.includes("Тесты ЕГЭ"), "expected role-set back to student to return cleanly to Тесты ЕГЭ");
 
     out("APP_SMOKE_TESTS_OK");
   }

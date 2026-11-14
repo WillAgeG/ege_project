@@ -792,9 +792,23 @@
     if (mq && mq.addEventListener) mq.addEventListener("change", () => { if (themeMode === "auto") scheduleRender(); });
   } catch (e) { /* игнор */ }
 
+  // ---------- роль на платформе (по умолчанию ученик) ----------
+  const ROLE_LS = "vektor-ege:role";
+  function readRolePref() {
+    try { const v = localStorage.getItem(ROLE_LS); if (v === "tutor" || v === "student") return v; } catch (e) { /* недоступно */ }
+    return "student";
+  }
+  function setRolePref(role, silent) {
+    const next = role === "tutor" ? "tutor" : "student";
+    ui.role = next;
+    try { localStorage.setItem(ROLE_LS, next); } catch (e) { /* недоступно */ }
+    if (!silent) toast(next === "tutor" ? "Включён кабинет преподавателя" : "Включён режим ученика");
+  }
+
   // ---------- состояние интерфейса ----------
   const ui = {
     view: "tests",
+    role: readRolePref(),
     sid: firstSubject.id,
     topicId: null,
     quiz: null,
@@ -907,7 +921,7 @@
       if (TOPICS[h]) { ui.view = "topic"; ui.topicId = h; ui.sid = TOPICS[h].sid; return; }
       if (SUBJ[h]) { ui.view = "subject"; ui.sid = h; return; }
       if (h === "essay" && EGE.essay && SUBJ.rus) { ui.view = "essay"; ui.sid = "rus"; return; }
-      if (["home", "tests", "study", "plan", "stats", "tutor", "market", "landing", "brandbook", "fees", "profile"].includes(h)) { ui.view = h; return; }
+      if (["home", "tests", "study", "plan", "stats", "tutor", "cabinet", "market", "landing", "brandbook", "fees", "profile"].includes(h)) { ui.view = h; return; }
     }
     try {
       if (!h && typeof location !== "undefined") {
@@ -932,7 +946,7 @@
     renderQueued = true;
     Promise.resolve().then(() => { renderQueued = false; render(); });
   }
-  const VIEWS = { home: viewHome, tests: viewTests, study: viewStudy, subject: viewSubject, topic: viewTopic, quiz: viewQuiz, essay: viewEssay, plan: viewPlan, stats: viewStats, tutor: viewTutor, market: viewMarket, landing: viewLanding, brandbook: () => viewBrandbook({ inside: true }), fees: () => viewFees({ inside: true }), profile: viewProfile };
+  const VIEWS = { home: viewHome, tests: viewTests, study: viewStudy, subject: viewSubject, topic: viewTopic, quiz: viewQuiz, essay: viewEssay, plan: viewPlan, stats: viewStats, tutor: viewTutor, cabinet: viewCabinet, market: viewMarket, landing: viewLanding, brandbook: () => viewBrandbook({ inside: true }), fees: () => viewFees({ inside: true }), profile: viewProfile };
   function setAuthLayout(on) {
     try {
       if (document.body && document.body.dataset) {
@@ -1009,7 +1023,7 @@
     syncHeroMotion();
   }
   const BUG_EMAIL = "willagegg@gmail.com";
-  const VIEW_LABELS = { home: "Тесты", tests: "Тесты", study: "Учёба", subject: "Предмет", topic: "Тема", quiz: "Тест", plan: "План поступления", stats: "Показатели", tutor: "Справочник", essay: "Сочинение", market: "Репетиторы", landing: "О сервисе и тарифы", brandbook: "Брендбук и UI Kit", fees: "Оплата и сервисный сбор", profile: "Настройки" };
+  const VIEW_LABELS = { home: "Тесты", tests: "Тесты", study: "Учёба", subject: "Предмет", topic: "Тема", quiz: "Тест", plan: "План поступления", stats: "Показатели", tutor: "Справочник", cabinet: "Кабинет преподавателя", essay: "Сочинение", market: "Репетиторы", landing: "О сервисе и тарифы", brandbook: "Брендбук и UI Kit", fees: "Оплата и сервисный сбор", profile: "Настройки" };
   function bugMailtoHref(bug) {
     return `mailto:${BUG_EMAIL}?subject=${encodeURIComponent(bug.subject)}&body=${encodeURIComponent(bug.body)}`;
   }
@@ -1197,18 +1211,31 @@
     return `<span class="avatar${lg ? " lg" : ""}" aria-hidden="true">${esc(initials(name))}</span>`;
   }
   function renderChrome() {
-    const inTests = ["tests", "subject", "topic", "quiz", "tutor", "essay", "home"].includes(ui.view);
+    const isTutor = ui.role === "tutor";
+    const inTests = ["tests", "subject", "topic", "quiz", "essay", "home"].includes(ui.view);
     const inMarket = ui.view === "market" || ui.view === "landing";
     const inStudy = ui.view === "study" || ui.view === "plan";
     const bkCount = mkt().bookings.length;
-    const nav = [
-      ["tests", "Тесты", "book", inTests, 0],
-      ["market", "Репетиторы", "search", inMarket, 0],
-      ["study", "Учёба", "cal", inStudy, bkCount],
-      ["stats", "Показатели", "chart", ui.view === "stats", 0]
-    ];
+    const tcPending = EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.pendingCount === "function"
+      ? EGE.views.tutorCabinet.pendingCount()
+      : 0;
+    const nav = isTutor
+      ? [
+          ["cabinet", "Кабинет", "users", ui.view === "cabinet", tcPending],
+          ["study", "Расписание", "cal", inStudy, 0],
+          ["market", "Каталог", "search", inMarket, 0],
+          ["tutor", "Справочник", "book", ui.view === "tutor", 0],
+          ["fees", "Выплаты", "wallet", ui.view === "fees", 0]
+        ]
+      : [
+          ["tests", "Тесты", "list", inTests, 0],
+          ["tutor", "Справочник", "book", ui.view === "tutor", 0],
+          ["market", "Репетиторы", "search", inMarket, 0],
+          ["study", "Учёба", "cal", inStudy, bkCount],
+          ["stats", "Показатели", "chart", ui.view === "stats", 0]
+        ];
     $("#side-nav").innerHTML = nav.map(([v, l, ic, cur, badge]) =>
-      `<button type="button" class="nav-btn" data-a="go" data-v="${v}"${cur ? ' aria-current="page"' : ""}>${icon(ic)}<span style="flex:1">${l}</span>${badge ? `<span class="chip accent num">${badge}</span>` : ""}</button>`
+      `<button type="button" class="nav-btn" data-a="go" data-v="${v}"${cur ? ' aria-current="page"' : ""}>${icon(ic)}<span style="flex:1">${l}</span>${badge ? `<span class="chip ${isTutor ? "notif" : "accent"} num">${badge}</span>` : ""}</button>`
     ).join("");
     $("#side-subjects").innerHTML = SUBJECTS.map((s) => {
       const cur = ["subject", "topic", "quiz", "essay"].includes(ui.view) && ui.sid === s.id && s.content;
@@ -1219,7 +1246,11 @@
     const nm = (store.user ? (prof.name || store.user.displayName || store.user.username) : "") || prof.name || (me && me.name) || (store.mode === "local" ? (store.backend ? "Гость" : "Этот браузер") : "");
     const dark = effectiveDark();
     const themeLabel = dark ? "Светлая тема" : "Тёмная тема";
-    $("#side-foot").innerHTML = `<div class="side-user">
+    $("#side-foot").innerHTML = `<div class="hh-seg" role="group" aria-label="Роль на платформе" style="margin-bottom:2px">
+        <button type="button" data-a="role-set" data-role="student" aria-pressed="${!isTutor}">Ученик</button>
+        <button type="button" data-a="role-set" data-role="tutor" aria-pressed="${isTutor}">Препод</button>
+      </div>
+      <div class="side-user">
         <div class="me">${avatarHTML(me && me.avatarUrl, nm, false)}<div style="min-width:0"><div class="me-name">${esc(nm)}</div><span class="sync" hidden><i></i><span></span></span></div></div>
         <div class="row" style="gap:6px">
           <button type="button" class="icon-btn sm" data-a="bug-site" aria-label="Сообщить о баге" title="Сообщить о баге на willagegg@gmail.com">${icon("bug")}</button>
@@ -1240,20 +1271,16 @@
       topTheme.setAttribute("aria-label", themeLabel);
       topTheme.setAttribute("title", themeLabel);
     }
-    const topMkt = $("#top-market");
-    if (topMkt) {
-      if (inMarket) topMkt.setAttribute("aria-current", "page");
-      else topMkt.removeAttribute("aria-current");
-    }
     const topProf = $("#top-profile");
     if (topProf) {
       if (ui.view === "profile") topProf.setAttribute("aria-current", "page");
       else topProf.removeAttribute("aria-current");
     }
     const sideBrand = $("#side-brand");
-    if (sideBrand && sideBrand.dataset && !sideBrand.dataset.logoReady) {
-      sideBrand.innerHTML = brandLockupHTML({ sub: "ЕГЭ 2027 · 3 предмета" });
-      sideBrand.dataset.logoReady = "1";
+    const roleLogoTag = isTutor ? "tutor" : "student";
+    if (sideBrand && sideBrand.dataset && sideBrand.dataset.logoReady !== roleLogoTag) {
+      sideBrand.innerHTML = brandLockupHTML({ sub: isTutor ? "Кабинет преподавателя" : "ЕГЭ 2027 · 3 предмета" });
+      sideBrand.dataset.logoReady = roleLogoTag;
     }
     const topLockup = $("#top-brand-lockup");
     if (topLockup && topLockup.dataset && !topLockup.dataset.logoReady && typeof topLockup.querySelector === "function") {
@@ -1357,11 +1384,12 @@
   function authCard(opts) {
     opts = opts || {};
     const a = ui.auth, reg = a.tab === "register";
+    const isTutor = ui.role === "tutor";
     const hasGoogle = !!(store.authProviders && store.authProviders.google);
     return `<form class="card pad-lg form${opts.standalone ? " auth-card" : ""}" data-f="auth">
       <div class="row between" style="flex-wrap:wrap">
         <div>
-          <div class="eyebrow">Аккаунт</div>
+          <div class="eyebrow">Аккаунт · Вектор ЕГЭ</div>
           <h2 class="h2">${reg ? "Регистрация" : "Вход в аккаунт"}</h2>
         </div>
         ${opts.modal ? `<button type="button" class="icon-btn sm" data-a="auth-modal-close" aria-label="Закрыть">${icon("x")}</button>` : ""}
@@ -1370,12 +1398,12 @@
         <button type="button" data-a="auth-tab" data-tab="login" aria-pressed="${!reg}">Вход</button>
         <button type="button" data-a="auth-tab" data-tab="register" aria-pressed="${reg}">Регистрация</button>
       </div>
-      <p class="ink2 small">${reg ? "Создай личный аккаунт — прогресс, расписание и баланс сохранятся на сервере." : "Войди в свой аккаунт, чтобы загрузить прогресс, расписание и баланс с сервера."}${store.backendAi && store.backendAi.enabled ? " Также заработает ИИ-разбор." : ""}</p>
+      <p class="ink2 small">${reg ? "Создай личный аккаунт — прогресс, расписание и баланс сохранятся на сервере." : "Выбери удобный способ входа и укажи, как открыть кабинет — учеником или преподавателем."}</p>
       ${hasGoogle
         ? `<a class="btn ghost google-btn" href="/api/auth/google/start">${GOOGLE_SVG}<span>Продолжить через Google</span></a>`
         : `<button type="button" class="btn ghost google-btn" disabled title="Подключается через GOOGLE_CLIENT_ID и GOOGLE_CLIENT_SECRET на сервере">${GOOGLE_SVG}<span>Продолжить через Google</span></button>`}
       ${!hasGoogle ? '<p class="hint" style="text-align:center">Вход через Google активируется после настройки ключей на сервере.</p>' : ""}
-      <div class="auth-sep"><span>или</span></div>
+      <div class="auth-sep"><span>или по логину</span></div>
       ${reg ? `<div class="fields">
         <div class="field"><label for="auth-name">Как к тебе обращаться</label><input class="input" id="auth-name" name="displayName" type="text" autocomplete="name" maxlength="40" placeholder="Имя (необязательно)" data-d="auth.name" value="${esc(draft("auth.name", ""))}"></div>
         <div class="field"><label for="auth-user">Логин</label><input class="input" id="auth-user" name="username" type="text" autocomplete="username" minlength="2" maxlength="32" required placeholder="Например, alex2027" data-d="auth.user" value="${esc(draft("auth.user", ""))}"></div>
@@ -1390,9 +1418,17 @@
       </div>`}
       ${reg && store.inviteRequired ? `<div class="field"><label for="auth-invite">Код приглашения</label><input class="input" id="auth-invite" name="invite" type="text" autocomplete="off" maxlength="64" required data-d="auth.invite" value="${esc(draft("auth.invite", ""))}"></div>` : ""}
       ${reg && hasLocalProgress() ? `<label class="row" style="gap:8px;align-items:center"><input type="checkbox" class="check" id="auth-migrate" name="migrate" checked><span class="small">Перенести текущий прогресс из этого браузера в новый аккаунт</span></label>` : ""}
+      <div class="field">
+        <span class="label">Кем войти <span class="muted">(по умолчанию — ученик)</span></span>
+        <div class="hh-seg" role="group" aria-label="Роль входа">
+          <button type="button" data-a="auth-role" data-role="student" aria-pressed="${!isTutor}">${icon("book")}<span>Как ученик</span></button>
+          <button type="button" data-a="auth-role" data-role="tutor" aria-pressed="${isTutor}">${icon("users")}<span>Как преподаватель</span></button>
+        </div>
+      </div>
       ${a.error ? `<div class="notice">${esc(a.error)}</div>` : ""}
-      <div class="row" style="flex-wrap:wrap;gap:14px">
+      <div class="row" style="flex-wrap:wrap;gap:10px">
         <button class="btn" type="submit"${a.busy ? " disabled" : ""}>${a.busy ? "Подожди…" : reg ? "Создать аккаунт" : "Войти"}</button>
+        ${!reg ? `<button type="button" class="btn soft" data-a="auth-guest">${isTutor ? "Кабинет препода (демо)" : "Демо-вход ученика"}</button>` : ""}
         <button type="button" class="link-btn" data-a="auth-tab" data-tab="${reg ? "login" : "register"}">${reg ? "Уже есть аккаунт? Войти" : "Нет аккаунта? Создать"}</button>
       </div>
     </form>`;
@@ -1403,6 +1439,11 @@
     ui, effectiveDark, SUBJ, TOPICS, QS, CONTENT, firstSubject,
     BUG_EMAIL, TDATA, tablesHTML, scheduleRender
   });
+  if (EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.configure === "function") {
+    EGE.views.tutorCabinet.configure({
+      ui, mkt, saveMkt, TDATA, store, profile, toast, notifySide, scheduleRender, go
+    });
+  }
 
   function heroMotionMeta() { return EGE.views.landing.heroMotionMeta(); }
   function patchHeroMotionDOM(opts) { return EGE.views.landing.patchHeroMotionDOM(opts); }
@@ -1412,6 +1453,7 @@
   function landingPageHTML(opts) { return EGE.views.landing.landingPageHTML(opts); }
   const MOTION_PRESETS = EGE.views.landing.MOTION_PRESETS;
   function viewMarket() { return EGE.views.marketplace.viewMarket(); }
+  function viewCabinet() { return EGE.views.tutorCabinet ? EGE.views.tutorCabinet.viewCabinet() : viewTests(); }
   function viewStudy() { return EGE.views.marketplace.viewStudy(); }
   function viewBrandbook(opts) { return EGE.views.brandbook.viewBrandbook(opts, { ui, dark: effectiveDark(), TDATA }); }
   function viewFees(opts) { return EGE.views.brandbook.viewFees(opts, { ui, dark: effectiveDark(), TDATA }); }
@@ -1420,7 +1462,7 @@
     const prof = profile();
     const name = prof.name || (store.ready ? defaultName() : "");
     const parts = [];
-    parts.push(`<div class="head"><div class="row between" style="flex-wrap:wrap;gap:10px"><div><div class="eyebrow">${name ? `Привет, ${esc(name)}! · ` : ""}ЕГЭ 2027 · Тренажёр</div><h1 class="h1">Тесты и справочник</h1></div><button type="button" class="btn soft sm" data-a="go" data-v="tutor">${icon("book")}<span>Справочник</span></button></div><p class="lead">Отработка заданий ФИПИ по трём предметам, полные варианты КИМ и быстрый поиск по правилам без нейросети.</p></div>`);
+    parts.push(`<div class="head"><div><div class="eyebrow">${name ? `Привет, ${esc(name)}! · ` : ""}ЕГЭ 2027 · Тренажёр</div><h1 class="h1">Тесты ЕГЭ</h1></div><p class="lead">Отработка заданий ФИПИ по трём предметам, полные варианты КИМ и быстрый поиск по правилам без нейросети.</p></div>`);
     if (store.backend && store.ready && !store.user) parts.push(`<div class="notice"><b>Гостевой режим.</b><span>Прогресс хранится в этом браузере. <button type="button" class="link-btn" data-a="auth-modal-open">Войти или создать аккаунт</button>, чтобы синхронизировать.</span></div>`);
     if (store.ready && !prof.exists && store.error !== "readonly" && (!store.backend || store.user || ui.guest)) parts.push(onboardingCard());
     if (store.mode === "local" && !store.backend) parts.push(localNotice());
@@ -3122,8 +3164,19 @@
   // ---------- настройки ----------
   function viewProfile() {
     const prof = profile();
+    const isTutor = ui.role === "tutor";
     return `<div class="head"><div class="eyebrow">Настройки</div><h1 class="h1">Профиль и данные</h1></div>
       ${store.backend ? accountCard() : ""}
+      <section class="card pad-lg stack">
+        <div class="row between" style="flex-wrap:wrap;gap:8px">
+          <h2 class="h2">Режим кабинета</h2>
+          <span class="chip ${isTutor ? "gold" : "accent"}">${isTutor ? "Преподаватель" : "Ученик (по умолчанию)"}</span>
+        </div>
+        <div class="hh-seg" role="group" aria-label="Выбор роли кабинета">
+          <button type="button" data-a="role-set" data-role="student" aria-pressed="${!isTutor}">${icon("book")}<span>Как ученик</span></button>
+          <button type="button" data-a="role-set" data-role="tutor" aria-pressed="${isTutor}">${icon("users")}<span>Как преподаватель</span></button>
+        </div>
+      </section>
       <section class="card pad-lg stack">
         <div class="row between"><h2 class="h2">Оформление</h2><span class="small muted">${themeMode === "auto" ? "по настройкам устройства" : themeMode === "dark" ? "тёмная палитра" : "светлая палитра"}</span></div>
         <div class="switch" role="group" aria-label="Тема оформления">
@@ -3462,11 +3515,26 @@
       ui.auth.error = "";
       renderModal();
     },
+    "auth-role": (el) => {
+      setRolePref(el.dataset.role, true);
+      if (ui.authModal) renderModal();
+      else scheduleRender();
+    },
+    "role-set": (el) => {
+      const next = el.dataset.role === "tutor" ? "tutor" : "student";
+      setRolePref(next);
+      ui.view = next === "tutor" ? "cabinet" : "tests";
+      writeHash();
+      scheduleRender(true);
+    },
     "auth-guest": () => {
       ui.guest = true;
       ui.authModal = false;
       ui.auth.error = "";
-      if (ui.view === "landing" || ui.view === "brandbook") { ui.view = "tests"; writeHash(); }
+      if (ui.view !== "market" || ui.role === "tutor") {
+        ui.view = ui.role === "tutor" ? "cabinet" : "tests";
+        writeHash();
+      }
       scheduleRender(true);
     },
     "auth-screen": () => {
@@ -4302,6 +4370,10 @@
       toast(fmt === "json" ? "Скопирован tokens.json" : "Скопирован :root CSS");
       notifySide(fmt === "json" ? "Экспорт tokens.json" : "Экспорт :root CSS", `Токены (${payload.length} симв.) скопированы в буфер`);
     },
+    "bb-app-role": (el) => {
+      bbState().appRole = el.dataset && el.dataset.role === "tutor" ? "tutor" : "student";
+      scheduleRender();
+    },
     "bb-market-req-toggle": () => {
       const bb = bbState();
       bb.marketDemoAccepted = !bb.marketDemoAccepted;
@@ -4329,14 +4401,16 @@
       muted: "#7c828e", line: "#e4e6ec", "line-strong": "#cdd2dc", accent: "#0070ff", "accent-hover": "#005ce0",
       "accent-ink": "#ffffff", "accent-soft": "#ebf3ff", notif: "#f97316", "notif-soft": "#fff3eb",
       confirm: "#16a34a", "confirm-hover": "#15803d", "confirm-soft": "#dcfce7",
-      pro: "#7c3aed", "pro-soft": "#f3e8ff", bad: "#ff2b4d", "bad-soft": "#ffe4e8", warn: "#b45309", "warn-soft": "#fef3c7"
+      pro: "#7c3aed", "pro-soft": "#f3e8ff", bad: "#ff2b4d", "bad-soft": "#ffe4e8", warn: "#b45309", "warn-soft": "#fef3c7",
+      gold: "#c59b5f", "gold-hover": "#b3884d", "gold-ink": "#8c6327", "gold-soft": "#fbf5ea"
     },
     dark: {
       bg: "#000000", surface: "#16181d", "surface-2": "#22252e", ink: "#ffffff", "ink-2": "#d4d8e2",
       muted: "#8b909d", line: "#282b36", "line-strong": "#373b49", accent: "#1d7bff", "accent-hover": "#0d67e8",
       "accent-ink": "#ffffff", "accent-soft": "#102548", notif: "#fb923c", "notif-soft": "#2e1909",
       confirm: "#22c55e", "confirm-hover": "#16a34a", "confirm-soft": "#0c2b17",
-      pro: "#a78bfa", "pro-soft": "#21153b", bad: "#ff4d5e", "bad-soft": "#3a171c"
+      pro: "#a78bfa", "pro-soft": "#21153b", bad: "#ff4d5e", "bad-soft": "#3a171c",
+      gold: "#c59b5f", "gold-hover": "#d8b377", "gold-ink": "#e5c185", "gold-soft": "#261e12"
     },
     sakha: {
       auroraCyan: "#0EA5E9", auroraGreen: "#10B981", ornamentGold: "#C59B5F",
@@ -4471,7 +4545,10 @@
         clearQueues();
         ui.guest = false;
         ui.authModal = false;
-        if (ui.view === "landing" || ui.view === "brandbook") ui.view = "tests";
+        if (ui.view !== "market" || ui.role === "tutor") {
+          ui.view = ui.role === "tutor" ? "cabinet" : "tests";
+          writeHash();
+        }
         await loadBackendSession(res.user);
         clearDrafts("auth."); clearDrafts("pf."); clearDrafts("ob.");
         a.error = "";
@@ -4560,18 +4637,29 @@
     }
     const el = e.target.closest("[data-a]");
     if (!el || el.disabled) return;
-    const h = ACTIONS[el.dataset.a];
+    const act = el.dataset.a;
+    if (act && act.indexOf("tc-") === 0 && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.handleAction === "function") {
+      if (EGE.views.tutorCabinet.handleAction(act, el)) { e.preventDefault(); return; }
+    }
+    const h = ACTIONS[act];
     if (h) { e.preventDefault(); h(el, e); }
   });
   document.addEventListener("submit", (e) => {
     const f = e.target.closest("form[data-f]");
     if (!f) return;
     e.preventDefault();
+    if (f.dataset.f === "tc-profile" && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.handleSubmit === "function") {
+      EGE.views.tutorCabinet.handleSubmit(f);
+      return;
+    }
     const h = FORMS[f.dataset.f];
     if (h) h(f);
   });
   document.addEventListener("input", (e) => {
     const el = e.target;
+    if (el && el.dataset && el.dataset.tc && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.handleInput === "function") {
+      if (EGE.views.tutorCabinet.handleInput(el)) return;
+    }
     if (el.id === "subj-q") { ui.subjQ = el.value; scheduleRender(); return; }
     if (el.id === "guide-q") { ui.guideQ = el.value; scheduleRender(); return; }
     if (el.id === "mkt-q" || el.id === "mkt-q-modal") { mkt().q = el.value; saveMkt(); scheduleRender(); return; }

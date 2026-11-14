@@ -35,6 +35,10 @@
   --bad-soft: #ffe4e8;
   --warn-soft: #fef3c7;
   --warn: #b45309;
+  --gold: #c59b5f;
+  --gold-hover: #b3884d;
+  --gold-ink: #8c6327;
+  --gold-soft: #fbf5ea;
   background: #ffffff; color: #141517; border-color: #e4e6ec;
 }
 .bb-pane.is-dark {
@@ -62,6 +66,10 @@
   --pro-soft: #21153b;
   --bad: #ff4d5e;
   --bad-soft: #3a171c;
+  --gold: #c59b5f;
+  --gold-hover: #d8b377;
+  --gold-ink: #e5c185;
+  --gold-soft: #261e12;
   background: #0d0f14; color: #ffffff; border-color: #282b36;
 }
 
@@ -623,6 +631,25 @@
   padding: 8px 10px; border-radius: 10px; font-size: 13px; font-weight: 600; color: var(--ink-2);
 }
 .bb-side-item.on { background: var(--accent-soft); color: var(--accent); }
+.bb-tabbar-mock {
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px;
+  padding: 6px 4px; border-radius: 14px; border: 1px solid var(--line-strong);
+  background: var(--surface); margin-top: 4px;
+}
+.bb-tabbar-mock-item {
+  position: relative; display: grid; justify-items: center; gap: 3px;
+  padding: 5px 2px; border-radius: 9px; color: var(--muted);
+  font-size: 10px; font-weight: 500; text-align: center; min-width: 0;
+}
+.bb-tabbar-mock-item svg { width: 18px; height: 18px; }
+.bb-tabbar-mock-item span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bb-tabbar-mock-item.on { color: var(--accent); font-weight: 700; background: var(--accent-soft); }
+.bb-tabbar-mock-badge {
+  position: absolute; top: 2px; right: 8px;
+  min-width: 15px; height: 15px; padding: 0 4px; border-radius: 999px;
+  background: var(--notif); color: #ffffff; font-size: 9px; font-weight: 700;
+  display: grid; place-items: center; line-height: 1;
+}
 
 .bb-tone-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; min-width: 0; }
 @media (max-width: 860px) { .bb-tone-grid { grid-template-columns: minmax(0, 1fr); } }
