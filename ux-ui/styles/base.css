@@ -364,7 +364,8 @@ p { margin: 0; }
 }
 .hh-select-btn:hover { border-color: color-mix(in srgb, var(--accent) 52%, var(--line-strong)); }
 .hh-select.open .hh-select-btn { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-.hh-select-val { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hh-select-val { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 0; overflow: hidden; }
+.hh-select-val > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hh-select-meta {
   font-size: 11.5px; font-weight: 600; color: var(--ink-2);
   background: var(--soft); border: 1px solid var(--line);

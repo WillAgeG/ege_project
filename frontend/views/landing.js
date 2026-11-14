@@ -768,7 +768,7 @@
     if (!TDATA) return "";
     const meta = computeQuickMatchMeta();
     const { ms, filtered, minPrice, maxMarket, totalCount } = meta;
-    const subjOpts = [{ id: "all", label: "Все предметы и направления", meta: totalCount.toLocaleString("ru-RU") + "+ анкет" }]
+    const subjOpts = [{ id: "all", label: "Все предметы", meta: totalCount.toLocaleString("ru-RU") + "+ анкет" }]
       .concat((TDATA.SUBJECTS || []).map((s) => ({ id: s.id, label: s.name, meta: "ЕГЭ · ОГЭ · ВУЗ" })));
     const topSample = filtered[0];
     const hourChips = [
