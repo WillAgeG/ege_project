@@ -1,4 +1,4 @@
-# Локальный просмотр сайта: http://localhost:8765/
+﻿# Локальный просмотр сайта: http://localhost:8765/
 # Оборачивает index.html в тот же каркас <!doctype html>, что добавляет claude.ai при публикации.
 param([int]$Port = 8765)
 $root = [IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
@@ -17,9 +17,9 @@ while ($listener.IsListening) {
   try {
     $path = [Uri]::UnescapeDataString($ctx.Request.Url.AbsolutePath)
     if ($ctx.Request.HttpMethod -eq "POST" -and $path -eq "/__save") {
-      # запись выгрузки банка (bank/*.csv) и правок (subjects/table.js) со страницы tools/bank.html
+      # запись выгрузки банка (bank/*.csv) и правок (frontend/subjects/table.js) со страницы tools/bank.html
       $rel = $ctx.Request.QueryString["path"]
-      if ($rel -notmatch '^(bank/[A-Za-z0-9._-]+\.csv|subjects/table\.js)$') {
+      if ($rel -notmatch '^(bank/[A-Za-z0-9._-]+\.csv|frontend/subjects/table\.js)$') {
         $ctx.Response.StatusCode = 403
         $bytes = [Text.Encoding]::UTF8.GetBytes("path not allowed")
       } else {
@@ -31,12 +31,16 @@ while ($listener.IsListening) {
         $bytes = [Text.Encoding]::UTF8.GetBytes($rel + " (" + $ms.Length + " bytes)")
       }
       $ctx.Response.ContentType = "text/plain; charset=utf-8"
-    } elseif ($path -eq "/" -or $path -eq "/index.html") {
-      $page = [IO.File]::ReadAllText((Join-Path $root "index.html"), [Text.Encoding]::UTF8)
+    } elseif ($path -eq "/" -or $path -eq "/index.html" -or $path -eq "/landing" -or $path -eq "/brandbook" -or $path -eq "/fees") {
+      $page = [IO.File]::ReadAllText((Join-Path $root "frontend\index.html"), [Text.Encoding]::UTF8)
       $bytes = [Text.Encoding]::UTF8.GetBytes($shell + $page + "</body></html>")
       $ctx.Response.ContentType = "text/html; charset=utf-8"
     } else {
-      $full = [IO.Path]::GetFullPath((Join-Path $root ($path.TrimStart("/") -replace "/", "\")))
+      $relPath = $path.TrimStart("/") -replace "/", "\"
+      $full = [IO.Path]::GetFullPath((Join-Path $root $relPath))
+      if (-not ($full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase) -and (Test-Path -LiteralPath $full -PathType Leaf))) {
+        $full = [IO.Path]::GetFullPath((Join-Path (Join-Path $root "frontend") $relPath))
+      }
       if (-not $full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase) -or -not (Test-Path -LiteralPath $full -PathType Leaf)) {
         $ctx.Response.StatusCode = 404
         $bytes = [Text.Encoding]::UTF8.GetBytes("not found")

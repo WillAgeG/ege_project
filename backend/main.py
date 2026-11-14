@@ -20,7 +20,10 @@ from pydantic import BaseModel, Field
 
 from .ai import AIError, complete_ai_json, stream_ai_text
 from .config import ROOT_DIR, Settings, load_settings
-from .db import Database, StorageError, User
+from databases.sqlite.store import Database, StorageError, User
+
+FRONTEND_DIR = ROOT_DIR / "frontend"
+UX_UI_DIR = ROOT_DIR / "ux-ui"
 
 SHELL_PREFIX = (
     "<!doctype html><html><head><meta charset=utf-8>"
@@ -133,7 +136,7 @@ def _pkce_challenge(verifier: str) -> str:
 
 
 def _render_index_html(landing: bool = False) -> str:
-    raw = (ROOT_DIR / "index.html").read_text(encoding="utf-8")
+    raw = (FRONTEND_DIR / "index.html").read_text(encoding="utf-8")
     flag_script = "<script>window.EGE_HOST={backend:true,landing:true};</script>" if landing else HOST_FLAG_SCRIPT
     target = '<script src="app.js"></script>'
     if target in raw:
@@ -436,25 +439,35 @@ h1{margin:0 0 12px;font-size:24px}h2{margin:20px 0 8px;font-size:17px}p,li{color
     @app.get("/{asset_path:path}")
     async def static_assets(asset_path: str) -> FileResponse:
         clean = asset_path.strip("/")
-        allowed_root = {"app.js", "bank-core.js"}
         media_type = "application/javascript; charset=utf-8"
-        if clean in allowed_root:
-            target = (ROOT_DIR / clean).resolve()
+
+        if clean.startswith("ux-ui/"):
+            rest = clean[len("ux-ui/"):]
+            if rest.startswith("styles/") and rest.endswith(".css"):
+                target = (UX_UI_DIR / rest).resolve()
+                allowed_dir = (UX_UI_DIR / "styles").resolve()
+                media_type = "text/css; charset=utf-8"
+            elif rest.startswith(("components/", "brandbook/")) and rest.endswith(".js"):
+                sub = rest.split("/", 1)[0]
+                target = (UX_UI_DIR / rest).resolve()
+                allowed_dir = (UX_UI_DIR / sub).resolve()
+            else:
+                raise HTTPException(status_code=404, detail="Not found")
+        elif clean in {"app.js", "bank-core.js"}:
+            target = (FRONTEND_DIR / clean).resolve()
+            allowed_dir = FRONTEND_DIR.resolve()
         elif clean.startswith("styles/") and clean.endswith(".css"):
-            target = (ROOT_DIR / clean).resolve()
-            allowed_dir = (ROOT_DIR / "styles").resolve()
-            if not target.is_relative_to(allowed_dir):
-                raise HTTPException(status_code=404, detail="Not found")
+            target = (FRONTEND_DIR / clean).resolve()
+            allowed_dir = (FRONTEND_DIR / "styles").resolve()
             media_type = "text/css; charset=utf-8"
-        elif (clean.startswith("subjects/") or clean.startswith("data/") or clean.startswith("src/")) and clean.endswith(".js"):
-            target = (ROOT_DIR / clean).resolve()
-            allowed_dir = (ROOT_DIR / clean.split("/", 1)[0]).resolve()
-            if not target.is_relative_to(allowed_dir):
-                raise HTTPException(status_code=404, detail="Not found")
+        elif clean.startswith(("core/", "views/", "data/", "subjects/")) and clean.endswith(".js"):
+            top = clean.split("/", 1)[0]
+            target = (FRONTEND_DIR / clean).resolve()
+            allowed_dir = (FRONTEND_DIR / top).resolve()
         else:
             raise HTTPException(status_code=404, detail="Not found")
 
-        if not target.is_file():
+        if not target.is_relative_to(allowed_dir) or not target.is_file():
             raise HTTPException(status_code=404, detail="Not found")
         return FileResponse(
             target,

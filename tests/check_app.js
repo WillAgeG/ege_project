@@ -154,14 +154,22 @@
     };
   }
 
+  function resolveAssetPath(p) {
+    if (p.startsWith("ux-ui/") || p.startsWith("tools/") || p.startsWith("frontend/")) return p;
+    return "frontend/" + p;
+  }
+
   function loadScripts(paths) {
     const g = typeof globalThis !== "undefined" ? globalThis : this;
     g.EGE = { subjects: [], tableEdits: [], plan: null, essay: null };
-    for (const p of paths) vmRun(readFileText(p), p);
+    for (const p of paths) {
+      const diskPath = resolveAssetPath(p);
+      vmRun(readFileText(diskPath), diskPath);
+    }
   }
 
   function parseHtmlScripts() {
-    const html = readFileText("index.html");
+    const html = readFileText("frontend/index.html");
     const matches = [];
     const re = /<script\s+src="([^"]+)">/g;
     let m;
@@ -200,7 +208,7 @@
     assert(bankErrors.length === 0, "expected 0 checkBank errors: " + JSON.stringify(bankErrors));
     assert(bankWarns.length === 0, "expected 0 checkBank warnings: " + JSON.stringify(bankWarns));
     assert(badSelfTest.length === 0, "expected 0 bankTools selfTest issues: " + JSON.stringify(badSelfTest));
-    assert(readFileText("app.js").replace(/\r\n/g, "").indexOf("\n") === -1, "expected CRLF line endings in app.js");
+    assert(readFileText("frontend/app.js").replace(/\r\n/g, "").indexOf("\n") === -1, "expected CRLF line endings in frontend/app.js");
 
     for (const sid of Object.keys(bank.SUBJ)) {
       for (const t of bank.SUBJ[sid].topicList) {
@@ -224,7 +232,7 @@
     assert(bank.SUBJ.rus.variant.two.includes(22), "expected Russian #22 worth 2 primary points");
     const r51Ege = bank.TOPICS["r5-1"].q.filter((q) => q.ege);
     assert(r51Ege.length >= 6 && r51Ege.every((q) => q.t === "match" && q.l.length === 5 && q.r.length === 9), "expected authentic 5-row ege #22 questions in r5-1");
-    vmRun(readFileText("app.js"), "app.js");
+    vmRun(readFileText("frontend/app.js"), "frontend/app.js");
     await flushMicrotasks(12);
     const main1 = env1.elements.get("main").innerHTML;
     assert(main1.includes("Привет, Саша!"), "local legacy migration home greeting missing");
@@ -323,7 +331,7 @@
     });
 
     loadScripts(dataScripts);
-    vmRun(readFileText("app.js"), "app.js");
+    vmRun(readFileText("frontend/app.js"), "frontend/app.js");
     await flushMicrotasks(20);
     const homePreLogin = env2.elements.get("main").innerHTML;
     assert(env2.body.dataset.auth === "1", "expected auth gate body flag before login");
@@ -467,7 +475,7 @@
       }
     });
     loadScripts(dataScripts);
-    vmRun(readFileText("app.js"), "app.js");
+    vmRun(readFileText("frontend/app.js"), "frontend/app.js");
     await flushMicrotasks(20);
     assert(typeof claudeSnapCb === "function", "expected claude onSnapshot subscription");
     claudeSnapCb({ metadata: { fromCache: false }, docs: [{ id: "profile", data: () => ({ name: "Анна", exists: true }) }] });
@@ -547,7 +555,7 @@
     };
 
     loadScripts(dataScripts);
-    vmRun(readFileText("app.js"), "app.js");
+    vmRun(readFileText("frontend/app.js"), "frontend/app.js");
     await flushMicrotasks(15);
     clickAction(env4, { a: "auth-tab", tab: "register" });
     await flushMicrotasks(6);
@@ -856,7 +864,7 @@
       }
     });
     loadScripts(dataScripts);
-    vmRun(readFileText("app.js"), "app.js");
+    vmRun(readFileText("frontend/app.js"), "frontend/app.js");
     await flushMicrotasks(12);
 
     const sp800 = globalThis.EGE.tutors.commissionSplit(800);

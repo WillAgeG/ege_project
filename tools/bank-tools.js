@@ -385,7 +385,7 @@
     return res;
   }
 
-  // Новое содержимое subjects/table.js = прежние правки + правки из этой таблицы.
+  // Новое содержимое frontend/subjects/table.js = прежние правки + правки из этой таблицы.
   function buildTable(prev, d) {
     var edit = clone(prev.edit || {}), add = clone(prev.add || []), drop = (prev.drop || []).slice();
     Object.keys(d.edit).forEach(function (id) { edit[id] = Object.assign(edit[id] || {}, d.edit[id]); });

@@ -28,7 +28,7 @@ SHELL = (
     "body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>"
     "</head><body>"
 )
-SAVE_RE = re.compile(r"^(bank/[A-Za-z0-9._-]+\.csv|subjects/table\.js)$")
+SAVE_RE = re.compile(r"^(bank/[A-Za-z0-9._-]+\.csv|frontend/subjects/table\.js)$")
 
 
 def is_within_root(path: str) -> bool:
@@ -52,16 +52,22 @@ class Handler(BaseHTTPRequestHandler):
 
     def _serve_get(self, send_body: bool) -> None:
         path = urllib.parse.unquote(urllib.parse.urlsplit(self.path).path)
-        if path in ("/", "/index.html"):
-            with open(os.path.join(ROOT, "index.html"), "r", encoding="utf-8") as f:
+        if path in ("/", "/index.html", "/landing", "/brandbook", "/fees"):
+            with open(os.path.join(ROOT, "frontend", "index.html"), "r", encoding="utf-8") as f:
                 page = f.read()
             body = (SHELL + page + "</body></html>").encode("utf-8")
             self._send(200, body, "text/html; charset=utf-8", send_body=send_body)
             return
 
         parts = [p for p in path.split("/") if p]
-        full = os.path.realpath(os.path.join(ROOT, *parts)) if parts else ""
-        if not full or not is_within_root(full) or not os.path.isfile(full):
+        candidates = [os.path.join(ROOT, *parts), os.path.join(ROOT, "frontend", *parts)] if parts else []
+        full = ""
+        for candidate in candidates:
+            resolved = os.path.realpath(candidate)
+            if is_within_root(resolved) and os.path.isfile(resolved):
+                full = resolved
+                break
+        if not full:
             self._send(404, b"not found", send_body=send_body)
             return
 

@@ -5,14 +5,12 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY index.html app.js bank-core.js ./
-COPY styles ./styles
-COPY src ./src
-COPY data ./data
-COPY subjects ./subjects
-COPY server ./server
+COPY ux-ui ./ux-ui
+COPY frontend ./frontend
+COPY backend ./backend
+COPY databases ./databases
 
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8000
 
-CMD ["sh", "-c", "uvicorn server.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --proxy-headers --forwarded-allow-ips='*'"]
+CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --proxy-headers --forwarded-allow-ips='*'"]

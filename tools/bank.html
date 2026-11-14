@@ -50,50 +50,50 @@
   <section id="imp">
     <h2>Загрузка правок из таблицы</h2>
     <p class="muted">Выберите исправленный CSV. Сравниваются только изменённые строки; новые строки (пустой id) добавляются в тему, а слово «удалить» в столбце «Параметры» убирает задание. Ничего не записывается, пока вы не нажмёте кнопку ниже.</p>
-    <div class="row"><input type="file" id="f-csv" accept=".csv,text/csv,text/plain"><button id="b-apply" disabled>Записать в subjects/table.js</button><button id="b-dlt" class="ghost" disabled>Скачать table.js</button></div>
+    <div class="row"><input type="file" id="f-csv" accept=".csv,text/csv,text/plain"><button id="b-apply" disabled>Записать в frontend/subjects/table.js</button><button id="b-dlt" class="ghost" disabled>Скачать table.js</button></div>
     <div id="imp-body" style="margin-top:10px"></div>
   </section>
 </main>
 
-<script src="../subjects/biology.js"></script>
-<script src="../subjects/biology-theory1.js"></script>
-<script src="../subjects/biology-theory2.js"></script>
-<script src="../subjects/biology-theory3.js"></script>
-<script src="../subjects/biology-health.js"></script>
-<script src="../subjects/biology-kim1.js"></script>
-<script src="../subjects/biology-kim2.js"></script>
-<script src="../subjects/biology-kim3.js"></script>
-<script src="../subjects/biology-kim4.js"></script>
-<script src="../subjects/biology-more.js"></script>
-<script src="../subjects/biology-exam.js"></script>
-<script src="../subjects/biology-part2.js"></script>
-<script src="../subjects/biology-part2-tasks.js"></script>
-<script src="../subjects/biology-figures.js"></script>
-<script src="../subjects/russian.js"></script>
-<script src="../subjects/russian-more.js"></script>
-<script src="../subjects/russian-more2.js"></script>
-<script src="../subjects/russian-exam.js"></script>
-<script src="../subjects/chemistry.js"></script>
-<script src="../subjects/chemistry-topics.js"></script>
-<script src="../subjects/chemistry-theory1.js"></script>
-<script src="../subjects/chemistry-theory2.js"></script>
-<script src="../subjects/chemistry-theory3.js"></script>
-<script src="../subjects/chemistry-theory4.js"></script>
-<script src="../subjects/chemistry-theory5.js"></script>
-<script src="../subjects/chemistry-theory6.js"></script>
-<script src="../subjects/chemistry-theory7.js"></script>
-<script src="../subjects/chemistry-theory8.js"></script>
-<script src="../subjects/chemistry-part2.js"></script>
-<script src="../subjects/chemistry-part2-tasks.js"></script>
-<script src="../subjects/chemistry-part2-more.js"></script>
-<script src="../subjects/chemistry-kim1.js"></script>
-<script src="../subjects/chemistry-kim2.js"></script>
-<script src="../subjects/chemistry-kim3.js"></script>
-<script src="../subjects/chemistry-kim4.js"></script>
-<script src="../subjects/chemistry-kim5.js"></script>
-<script src="../subjects/chemistry-more.js"></script>
-<script src="../subjects/chemistry-exam.js"></script><script src="../subjects/table.js"></script>
-<script src="../bank-core.js"></script>
+<script src="../frontend/subjects/biology.js"></script>
+<script src="../frontend/subjects/biology-theory1.js"></script>
+<script src="../frontend/subjects/biology-theory2.js"></script>
+<script src="../frontend/subjects/biology-theory3.js"></script>
+<script src="../frontend/subjects/biology-health.js"></script>
+<script src="../frontend/subjects/biology-kim1.js"></script>
+<script src="../frontend/subjects/biology-kim2.js"></script>
+<script src="../frontend/subjects/biology-kim3.js"></script>
+<script src="../frontend/subjects/biology-kim4.js"></script>
+<script src="../frontend/subjects/biology-more.js"></script>
+<script src="../frontend/subjects/biology-exam.js"></script>
+<script src="../frontend/subjects/biology-part2.js"></script>
+<script src="../frontend/subjects/biology-part2-tasks.js"></script>
+<script src="../frontend/subjects/biology-figures.js"></script>
+<script src="../frontend/subjects/russian.js"></script>
+<script src="../frontend/subjects/russian-more.js"></script>
+<script src="../frontend/subjects/russian-more2.js"></script>
+<script src="../frontend/subjects/russian-exam.js"></script>
+<script src="../frontend/subjects/chemistry.js"></script>
+<script src="../frontend/subjects/chemistry-topics.js"></script>
+<script src="../frontend/subjects/chemistry-theory1.js"></script>
+<script src="../frontend/subjects/chemistry-theory2.js"></script>
+<script src="../frontend/subjects/chemistry-theory3.js"></script>
+<script src="../frontend/subjects/chemistry-theory4.js"></script>
+<script src="../frontend/subjects/chemistry-theory5.js"></script>
+<script src="../frontend/subjects/chemistry-theory6.js"></script>
+<script src="../frontend/subjects/chemistry-theory7.js"></script>
+<script src="../frontend/subjects/chemistry-theory8.js"></script>
+<script src="../frontend/subjects/chemistry-part2.js"></script>
+<script src="../frontend/subjects/chemistry-part2-tasks.js"></script>
+<script src="../frontend/subjects/chemistry-part2-more.js"></script>
+<script src="../frontend/subjects/chemistry-kim1.js"></script>
+<script src="../frontend/subjects/chemistry-kim2.js"></script>
+<script src="../frontend/subjects/chemistry-kim3.js"></script>
+<script src="../frontend/subjects/chemistry-kim4.js"></script>
+<script src="../frontend/subjects/chemistry-kim5.js"></script>
+<script src="../frontend/subjects/chemistry-more.js"></script>
+<script src="../frontend/subjects/chemistry-exam.js"></script><script src="../frontend/subjects/table.js"></script>
+<script src="../frontend/bank-core.js"></script>
 <script src="bank-tools.js"></script>
 <script>
 (function () {
@@ -172,7 +172,7 @@
   };
   $("b-apply").onclick = function () {
     if (!pending) return;
-    save("subjects/table.js", pending).then(function (t) { $("imp-body").insertAdjacentHTML("afterbegin", '<p class="ok"><b>Записано: ' + esc(t) + ". Теперь опубликуйте сайт заново.</b></p>"); $("b-apply").disabled = true; }, function (e) { $("imp-body").insertAdjacentHTML("afterbegin", '<p class="error">Не записалось: ' + esc(e.message) + "</p>"); });
+    save("frontend/subjects/table.js", pending).then(function (t) { $("imp-body").insertAdjacentHTML("afterbegin", '<p class="ok"><b>Записано: ' + esc(t) + ". Теперь опубликуйте сайт заново.</b></p>"); $("b-apply").disabled = true; }, function (e) { $("imp-body").insertAdjacentHTML("afterbegin", '<p class="error">Не записалось: ' + esc(e.message) + "</p>"); });
   };
   $("b-dlt").onclick = function () { if (pending) download("table.js", pending); };
 

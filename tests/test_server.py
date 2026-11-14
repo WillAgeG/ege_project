@@ -9,10 +9,10 @@ from fastapi.testclient import TestClient
 import httpx
 import pytest
 
-from server.ai import AIError, extract_json, normalize_messages
-from server.config import AIConfig, GoogleOAuthConfig, Settings, load_ai_config, resolve_db_path
-from server.db import Database
-from server.main import create_app
+from backend.ai import AIError, extract_json, normalize_messages
+from backend.config import AIConfig, GoogleOAuthConfig, Settings, load_ai_config, resolve_db_path
+from backend.main import create_app
+from databases.sqlite.store import Database
 
 
 def _make_settings(
@@ -74,12 +74,12 @@ def test_static_asset_allowlist(tmp_path: Path) -> None:
         for ok_path in (
             "/app.js",
             "/bank-core.js",
-            "/src/core/utils.js",
-            "/src/ui/icons.js",
-            "/src/ui/hh-components.js",
-            "/src/views/brandbook.js",
-            "/src/views/landing.js",
-            "/src/views/marketplace.js",
+            "/core/utils.js",
+            "/views/landing.js",
+            "/views/marketplace.js",
+            "/ux-ui/components/icons.js",
+            "/ux-ui/components/hh-components.js",
+            "/ux-ui/brandbook/brandbook.js",
             "/data/plan.js",
             "/data/essay.js",
             "/subjects/biology.js",
@@ -91,10 +91,10 @@ def test_static_asset_allowlist(tmp_path: Path) -> None:
             assert "javascript" in resp.headers["content-type"]
 
         for css_path in (
-            "/styles/base.css",
+            "/ux-ui/styles/base.css",
+            "/ux-ui/styles/brandbook.css",
             "/styles/study.css",
             "/styles/marketplace.css",
-            "/styles/brandbook.css",
         ):
             resp = client.get(css_path)
             assert resp.status_code == 200, css_path
@@ -105,13 +105,17 @@ def test_static_asset_allowlist(tmp_path: Path) -> None:
             "/tools/bank-tools.js",
             "/.env",
             "/.env.example",
-            "/server/main.py",
-            "/server/db.py",
+            "/backend/main.py",
+            "/databases/sqlite/store.py",
+            "/etl/sales/sales_metrics.py",
+            "/ux-ui/tokens.json",
+            "/ux-ui/README.md",
             "/requirements.txt",
             "/data/plan.txt",
             "/subjects/../.env",
             "/styles/../.env",
-            "/src/../server/main.py",
+            "/ux-ui/styles/../../backend/main.py",
+            "/views/../../databases/sqlite/store.py",
         ):
             resp = client.get(blocked_path)
             assert resp.status_code == 404, blocked_path
