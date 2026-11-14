@@ -57,7 +57,7 @@ def test_health_and_html_shell(tmp_path: Path) -> None:
         html = r_home.text
         assert html.startswith("<!doctype html><html>")
         assert "<title>Вектор ЕГЭ</title>" in html
-        assert "--accent: #2f7cff" in html
+        assert "--accent: #0070ff" in html and "--accent: #1d7bff" in html
         assert "#13794b" not in html
         flag_pos = html.find("<script>window.EGE_HOST={backend:true};</script>")
         app_pos = html.find('<script src="app.js"></script>')
@@ -618,6 +618,10 @@ def test_landing_and_tutors_catalog(tmp_path: Path) -> None:
         assert '<meta name="viewport"' in r_land.text
         assert "window.EGE_HOST={backend:true,landing:true}" in r_land.text
         assert 'src="data/tutors.js"' in r_land.text
+
+        r_bb = client.get("/brandbook")
+        assert r_bb.status_code == 200
+        assert 'src="app.js"' in r_bb.text
 
         r_js = client.get("/data/tutors.js")
         assert r_js.status_code == 200

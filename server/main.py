@@ -399,6 +399,13 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
             headers={"Cache-Control": "no-store"},
         )
 
+    @app.get("/brandbook", response_class=HTMLResponse)
+    async def brandbook_page() -> HTMLResponse:
+        return HTMLResponse(
+            content=_render_index_html(landing=True),
+            headers={"Cache-Control": "no-store"},
+        )
+
     @app.get("/privacy", response_class=HTMLResponse)
     async def privacy_page() -> HTMLResponse:
         html = """<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Политика конфиденциальности — Вектор ЕГЭ</title><style>

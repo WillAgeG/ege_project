@@ -917,7 +917,8 @@
     market: null,
     demo: { tab: "quiz", sid: firstSubject.id, qIdx: 0, pick: null, revealed: false, topicIdx: 0, bidRate: 800, bidHour: "10:00" },
     motion: { playing: true, preset: "design", step: 0, slot: "10:00", offer: 1200, sent: false, clicking: false, hitTarget: "" },
-    savings: { freq: 2, marketRate: 1600, offerRate: 950 }
+    savings: { freq: 2, marketRate: 1600, offerRate: 950 },
+    brandbook: { mode: "both", hour: 14, price: 1200, chipOn: true, sent: false }
   };
   const MARKET_LS_KEY = "vektor-ege:market";
   const TDATA = EGE.tutors || null;
@@ -995,9 +996,14 @@
       if (TOPICS[h]) { ui.view = "topic"; ui.topicId = h; ui.sid = TOPICS[h].sid; return; }
       if (SUBJ[h]) { ui.view = "subject"; ui.sid = h; return; }
       if (h === "essay" && EGE.essay && SUBJ.rus) { ui.view = "essay"; ui.sid = "rus"; return; }
-      if (["home", "tests", "study", "plan", "stats", "tutor", "market", "landing", "profile"].includes(h)) { ui.view = h; return; }
+      if (["home", "tests", "study", "plan", "stats", "tutor", "market", "landing", "brandbook", "profile"].includes(h)) { ui.view = h; return; }
     }
-    try { if (!h && typeof location !== "undefined" && location.pathname === "/landing") ui.view = "landing"; } catch (e) { /* игнор */ }
+    try {
+      if (!h && typeof location !== "undefined") {
+        if (location.pathname === "/brandbook") { ui.view = "brandbook"; return; }
+        if (location.pathname === "/landing") { ui.view = "landing"; return; }
+      }
+    } catch (e) { /* игнор */ }
     if (!h && typeof window !== "undefined" && window.EGE_HOST && window.EGE_HOST.landing) ui.view = "landing";
   }
   function writeHash() {
@@ -1014,7 +1020,7 @@
     renderQueued = true;
     Promise.resolve().then(() => { renderQueued = false; render(); });
   }
-  const VIEWS = { home: viewHome, tests: viewTests, study: viewStudy, subject: viewSubject, topic: viewTopic, quiz: viewQuiz, essay: viewEssay, plan: viewPlan, stats: viewStats, tutor: viewTutor, market: viewMarket, landing: viewLanding, profile: viewProfile };
+  const VIEWS = { home: viewHome, tests: viewTests, study: viewStudy, subject: viewSubject, topic: viewTopic, quiz: viewQuiz, essay: viewEssay, plan: viewPlan, stats: viewStats, tutor: viewTutor, market: viewMarket, landing: viewLanding, brandbook: () => viewBrandbook({ inside: true }), profile: viewProfile };
   function setAuthLayout(on) {
     try {
       if (document.body && document.body.dataset) {
@@ -1036,7 +1042,7 @@
     let html;
     if (authGate) {
       html = store.ready
-        ? authScreen()
+        ? (ui.view === "brandbook" ? viewBrandbook({ inside: false }) : authScreen())
         : `<div class="auth-wrap"><div class="auth-brand">${BRAND_MARK_HTML}<div class="brand-name">Вектор ЕГЭ</div><p class="muted">Подключаюсь к серверу…</p></div></div>`;
       main.innerHTML = html;
     } else {
@@ -1073,7 +1079,7 @@
     syncHeroMotion();
   }
   const BUG_EMAIL = "willagegg@gmail.com";
-  const VIEW_LABELS = { home: "Тесты", tests: "Тесты", study: "Учёба", subject: "Предмет", topic: "Тема", quiz: "Тест", plan: "План поступления", stats: "Показатели", tutor: "Справочник", essay: "Сочинение", market: "Репетиторы", landing: "О сервисе и тарифы", profile: "Настройки" };
+  const VIEW_LABELS = { home: "Тесты", tests: "Тесты", study: "Учёба", subject: "Предмет", topic: "Тема", quiz: "Тест", plan: "План поступления", stats: "Показатели", tutor: "Справочник", essay: "Сочинение", market: "Репетиторы", landing: "О сервисе и тарифы", brandbook: "Брендбук и UI Kit", profile: "Настройки" };
   function bugMailtoHref(bug) {
     return `mailto:${BUG_EMAIL}?subject=${encodeURIComponent(bug.subject)}&body=${encodeURIComponent(bug.body)}`;
   }
@@ -1211,8 +1217,12 @@
         </div>
         <div class="field">
           <label for="bid-price">Твоя цена за занятие (₽/ч) — комиссия сервиса 5%</label>
+          <div class="hh-price-row" id="bid-price-row" style="margin-bottom:4px">
+            ${tutor.marketPrice ? `<s class="hh-price-old num">${tutor.marketPrice.toLocaleString("ru-RU")} ₽</s>` : ""}
+            <b class="hh-price-now num">${b.offerPrice.toLocaleString("ru-RU")} ₽/ч</b>
+          </div>
           <div class="hh-diff-strip" id="bid-diff-strip" style="margin-bottom:4px">
-            ${tutor.marketPrice ? `<span class="diff-tag market num">Рынок ${tutor.marketPrice} ₽</span>` : ""}
+            <span class="diff-tag rate num">Анкета ${tutor.price} ₽</span>
             ${diffTutor > 0 ? `<span class="diff-tag save-hot num">на ${diffTutor} ₽ ниже анкеты</span>` : ""}
             ${diffMarket > 0 ? `<span class="diff-tag save-cool num">на ${diffMarket} ₽ ниже рынка</span>` : ""}
           </div>
@@ -1639,11 +1649,11 @@
         <div class="tutor-head">
           <div style="min-width:0">
             <h3 class="h3" style="font-size:17px">Репетитор · ${esc(t.subjectName)}</h3>
-            <div class="row" style="gap:8px;align-items:baseline;flex-wrap:wrap;margin-top:4px">
+            <div class="hh-price-row" style="margin-top:4px">
+              ${t.marketPrice ? `<s class="hh-price-old num">${t.marketPrice.toLocaleString("ru-RU")} ₽</s>` : ""}
               <div class="tutor-rate num">${t.price.toLocaleString("ru-RU")} ₽/ч</div>
             </div>
             <div class="hh-diff-strip" style="margin-top:6px">
-              ${t.marketPrice ? `<span class="diff-tag market num">Рынок ${t.marketPrice.toLocaleString("ru-RU")} ₽</span>` : ""}
               ${belowRub ? `<span class="diff-tag save-hot num">на ${belowRub.toLocaleString("ru-RU")} ₽ ниже рынка</span>` : ""}
               ${t.belowPct ? `<span class="diff-tag save-cool num">−${t.belowPct}%</span>` : ""}
             </div>
@@ -2021,8 +2031,7 @@
   }
 
   function motionDiffHTML(meta) {
-    const tags = [`<span class="diff-tag market num">Рынок ${meta.market.toLocaleString("ru-RU")} ₽</span>`];
-    tags.push(`<span class="diff-tag rate num">Анкета ${meta.tutorPrice.toLocaleString("ru-RU")} ₽</span>`);
+    const tags = [`<span class="diff-tag rate num">Анкета ${meta.tutorPrice.toLocaleString("ru-RU")} ₽</span>`];
     if (meta.belowTutorRub > 0) {
       tags.push(`<span class="diff-tag save-hot num">на ${meta.belowTutorRub.toLocaleString("ru-RU")} ₽ ниже анкеты</span>`);
     } else if (meta.aboveTutorRub > 0) {
@@ -2077,7 +2086,13 @@
             </div>
           </div>
         </div>
-        <div class="hh-diff-strip" data-m="diff-strip">${motionDiffHTML(meta)}</div>
+        <div class="stack" style="gap:6px">
+          <div class="hh-price-row">
+            <s class="hh-price-old lg num" data-m="market-strike">${meta.market.toLocaleString("ru-RU")} ₽</s>
+            <b class="hh-price-now num" data-m="offer-price-head">${offer.toLocaleString("ru-RU")} ₽/ч</b>
+          </div>
+          <div class="hh-diff-strip" data-m="diff-strip">${motionDiffHTML(meta)}</div>
+        </div>
         <div class="hh-time-picker">
           <div class="row between">
             <span class="small muted">Удобный час с 10:00 до 20:00</span>
@@ -2165,6 +2180,10 @@
         if (String(rng.value) !== String(meta.hourNum)) rng.value = String(meta.hourNum);
         if (rng.style && rng.style.setProperty) rng.style.setProperty("--pct", meta.hourPct + "%");
       }
+      const mktStr = q('[data-m="market-strike"]');
+      if (mktStr) mktStr.textContent = meta.market.toLocaleString("ru-RU") + " ₽";
+      const opHead = q('[data-m="offer-price-head"]');
+      if (opHead) opHead.textContent = meta.offer.toLocaleString("ru-RU") + " ₽/ч";
       const ds = q('[data-m="diff-strip"]');
       if (ds) ds.innerHTML = motionDiffHTML(meta);
       const oval = q('[data-m="offer-val"]');
@@ -2395,6 +2414,241 @@
     }
   }
 
+  function brandbookPaneHTML(isDark, bb, diffTutor, diffMarket, pctOff, split) {
+    const cls = isDark ? "is-dark" : "is-light";
+    const title = isDark ? "Чёрный вид (Dark · OLED hh.ru)" : "Белый вид (Light · hh.ru)";
+    const hourStr = String(bb.hour).padStart(2, "0") + ":00";
+    const hourPct = Math.round(((bb.hour - 10) / 10) * 100);
+    const swatches = isDark
+      ? [
+          ["#000000", "Фон страницы", "--bg"],
+          ["#16181D", "Карточка", "--surface"],
+          ["#22252E", "Серый тег / чип", "--surface-2"],
+          ["#1D7BFF", "Синий hh (CTA)", "--accent"],
+          ["#102548", "Мягкий синий", "--accent-soft"],
+          ["#FFFFFF", "Активный пилл", "--pill-bg"],
+          ["#FF4D5E", "Уведомление", "--bad"]
+        ]
+      : [
+          ["#F4F5F7", "Фон страницы", "--bg"],
+          ["#FFFFFF", "Белая карточка", "--surface"],
+          ["#F2F3F6", "Серый тег / чип", "--surface-2"],
+          ["#0070FF", "Синий hh (CTA)", "--accent"],
+          ["#EBF3FF", "Мягкий синий", "--accent-soft"],
+          ["#141517", "Активный пилл", "--pill-bg"],
+          ["#FF2B4D", "Уведомление", "--bad"]
+        ];
+    return `<div class="bb-pane ${cls}" data-bb-pane="${isDark ? "dark" : "light"}">
+      <div class="row between" style="gap:8px;flex-wrap:wrap">
+        <b>${title}</b>
+        <span class="chip">${isDark ? "Ночная тема" : "Дневная тема"}</span>
+      </div>
+      <div class="bb-swatches">
+        ${swatches.map(([hex, label, tok]) => `<div class="bb-swatch">
+          <div class="bb-swatch-chip" style="background:${hex}"></div>
+          <div class="bb-swatch-info"><b>${label}</b><span>${hex} · ${tok}</span></div>
+        </div>`).join("")}
+      </div>
+      <div class="card" style="padding:14px">
+        <div class="small muted" style="margin-bottom:8px">Кнопки и фильтры hh.ru</div>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <button type="button" class="btn" data-a="bb-bid">Предложить ${bb.price.toLocaleString("ru-RU")} ₽</button>
+          <button type="button" class="btn soft" data-a="bb-chip">Подробнее</button>
+          <button type="button" class="btn ghost" data-a="bb-chip">Фильтры</button>
+          <button type="button" class="btn" disabled>Неактивна</button>
+        </div>
+        <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:10px">
+          <button type="button" class="bb-filter-active" data-a="bb-chip">${bb.chipOn ? "UX/UI и Моушен ×" : "+ Направление"}</button>
+          <span class="tutor-tag-pill">+ Время 10:00–20:00</span>
+          <span class="tutor-tag-pill">Можно удалённо</span>
+          <span class="tutor-tag-pill">Доска Ykt · TG · MAX</span>
+        </div>
+      </div>
+      <div class="hh-time-picker">
+        <div class="row between">
+          <span class="small muted">Ползунок времени 10:00–20:00</span>
+          <span class="hh-time-val num" data-bb="hour">Сб · ${hourStr}</span>
+        </div>
+        <input class="hh-time-range" id="${isDark ? "bb-hour-range-dark" : "bb-hour-range"}" type="range" min="10" max="20" step="1" value="${bb.hour}" style="--pct:${hourPct}%" aria-label="Ползунок времени в брендбуке">
+        <div class="hh-time-ticks" aria-hidden="true"><span>10:00</span><span>12:00</span><span>14:00</span><span>16:00</span><span>18:00</span><span>20:00</span></div>
+      </div>
+      <div class="hh-price-stepper">
+        <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-100">−100 ₽</button>
+        <div class="hh-step-readout"><b class="num">${bb.price.toLocaleString("ru-RU")} ₽/ч</b><span class="small muted">комиссия 5%: ${split.payout} / ${split.fee} ₽</span></div>
+        <button type="button" class="hh-step-btn" data-a="bb-step" data-step="100">+100 ₽</button>
+      </div>
+      <article class="card tutor-card" style="box-shadow:none">
+        <div class="stack" style="gap:8px">
+          <div class="tutor-head">
+            <div style="min-width:0">
+              <h3 class="h3" style="font-size:17px">Репетитор · UX/UI и Моушен</h3>
+              <div class="hh-price-row" style="margin-top:4px">
+                <s class="hh-price-old num">2 000 ₽</s>
+                <div class="tutor-rate num">${bb.price.toLocaleString("ru-RU")} ₽/ч</div>
+              </div>
+              <div class="hh-diff-strip" style="margin-top:6px">
+                <span class="diff-tag rate num">Анкета 1 200 ₽</span>
+                ${diffTutor > 0 ? `<span class="diff-tag save-hot num">на ${diffTutor} ₽ ниже анкеты</span>` : ""}
+                ${diffMarket > 0 ? `<span class="diff-tag save-cool num">на ${diffMarket} ₽ ниже рынка</span>` : ""}
+                <span class="diff-tag save-cyan num">−${pctOff}%</span>
+              </div>
+            </div>
+            <span class="verified-badge" aria-hidden="true">${icon("check")}</span>
+          </div>
+          <div class="tutor-name-line">
+            <b style="color:var(--ink)">Денис Ковалёв</b>
+            <span class="small muted">· Онлайн по РФ · ★ 4.9 (27)</span>
+          </div>
+          <div class="tutor-tags">
+            <span class="tutor-tag-pill">Доска Ykt · TG · MAX</span>
+            <span class="tutor-tag-pill">Figma &amp; After Effects</span>
+          </div>
+        </div>
+        <div class="tutor-actions single">
+          <button type="button" class="btn" data-a="bb-bid">${bb.sent ? `Отклик ${bb.price.toLocaleString("ru-RU")} ₽ отправлен` : `Предложить ${bb.price.toLocaleString("ru-RU")} ₽`}</button>
+        </div>
+      </article>
+    </div>`;
+  }
+
+  function viewBrandbook(opts) {
+    opts = opts || {};
+    const inside = !!opts.inside;
+    const dark = effectiveDark();
+    const bb = ui.brandbook || (ui.brandbook = { mode: "both", hour: 14, price: 1200, chipOn: true, sent: false });
+    const market = 2000;
+    const tutorRate = 1200;
+    const diffTutor = Math.max(0, tutorRate - bb.price);
+    const diffMarket = Math.max(0, market - bb.price);
+    const pctOff = Math.round(((market - bb.price) / market) * 100);
+    const split = TDATA && TDATA.commissionSplit ? TDATA.commissionSplit(bb.price) : { payout: Math.round(bb.price * 0.95), fee: Math.round(bb.price * 0.05) };
+    const mode = bb.mode || "both";
+    const panes = (mode === "light" || mode === "both" ? brandbookPaneHTML(false, bb, diffTutor, diffMarket, pctOff, split) : "") +
+      (mode === "dark" || mode === "both" ? brandbookPaneHTML(true, bb, diffTutor, diffMarket, pctOff, split) : "");
+
+    return `<div class="land-page" id="brandbook-page">
+      <header class="land-top">
+        <div class="brand-lockup">
+          ${BRAND_MARK_HTML}
+          <div class="brand-text">
+            <div class="brand-name">Вектор ЕГЭ · Брендбук</div>
+            <div class="brand-sub">UX/UI дизайн-система в стиле hh.ru</div>
+          </div>
+        </div>
+        <nav class="land-links" aria-label="Разделы брендбука">
+          <a href="#bb-surfaces" data-a="land-scroll" data-target="bb-surfaces">Белый / Синий</a>
+          <a href="#bb-fonts" data-a="land-scroll" data-target="bb-fonts">Шрифты</a>
+          <a href="#bb-compare" data-a="land-scroll" data-target="bb-compare">Компоненты</a>
+        </nav>
+        <div class="land-top-actions">
+          <button type="button" class="btn ghost sm" data-a="go" data-v="landing">На /landing</button>
+          <button type="button" class="icon-btn sm" data-a="theme-toggle" aria-label="Сменить тему" title="Сменить тему">${icon(dark ? "sun" : "moon")}</button>
+          ${inside ? `<button type="button" class="btn sm" data-a="go" data-v="tests">В кабинет</button>` : `<button type="button" class="btn sm" data-a="auth-modal-open">Войти</button>`}
+        </div>
+      </header>
+
+      <section class="card pad-lg stack" style="gap:14px">
+        <div class="row between" style="gap:12px;flex-wrap:wrap">
+          <div class="stack" style="gap:6px">
+            <div class="eyebrow">UI Kit &amp; Brandbook · hh.ru</div>
+            <h1 class="h1">Дизайн-система: Белый, Чёрный и Синий фон + прочерк цены</h1>
+            <p class="lead">Правила интерфейса перед сборкой /landing: шрифт Inter, чистые белые/чёрные карточки, синие кнопки #0070FF, ползунки 10:00–20:00 и перечёркнутая рыночная цена рядом со ставкой. Ноль зелёного.</p>
+          </div>
+          <div class="row" style="gap:6px;flex-wrap:wrap">
+            <button type="button" class="chip-btn${mode === "both" ? " on" : ""}" data-a="bb-mode" data-v="both">Белый + Чёрный рядом</button>
+            <button type="button" class="chip-btn${mode === "light" ? " on" : ""}" data-a="bb-mode" data-v="light">Только белый вид</button>
+            <button type="button" class="chip-btn${mode === "dark" ? " on" : ""}" data-a="bb-mode" data-v="dark">Только чёрный вид</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="land-sec" id="bb-surfaces">
+        <div class="land-sec-head">
+          <div>
+            <div class="eyebrow">Поверхности · Прочерк цены</div>
+            <h2 class="h2">Как выглядит прочерк цены на Белом, Чёрном и Синем фоне</h2>
+          </div>
+          <div class="row" style="gap:6px">
+            <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-100">−100 ₽</button>
+            <button type="button" class="hh-step-btn" data-a="bb-step" data-step="100">+100 ₽</button>
+          </div>
+        </div>
+        <div class="bb-cols cols-3">
+          <div class="bb-pane is-light">
+            <span class="small muted">Белый фон · #FFFFFF / #F4F5F7</span>
+            <div class="hh-price-row">
+              <s class="hh-price-old lg num">2 000 ₽</s>
+              <b class="hh-price-now lg num">${bb.price.toLocaleString("ru-RU")} ₽/ч</b>
+            </div>
+            <div class="hh-diff-strip">
+              <span class="diff-tag rate num">Анкета 1 200 ₽</span>
+              <span class="diff-tag save-cool num">на ${diffMarket} ₽ ниже рынка</span>
+              <span class="diff-tag save-cyan num">−${pctOff}%</span>
+            </div>
+            <button type="button" class="btn" data-a="bb-bid">Предложить ${bb.price.toLocaleString("ru-RU")} ₽</button>
+          </div>
+          <div class="bb-pane is-dark">
+            <span class="small muted">Чёрный фон · #000000 / #16181D</span>
+            <div class="hh-price-row">
+              <s class="hh-price-old lg num">2 000 ₽</s>
+              <b class="hh-price-now lg num">${bb.price.toLocaleString("ru-RU")} ₽/ч</b>
+            </div>
+            <div class="hh-diff-strip">
+              <span class="diff-tag rate num">Анкета 1 200 ₽</span>
+              <span class="diff-tag save-cool num">на ${diffMarket} ₽ ниже рынка</span>
+              <span class="diff-tag save-cyan num">−${pctOff}%</span>
+            </div>
+            <button type="button" class="btn" data-a="bb-bid">Предложить ${bb.price.toLocaleString("ru-RU")} ₽</button>
+          </div>
+          <div class="bb-pane is-blue">
+            <span class="small">Синий фон · #0070FF → #0055D4</span>
+            <div class="hh-price-row">
+              <s class="hh-price-old lg num">2 000 ₽</s>
+              <b class="hh-price-now lg num">${bb.price.toLocaleString("ru-RU")} ₽/ч</b>
+            </div>
+            <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:auto">
+              <button type="button" class="btn white" data-a="bb-bid">Предложить ${bb.price.toLocaleString("ru-RU")} ₽</button>
+              <button type="button" class="btn blue-ghost" data-a="go" data-v="landing">К сайту /landing</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="land-sec" id="bb-fonts">
+        <div class="land-sec-head">
+          <div>
+            <div class="eyebrow">Шрифты · Inter + IBM Plex Mono</div>
+            <h2 class="h2">Типографика как на сайте hh.ru</h2>
+          </div>
+        </div>
+        <div class="card pad-lg stack" style="gap:4px">
+          <div class="bb-type-row"><b style="font-size:28px;font-weight:700;letter-spacing:-.025em">H1 · Ищи репетиторов ниже рынка</b><span class="small muted num">Inter Bold 700 · −0.02em · clamp(25–39px)</span></div>
+          <div class="bb-type-row"><b style="font-size:20px;font-weight:700;letter-spacing:-.015em">H2 · Найдено 2 480 подходящих анкет</b><span class="small muted num">Inter Bold 700 · −0.015em · 20px</span></div>
+          <div class="bb-type-row"><span><s class="hh-price-old lg num">2 000 ₽</s> <b class="hh-price-now lg num" style="margin-left:6px">1 200 ₽/ч</b></span><span class="small muted num">Tabular-nums · Прочерк #7C828E + Ставка 700</span></div>
+          <div class="bb-type-row"><span style="font-size:13.5px;font-weight:500">Опыт 6 лет · Можно удалённо · Доска Ykt · Telegram · MAX</span><span class="small muted num">Inter Medium 500 · Теги карточек 13px</span></div>
+        </div>
+      </section>
+
+      <section class="land-sec" id="bb-compare">
+        <div class="land-sec-head">
+          <div>
+            <div class="eyebrow">UI Kit в действии</div>
+            <h2 class="h2">Полный набор компонентов в Белом и Чёрном виде</h2>
+          </div>
+        </div>
+        <div class="${mode === "both" ? "bb-cols" : "stack"}">${panes}</div>
+      </section>
+
+      <div class="hh-blue-banner">
+        <div class="stack" style="gap:4px;max-width:60ch">
+          <b style="font-size:20px">Готово по брендбуку — посмотри собранный сайт /landing</b>
+          <span class="small">На странице /landing применены именно эти шрифты, палитра, прочерк цены и кнопки.</span>
+        </div>
+        <button type="button" class="btn white" data-a="go" data-v="landing">Открыть сайт /landing →</button>
+      </div>
+    </div>`;
+  }
+
   function landingPageHTML(opts) {
     opts = opts || {};
     const inside = !!opts.inside;
@@ -2419,6 +2673,7 @@
           </div>
         </div>
         <nav class="land-links" aria-label="Разделы лендинга">
+          <a href="/brandbook" data-a="go" data-v="brandbook">Брендбук</a>
           <a href="#hero-motion-stage" data-a="land-scroll" data-target="hero-motion-stage">Подбор</a>
           <a href="#land-savings" data-a="land-scroll" data-target="land-savings">Выгода</a>
           <a href="#land-demo" data-a="land-scroll" data-target="land-demo">Бета-тест</a>
@@ -2462,6 +2717,18 @@
       </div>
 
       ${marqueeSectionHTML()}
+
+      <div class="hh-blue-banner">
+        <div class="stack" style="gap:4px;max-width:58ch">
+          <b style="font-size:20px">Дизайн-система и брендбук hh-стиля (Белый + Чёрный + Синий)</b>
+          <span class="small">Посмотри кнопки, ползунок 10:00–20:00, прочерк цены и палитру в обеих темах отдельно на /brandbook.</span>
+        </div>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <button type="button" class="btn white" data-a="go" data-v="brandbook">Открыть брендбук</button>
+          <button type="button" class="btn blue-ghost" data-a="land-scroll" data-target="land-market">К каталогу</button>
+        </div>
+      </div>
+
       ${savingsSectionHTML()}
 
       <section class="land-sec" id="land-how">
@@ -4661,6 +4928,7 @@
       ui.guest = true;
       ui.authModal = false;
       ui.auth.error = "";
+      if (ui.view === "landing" || ui.view === "brandbook") { ui.view = "tests"; writeHash(); }
       scheduleRender(true);
     },
     "auth-screen": () => {
@@ -5069,6 +5337,28 @@
         ui.savings.offerRate = Math.max(600, Math.min(cap, (Number(ui.savings.offerRate) || 950) + step));
       }
       patchSavingsDOM();
+    },
+    "bb-mode": (el) => {
+      if (!ui.brandbook) ui.brandbook = { mode: "both", hour: 14, price: 1200, chipOn: true, sent: false };
+      ui.brandbook.mode = ["both", "light", "dark"].includes(el.dataset.v) ? el.dataset.v : "both";
+      scheduleRender();
+    },
+    "bb-step": (el) => {
+      if (!ui.brandbook) ui.brandbook = { mode: "both", hour: 14, price: 1200, chipOn: true, sent: false };
+      const step = Number(el.dataset.step) || 0;
+      ui.brandbook.price = Math.max(600, Math.min(1900, (Number(ui.brandbook.price) || 1200) + step));
+      ui.brandbook.sent = false;
+      scheduleRender();
+    },
+    "bb-chip": () => {
+      if (!ui.brandbook) ui.brandbook = { mode: "both", hour: 14, price: 1200, chipOn: true, sent: false };
+      ui.brandbook.chipOn = !ui.brandbook.chipOn;
+      scheduleRender();
+    },
+    "bb-bid": () => {
+      if (!ui.brandbook) ui.brandbook = { mode: "both", hour: 14, price: 1200, chipOn: true, sent: false };
+      ui.brandbook.sent = !ui.brandbook.sent;
+      scheduleRender();
     }
   };
   function authErrorText(e) {
@@ -5155,7 +5445,7 @@
         clearQueues();
         ui.guest = false;
         ui.authModal = false;
-        if (ui.view === "landing") ui.view = "tests";
+        if (ui.view === "landing" || ui.view === "brandbook") ui.view = "tests";
         await loadBackendSession(res.user);
         clearDrafts("auth."); clearDrafts("pf."); clearDrafts("ob.");
         a.error = "";
@@ -5188,12 +5478,18 @@
     if (customEl && customEl.value !== b.hour && document.activeElement !== customEl) {
       customEl.value = b.hour;
     }
+    const priceRowEl = document.getElementById("bid-price-row");
+    if (priceRowEl) {
+      priceRowEl.innerHTML =
+        (tutor.marketPrice ? `<s class="hh-price-old num">${tutor.marketPrice.toLocaleString("ru-RU")} ₽</s>` : "") +
+        `<b class="hh-price-now num">${b.offerPrice.toLocaleString("ru-RU")} ₽/ч</b>`;
+    }
     const diffEl = document.getElementById("bid-diff-strip");
     if (diffEl) {
       const diffTutor = Math.max(0, (tutor.price || 0) - b.offerPrice);
       const diffMarket = Math.max(0, (tutor.marketPrice || tutor.price || 0) - b.offerPrice);
       diffEl.innerHTML =
-        (tutor.marketPrice ? `<span class="diff-tag market num">Рынок ${tutor.marketPrice} ₽</span>` : "") +
+        `<span class="diff-tag rate num">Анкета ${tutor.price} ₽</span>` +
         (diffTutor > 0 ? `<span class="diff-tag save-hot num">на ${diffTutor} ₽ ниже анкеты</span>` : "") +
         (diffMarket > 0 ? `<span class="diff-tag save-cool num">на ${diffMarket} ₽ ниже рынка</span>` : "");
     }
@@ -5329,6 +5625,23 @@
         const hNum = Math.max(10, Math.min(20, parseInt(el.value, 10) || 10));
         ui.booking.hour = (hNum < 10 ? "0" : "") + hNum + ":00";
         updateBookingModalLive();
+      }
+      return;
+    }
+    if (el.id === "bb-hour-range" || el.id === "bb-hour-range-dark") {
+      if (!ui.brandbook) ui.brandbook = { mode: "both", hour: 14, price: 1200, chipOn: true, sent: false };
+      const hNum = Math.max(10, Math.min(20, parseInt(el.value, 10) || 14));
+      ui.brandbook.hour = hNum;
+      const pct = ((hNum - 10) * 10) + "%";
+      ["bb-hour-range", "bb-hour-range-dark"].forEach((rid) => {
+        const node = typeof document.getElementById === "function" ? document.getElementById(rid) : null;
+        if (node) {
+          node.value = String(hNum);
+          if (node.style && typeof node.style.setProperty === "function") node.style.setProperty("--pct", pct);
+        }
+      });
+      if (typeof document.querySelectorAll === "function") {
+        document.querySelectorAll('[data-bb="hour"]').forEach((node) => { node.textContent = "Сб · " + String(hNum).padStart(2, "0") + ":00"; });
       }
       return;
     }
