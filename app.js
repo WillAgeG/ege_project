@@ -116,7 +116,10 @@
     heartFill: '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21.3l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.9z" fill="currentColor"/>',
     sort: '<path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/>',
     back: '<path d="m15 18-6-6 6-6"/>',
-    msg: '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>'
+    msg: '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>',
+    bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+    eyeOff: '<path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.53 13.53 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/>',
+    star: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>'
   };
   function icon(name) {
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[name] || "") + "</svg>";
@@ -918,7 +921,7 @@
     demo: { tab: "quiz", sid: firstSubject.id, qIdx: 0, pick: null, revealed: false, topicIdx: 0, bidRate: 800, bidHour: "10:00" },
     motion: { playing: true, preset: "design", step: 0, slot: "10:00", offer: 1200, sent: false, clicking: false, hitTarget: "" },
     savings: { freq: 2, marketRate: 1600, offerRate: 950 },
-    brandbook: { mode: "both", hour: 14, price: 1200, chipOn: true, sent: false }
+    brandbook: { mode: "both", hour: 14, price: 1200, chipOn: true, sent: false, fav: true }
   };
   const MARKET_LS_KEY = "vektor-ege:market";
   const TDATA = EGE.tutors || null;
@@ -1325,7 +1328,7 @@
           <div class="stack" style="gap:8px">
             <div class="small muted">День недели (${activeDayObj ? esc(activeDayObj.shortLabel) : "все 7 дней"})</div>
             <div class="cal-days">
-              <button type="button" class="day-cir${st.day === "all" ? " on" : ""}" data-a="mkt-day" data-v="all"><span class="day-wd">Все</span><span class="day-dot">7д</span></button>
+              <button type="button" class="day-cir${st.day === "all" ? " on" : ""}" data-a="mkt-day" data-v="all"><span class="day-wd">Все</span><span class="day-dot">7</span></button>
               ${days.map((d) => `<button type="button" class="day-cir${st.day === d.iso ? " on" : ""}" data-a="mkt-day" data-v="${d.iso}"><span class="day-wd">${esc(d.wd)}</span><span class="day-dot">${d.num}</span></button>`).join("")}
             </div>
           </div>
@@ -1701,7 +1704,7 @@
           <div class="row" style="gap:8px;flex-wrap:wrap">
             <b>${esc(bk.tutorName)}</b>
             <span class="chip">${esc(bk.exam)} · ${esc(bk.subjectName)}</span>
-            <span class="chip ${accepted ? "accent" : "warn"}">${accepted ? "Преподаватель подтвердил" : "На рассмотрении · уведомим"}</span>
+            <span class="chip ${accepted ? "accent" : "notif"}">${accepted ? "Преподаватель подтвердил" : "На рассмотрении · уведомим"}</span>
           </div>
           <div class="small ink2">${esc(bk.dayLabel)} в ${esc(bk.hour)} (${esc(bk.format)}) · твоя ставка <b class="num">${bk.offerPrice} ₽/ч</b> <span class="muted">(вместо ${bk.tutorPrice} ₽)</span></div>
         </div>
@@ -1727,7 +1730,7 @@
 
     const dayPills = `<button type="button" class="day-cir${st.day === "all" ? " on" : ""}" data-a="mkt-day" data-v="all">
         <span class="day-wd">Все</span>
-        <span class="day-dot all-badge">7 дн</span>
+        <span class="day-dot">7</span>
         <span class="day-cnt">${days[0].num}–${days[days.length - 1].num} ${days[0].month}</span>
       </button>` + days.map((d) => {
         const cnt = TDATA.countForDay(st, d.dow);
@@ -2048,8 +2051,8 @@
 
   function motionStatusHTML(meta) {
     if (meta.m.sent) {
-      return `<b style="color:var(--accent)">Отклик на ${esc(meta.slot)} · ${meta.offer.toLocaleString("ru-RU")} ₽ отправлен</b>
-        <span class="small muted">Уведомим о подтверждении</span>`;
+      return `<span class="row" style="gap:7px;align-items:center"><span class="notif-dot" aria-hidden="true"></span><b style="color:var(--notif)">Отклик на ${esc(meta.slot)} · ${meta.offer.toLocaleString("ru-RU")} ₽ отправлен</b></span>
+        <span class="chip notif">Уведомим о подтверждении</span>`;
     }
     return `<span class="small muted">Преподу: <b class="num">${meta.split.payout} ₽</b> · комиссия 5% (${meta.split.fee} ₽)</span>
       <button type="button" class="link-btn small" data-a="motion-book-now">Выбрать день →</button>`;
@@ -2419,6 +2422,7 @@
     const title = isDark ? "Чёрный вид (Dark · OLED hh.ru)" : "Белый вид (Light · hh.ru)";
     const hourStr = String(bb.hour).padStart(2, "0") + ":00";
     const hourPct = Math.round(((bb.hour - 10) / 10) * 100);
+    const favOn = bb.fav !== false;
     const swatches = isDark
       ? [
           ["#000000", "Фон страницы", "--bg"],
@@ -2427,7 +2431,7 @@
           ["#1D7BFF", "Синий hh (CTA)", "--accent"],
           ["#102548", "Мягкий синий", "--accent-soft"],
           ["#FFFFFF", "Активный пилл", "--pill-bg"],
-          ["#FF4D5E", "Уведомление", "--bad"]
+          ["#FB923C", "Уведомление", "--notif"]
         ]
       : [
           ["#F4F5F7", "Фон страницы", "--bg"],
@@ -2436,7 +2440,7 @@
           ["#0070FF", "Синий hh (CTA)", "--accent"],
           ["#EBF3FF", "Мягкий синий", "--accent-soft"],
           ["#141517", "Активный пилл", "--pill-bg"],
-          ["#FF2B4D", "Уведомление", "--bad"]
+          ["#F97316", "Уведомление", "--notif"]
         ];
     return `<div class="bb-pane ${cls}" data-bb-pane="${isDark ? "dark" : "light"}">
       <div class="row between" style="gap:8px;flex-wrap:wrap">
@@ -2450,23 +2454,29 @@
         </div>`).join("")}
       </div>
       <div class="card" style="padding:14px">
-        <div class="small muted" style="margin-bottom:8px">Кнопки и фильтры hh.ru</div>
-        <div class="row" style="gap:8px;flex-wrap:wrap">
+        <div class="row between" style="gap:8px;margin-bottom:8px;flex-wrap:wrap">
+          <span class="small muted">Кнопки, иконки и оранжевые уведомления</span>
+          <span class="chip notif"><span class="notif-dot"></span>3 новых</span>
+        </div>
+        <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
           <button type="button" class="btn" data-a="bb-bid">Предложить ${bb.price.toLocaleString("ru-RU")} ₽</button>
           <button type="button" class="btn soft" data-a="bb-chip">Подробнее</button>
           <button type="button" class="btn ghost" data-a="bb-chip">Фильтры</button>
           <button type="button" class="btn" disabled>Неактивна</button>
+          <button type="button" class="fav-btn" data-a="bb-fav" aria-pressed="${favOn}" aria-label="Избранное">${icon(favOn ? "heartFill" : "heart")}</button>
+          <span class="icon-btn sm" aria-hidden="true">${icon("eyeOff")}</span>
+          <span class="bb-bell-wrap" aria-hidden="true"><span class="icon-btn sm">${icon("bell")}</span><span class="bb-notif-badge">3</span></span>
         </div>
         <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:10px">
           <button type="button" class="bb-filter-active" data-a="bb-chip">${bb.chipOn ? "UX/UI и Моушен ×" : "+ Направление"}</button>
           <span class="tutor-tag-pill">+ Время 10:00–20:00</span>
           <span class="tutor-tag-pill">Можно удалённо</span>
-          <span class="tutor-tag-pill">Доска Ykt · TG · MAX</span>
+          <span class="chip notif">Уведомление · ответ бота</span>
         </div>
       </div>
       <div class="hh-time-picker">
         <div class="row between">
-          <span class="small muted">Ползунок времени 10:00–20:00</span>
+          <span class="small muted">Ползунок-палка 10:00–20:00</span>
           <span class="hh-time-val num" data-bb="hour">Сб · ${hourStr}</span>
         </div>
         <input class="hh-time-range" id="${isDark ? "bb-hour-range-dark" : "bb-hour-range"}" type="range" min="10" max="20" step="1" value="${bb.hour}" style="--pct:${hourPct}%" aria-label="Ползунок времени в брендбуке">
@@ -2474,7 +2484,7 @@
       </div>
       <div class="hh-price-stepper">
         <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-100">−100 ₽</button>
-        <div class="hh-step-readout"><b class="num">${bb.price.toLocaleString("ru-RU")} ₽/ч</b><span class="small muted">комиссия 5%: ${split.payout} / ${split.fee} ₽</span></div>
+        <div class="hh-step-readout"><b class="num">${bb.price.toLocaleString("ru-RU")} ₽/ч</b><span class="small muted">5%: ${split.payout} / ${split.fee} ₽</span></div>
         <button type="button" class="hh-step-btn" data-a="bb-step" data-step="100">+100 ₽</button>
       </div>
       <article class="card tutor-card" style="box-shadow:none">
@@ -2493,10 +2503,14 @@
                 <span class="diff-tag save-cyan num">−${pctOff}%</span>
               </div>
             </div>
-            <span class="verified-badge" aria-hidden="true">${icon("check")}</span>
+            <div class="row" style="gap:2px;flex:none">
+              <span class="fav-btn" aria-hidden="true">${icon("eyeOff")}</span>
+              <button type="button" class="fav-btn" data-a="bb-fav" aria-pressed="${favOn}" aria-label="В избранное">${icon(favOn ? "heartFill" : "heart")}</button>
+            </div>
           </div>
           <div class="tutor-name-line">
             <b style="color:var(--ink)">Денис Ковалёв</b>
+            <span class="verified-badge" aria-hidden="true">${icon("check")}</span>
             <span class="small muted">· Онлайн по РФ · ★ 4.9 (27)</span>
           </div>
           <div class="tutor-tags">
@@ -2515,7 +2529,8 @@
     opts = opts || {};
     const inside = !!opts.inside;
     const dark = effectiveDark();
-    const bb = ui.brandbook || (ui.brandbook = { mode: "both", hour: 14, price: 1200, chipOn: true, sent: false });
+    const bb = ui.brandbook || (ui.brandbook = { mode: "both", hour: 14, price: 1200, chipOn: true, sent: false, fav: true });
+    const favOn = bb.fav !== false;
     const market = 2000;
     const tutorRate = 1200;
     const diffTutor = Math.max(0, tutorRate - bb.price);
@@ -2523,8 +2538,40 @@
     const pctOff = Math.round(((market - bb.price) / market) * 100);
     const split = TDATA && TDATA.commissionSplit ? TDATA.commissionSplit(bb.price) : { payout: Math.round(bb.price * 0.95), fee: Math.round(bb.price * 0.05) };
     const mode = bb.mode || "both";
+    const hourStr = String(bb.hour).padStart(2, "0") + ":00";
+    const hourPct = Math.round(((bb.hour - 10) / 10) * 100);
     const panes = (mode === "light" || mode === "both" ? brandbookPaneHTML(false, bb, diffTutor, diffMarket, pctOff, split) : "") +
       (mode === "dark" || mode === "both" ? brandbookPaneHTML(true, bb, diffTutor, diffMarket, pctOff, split) : "");
+
+    const iconCatalog = [
+      ["heartFill", "Избранное (актив.)", "var(--bad)"],
+      ["heart", "Избранное (контур)", "var(--muted)"],
+      ["eyeOff", "Скрыть анкету", "var(--ink-2)"],
+      ["bell", "Уведомление (оранж.)", "var(--notif)", "3"],
+      ["check", "Проверено ✓", "var(--accent)"],
+      ["star", "Рейтинг 4.9", "var(--ink)"],
+      ["search", "Поиск", "var(--ink-2)"],
+      ["sliders", "Фильтры", "var(--ink-2)"],
+      ["cal", "Расписание", "var(--accent)"],
+      ["msg", "Чат / Отклик", "var(--accent)"],
+      ["users", "Репетиторы", "var(--ink-2)"],
+      ["bug", "Баг-репорт", "var(--ink-2)"],
+      ["gear", "Настройки", "var(--ink-2)"],
+      [dark ? "sun" : "moon", "Смена темы", "var(--ink-2)"],
+      ["logout", "Выход", "var(--bad)"]
+    ];
+
+    const specRules = [
+      ["Контейнер страниц / лендинга", "max-width: 1140 px · 0 px переполнения", ""],
+      ["Поля экрана (Desktop / Планшет / Моб.)", "28 px / 16 px / 12 px", ""],
+      ["Главная кнопка CTA (.btn)", "h ≥ 42 px · pad 0 18 px · gap ≥ 8 px", ""],
+      ["Малая кнопка и чип (.btn.sm / .chip-btn)", "h 32 px · 1 строка · gap 6 px", ""],
+      ["Круглые тач-кнопки (.icon-btn / .fav-btn)", "38×38 px / 36×36 px · sm 32 px", ""],
+      ["Кружок дня календаря (.day-dot)", "38×38 px · число без слов: 7, 14, 15", ""],
+      ["Сегментный степпер ±100 ₽", "88 / 1fr / 88 px (моб. 74 px) · pad 3 px", ""],
+      ["Ползунок-палка 10:00–20:00", "палка 10×24 px · трек 5 px · зона 29 px", ""],
+      ["Строгая палитра (3 роли)", "Серый + Синий #0070FF + Оранжевый уведомлений", "notif"]
+    ];
 
     return `<div class="land-page" id="brandbook-page">
       <header class="land-top">
@@ -2537,8 +2584,9 @@
         </div>
         <nav class="land-links" aria-label="Разделы брендбука">
           <a href="#bb-surfaces" data-a="land-scroll" data-target="bb-surfaces">Белый / Синий</a>
-          <a href="#bb-fonts" data-a="land-scroll" data-target="bb-fonts">Шрифты</a>
-          <a href="#bb-compare" data-a="land-scroll" data-target="bb-compare">Компоненты</a>
+          <a href="#bb-buttons" data-a="land-scroll" data-target="bb-buttons">Кнопки и иконки</a>
+          <a href="#bb-bounds" data-a="land-scroll" data-target="bb-bounds">Границы и мобилка</a>
+          <a href="#bb-compare" data-a="land-scroll" data-target="bb-compare">Белый + Чёрный</a>
         </nav>
         <div class="land-top-actions">
           <button type="button" class="btn ghost sm" data-a="go" data-v="landing">На /landing</button>
@@ -2551,8 +2599,8 @@
         <div class="row between" style="gap:12px;flex-wrap:wrap">
           <div class="stack" style="gap:6px">
             <div class="eyebrow">UI Kit &amp; Brandbook · hh.ru</div>
-            <h1 class="h1">Дизайн-система: Белый, Чёрный и Синий фон + прочерк цены</h1>
-            <p class="lead">Правила интерфейса перед сборкой /landing: шрифт Inter, чистые белые/чёрные карточки, синие кнопки #0070FF, ползунки 10:00–20:00 и перечёркнутая рыночная цена рядом со ставкой. Ноль зелёного.</p>
+            <h1 class="h1">Дизайн-система: Белый, Чёрный, Синий + оранжевые уведомления</h1>
+            <p class="lead">Единые правила пространства, границ и компонентов для /landing и /app: шрифт Inter, строго 3 цветовых роли (Серый + Синий #0070FF + Оранжевый #F97316 для уведомлений), ползунок-палка 10:00–20:00 и сегментный степпер ±100 ₽.</p>
           </div>
           <div class="row" style="gap:6px;flex-wrap:wrap">
             <button type="button" class="chip-btn${mode === "both" ? " on" : ""}" data-a="bb-mode" data-v="both">Белый + Чёрный рядом</button>
@@ -2566,10 +2614,11 @@
         <div class="land-sec-head">
           <div>
             <div class="eyebrow">Поверхности · Прочерк цены</div>
-            <h2 class="h2">Как выглядит прочерк цены на Белом, Чёрном и Синем фоне</h2>
+            <h2 class="h2">Белый, Чёрный и Синий фон + прочерк цены</h2>
           </div>
-          <div class="row" style="gap:6px">
+          <div class="hh-price-stepper compact" style="min-width:250px">
             <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-100">−100 ₽</button>
+            <div class="hh-step-readout"><b class="num">${bb.price.toLocaleString("ru-RU")} ₽</b></div>
             <button type="button" class="hh-step-btn" data-a="bb-step" data-step="100">+100 ₽</button>
           </div>
         </div>
@@ -2582,6 +2631,7 @@
             </div>
             <div class="hh-diff-strip">
               <span class="diff-tag rate num">Анкета 1 200 ₽</span>
+              ${diffTutor > 0 ? `<span class="diff-tag save-hot num">на ${diffTutor} ₽ ниже анкеты</span>` : ""}
               <span class="diff-tag save-cool num">на ${diffMarket} ₽ ниже рынка</span>
               <span class="diff-tag save-cyan num">−${pctOff}%</span>
             </div>
@@ -2595,6 +2645,7 @@
             </div>
             <div class="hh-diff-strip">
               <span class="diff-tag rate num">Анкета 1 200 ₽</span>
+              ${diffTutor > 0 ? `<span class="diff-tag save-hot num">на ${diffTutor} ₽ ниже анкеты</span>` : ""}
               <span class="diff-tag save-cool num">на ${diffMarket} ₽ ниже рынка</span>
               <span class="diff-tag save-cyan num">−${pctOff}%</span>
             </div>
@@ -2609,6 +2660,152 @@
             <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:auto">
               <button type="button" class="btn white" data-a="bb-bid">Предложить ${bb.price.toLocaleString("ru-RU")} ₽</button>
               <button type="button" class="btn blue-ghost" data-a="go" data-v="landing">К сайту /landing</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="land-sec" id="bb-buttons">
+        <div class="land-sec-head">
+          <div>
+            <div class="eyebrow">Все элементы интерфейса</div>
+            <h2 class="h2">Как выглядит каждая кнопка, сердечко и оранжевые уведомления</h2>
+          </div>
+        </div>
+        <div class="bb-btn-matrix">
+          <div class="card pad stack" style="gap:10px">
+            <div class="row between"><b class="h3">Основные кнопки CTA</b><span class="bb-spec-pill">h 42–46 px · r 12</span></div>
+            <div class="row" style="gap:8px;flex-wrap:wrap">
+              <button type="button" class="btn" data-a="bb-bid">Предложить ${bb.price.toLocaleString("ru-RU")} ₽</button>
+              <button type="button" class="btn soft" data-a="bb-chip">Подробнее</button>
+              <button type="button" class="btn ghost" data-a="bb-chip">Фильтры</button>
+              <button type="button" class="btn" disabled>Неактивна</button>
+            </div>
+            <span class="small muted">Минимум 8 px между кнопками; на ширине до 420 px главная кнопка занимает 100%.</span>
+          </div>
+
+          <div class="card pad stack" style="gap:10px">
+            <div class="row between"><b class="h3">Компактные 32 px и пиллы</b><span class="bb-spec-pill">h 32 px · gap 6 px</span></div>
+            <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center">
+              <button type="button" class="btn sm" data-a="bb-bid">Баланс 5 000 ₽</button>
+              <button type="button" class="btn soft sm" data-a="bb-chip">Сбросить</button>
+              <button type="button" class="bb-filter-active" data-a="bb-chip">ЕГЭ 2027 ×</button>
+              <button type="button" class="chip-btn" data-a="bb-chip">+ Онлайн</button>
+              <span class="tutor-tag-pill">Опыт 6 лет</span>
+            </div>
+            <span class="small muted">Чипы фильтров не переносятся по буквам (<code>white-space: nowrap</code>) и свайпаются на мобилке.</span>
+          </div>
+
+          <div class="card pad stack" style="gap:10px">
+            <div class="row between"><b class="h3">Сердечко ♥ и оранжевые уведомления</b><span class="bb-spec-pill notif">#F97316 · 36 px</span></div>
+            <div class="row" style="gap:10px;flex-wrap:wrap;align-items:center">
+              <button type="button" class="fav-btn" data-a="bb-fav" aria-pressed="${favOn}" aria-label="Избранное">${icon(favOn ? "heartFill" : "heart")}</button>
+              <button type="button" class="btn ghost sm" data-a="bb-fav">${favOn ? "В избранном ♥" : "Добавить ♡"}</button>
+              <span class="bb-bell-wrap" title="Оранжевый бейдж уведомлений">
+                <span class="icon-btn">${icon("bell")}</span>
+                <span class="bb-notif-badge">3</span>
+              </span>
+              <span class="chip notif"><span class="notif-dot"></span>На рассмотрении · уведомим</span>
+            </div>
+            <span class="small muted">Все счётчики уведомлений и ожидания ответа строго оранжевые (#F97316 / #FB923C), никогда красные.</span>
+          </div>
+        </div>
+
+        <div class="card pad stack" style="gap:10px">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <b>Полный набор иконок (38×38 px и малые 32×32 px)</b>
+            <span class="small muted">Единая толщина штриха 1.8 px · скругления round</span>
+          </div>
+          <div class="bb-icon-grid">
+            ${iconCatalog.map(([ic, label, col, badge]) => `<div class="bb-icon-tile">
+              <span class="bb-bell-wrap">
+                <span class="icon-btn sm" style="color:${col}">${icon(ic)}</span>
+                ${badge ? `<span class="bb-notif-badge">${badge}</span>` : ""}
+              </span>
+              <b>${label}</b>
+            </div>`).join("")}
+          </div>
+        </div>
+      </section>
+
+      <section class="land-sec" id="bb-bounds">
+        <div class="land-sec-head">
+          <div>
+            <div class="eyebrow">Ограничения · Границы вещей · Mobile 390 px</div>
+            <h2 class="h2">Сколько пространства на каждую кнопку и как это выглядит на мобилке</h2>
+          </div>
+        </div>
+        <div class="bb-specs-layout">
+          <div class="card pad-lg stack" style="gap:6px">
+            <div class="row between" style="margin-bottom:4px">
+              <b>Правила границ и отступов</b>
+              <span class="small muted">Desktop 1280 px · Mobile 390 px</span>
+            </div>
+            ${specRules.map(([name, val, kind]) => `<div class="bb-spec-row">
+              <span class="small ink2">${name}</span>
+              <span class="bb-spec-pill${kind === "notif" ? " notif" : ""}">${val}</span>
+            </div>`).join("")}
+          </div>
+
+          <div class="stack" style="gap:8px;align-items:center">
+            <span class="small muted">Живой макет «Как на мобилке · 390 px»</span>
+            <div class="bb-phone-frame" aria-label="Предпросмотр мобильной версии 390 px">
+              <div class="bb-phone-status">
+                <span class="num">09:41 · Вектор ЕГЭ (390 px)</span>
+                <span class="row" style="gap:6px;align-items:center">
+                  <span class="chip notif" style="font-size:11px;padding:2px 7px"><span class="notif-dot"></span>3 ответа</span>
+                </span>
+              </div>
+              <div class="bb-phone-body">
+                <div class="chip-rail swipe" style="padding-bottom:2px">
+                  <span class="chip-btn on" style="min-height:30px;padding:4px 10px;font-size:12px">Фильтры</span>
+                  <span class="chip-btn" style="min-height:30px;padding:4px 10px;font-size:12px">+ ЕГЭ</span>
+                  <span class="chip-btn" style="min-height:30px;padding:4px 10px;font-size:12px">+ До 1 300 ₽</span>
+                  <span class="chip-btn" style="min-height:30px;padding:4px 10px;font-size:12px">+ 10:00</span>
+                </div>
+                <div class="row" style="gap:6px;overflow-x:auto">
+                  <div class="day-cir on" style="flex:0 0 60px;padding:6px 4px"><span class="day-wd">Все</span><span class="day-dot">7</span></div>
+                  <div class="day-cir" style="flex:0 0 60px;padding:6px 4px"><span class="day-wd">Сб</span><span class="day-dot">14</span></div>
+                  <div class="day-cir" style="flex:0 0 60px;padding:6px 4px"><span class="day-wd">Вс</span><span class="day-dot">15</span></div>
+                  <div class="day-cir" style="flex:0 0 60px;padding:6px 4px"><span class="day-wd">Пн</span><span class="day-dot">16</span></div>
+                </div>
+                <div class="card" style="padding:14px;display:grid;gap:10px;box-shadow:none">
+                  <div class="tutor-head">
+                    <div style="min-width:0">
+                      <b style="font-size:15px">Репетитор · UX/UI и Моушен</b>
+                      <div class="hh-price-row" style="margin-top:3px">
+                        <s class="hh-price-old num" style="font-size:14px">2 000 ₽</s>
+                        <b class="num" style="font-size:19px">${bb.price.toLocaleString("ru-RU")} ₽/ч</b>
+                      </div>
+                      <div class="hh-diff-strip" style="margin-top:5px">
+                        <span class="diff-tag rate num">Анкета 1 200 ₽</span>
+                        ${diffTutor > 0 ? `<span class="diff-tag save-hot num">−${diffTutor} ₽</span>` : ""}
+                        <span class="diff-tag save-cool num">−${pctOff}% рынка</span>
+                      </div>
+                    </div>
+                    <button type="button" class="fav-btn" data-a="bb-fav" aria-pressed="${favOn}" aria-label="Избранное на мобилке">${icon(favOn ? "heartFill" : "heart")}</button>
+                  </div>
+                  <div class="hh-time-picker" style="padding:9px 10px">
+                    <div class="row between">
+                      <span class="small muted">Час</span>
+                      <span class="hh-time-val num" data-bb="hour-short">${hourStr}</span>
+                    </div>
+                    <input class="hh-time-range" id="bb-hour-range-mobile" type="range" min="10" max="20" step="1" value="${bb.hour}" style="--pct:${hourPct}%" aria-label="Мобильный ползунок времени">
+                  </div>
+                  <div class="hh-price-stepper" style="grid-template-columns:72px minmax(0,1fr) 72px">
+                    <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-100">−100 ₽</button>
+                    <div class="hh-step-readout"><b class="num" style="font-size:15px">${bb.price.toLocaleString("ru-RU")} ₽/ч</b></div>
+                    <button type="button" class="hh-step-btn" data-a="bb-step" data-step="100">+100 ₽</button>
+                  </div>
+                  <button type="button" class="btn" style="width:100%" data-a="bb-bid">Предложить ${bb.price.toLocaleString("ru-RU")} ₽</button>
+                </div>
+              </div>
+              <div class="bb-phone-tabs" aria-hidden="true">
+                <div class="bb-phone-tab">${icon("list")}<span>Тесты</span></div>
+                <div class="bb-phone-tab on">${icon("users")}<span>Репетиторы</span></div>
+                <div class="bb-phone-tab">${icon("cal")}<span>Учёба</span><span class="bb-notif-badge">3</span></div>
+                <div class="bb-phone-tab">${icon("chart")}<span>Показатели</span></div>
+              </div>
             </div>
           </div>
         </div>
@@ -2642,7 +2839,7 @@
       <div class="hh-blue-banner">
         <div class="stack" style="gap:4px;max-width:60ch">
           <b style="font-size:20px">Готово по брендбуку — посмотри собранный сайт /landing</b>
-          <span class="small">На странице /landing применены именно эти шрифты, палитра, прочерк цены и кнопки.</span>
+          <span class="small">На странице /landing применены именно эти шрифты, палитра (Серый + Синий + Оранжевый), ползунок-палка, степпер ±100 ₽ и границы.</span>
         </div>
         <button type="button" class="btn white" data-a="go" data-v="landing">Открыть сайт /landing →</button>
       </div>
@@ -5339,24 +5536,29 @@
       patchSavingsDOM();
     },
     "bb-mode": (el) => {
-      if (!ui.brandbook) ui.brandbook = { mode: "both", hour: 14, price: 1200, chipOn: true, sent: false };
+      if (!ui.brandbook) ui.brandbook = { mode: "both", hour: 14, price: 1200, chipOn: true, sent: false, fav: true };
       ui.brandbook.mode = ["both", "light", "dark"].includes(el.dataset.v) ? el.dataset.v : "both";
       scheduleRender();
     },
     "bb-step": (el) => {
-      if (!ui.brandbook) ui.brandbook = { mode: "both", hour: 14, price: 1200, chipOn: true, sent: false };
+      if (!ui.brandbook) ui.brandbook = { mode: "both", hour: 14, price: 1200, chipOn: true, sent: false, fav: true };
       const step = Number(el.dataset.step) || 0;
       ui.brandbook.price = Math.max(600, Math.min(1900, (Number(ui.brandbook.price) || 1200) + step));
       ui.brandbook.sent = false;
       scheduleRender();
     },
     "bb-chip": () => {
-      if (!ui.brandbook) ui.brandbook = { mode: "both", hour: 14, price: 1200, chipOn: true, sent: false };
+      if (!ui.brandbook) ui.brandbook = { mode: "both", hour: 14, price: 1200, chipOn: true, sent: false, fav: true };
       ui.brandbook.chipOn = !ui.brandbook.chipOn;
       scheduleRender();
     },
+    "bb-fav": () => {
+      if (!ui.brandbook) ui.brandbook = { mode: "both", hour: 14, price: 1200, chipOn: true, sent: false, fav: true };
+      ui.brandbook.fav = ui.brandbook.fav === false;
+      scheduleRender();
+    },
     "bb-bid": () => {
-      if (!ui.brandbook) ui.brandbook = { mode: "both", hour: 14, price: 1200, chipOn: true, sent: false };
+      if (!ui.brandbook) ui.brandbook = { mode: "both", hour: 14, price: 1200, chipOn: true, sent: false, fav: true };
       ui.brandbook.sent = !ui.brandbook.sent;
       scheduleRender();
     }
@@ -5628,20 +5830,22 @@
       }
       return;
     }
-    if (el.id === "bb-hour-range" || el.id === "bb-hour-range-dark") {
-      if (!ui.brandbook) ui.brandbook = { mode: "both", hour: 14, price: 1200, chipOn: true, sent: false };
+    if (el.id === "bb-hour-range" || el.id === "bb-hour-range-dark" || el.id === "bb-hour-range-mobile") {
+      if (!ui.brandbook) ui.brandbook = { mode: "both", hour: 14, price: 1200, chipOn: true, sent: false, fav: true };
       const hNum = Math.max(10, Math.min(20, parseInt(el.value, 10) || 14));
       ui.brandbook.hour = hNum;
       const pct = ((hNum - 10) * 10) + "%";
-      ["bb-hour-range", "bb-hour-range-dark"].forEach((rid) => {
+      ["bb-hour-range", "bb-hour-range-dark", "bb-hour-range-mobile"].forEach((rid) => {
         const node = typeof document.getElementById === "function" ? document.getElementById(rid) : null;
         if (node) {
           node.value = String(hNum);
           if (node.style && typeof node.style.setProperty === "function") node.style.setProperty("--pct", pct);
         }
       });
+      const hhStr = String(hNum).padStart(2, "0") + ":00";
       if (typeof document.querySelectorAll === "function") {
-        document.querySelectorAll('[data-bb="hour"]').forEach((node) => { node.textContent = "Сб · " + String(hNum).padStart(2, "0") + ":00"; });
+        document.querySelectorAll('[data-bb="hour"]').forEach((node) => { node.textContent = "Сб · " + hhStr; });
+        document.querySelectorAll('[data-bb="hour-short"]').forEach((node) => { node.textContent = hhStr; });
       }
       return;
     }

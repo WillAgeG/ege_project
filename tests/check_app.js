@@ -871,7 +871,7 @@
     assert(landHtml.includes("Бесплатная") && landHtml.includes("Пробник") && landHtml.includes("Месяц под ключ"), "expected 3 tariff names on landing");
     assert(landHtml.includes("Супер-подписка") && landHtml.includes("plan-card featured super"), "expected distinct super class and badge on 10k tariff");
     assert(landHtml.includes("5 000 ₽") && landHtml.includes("10 000 ₽"), "expected 5k and 10k prices on landing");
-    assert(landHtml.includes('data-a="mkt-day"') && landHtml.includes('id="mkt-hour-range"') && landHtml.includes("7 дн"), "expected single-line 7 дн badge and 10:00-20:00 hour range slider on landing");
+    assert(landHtml.includes('data-a="mkt-day"') && landHtml.includes('id="mkt-hour-range"') && landHtml.includes('<span class="day-dot">7</span>') && !landHtml.includes(">7 дн<") && !landHtml.includes(">7д<"), "expected clean 7 number badge (without 7д/7 дн) and 10:00-20:00 hour range slider on landing");
     assert(landHtml.includes('id="land-demo"') && landHtml.includes("Доска Ykt") && landHtml.includes("Telegram") && landHtml.includes("MAX") && landHtml.includes("5%"), "expected interactive beta demo, multi-channel sources (Ykt/TG/WA/MAX) and 5% fee on landing");
     assert(landHtml.includes('id="hero-motion-stage"') && landHtml.includes('id="hero-motion-bid-btn"') && landHtml.includes('id="hero-hour-range"') && landHtml.includes('id="hero-price-minus"') && !landHtml.includes("01 Выбор") && landHtml.includes("hh-price-old") && landHtml.includes("hh-blue-banner") && hasNum(landHtml, "Предложить 1 200 ₽") && landHtml.includes("Денис Ковалёв") && landHtml.includes("marquee-band") && landHtml.includes('id="land-savings"'), "expected clean hh-style UX/UI motion stage with strikethrough price, blue banner, brandbook link and simple Предложить 1 200 ₽ CTA");
 
@@ -957,7 +957,10 @@
     clickAction(env5, { a: "go", v: "brandbook" });
     await flushMicrotasks(4);
     const bbHtml = env5.elements.get("main").innerHTML;
-    assert(bbHtml.includes('id="brandbook-page"') && bbHtml.includes('data-bb-pane="light"') && bbHtml.includes('data-bb-pane="dark"') && bbHtml.includes("Синий фон") && bbHtml.includes("hh-price-old") && bbHtml.includes("Inter"), "expected brandbook with white, dark, blue surfaces, Inter fonts and strikethrough price");
+    assert(bbHtml.includes('id="brandbook-page"') && bbHtml.includes('data-bb-pane="light"') && bbHtml.includes('data-bb-pane="dark"') && bbHtml.includes("Синий фон") && bbHtml.includes("hh-price-old") && bbHtml.includes("Inter") && bbHtml.includes("#F97316") && bbHtml.includes('id="bb-buttons"') && bbHtml.includes('id="bb-bounds"') && bbHtml.includes("bb-phone-frame"), "expected brandbook with white/dark/blue surfaces, orange notifications #F97316, full button/heart/icon catalog, spacing boundaries and mobile 390px frame");
+    clickAction(env5, { a: "bb-fav" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes('aria-pressed="false"'), "expected brandbook heart favorite toggle");
     clickAction(env5, { a: "bb-step", step: "-100" });
     await flushMicrotasks(2);
     assert(hasNum(env5.elements.get("main").innerHTML, "1 100 ₽"), "expected brandbook price stepper to update strikethrough preview");
