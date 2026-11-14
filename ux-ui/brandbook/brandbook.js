@@ -26,7 +26,10 @@
       chipOn: true,
       sent: false,
       fav: true,
-      vpWidth: 390
+      vpWidth: 390,
+      switchVal: "online",
+      pickedPlan: "month10k",
+      quizOpt: 1
     });
   }
 
@@ -44,32 +47,40 @@
           ["#000000", "Фон страницы", "--bg"],
           ["#16181D", "Карточка", "--surface"],
           ["#22252E", "Серый тег / чип", "--surface-2"],
+          ["#282B36", "Граница 1 px", "--line"],
           ["#1D7BFF", "Синий hh (CTA)", "--accent"],
           ["#102548", "Мягкий синий", "--accent-soft"],
           ["#22C55E", "Подтверждено ✓", "--confirm"],
           ["#A78BFA", "Выше рынка (профи)", "--pro"],
-          ["#FB923C", "Уведомление", "--notif"]
+          ["#FB923C", "Уведомление", "--notif"],
+          ["#FF4D5E", "Ошибка / Опасность", "--bad"],
+          ["#F59E0B", "Предупреждение", "--warn"],
+          ["#38BDF8", "Предмет · Химия", "--c-chem"]
         ]
       : [
           ["#F4F5F7", "Фон страницы", "--bg"],
           ["#FFFFFF", "Белая карточка", "--surface"],
           ["#F2F3F6", "Серый тег / чип", "--surface-2"],
+          ["#E4E6EC", "Граница 1 px", "--line"],
           ["#0070FF", "Синий hh (CTA)", "--accent"],
           ["#EBF3FF", "Мягкий синий", "--accent-soft"],
           ["#16A34A", "Подтверждено ✓", "--confirm"],
           ["#7C3AED", "Выше рынка (профи)", "--pro"],
-          ["#F97316", "Уведомление", "--notif"]
+          ["#F97316", "Уведомление", "--notif"],
+          ["#FF2B4D", "Ошибка / Опасность", "--bad"],
+          ["#B45309", "Предупреждение", "--warn"],
+          ["#0284C7", "Предмет · Химия", "--c-chem"]
         ];
     return `<div class="bb-pane ${cls}" data-bb-pane="${isDark ? "dark" : "light"}">
       <div class="row between" style="gap:8px;flex-wrap:wrap">
         <b>${title}</b>
-        <span class="chip">${isDark ? "Ночная тема" : "Дневная тема"}</span>
+        <span class="chip">${isDark ? "Ночная тема" : "Дневная тема · клик копирует HEX"}</span>
       </div>
       <div class="bb-swatches">
-        ${swatches.map(([hex, label, tok]) => `<div class="bb-swatch">
-          <div class="bb-swatch-chip" style="background:${hex}"></div>
+        ${swatches.map(([hex, label, tok]) => `<button type="button" class="bb-swatch" data-a="bb-copy-token" data-copy="${hex} · ${tok}" title="Скопировать ${hex} (${tok})">
+          <div class="bb-swatch-chip" style="background:${hex}"><span class="bb-swatch-copy">Копировать</span></div>
           <div class="bb-swatch-info"><b>${label}</b><span>${hex} · ${tok}</span></div>
-        </div>`).join("")}
+        </button>`).join("")}
       </div>
       <div class="card" style="padding:14px">
         <div class="row between" style="gap:8px;margin-bottom:8px;flex-wrap:wrap">
@@ -138,6 +149,270 @@
     </div>`;
   }
 
+  function logoSectionHTML() {
+    return `<section class="land-sec" id="bb-logo">
+      <div class="land-sec-head">
+        <div>
+          <div class="eyebrow">Знак бренда · Охранное поле · Размеры</div>
+          <h2 class="h2">Логотип, безопасная зона и предметные акценты</h2>
+        </div>
+        <span class="bb-spec-pill">min 32×32 px · safe pad 8 px</span>
+      </div>
+      <div class="bb-logo-grid">
+        <div class="card pad stack" style="gap:8px">
+          <span class="small muted">На светлом фоне (#FFFFFF / #F4F5F7)</span>
+          <div class="bb-logo-stage" style="background:#ffffff;color:#141517">
+            <div class="bb-logo-safe"><div class="brand-lockup">${BRAND_MARK_HTML}<div class="brand-text"><div class="brand-name" style="color:#141517">Вектор ЕГЭ</div><div class="brand-sub" style="color:#7c828e">Подготовка и репетиторы</div></div></div></div>
+          </div>
+          <span class="small muted">Топбар: 36×36 px · авторизация: 52×52 px · favicon: 32×32 px.</span>
+        </div>
+        <div class="card pad stack" style="gap:8px">
+          <span class="small muted">На чёрном OLED (#000000 / #16181D)</span>
+          <div class="bb-logo-stage" style="background:#000000;color:#ffffff">
+            <div class="bb-logo-safe"><div class="brand-lockup">${BRAND_MARK_HTML}<div class="brand-text"><div class="brand-name" style="color:#ffffff">Вектор ЕГЭ</div><div class="brand-sub" style="color:#8b909d">Dark OLED hh.ru</div></div></div></div>
+          </div>
+          <span class="small muted">Градиент #1652C8 → #2F7CFF всегда читается без рамки.</span>
+        </div>
+        <div class="card pad stack" style="gap:8px">
+          <span class="small muted">Предметы + копируемые токены из <code>tokens.json</code></span>
+          <div class="row" style="gap:6px;flex-wrap:wrap">
+            <button type="button" class="chip" style="border:1px solid var(--line);cursor:pointer;background:rgba(124,58,237,.12);color:#7c3aed" data-a="bb-copy-token" data-copy="#7C3AED · --c-bio">Биология · #7C3AED</button>
+            <button type="button" class="chip" style="border:1px solid var(--line);cursor:pointer;background:rgba(2,132,199,.12);color:#0284c7" data-a="bb-copy-token" data-copy="#0284C7 · --c-chem">Химия · #0284C7</button>
+            <button type="button" class="chip" style="border:1px solid var(--line);cursor:pointer;background:rgba(234,88,12,.12);color:#ea580c" data-a="bb-copy-token" data-copy="#EA580C · --c-rus">Русский · #EA580C</button>
+          </div>
+          <p class="small muted">Нажми на любой цвет или токен в палитре ниже — HEX и CSS-переменная сразу скопируются.</p>
+        </div>
+      </div>
+    </section>`;
+  }
+
+  function formsSectionHTML(bb) {
+    const sw = bb.switchVal || "online";
+    return `<section class="land-sec" id="bb-forms">
+      <div class="land-sec-head">
+        <div>
+          <div class="eyebrow">Формы · Валидация · :focus-visible</div>
+          <h2 class="h2">Инпуты, селекты, фокусы с клавиатуры и переключатели</h2>
+        </div>
+        <span class="bb-spec-pill">h 40 px · r 12 px · focus 3 px</span>
+      </div>
+      <div class="bb-forms-grid">
+        <div class="card pad stack" style="gap:10px">
+          <div class="field">
+            <label for="bb-demo-search">Поиск анкет (обычный .input)</label>
+            <input class="input" id="bb-demo-search" type="search" placeholder="Предмет, КИМ 22 или имя преподавателя…">
+            <span class="hint">Стандартная рамка --line-strong 1 px, фон --surface.</span>
+          </div>
+          <div class="field">
+            <label for="bb-demo-focus">Состояние :focus и клавиатурный :focus-visible</label>
+            <input class="input bb-input-focus" id="bb-demo-focus" type="text" value="Английский · 1 200 ₽/ч" readonly>
+            <div class="row" style="gap:8px;flex-wrap:wrap;padding-top:2px">
+              <button type="button" class="btn sm bb-focus-ring-btn">Фокус Tab на CTA</button>
+              <span class="small muted">Внешнее кольцо 2 px + тень 3 px --accent-soft.</span>
+            </div>
+          </div>
+          <div class="field">
+            <label for="bb-demo-err">Ошибка валидации (--bad)</label>
+            <input class="input bb-input-error" id="bb-demo-err" type="text" value="08:30" aria-invalid="true">
+            <span class="bb-hint-err">Укажите час в окне 10:00–20:00 (например, 14:00).</span>
+          </div>
+        </div>
+        <div class="card pad stack" style="gap:10px">
+          <div class="fields">
+            <div class="field">
+              <label for="bb-demo-select">Выбор предмета (.select)</label>
+              <select class="select" id="bb-demo-select">
+                <option>Биология · ЕГЭ 2027</option>
+                <option>Химия · ЕГЭ 2027</option>
+                <option>Русский язык · ЕГЭ</option>
+                <option>UX/UI и Моушен</option>
+              </select>
+            </div>
+            <div class="field">
+              <span class="label">Сегмент-переключатель (.switch)</span>
+              <div class="switch" role="group" aria-label="Формат в брендбуке">
+                <button type="button" data-a="bb-switch" data-v="online" aria-pressed="${sw === "online"}">Онлайн</button>
+                <button type="button" data-a="bb-switch" data-v="offline" aria-pressed="${sw === "offline"}">Очно</button>
+                <button type="button" data-a="bb-switch" data-v="all" aria-pressed="${sw === "all"}">Любой</button>
+              </div>
+            </div>
+          </div>
+          <div class="field">
+            <label for="bb-demo-notes">Комментарий ученика (.textarea)</label>
+            <textarea class="textarea" id="bb-demo-notes" rows="2" placeholder="Разобрать задание №28 (генетика) и пробник…"></textarea>
+          </div>
+          <div class="notice info"><b>Информационное плашко-уведомление (.notice.info)</b><span class="small">Используется для нейтральных подсказок без давления и красных алертов.</span></div>
+        </div>
+      </div>
+    </section>`;
+  }
+
+  function cardsAndOverlaysSectionHTML(bb) {
+    const picked = bb.pickedPlan || "month10k";
+    const plans = [
+      ["free", "0 ₽", "Бесплатная", "Базовый доступ", ["База анкет и поиск", "Прямые отклики по ставке"], ""],
+      ["trial5k", "5 000 ₽", "Пробник", "Рекомендуемый", ["Пакет часов на балансе", "Защита оплаты до подтверждения"], "featured"],
+      ["month10k", "10 000 ₽", "Месяц под ключ", "Супер-подписка", ["Особый оттенок .super", "Максимум приоритетных откликов"], "featured super"]
+    ];
+    return `<section class="land-sec" id="bb-cards-sys">
+      <div class="land-sec-head">
+        <div>
+          <div class="eyebrow">Тарифы · Модалки · Боковые уведомления · Таблицы</div>
+          <h2 class="h2">Иерархия тарифов (.plan-card / .super), шторки и тосты</h2>
+        </div>
+        <div class="row" style="gap:6px;flex-wrap:wrap">
+          <button type="button" class="btn soft sm" data-a="bb-demo-toast">Запустить живой тост</button>
+          <button type="button" class="btn sm" data-a="bb-modal-open">Открыть пример модалки</button>
+        </div>
+      </div>
+      <div class="grid-3">
+        ${plans.map(([id, price, name, badge, perks, extraCls]) => {
+          const isPick = picked === id;
+          return `<div class="plan-card${extraCls ? " " + extraCls : ""}${isPick ? " picked" : ""}">
+            <div class="stack" style="gap:8px">
+              <div class="row between" style="gap:6px">
+                <b>${name}</b>
+                <span class="chip${id === "month10k" ? " pro" : (id === "trial5k" ? " accent" : "")}">${badge}</span>
+              </div>
+              <div style="font-size:24px;font-weight:800" class="num">${price}</div>
+              <div class="stack" style="gap:4px">
+                ${perks.map((p) => `<span class="small ink2">✓ ${p}</span>`).join("")}
+              </div>
+            </div>
+            <button type="button" class="btn sm${isPick ? " is-confirmed" : " soft"}" data-a="bb-plan-pick" data-v="${id}" style="margin-top:12px;width:100%">${isPick ? "✓ Выбран в макете (.picked)" : "Примерить .picked"}</button>
+          </div>`;
+        }).join("")}
+      </div>
+      <div class="bb-overlays-grid" style="margin-top:14px">
+        <div class="card pad stack" style="gap:10px">
+          <div class="row between"><b>Боковое уведомление (.toast.is-side)</b><span class="bb-spec-pill notif">right 20 px · top 78 px</span></div>
+          <div class="bb-toast-preview">
+            <span class="toast-side-row">
+              <span class="bb-pulse-dot" style="margin-top:5px;flex:0 0 auto"></span>
+              <span class="toast-side-copy">
+                <b>Предложение передано преподавателю</b>
+                <span>Ставка ${bb.price.toLocaleString("ru-RU")} ₽/ч на ${String(bb.hour).padStart(2, "0")}:00 отправлена — уведомим об ответе</span>
+              </span>
+            </span>
+          </div>
+          <span class="small muted">На мобильных экранах (&le; 720 px) растягивается сверху по ширине экрана без перекрытия таб-бара.</span>
+        </div>
+        <div class="card pad stack" style="gap:10px">
+          <div class="row between"><b>Анатомия модального окна (.modal-card)</b><span class="bb-spec-pill">backdrop blur · max-w 520 px</span></div>
+          <div class="bb-modal-preview">
+            <div class="modal-head">
+              <div class="row" style="gap:8px">${icon("cal")}<b>Заголовок окна · Закрытие по Esc / клику вне</b></div>
+              <button type="button" class="icon-btn sm" data-a="bb-modal-open" aria-label="Открыть модалку">${icon("eye")}</button>
+            </div>
+            <div class="table-wrap">
+              <table class="tbl">
+                <thead><tr><th>Параметр</th><th>Значение</th><th>Правило</th></tr></thead>
+                <tbody>
+                  <tr><td>Отступ экрана</td><td class="num">16 px</td><td class="small muted">Безопасный зазор на 390 px</td></tr>
+                  <tr><td>Скругление</td><td class="num">20 px</td><td class="small muted">--r + 4 px для диалога</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>`;
+  }
+
+  function studyAndStatesSectionHTML(bb) {
+    const qPicked = Number(bb.quizOpt);
+    const quizOpts = [
+      ["А", "Митохондрия — синтез АТФ", qPicked === 0 ? "ok" : ""],
+      ["Б", "Рибосома — фотолиз воды", qPicked === 1 ? "bad" : ""],
+      ["В", "Комплекс Гольджи — упаковка секрета", qPicked === 2 ? "miss" : ""]
+    ];
+    return `<section class="land-sec" id="bb-study-states">
+      <div class="land-sec-head">
+        <div>
+          <div class="eyebrow">Тренажёр ЕГЭ · Системные состояния</div>
+          <h2 class="h2">Учебные компоненты (.opt / .meter / .theory) и Loading / Empty / Error</h2>
+        </div>
+        <span class="bb-spec-pill">полный жизненный цикл UI</span>
+      </div>
+      <div class="bb-study-grid">
+        <div class="card pad stack" style="gap:10px">
+          <div class="row between"><b>Варианты ответа в тесте (.opt)</b><span class="small muted">нажми для переключения</span></div>
+          <div class="opts">
+            ${quizOpts.map(([k, txt, st], idx) => `<button type="button" class="opt${st ? " " + st : ""}" data-a="bb-quiz-opt" data-i="${idx}" aria-pressed="${qPicked === idx}">
+              <span class="opt-key">${k}</span>
+              <span style="flex:1;text-align:left">${txt}</span>
+              ${st === "ok" ? `<span class="opt-mark" style="color:var(--good)">Верно</span>` : st === "bad" ? `<span class="opt-mark" style="color:var(--bad)">Ошибка</span>` : st === "miss" ? `<span class="opt-mark" style="color:var(--good)">Пропущено</span>` : ""}
+            </button>`).join("")}
+          </div>
+        </div>
+        <div class="card pad stack" style="gap:12px">
+          <div class="row between"><b>Прогресс (.meter), плитка (.tile) и конспект (.theory)</b><span class="chip accent">Учёба</span></div>
+          <div class="tile" style="padding:12px 14px">
+            <span class="tile-label">Готовность к экзамену</span>
+            <b class="tile-value num">84 / 100</b>
+            <span class="tile-note">Использован градиентный метр --accent → --leaf</span>
+          </div>
+          <div class="meter"><i style="width:74%"></i></div>
+          <ul class="theory">
+            <li class="th-h">Правило оформления конспекта</li>
+            <li><b>Жирный акцент</b> выделяет ключевой термин без визуального шума.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="bb-states-grid" style="margin-top:12px">
+        <div class="card pad stack" style="gap:10px">
+          <div class="row between"><b>Загрузка · Skeleton</b><span class="bb-spec-pill">1.6 s shimmer</span></div>
+          <div class="bb-skel-bar" style="width:62%"></div>
+          <div class="bb-skel-bar" style="width:94%;height:18px"></div>
+          <div class="bb-skel-bar" style="width:45%"></div>
+          <span class="small muted">Показывается вместо пустого экрана при загрузке анкет и ответа ИИ.</span>
+        </div>
+        <div class="empty">
+          <b>Пусто · По фильтрам нет анкет</b>
+          <span class="small muted">Пунктирный контейнер .empty 1 px --line-strong</span>
+          <button type="button" class="btn soft sm" data-a="bb-chip">Сбросить фильтры</button>
+        </div>
+        <div class="confirm">
+          <b>Опасное действие / Ошибка (.confirm + .btn.danger)</b>
+          <span class="small">Токен --bad используется только для необратимого удаления или сбоя сети.</span>
+          <div class="row" style="gap:8px;flex-wrap:wrap">
+            <button type="button" class="btn danger sm" data-a="bb-demo-toast">Отменить запись</button>
+            <button type="button" class="btn ghost sm" data-a="bb-chip">Оставить</button>
+          </div>
+        </div>
+      </div>
+    </section>`;
+  }
+
+  function doDontSectionHTML() {
+    return `<section class="land-sec" id="bb-dodont">
+      <div class="land-sec-head">
+        <div>
+          <div class="eyebrow">Контроль качества UI · Do / Don&#39;t</div>
+          <h2 class="h2">Как правильно ✓ и как делать нельзя ✕</h2>
+        </div>
+      </div>
+      <div class="bb-dodont-grid">
+        <div class="bb-do-card">
+          <span class="chip confirm" style="justify-self:start">✓ Можно · Строго оранжевые уведомления</span>
+          <div class="row" style="gap:10px;align-items:center">
+            <span class="bb-bell-wrap"><span class="icon-btn sm">${icon("bell")}</span><span class="bb-notif-badge">3</span></span>
+            <span class="chip notif"><span class="bb-pulse-dot"></span>На рассмотрении · уведомим</span>
+          </div>
+          <span class="small muted">Новые ответы и ожидание преподавателя всегда оранжевые (#F97316), а не аварийно-красные.</span>
+        </div>
+        <div class="bb-dont-card">
+          <span class="chip bad" style="justify-self:start">✕ Нельзя · Красные счётчики и комиссия в подборе</span>
+          <div class="row" style="gap:8px;flex-wrap:wrap">
+            <span class="chip bad">3 ответа (ошибка цвета)</span>
+            <span class="chip">Раскрытие 5% сбора на карточке выбора</span>
+          </div>
+          <span class="small muted">Красный цвет (--bad) зарезервирован под ошибки форм; сервисный сбор 5% виден только при оплате на /fees.</span>
+        </div>
+      </div>
+    </section>`;
+  }
+
   function viewBrandbook(opts, ctx) {
     opts = opts || {};
     ctx = ctx || {};
@@ -190,13 +465,12 @@
           </div>
         </div>
         <nav class="land-links" aria-label="Разделы брендбука">
-          <a href="#bb-surfaces" data-a="land-scroll" data-target="bb-surfaces">Белый / Синий</a>
-          <a href="#bb-sliders" data-a="land-scroll" data-target="bb-sliders">3 ползунка</a>
-          <a href="#bb-motion" data-a="land-scroll" data-target="bb-motion">Переходы</a>
-          <a href="#bb-buttons" data-a="land-scroll" data-target="bb-buttons">Кнопки</a>
-          <a href="#bb-bounds" data-a="land-scroll" data-target="bb-bounds">Границы</a>
+          <a href="#bb-logo" data-a="land-scroll" data-target="bb-logo">Лого и цвета</a>
+          <a href="#bb-sliders" data-a="land-scroll" data-target="bb-sliders">Ползунки</a>
+          <a href="#bb-forms" data-a="land-scroll" data-target="bb-forms">Формы и тарифы</a>
+          <a href="#bb-buttons" data-a="land-scroll" data-target="bb-buttons">Иконки и границы</a>
+          <a href="#bb-study-states" data-a="land-scroll" data-target="bb-study-states">Учёба и состояния</a>
           <a href="#bb-responsive" data-a="land-scroll" data-target="bb-responsive">Адаптив</a>
-          <a href="#bb-compare" data-a="land-scroll" data-target="bb-compare">Темы</a>
         </nav>
         <div class="land-top-actions">
           <button type="button" class="btn ghost sm" data-a="go" data-v="landing">На /landing</button>
@@ -219,6 +493,8 @@
           </div>
         </div>
       </section>
+
+      ${logoSectionHTML()}
 
       <section class="land-sec" id="bb-surfaces">
         <div class="land-sec-head">
@@ -559,20 +835,53 @@
         </div>
       </section>
 
+      ${formsSectionHTML(bb)}
+
+      ${cardsAndOverlaysSectionHTML(bb)}
+
       <section class="land-sec" id="bb-fonts">
         <div class="land-sec-head">
           <div>
-            <div class="eyebrow">Шрифты · Inter + IBM Plex Mono</div>
-            <h2 class="h2">Типографика как на сайте hh.ru</h2>
+            <div class="eyebrow">Шрифты · Inter + IBM Plex Mono · Отступы и радиусы</div>
+            <h2 class="h2">Типографика как на сайте hh.ru + шкала ритма</h2>
           </div>
         </div>
         <div class="card pad-lg stack" style="gap:4px">
-          <div class="bb-type-row"><b style="font-size:28px;font-weight:700;letter-spacing:-.025em">H1 · Ищи репетиторов ниже рынка</b><span class="small muted num">Inter Bold 700 · −0.02em · clamp(25–39px)</span></div>
-          <div class="bb-type-row"><b style="font-size:20px;font-weight:700;letter-spacing:-.015em">H2 · Найдено 2 480 подходящих анкет</b><span class="small muted num">Inter Bold 700 · −0.015em · 20px</span></div>
+          <div class="bb-type-row"><b style="font-size:28px;font-weight:700;letter-spacing:-.025em">H1 · Ищи репетиторов ниже рынка</b><span class="small muted num">Inter Bold 700 · −0.02em · clamp(25–39px) / 1.15</span></div>
+          <div class="bb-type-row"><b style="font-size:20px;font-weight:700;letter-spacing:-.015em">H2 · Найдено 2 480 подходящих анкет</b><span class="small muted num">Inter Bold 700 · −0.015em · 20px / 1.25</span></div>
+          <div class="bb-type-row"><span style="font-size:14.5px;line-height:1.5">Body · Подробный разбор задания №28 и прямая ставка без наценок онлайн-школ.</span><span class="small muted num">Inter Regular 400 · 14.5px / 1.5</span></div>
+          <div class="bb-type-row"><span class="small">Small / Caption · Заморозка средств только после ответа преподавателя</span><span class="small muted num">Inter 12.5px / 1.4 · --ink-2</span></div>
+          <div class="bb-type-row"><span class="eyebrow">EYEBROW · IBM PLEX MONO 12 PX · TRACKING +0.08EM</span><span class="small muted num">IBM Plex Mono 600 · uppercase</span></div>
           <div class="bb-type-row"><span><s class="hh-price-old lg num">2 000 ₽</s> <b class="hh-price-now lg num" style="margin-left:6px">1 200 ₽/ч</b></span><span class="small muted num">Tabular-nums · Прочерк #7C828E + Ставка 700</span></div>
           <div class="bb-type-row"><span style="font-size:13.5px;font-weight:500">Опыт 6 лет · Можно удалённо · Доска Ykt · Telegram · MAX</span><span class="small muted num">Inter Medium 500 · Теги карточек 13px</span></div>
         </div>
+        <div class="bb-scale-grid">
+          <div class="card pad stack" style="gap:10px">
+            <b>Шкала отступов (шаг 4 px · tokens.json)</b>
+            <div class="bb-scale-items">
+              <div class="bb-space-item"><div class="bb-space-bar" style="width:16px"></div><span class="small muted num">4</span></div>
+              <div class="bb-space-item"><div class="bb-space-bar" style="width:32px"></div><span class="small muted num">8</span></div>
+              <div class="bb-space-item"><div class="bb-space-bar" style="width:48px"></div><span class="small muted num">12</span></div>
+              <div class="bb-space-item"><div class="bb-space-bar" style="width:64px"></div><span class="small muted num">16</span></div>
+              <div class="bb-space-item"><div class="bb-space-bar" style="width:96px"></div><span class="small muted num">24</span></div>
+            </div>
+            <span class="small muted">Зазор кнопок: ≥ 8 px · Карточка pad: 16–20 px · Поля экрана: 28 / 16 / 12 px.</span>
+          </div>
+          <div class="card pad stack" style="gap:10px">
+            <b>Радиусы скругления (--r / --r-sm / pill)</b>
+            <div class="row" style="gap:10px;flex-wrap:wrap;align-items:center">
+              <div class="bb-radius-box" style="border-radius:12px">12 px</div>
+              <div class="bb-radius-box" style="border-radius:16px">16 px</div>
+              <div class="bb-radius-box" style="border-radius:999px;width:72px">999 px</div>
+            </div>
+            <span class="small muted">Кнопки и инпуты: --r-sm (12 px) · Карточки: --r (16 px) · Чипы и бейджи: 999 px.</span>
+          </div>
+        </div>
       </section>
+
+      ${studyAndStatesSectionHTML(bb)}
+
+      ${doDontSectionHTML()}
 
       <section class="land-sec" id="bb-responsive">
         <div class="land-sec-head">

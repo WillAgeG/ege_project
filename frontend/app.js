@@ -828,7 +828,8 @@
     demo: { tab: "quiz", sid: firstSubject.id, qIdx: 0, pick: null, revealed: false, topicIdx: 0, bidRate: 800, bidHour: "10:00" },
     motion: { playing: true, preset: "design", step: 0, slot: "10:00", offer: 1200, sent: false, clicking: false, hitTarget: "" },
     savings: { freq: 2, marketRate: 1600, offerRate: 950 },
-    brandbook: { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, vpWidth: 390, chipOn: true, sent: false, fav: true }
+    bbModal: false,
+    brandbook: { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, vpWidth: 390, chipOn: true, sent: false, fav: true, switchVal: "online", pickedPlan: "month10k", quizOpt: 1 }
   };
   const MARKET_LS_KEY = "vektor-ege:market";
   const TDATA = EGE.tutors || null;
@@ -1072,6 +1073,26 @@
     if (ui.authModal) { root.innerHTML = authModalHTML(); return; }
     if (ui.filterModal) { root.innerHTML = filterModalHTML(); return; }
     if (ui.booking) { root.innerHTML = bookingModalHTML(); return; }
+    if (ui.bbModal) {
+      root.innerHTML = `<div class="modal-back" role="dialog" aria-modal="true" aria-labelledby="bb-modal-title">
+        <div class="modal-card">
+          <div class="modal-head">
+            <div class="row" style="gap:8px">${icon("cal")}<b id="bb-modal-title">Пример модального окна · Вектор ЕГЭ</b></div>
+            <button type="button" class="icon-btn sm" data-a="bb-modal-close" aria-label="Закрыть">${icon("x")}</button>
+          </div>
+          <p class="small ink2">Единый каркас диалогов (<code>.modal-back</code> + <code>.modal-card</code>): ширина до 520 px, безопасный отступ 16 px по краям на телефоне, закрытие по кнопке <code>×</code> или клику по подложке.</p>
+          <div class="field">
+            <label for="bb-modal-inp">Пример поля ввода внутри модалки</label>
+            <input class="input" id="bb-modal-inp" type="text" value="Биология · Суббота 14:00">
+          </div>
+          <div class="row" style="gap:8px;flex-wrap:wrap">
+            <button type="button" class="btn" data-a="bb-modal-close">Подтвердить</button>
+            <button type="button" class="btn ghost" data-a="bb-modal-close">Закрыть</button>
+          </div>
+        </div>
+      </div>`;
+      return;
+    }
     if (!ui.bug) { root.innerHTML = ""; return; }
     root.innerHTML = `<div class="modal-back" role="dialog" aria-modal="true" aria-labelledby="bug-modal-title">
       <div class="modal-card">
@@ -3866,6 +3887,42 @@
         scheduleRender();
       }
     },
+    "bb-copy-token": (el) => {
+      const txt = (el.dataset && el.dataset.copy) || "";
+      if (!txt) return;
+      try {
+        if (typeof navigator !== "undefined" && navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+          navigator.clipboard.writeText(txt).catch(() => {});
+        }
+      } catch (e) { /* без буфера в тестовом окружении */ }
+      toast("Скопировано: " + txt);
+    },
+    "bb-switch": (el) => {
+      bbState().switchVal = el.dataset.v || "online";
+      scheduleRender();
+    },
+    "bb-plan-pick": (el) => {
+      bbState().pickedPlan = el.dataset.v || "month10k";
+      scheduleRender();
+    },
+    "bb-quiz-opt": (el) => {
+      const idx = Number(el.dataset.i);
+      bbState().quizOpt = Number.isFinite(idx) ? idx : 0;
+      scheduleRender();
+    },
+    "bb-demo-toast": () => {
+      const bb = bbState();
+      const hhStr = String(bb.hour || 14).padStart(2, "0") + ":00";
+      notifySide("Демо бокового уведомления", `Ставка ${bb.price.toLocaleString("ru-RU")} ₽/ч на ${hhStr} отправлена преподавателю`);
+    },
+    "bb-modal-open": () => {
+      ui.bbModal = true;
+      renderModal();
+    },
+    "bb-modal-close": () => {
+      ui.bbModal = false;
+      renderModal();
+    },
     "go-fees": () => {
       ui.booking = null;
       renderModal();
@@ -3876,6 +3933,9 @@
       scheduleRender();
     }
   };
+  function bbState() {
+    return ui.brandbook || (ui.brandbook = { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, vpWidth: 390, chipOn: true, sent: false, fav: true, switchVal: "online", pickedPlan: "month10k", quizOpt: 1 });
+  }
   function applyBrandbookViewport(rawW) { return EGE.views.brandbook.applyBrandbookViewport(ui, rawW); }
   function authErrorText(e) {
     const code = e && e.code;
@@ -3978,7 +4038,7 @@
 
   document.addEventListener("click", (e) => {
     if (e.target && e.target.classList && e.target.classList.contains("modal-back")) {
-      ui.bug = null; ui.booking = null; ui.authModal = false; ui.filterModal = false;
+      ui.bug = null; ui.booking = null; ui.authModal = false; ui.filterModal = false; ui.bbModal = false;
       renderModal();
       return;
     }
