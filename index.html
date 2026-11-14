@@ -117,7 +117,7 @@
 }
 
 * { box-sizing: border-box; }
-html, body { min-height: 100%; }
+html, body { min-height: 100%; max-width: 100%; overflow-x: clip; }
 body {
   background: radial-gradient(ellipse 900px 380px at 56% -60px, var(--glow), transparent 70%), var(--bg);
   background-attachment: local;
@@ -147,7 +147,7 @@ p { margin: 0; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* ---------- каркас ---------- */
-.shell { display: grid; grid-template-columns: var(--side) minmax(0, 1fr); min-height: 100vh; }
+.shell { display: grid; grid-template-columns: var(--side) minmax(0, 1fr); min-height: 100vh; max-width: 100%; overflow-x: clip; }
 .side {
   position: sticky;
   top: 0;
@@ -903,7 +903,7 @@ body[data-auth="1"] .auth-wrap { margin: 8vh auto; padding: 0 16px; }
 .hr-cir.empty-slot { opacity: .45; }
 
 /* карточки репетиторов */
-.tutor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.tutor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; min-width: 0; max-width: 100%; }
 @media (max-width: 760px) { .tutor-grid { grid-template-columns: minmax(0, 1fr); } }
 .tutor-card { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-content: space-between; min-width: 0; transition: border-color .15s ease, box-shadow .15s ease; }
 .tutor-card:hover { border-color: var(--line-strong); box-shadow: var(--shadow); }
@@ -955,7 +955,8 @@ body[data-auth="1"] .auth-wrap { margin: 8vh auto; padding: 0 16px; }
   .land-top .brand-sub { display: none; }
   .land-top-actions .btn { padding: 7px 10px; font-size: 13px; }
   .land-hero-ctas .btn { width: 100%; justify-content: center; }
-  .chip-rail.swipe { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; min-width: 0; max-width: 100%; }
+  .chip-rail.swipe { display: flex; flex-wrap: nowrap; width: 100%; max-width: 100%; min-width: 0; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .chip-rail.swipe > * { flex: 0 0 auto; }
   .chip-rail.swipe::-webkit-scrollbar { display: none; }
   .day-cir { flex: 0 0 64px; }
   .hr-cir { flex: 1 1 72px; min-width: 0; min-height: 44px; padding: 6px 8px; }
@@ -1066,6 +1067,26 @@ body[data-auth="1"] .auth-wrap { margin: 8vh auto; padding: 0 16px; }
 }
 .sheet-body { overflow-y: auto; padding: 16px; display: grid; gap: 18px; align-content: start; }
 .sheet-foot { padding: 12px 16px; border-top: 1px solid var(--line); background: var(--surface); }
+/* Предотвращение горизонтального переполнения на мобильных устройствах */
+.shell, .main, .page, .land-sec, .card, .tutor-grid, .tutor-card, .week-days-grid, .week-day-card, .hh-chat-list, .hh-notice-card, .hh-seg, .chip-rail {
+  min-width: 0;
+  max-width: 100%;
+}
+.main { overflow-x: clip; }
+.cal-days { width: 100%; max-width: 100%; min-width: 0; overflow-x: auto; }
+.hh-seg { display: flex; align-items: stretch; gap: 4px; }
+.hh-seg button { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 899px) {
+  .topbar, .brand-lockup, .tabbar { min-width: 0; max-width: 100%; }
+  .brand-lockup { overflow: hidden; }
+  .topbar-actions { flex: none; }
+}
+@media (max-width: 760px) {
+  .tutor-grid { grid-template-columns: minmax(0, 1fr); }
+  .hh-seg button { padding: 6px 8px; font-size: 13px; }
+  .hh-chat-row, .week-slot-row, .tutor-head, .tutor-foot { min-width: 0; max-width: 100%; }
+  .hh-chat-row > *, .week-slot-row > *, .tutor-head > *, .tutor-foot > * { min-width: 0; }
+}
 </style>
 
 <div class="shell">
