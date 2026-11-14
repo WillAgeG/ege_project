@@ -125,7 +125,17 @@
     return `<svg width="${px}" height="${px}" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
   }
 
-  function sakhaOhyorHTML(label) {
+  function sakhaOhyorHTML(label, opts) {
+    if (opts && opts.goldLogo) {
+      const goldEmblem =
+        '<span class="sakha-gold-emblem" aria-hidden="true">' +
+        '<svg width="42" height="42" viewBox="0 0 64 64" fill="none">' +
+        '<circle cx="32" cy="32" r="29.5" fill="none" stroke="currentColor" stroke-width="2.2"/>' +
+        `<g transform="translate(6.4 6.4) scale(0.8)">${sakhaStarCoreSVG()}</g>` +
+        "</svg>" +
+        "</span>";
+      return `<div class="sakha-divider is-gold-logo" aria-label="${label || "Вектор ЕГЭ · Саха"}"><span class="sakha-div-line" aria-hidden="true"></span>${goldEmblem}<span class="sakha-div-line" aria-hidden="true"></span></div>`;
+    }
     const ornament =
       '<svg width="64" height="18" viewBox="0 0 64 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
       '<path d="M2 9h14M48 9h14"/>' +

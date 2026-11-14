@@ -6,7 +6,7 @@
   const EGE = (root.EGE = root.EGE || {});
   const { esc, plural, initials } = EGE.utils;
   const { icon } = EGE.ui;
-  const { isValidHHMM, bidBtnLabelHTML, sakhaBidInnerHTML, priceHeadlineHTML, priceDiffTagsHTML } = EGE.hh;
+  const { isValidHHMM, bidBtnLabelHTML, sakhaBidInnerHTML, priceHeadlineHTML, priceDiffTagsHTML, sliderTicksHTML, hhSelectHTML } = EGE.hh;
 
   let _ctx = {};
 
@@ -202,6 +202,15 @@
     const n10 = b.offerPrice > 0 ? Math.floor(10000 / b.offerPrice) : 0;
     const winTxt = tutor.windowLabel || ("с " + tutor.availableFrom + " до " + tutor.availableTo);
     const inWin = typeof TDATA.tutorInWindow === "function" ? TDATA.tutorInWindow(tutor, curHour) : true;
+    const timeOptions = [];
+    for (let h = 10; h <= 20; h++) {
+      timeOptions.push({ id: `${String(h).padStart(2, "0")}:00`, label: `${String(h).padStart(2, "0")}:00` });
+      if (h < 20) timeOptions.push({ id: `${String(h).padStart(2, "0")}:30`, label: `${String(h).padStart(2, "0")}:30` });
+    }
+    if (isValidHHMM(curHour) && !timeOptions.some((o) => o.id === curHour)) {
+      timeOptions.push({ id: curHour, label: curHour });
+      timeOptions.sort((a, z) => a.id.localeCompare(z.id));
+    }
     return `<div class="modal-back" role="dialog" aria-modal="true" aria-labelledby="book-modal-title">
       <div class="modal-card">
         <div class="modal-head">
@@ -238,12 +247,24 @@
               <span class="small muted">Время занятия</span>
               <span class="hh-time-val num" id="bid-hour-pill">${esc(curHour)}</span>
             </div>
-            <input class="hh-time-range" id="bid-hour-range" type="range" min="10" max="20" step="1" value="${curHourNum}" style="--pct:${curHourPct}%" aria-label="Час занятия с 10:00 до 20:00">
+            <input class="hh-time-range is-ruler" id="bid-hour-range" type="range" min="10" max="20" step="1" value="${curHourNum}" style="--pct:${curHourPct}%" aria-label="Час занятия с 10:00 до 20:00">
+            ${sliderTicksHTML(curHourNum, "ruler", { id: "bid-hour-ticks" })}
             <div class="hh-time-ticks" aria-hidden="true"><span>10:00</span><span>12:00</span><span>14:00</span><span>16:00</span><span>18:00</span><span>20:00</span></div>
           </div>
+          ${daySlots.length ? `<div class="hour-circles compact" id="bid-day-slots" style="margin-top:8px">${daySlots.map((h) => `<button type="button" class="hr-cir${h === curHour ? " on" : ""}" data-a="book-hour" data-v="${esc(h)}">${esc(h)}</button>`).join("")}</div>` : ""}
           <div class="bid-time-row" style="margin-top:8px">
             <span class="small muted" id="bid-win-status">${inWin ? `Входит в свободное окно (${esc(winTxt)})` : `Вне типового окна (${esc(winTxt)}) — уточним и уведомим`}</span>
-            <input class="input num" id="bid-custom-time" type="time" value="${esc(curHour)}" aria-label="Выбрать точное время урока" style="width:120px">
+            ${hhSelectHTML({
+              id: "bid-custom-time",
+              pill: true,
+              leadIcon: "clock",
+              options: timeOptions,
+              value: curHour,
+              open: !!b.timeMenuOpen,
+              toggleAction: "book-time-toggle",
+              pickAction: "book-time-pick",
+              ariaLabel: "Выбрать точное время урока"
+            })}
           </div>
         </div>
         <div class="field">
@@ -268,7 +289,7 @@
         <div class="bot-preview">
           <b class="small">Детали заявки (уведомим о подтверждении):</b>
           <span id="bot-preview-txt">${esc(preview)}</span>
-          <span class="small muted">На «Пробник» (5 000 ₽) хватит на <b>${n5} ур.</b> · на «Месяц» (10 000 ₽) на <b>${n10} ур.</b></span>
+          <span class="small muted" id="bid-plan-counts">На «Пробник» (5 000 ₽) хватит на <b>${n5} ур.</b> · на «Месяц» (10 000 ₽) на <b>${n10} ур.</b></span>
         </div>
         <div class="row between" style="flex-wrap:wrap;gap:8px;align-items:center">
           <div class="row" style="flex-wrap:wrap;gap:8px">
@@ -292,16 +313,49 @@
     const hourPill = document.getElementById("bid-hour-pill");
     if (hourPill) hourPill.textContent = b.hour;
     const hourRange = document.getElementById("bid-hour-range");
+    const hNum = Math.max(10, Math.min(20, parseInt(String(b.hour || "10").slice(0, 2), 10) || 10));
     if (hourRange) {
-      const hNum = Math.max(10, Math.min(20, parseInt(String(b.hour || "10").slice(0, 2), 10) || 10));
       hourRange.value = String(hNum);
       if (hourRange.style && typeof hourRange.style.setProperty === "function") {
         hourRange.style.setProperty("--pct", ((hNum - 10) * 10) + "%");
       }
     }
+    const ticksEl = document.getElementById("bid-hour-ticks");
+    if (ticksEl && typeof ticksEl.querySelectorAll === "function") {
+      ticksEl.querySelectorAll("i").forEach((it) => {
+        const tv = Number(it.getAttribute && it.getAttribute("data-tick")) || 0;
+        if (it.classList) it.classList.toggle("on", tv === hNum);
+      });
+    }
+    const slotsEl = document.getElementById("bid-day-slots");
+    if (slotsEl && typeof slotsEl.querySelectorAll === "function") {
+      slotsEl.querySelectorAll('[data-a="book-hour"]').forEach((btn) => {
+        const match = btn.getAttribute && btn.getAttribute("data-v") === b.hour;
+        if (btn.classList) btn.classList.toggle("on", !!match);
+      });
+    }
     const customEl = document.getElementById("bid-custom-time");
-    if (customEl && customEl.value !== b.hour && document.activeElement !== customEl) {
-      customEl.value = b.hour;
+    if (customEl) {
+      const lblEl = customEl.querySelector && customEl.querySelector(".hh-select-val > span.num");
+      if (lblEl) lblEl.textContent = b.hour;
+      if (typeof customEl.querySelectorAll === "function") {
+        customEl.querySelectorAll(".hh-select-item").forEach((it) => {
+          const match = it.getAttribute && it.getAttribute("data-v") === b.hour;
+          if (it.classList) it.classList.toggle("on", !!match);
+          if (it.setAttribute) it.setAttribute("aria-selected", match ? "true" : "false");
+        });
+      }
+    }
+    const priceEl = document.getElementById("bid-price");
+    if (priceEl) {
+      if (document.activeElement !== priceEl) priceEl.value = String(b.offerPrice);
+      if (typeof priceEl.setAttribute === "function") priceEl.setAttribute("value", String(b.offerPrice));
+    }
+    const planEl = document.getElementById("bid-plan-counts");
+    if (planEl && b.offerPrice > 0) {
+      const n5 = Math.floor(5000 / b.offerPrice);
+      const n10 = Math.floor(10000 / b.offerPrice);
+      planEl.innerHTML = `На «Пробник» (5 000 ₽) хватит на <b>${n5} ур.</b> · на «Месяц» (10 000 ₽) на <b>${n10} ур.</b>`;
     }
     const priceRowEl = document.getElementById("bid-price-row");
     if (priceRowEl) {
@@ -528,7 +582,8 @@
               <span class="hh-time-val num" id="mkt-hour-pill">${st.hour === "all" ? "Все часы" : esc(st.hour)}</span>
             </div>
           </div>
-          <input class="hh-time-range" id="mkt-hour-range" type="range" min="10" max="20" step="1" value="${mktHourNum}" style="--pct:${mktHourPct}%" aria-label="Выбрать час с 10:00 до 20:00">
+          <input class="hh-time-range is-ruler" id="mkt-hour-range" type="range" min="10" max="20" step="1" value="${mktHourNum}" style="--pct:${mktHourPct}%" aria-label="Выбрать час с 10:00 до 20:00">
+          ${sliderTicksHTML(mktHourNum, "ruler", { id: "mkt-hour-ticks" })}
           <div class="hh-time-ticks" aria-hidden="true"><span>10:00</span><span>12:00</span><span>14:00</span><span>16:00</span><span>18:00</span><span>20:00</span></div>
         </div>
         <div class="hour-circles" aria-label="Часы занятий">${hourPills}</div>

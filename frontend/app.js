@@ -825,9 +825,9 @@
     bug: null,
     booking: null,
     market: null,
-    demo: { tab: "quiz", sid: firstSubject.id, qIdx: 0, pick: null, revealed: false, topicIdx: 0, bidRate: 800, bidHour: "10:00" },
+    demo: { tab: "quiz", sid: firstSubject.id, qIdx: 0, pick: null, revealed: false, topicIdx: 0, bidRate: 1000, bidHour: "10:00" },
     motion: { playing: true, preset: "design", step: 0, slot: "10:00", offer: 1200, sent: false, clicking: false, hitTarget: "" },
-    savings: { freq: 2, marketRate: 1600, offerRate: 950 },
+    savings: { freq: 2, marketRate: 1350, offerRate: 1000 },
     bbModal: false,
     brandbook: { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, vpWidth: 390, chipOn: true, sent: false, fav: true, switchVal: "online", pickedPlan: "month10k", quizOpt: 1, marketDemoAccepted: false, reducedMotion: false }
   };
@@ -925,7 +925,7 @@
   }
 
   // ---------- рендер ----------
-  let renderQueued = false, scrollTopPending = false;
+  let renderQueued = false, scrollTopPending = false, lastRenderedView = "";
   function scheduleRender(scrollTop) {
     if (scrollTop) scrollTopPending = true;
     if (renderQueued) return;
@@ -942,6 +942,8 @@
     } catch (e) { /* игнор */ }
   }
   function render() {
+    const sameView = lastRenderedView === ui.view;
+    const savedScrollY = (!scrollTopPending && sameView && typeof window !== "undefined" && typeof window.scrollY === "number") ? window.scrollY : null;
     const authGate = store.backend && !store.user && !ui.guest;
     setAuthLayout(authGate);
     if (!authGate) renderChrome();
@@ -1000,6 +1002,10 @@
       });
     }
     if (scrollTopPending) { scrollTopPending = false; window.scrollTo(0, 0); }
+    else if (savedScrollY !== null && typeof window !== "undefined" && typeof window.scrollTo === "function" && window.scrollY !== savedScrollY) {
+      window.scrollTo(0, savedScrollY);
+    }
+    lastRenderedView = ui.view;
     syncHeroMotion();
   }
   const BUG_EMAIL = "willagegg@gmail.com";
@@ -1114,10 +1120,21 @@
   function renderModal() {
     const root = $("#modal-root");
     if (!root) return;
-    if (ui.authModal) { root.innerHTML = authModalHTML(); return; }
-    if (ui.filterModal) { root.innerHTML = filterModalHTML(); return; }
-    if (ui.booking) { root.innerHTML = bookingModalHTML(); return; }
-    if (ui.tutorApplyModal) { root.innerHTML = tutorApplyModalHTML(); return; }
+    const prevBack = typeof root.querySelector === "function" ? root.querySelector(".modal-back") : null;
+    const prevCard = typeof root.querySelector === "function" ? root.querySelector(".modal-card") : null;
+    const savedBackTop = prevBack ? prevBack.scrollTop : 0;
+    const savedCardTop = prevCard ? prevCard.scrollTop : 0;
+    const restoreModalScroll = () => {
+      if (!savedBackTop && !savedCardTop) return;
+      const nb = typeof root.querySelector === "function" ? root.querySelector(".modal-back") : null;
+      const nc = typeof root.querySelector === "function" ? root.querySelector(".modal-card") : null;
+      if (nb && savedBackTop) nb.scrollTop = savedBackTop;
+      if (nc && savedCardTop) nc.scrollTop = savedCardTop;
+    };
+    if (ui.authModal) { root.innerHTML = authModalHTML(); restoreModalScroll(); return; }
+    if (ui.filterModal) { root.innerHTML = filterModalHTML(); restoreModalScroll(); return; }
+    if (ui.booking) { root.innerHTML = bookingModalHTML(); restoreModalScroll(); return; }
+    if (ui.tutorApplyModal) { root.innerHTML = tutorApplyModalHTML(); restoreModalScroll(); return; }
     if (ui.bbModal) {
       root.innerHTML = `<div class="modal-back" role="dialog" aria-modal="true" aria-labelledby="bb-modal-title">
         <div class="modal-card">
@@ -3636,13 +3653,41 @@
       if (slots.length && !slots.includes(ui.booking.hour)) ui.booking.hour = slots[0];
       renderModal();
     },
-    "book-hour": (el) => { if (ui.booking && el.dataset.v) { ui.booking.hour = el.dataset.v; renderModal(); } },
+    "book-hour": (el) => {
+      if (!ui.booking || !el.dataset.v) return;
+      ui.booking.hour = el.dataset.v;
+      ui.booking.timeMenuOpen = false;
+      const modalRoot = $("#modal-root");
+      const liveRange = typeof document.getElementById === "function" ? document.getElementById("bid-hour-range") : null;
+      if (modalRoot && typeof modalRoot.contains === "function" && liveRange && modalRoot.contains(liveRange)) {
+        updateBookingModalLive();
+      } else {
+        renderModal();
+      }
+    },
+    "book-time-toggle": () => {
+      if (!ui.booking) return;
+      ui.booking.timeMenuOpen = !ui.booking.timeMenuOpen;
+      renderModal();
+    },
+    "book-time-pick": (el) => {
+      if (!ui.booking || !el.dataset.v) return;
+      ui.booking.hour = el.dataset.v;
+      ui.booking.timeMenuOpen = false;
+      renderModal();
+    },
     "bid-step": (el) => {
       if (!ui.booking) return;
       const delta = Number(el.dataset.step) || 0;
       const cur = Number(ui.booking.offerPrice) || 1000;
       ui.booking.offerPrice = Math.max(500, Math.min(5000, cur + delta));
-      renderModal();
+      const modalRoot = $("#modal-root");
+      const liveInput = typeof document.getElementById === "function" ? document.getElementById("bid-price") : null;
+      if (modalRoot && typeof modalRoot.contains === "function" && liveInput && modalRoot.contains(liveInput)) {
+        updateBookingModalLive();
+      } else {
+        renderModal();
+      }
     },
     "book-submit": () => {
       if (!ui.booking || !TDATA) return;
@@ -3723,9 +3768,19 @@
       scheduleRender();
     },
     "demo-rate": (el) => {
-      const r = Number(el.dataset.rate) || 800;
+      const r = Number(el.dataset.rate) || 1000;
       ui.demo.bidRate = Math.max(500, Math.min(3000, r));
-      scheduleRender();
+      if (!EGE.views.landing || typeof EGE.views.landing.patchDemoCalcDOM !== "function" || !EGE.views.landing.patchDemoCalcDOM()) {
+        scheduleRender();
+      }
+    },
+    "demo-step": (el) => {
+      const step = Number(el.dataset.step) || 0;
+      const cur = Number(ui.demo.bidRate) || 1000;
+      ui.demo.bidRate = Math.max(500, Math.min(3000, cur + step));
+      if (!EGE.views.landing || typeof EGE.views.landing.patchDemoCalcDOM !== "function" || !EGE.views.landing.patchDemoCalcDOM()) {
+        scheduleRender();
+      }
     },
     "mkt-sim-accept": (el) => {
       const st = mkt();
@@ -3834,22 +3889,22 @@
       }
     },
     "save-freq": (el) => {
-      if (!ui.savings) ui.savings = { freq: 2, marketRate: 1600, offerRate: 950 };
+      if (!ui.savings) ui.savings = { freq: 2, marketRate: 1350, offerRate: 1000 };
       ui.savings.freq = Math.max(1, Math.min(4, Number(el.dataset.v) || 2));
       patchSavingsDOM();
     },
     "save-step": (el) => {
-      if (!ui.savings) ui.savings = { freq: 2, marketRate: 1600, offerRate: 950 };
+      if (!ui.savings) ui.savings = { freq: 2, marketRate: 1350, offerRate: 1000 };
       const which = el.dataset.which === "mkt" ? "marketRate" : "offerRate";
       const step = Number(el.dataset.step) || 0;
       if (which === "marketRate") {
-        ui.savings.marketRate = Math.max(1000, Math.min(3500, (Number(ui.savings.marketRate) || 1600) + step));
-        if ((Number(ui.savings.offerRate) || 950) > ui.savings.marketRate - 100) {
+        ui.savings.marketRate = Math.max(1000, Math.min(3500, (Number(ui.savings.marketRate) || 1350) + step));
+        if ((Number(ui.savings.offerRate) || 1000) > ui.savings.marketRate - 100) {
           ui.savings.offerRate = Math.max(600, ui.savings.marketRate - 100);
         }
       } else {
-        const cap = Math.max(600, (Number(ui.savings.marketRate) || 1600) - 100);
-        ui.savings.offerRate = Math.max(600, Math.min(cap, (Number(ui.savings.offerRate) || 950) + step));
+        const cap = Math.max(600, (Number(ui.savings.marketRate) || 1350) - 100);
+        ui.savings.offerRate = Math.max(600, Math.min(cap, (Number(ui.savings.offerRate) || 1000) + step));
       }
       patchSavingsDOM();
     },
@@ -4489,6 +4544,10 @@
       ui.landMatch.menuOpen = false;
       changed = true;
     }
+    if (ui.booking && ui.booking.timeMenuOpen && (!target || typeof target.closest !== "function" || !target.closest("#bid-custom-time"))) {
+      ui.booking.timeMenuOpen = false;
+      renderModal();
+    }
     return changed;
   }
 
@@ -4570,7 +4629,9 @@
       const raw = parseInt(el.value, 10);
       if (Number.isFinite(raw)) {
         ui.demo.bidRate = Math.max(500, Math.min(3000, raw));
-        scheduleRender();
+        if (!EGE.views.landing || typeof EGE.views.landing.patchDemoCalcDOM !== "function" || !EGE.views.landing.patchDemoCalcDOM()) {
+          scheduleRender();
+        }
       }
       return;
     }
@@ -4591,6 +4652,13 @@
       if (el.style && typeof el.style.setProperty === "function") el.style.setProperty("--pct", ((hNum - 10) * 10) + "%");
       const pill = typeof document.getElementById === "function" ? document.getElementById("mkt-hour-pill") : null;
       if (pill) pill.textContent = hh;
+      const mTicks = typeof document.getElementById === "function" ? document.getElementById("mkt-hour-ticks") : null;
+      if (mTicks && typeof mTicks.querySelectorAll === "function") {
+        mTicks.querySelectorAll("i").forEach((it) => {
+          const tv = Number(it.getAttribute && it.getAttribute("data-tick")) || 0;
+          if (it.classList) it.classList.toggle("on", tv === hNum);
+        });
+      }
       return;
     }
     if (el.id === "bid-hour-range") {

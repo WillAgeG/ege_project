@@ -528,6 +528,22 @@ p { margin: 0; }
 }
 .sakha-div-emblem { display: inline-flex; align-items: center; gap: 7px; flex: none; font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; font-family: var(--font-mono); }
 .sakha-div-emblem svg { width: 64px; height: 18px; display: block; flex: none; }
+.sakha-divider.is-gold-logo {
+  gap: 14px;
+  color: #C59B5F;
+}
+.sakha-divider.is-gold-logo .sakha-div-line {
+  height: 1.5px;
+  background: linear-gradient(90deg, rgba(197, 155, 95, .08), #C59B5F 48%, rgba(197, 155, 95, .08));
+}
+.sakha-gold-emblem {
+  display: inline-grid; place-items: center; flex: none;
+  width: 46px; height: 46px; border-radius: 999px;
+  background: var(--bg);
+  color: #C59B5F;
+  box-shadow: 0 0 0 4px var(--bg);
+}
+.sakha-gold-emblem svg { width: 42px; height: 42px; display: block; }
 .chip svg { width: 13px; height: 13px; flex: none; display: block; }
 .notif-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--notif); flex: none; }
 
@@ -584,7 +600,15 @@ p { margin: 0; }
   border-radius: 999px; padding: 2px 8px; flex: none;
 }
 .hh-select-chev { display: inline-flex; color: var(--muted); transition: transform .18s cubic-bezier(.22, 1, .36, 1), color .14s ease; flex: none; }
-.hh-select-chev svg, .hh-select-item svg { width: 16px; height: 16px; flex: none; display: block; }
+.hh-select-chev svg, .hh-select-item svg, .hh-select-lead svg { width: 16px; height: 16px; flex: none; display: block; }
+.hh-select-lead { display: inline-flex; color: var(--accent); flex: none; }
+.hh-select.is-pill { width: auto; min-width: 132px; flex: none; }
+.hh-select.is-pill .hh-select-btn {
+  min-height: 38px; padding: 6px 14px; border-radius: 999px; gap: 8px;
+}
+.hh-select.is-pill .hh-select-menu {
+  left: auto; right: 0; min-width: 152px; max-height: 224px; overflow-y: auto;
+}
 .hh-select.open .hh-select-chev { transform: rotate(180deg); color: var(--accent); }
 .hh-select-menu {
   position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 40;

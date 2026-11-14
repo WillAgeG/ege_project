@@ -17,28 +17,28 @@
   ];
 
   var PREP_UNIVERSE = [
-    { label: "ЕГЭ на 85+", subject: "all", meta: "от 750 ₽/ч · −40% ниже рынка" },
-    { label: "ОГЭ без стресса", subject: "all", meta: "от 700 ₽/ч · −38% ниже рынка" },
-    { label: "Python и алгоритмы", subject: "inf", meta: "от 950 ₽/ч · вместо 1 700 ₽" },
-    { label: "UX/UI в Figma", subject: "design", meta: "от 900 ₽/ч · портфолио с нуля" },
-    { label: "Моушен-дизайн (AE)", subject: "design", meta: "от 950 ₽/ч · реальные кейсы" },
-    { label: "Разговорный английский", subject: "eng", meta: "от 800 ₽/ч · IELTS и работа" },
-    { label: "Медвуз: биология + химия", subject: "bio", meta: "от 850 ₽/ч · задачи 28 и 34" },
-    { label: "Высшая математика", subject: "math", meta: "от 850 ₽/ч · сессия и ЕГЭ" },
-    { label: "Физика и Физтех", subject: "phys", meta: "от 900 ₽/ч · олимпиады и ВУЗ" },
-    { label: "Вокал и гитара", subject: "music", meta: "от 750 ₽/ч · онлайн и студия" },
-    { label: "История и право", subject: "hist", meta: "от 750 ₽/ч · карты и эссе" },
-    { label: "Собеседование в IT", subject: "inf", meta: "от 1 100 ₽/ч · −45% ниже рынка" }
+    { label: "ЕГЭ на 85+", subject: "all", meta: "от 950 ₽/ч · −24% ниже рынка" },
+    { label: "ОГЭ без стресса", subject: "all", meta: "от 850 ₽/ч · −22% ниже рынка" },
+    { label: "Python и алгоритмы", subject: "inf", meta: "от 1 100 ₽/ч · вместо 1 500 ₽" },
+    { label: "UX/UI в Figma", subject: "design", meta: "от 1 050 ₽/ч · портфолио с нуля" },
+    { label: "Моушен-дизайн (AE)", subject: "design", meta: "от 1 100 ₽/ч · реальные кейсы" },
+    { label: "Разговорный английский", subject: "eng", meta: "от 950 ₽/ч · IELTS и работа" },
+    { label: "Медвуз: биология + химия", subject: "bio", meta: "от 1 000 ₽/ч · задачи 28 и 34" },
+    { label: "Высшая математика", subject: "math", meta: "от 1 000 ₽/ч · сессия и ЕГЭ" },
+    { label: "Физика и Физтех", subject: "phys", meta: "от 1 050 ₽/ч · олимпиады и ВУЗ" },
+    { label: "Вокал и гитара", subject: "music", meta: "от 850 ₽/ч · онлайн и студия" },
+    { label: "История и право", subject: "hist", meta: "от 900 ₽/ч · карты и эссе" },
+    { label: "Собеседование в IT", subject: "inf", meta: "от 1 200 ₽/ч · −25% ниже рынка" }
   ];
 
   var LIVE_DEALS = [
-    { topic: "ЕГЭ Биология", paid: 850, market: 1450, tag: "вместо 1 450 ₽ · −41%" },
-    { topic: "UX/UI и Figma", paid: 950, market: 1800, tag: "вместо 1 800 ₽ · −47%" },
-    { topic: "Английский B2 / ЕГЭ", paid: 900, market: 1600, tag: "вместо 1 600 ₽ · −44%" },
-    { topic: "Python и КЕГЭ", paid: 1000, market: 1750, tag: "вместо 1 750 ₽ · −43%" },
-    { topic: "Вокал и слух", paid: 750, market: 1300, tag: "вместо 1 300 ₽ · −42%" },
-    { topic: "Химия №34 (медвуз)", paid: 950, market: 1650, tag: "вместо 1 650 ₽ · −42%" },
-    { topic: "Математика профиль", paid: 900, market: 1550, tag: "вместо 1 550 ₽ · −42%" }
+    { topic: "ЕГЭ Биология", paid: 1050, market: 1400, tag: "вместо 1 400 ₽ · −25%" },
+    { topic: "UX/UI и Figma", paid: 1100, market: 1500, tag: "вместо 1 500 ₽ · −27%" },
+    { topic: "Английский B2 / ЕГЭ", paid: 1000, market: 1350, tag: "вместо 1 350 ₽ · −26%" },
+    { topic: "Python и КЕГЭ", paid: 1150, market: 1550, tag: "вместо 1 550 ₽ · −26%" },
+    { topic: "Вокал и слух", paid: 850, market: 1150, tag: "вместо 1 150 ₽ · −26%" },
+    { topic: "Химия №34 (медвуз)", paid: 1100, market: 1450, tag: "вместо 1 450 ₽ · −24%" },
+    { topic: "Математика профиль", paid: 1000, market: 1350, tag: "вместо 1 350 ₽ · −26%" }
   ];
 
   var CATALOG_TOTAL = 2480;
@@ -137,7 +137,7 @@
         3: ["18:00", "20:00"],
         4: ["10:00", "14:00", "19:00"],
         5: ["16:00", "18:00"],
-        6: ["09:00", "10:00", "11:00", "14:00", "16:00"],
+        6: ["10:00", "11:00", "14:00", "16:00", "18:00"],
         0: ["10:00", "12:00", "18:00"]
       }
     },
@@ -215,7 +215,7 @@
         2: ["10:00", "16:00", "19:00"],
         4: ["12:00", "18:00"],
         5: ["16:00", "19:00"],
-        6: ["09:00", "10:00", "14:00", "18:00"],
+        6: ["10:00", "12:00", "14:00", "18:00"],
         0: ["10:00", "14:00"]
       }
     },
@@ -289,10 +289,10 @@
       bumpText: "Поднял анкету сегодня",
       bio: "Работаем по схемам, рисункам КИМ и тестам: анатомия, ботаника, зоология и задания на эксперимент №2, №22–23.",
       slots: {
-        1: ["18:00", "21:00"],
-        4: ["10:00", "19:00", "21:00"],
+        1: ["18:00", "20:00"],
+        4: ["10:00", "17:00", "19:00"],
         5: ["14:00", "18:00"],
-        6: ["09:00", "14:00", "18:00"],
+        6: ["10:00", "14:00", "18:00"],
         0: ["16:00", "20:00"]
       }
     },
@@ -392,7 +392,7 @@
       bumpText: "Поднял анкету 3 ч назад",
       bio: "Переводим всю тестовую часть и сложные номера КЕГЭ в быстрый код на Python. Работаем на реальных станциях КЕГЭ.",
       slots: {
-        1: ["19:00", "21:00"],
+        1: ["17:00", "20:00"],
         3: ["18:00", "20:00"],
         5: ["16:00", "19:00"],
         6: ["10:00", "12:00", "18:00", "20:00"],
@@ -419,7 +419,7 @@
       slots: {
         2: ["16:00", "19:00"],
         4: ["10:00", "16:00"],
-        6: ["09:00", "11:00", "16:00"],
+        6: ["10:00", "12:00", "16:00"],
         0: ["14:00", "18:00"]
       }
     },
@@ -430,8 +430,8 @@
       subjectName: "UX/UI и Моушен-дизайн",
       exams: ["Навыки", "Портфолио"],
       price: 1200,
-      marketPrice: 2000,
-      minFair: 950,
+      marketPrice: 1650,
+      minFair: 1000,
       formats: ["Онлайн"],
       city: "Онлайн по РФ",
       rating: 4.9,
@@ -456,8 +456,8 @@
       subjectName: "Физика и олимпиады",
       exams: ["ЕГЭ", "ОГЭ", "ВУЗ"],
       price: 1150,
-      marketPrice: 1750,
-      minFair: 900,
+      marketPrice: 1550,
+      minFair: 950,
       formats: ["Онлайн", "Очно"],
       city: "Онлайн / Очно",
       rating: 4.9,
@@ -482,8 +482,8 @@
       subjectName: "Вокал, гитара и музыка",
       exams: ["Навыки", "Творческий экзамен"],
       price: 950,
-      marketPrice: 1500,
-      minFair: 750,
+      marketPrice: 1250,
+      minFair: 800,
       formats: ["Онлайн", "Очно"],
       city: "Онлайн / Очно",
       rating: 4.8,
@@ -508,8 +508,8 @@
       subjectName: "История и общество",
       exams: ["ЕГЭ", "ОГЭ", "ДВИ"],
       price: 1000,
-      marketPrice: 1550,
-      minFair: 780,
+      marketPrice: 1350,
+      minFair: 850,
       formats: ["Онлайн"],
       city: "Онлайн по РФ",
       rating: 4.9,
@@ -584,10 +584,10 @@
     t.whatsapp = t.whatsapp || WA_PHONES[t.id] || ("791421001" + String(10 + idx));
     t.verified = t.verified !== false;
     t.source = t.source || SOURCE_CHANNELS[idx % SOURCE_CHANNELS.length];
-    t.marketPrice = t.marketPrice || Math.round((t.price * 1.38) / 50) * 50;
+    t.marketPrice = t.marketPrice || Math.round((t.price * 1.28) / 50) * 50;
     t.belowRub = Math.max(0, t.marketPrice - t.price);
     t.aboveRub = Math.max(0, t.price - t.marketPrice);
-    t.belowPct = t.belowRub > 0 ? Math.max(10, Math.round((1 - (t.minFair || t.price) / t.marketPrice) * 100)) : 0;
+    t.belowPct = t.belowRub > 0 ? Math.max(10, Math.round((t.belowRub / t.marketPrice) * 100)) : 0;
     t.abovePct = t.aboveRub > 0 ? Math.max(5, Math.round((t.aboveRub / t.marketPrice) * 100)) : 0;
     t.responseMin = t.bumpedToday ? 10 : 25;
     if (!t.availableFrom || !t.availableTo) {
@@ -596,8 +596,8 @@
         (t.slots[k] || []).forEach(function (h) { allH.push(h); });
       });
       allH.sort(function (a, b) { return timeToMinutes(a) - timeToMinutes(b); });
-      t.availableFrom = t.availableFrom || allH[0] || "09:00";
-      t.availableTo = t.availableTo || allH[allH.length - 1] || "21:00";
+      t.availableFrom = t.availableFrom || allH[0] || "10:00";
+      t.availableTo = t.availableTo || allH[allH.length - 1] || "20:00";
     }
     t.windowLabel = "с " + t.availableFrom + " до " + t.availableTo;
   });

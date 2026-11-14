@@ -5,6 +5,9 @@
   const root = typeof globalThis !== "undefined" ? globalThis : window;
   const EGE = (root.EGE = root.EGE || {});
   const { esc } = EGE.utils || { esc: (s) => String(s || "") };
+  const initials =
+    (EGE.utils && typeof EGE.utils.initials === "function" && EGE.utils.initials) ||
+    ((name) => String(name || "").trim().split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase() || "ВЕ");
   const { icon, sakhaPatternSVG } = EGE.ui || {
     icon: () => "",
     sakhaPatternSVG: () => ""
@@ -37,7 +40,7 @@
     { id: "motion", targetId: "bb-motion", cat: "motion", title: "Моушен, слои Z-index и Reduced Motion", api: "EGE.kit.sentNoticeHTML({ slot, offer })", css: ".hh-motion-status.sent .bb-pulse-dot .is-reduced", desc: "Статус под кнопкой, подъём −2 px, таблица слоёв (10→100) и отключение анимаций." },
     { id: "bounds", targetId: "bb-bounds", cat: "motion", title: "Границы 390 px, воздух 6 px и зазор 8 px", api: ".cal-days / .hh-price-stepper", css: ".bb-bp-stage .bb-phone-frame .bb-days-rail", desc: "Защита от обрезания рамок при hover, угол 84 px и мобильный фрейм." },
     { id: "responsive", targetId: "bb-responsive", cat: "motion", title: "Стенд адаптивности (320 px — 1340 px)", api: "applyBrandbookViewport(width)", css: "@container (max-width: 560px) / @media (max-width: 680px)", desc: "Живой ползунок ширины экрана от Mini SE 320 px до Desktop." },
-    { id: "kit", targetId: "bb-landing-kit", cat: "sections", title: "Блоки витрины (Лента, Ставки, ИИ, FAQ)", api: "EGE.kit.rateBenchCardHTML / aiErrorBoxesHTML / faqListHTML", css: ".marquee-pill .rate-bench-card .ai-fix-box .review-card", desc: "Общие компоненты EGE.kit для /landing без дублирования разметки." },
+    { id: "kit", targetId: "bb-landing-kit", cat: "sections", title: "Блоки витрины (Лента, Ставки, Отзывы, FAQ)", api: "EGE.kit.rateBenchCardHTML / reviewCardHTML / faqListHTML", css: ".marquee-pill .rate-bench-card .review-card .land-faq-list", desc: "Общие компоненты EGE.kit для /landing без дублирования разметки." },
     { id: "dodont", targetId: "bb-dodont", cat: "sections", title: "Do / Don't и Tone of Voice (формат текстов)", api: "tokens.json -> editorial", css: ".bb-do-card .bb-dont-card", desc: "Оранжевые уведомления, правило 5% только на /fees, формат ₽/ч и якутская орфография." },
     { id: "compare", targetId: "bb-compare", cat: "brand", title: "Сквозная проверка Light vs Dark OLED", api: "EGE.views.brandbook.brandbookPaneHTML()", css: ".bb-pane.is-light .bb-pane.is-dark", desc: "Одновременное сравнение свотчей, слайдера, степпера и карточки в двух темах." }
   ];
@@ -68,7 +71,7 @@
       <div class="hero-banner-foot">
         <div class="hero-banner-kpis">
           <div class="hero-banner-kpi"><b>${esc(catalogTotal)}+</b><span>анкет в базе</span></div>
-          <div class="hero-banner-kpi"><b>35–53%</b><span>ниже рынка</span></div>
+          <div class="hero-banner-kpi"><b>15–30%</b><span>ниже рынка</span></div>
           <div class="hero-banner-kpi"><b>10:00–20:00</b><span>слоты по часу</span></div>
         </div>
       </div>
@@ -258,23 +261,27 @@
   function reviewCardHTML(r) {
     r = r || {};
     const newPrice = Number(r.newPrice) || 950;
-    const oldPrice = Number(r.oldPrice) || 1650;
+    const oldPrice = Number(r.oldPrice) || 1250;
+    const rating = r.rating || "5.0";
+    const savePct = oldPrice > newPrice ? Math.round((1 - newPrice / oldPrice) * 100) : 0;
     return `<article class="review-card">
-      <div class="stack" style="gap:10px">
-        <div class="row between" style="gap:6px;flex-wrap:wrap">
-          <span class="diff-tag ${r.pro ? "pro" : "confirm"}">${esc(r.badge || "Экономия")}</span>
-        </div>
-        <p class="review-quote">«${esc(r.text || "")}»</p>
+      <div class="review-top">
+        <span class="diff-tag ${r.pro ? "pro" : "confirm"}">${esc(r.badge || "Занятие состоялось")}</span>
+        <span class="chip good num review-rating" title="Оценка ученика">${icon("star")}<span>${esc(rating)}</span></span>
       </div>
-      <div class="stack" style="gap:8px;padding-top:8px;border-top:1px dashed var(--line)">
+      <p class="review-quote">«${esc(r.text || "")}»</p>
+      <div class="review-foot">
+        <div class="review-author">
+          <span class="tutor-avatar review-av" aria-hidden="true">${esc(initials(r.name || "ВЕ"))}</span>
+          <div class="stack" style="gap:1px;min-width:0">
+            <span class="row" style="gap:5px"><b style="font-size:14px">${esc(r.name || "")}</b><span class="verified-badge sm" title="Подтверждённый отзыв">${icon("check")}</span></span>
+            <span class="small muted">${esc(r.role || "")}</span>
+          </div>
+        </div>
         <div class="hh-price-row">
           ${r.pro
             ? `<b class="num" style="font-size:15px">Ставка от ${newPrice.toLocaleString("ru-RU")} ₽/ч</b><span class="diff-tag pro">Профи</span>`
-            : `<s class="hh-price-old num">${oldPrice.toLocaleString("ru-RU")} ₽</s><b class="num" style="font-size:15px;color:var(--accent)">${newPrice.toLocaleString("ru-RU")} ₽/ч</b>`}
-        </div>
-        <div class="stack" style="gap:1px">
-          <b style="font-size:14px">${esc(r.name || "")}</b>
-          <span class="small muted">${esc(r.role || "")}</span>
+            : `<s class="hh-price-old num">${oldPrice.toLocaleString("ru-RU")} ₽</s><b class="num" style="font-size:15px;color:var(--accent)">${newPrice.toLocaleString("ru-RU")} ₽/ч</b>${savePct > 0 ? `<span class="diff-tag confirm num">−${savePct}%</span>` : ""}`}
         </div>
       </div>
     </article>`;

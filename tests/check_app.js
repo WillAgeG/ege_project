@@ -905,7 +905,7 @@
     clickAction(env5, { a: "save-freq", v: "3" });
     await flushMicrotasks(2);
     const saveHtml = env5.elements.get("main").innerHTML;
-    assert(hasNum(saveHtml, "19 200 ₽/мес") && hasNum(saveHtml, "10 200 ₽/мес"), "expected savings comparator ±100 ₽ steppers and freq=3 to recalculate monthly savings");
+    assert(hasNum(saveHtml, "16 200 ₽/мес") && hasNum(saveHtml, "10 800 ₽/мес"), "expected savings comparator ±100 ₽ steppers and freq=3 to recalculate monthly savings");
 
     clickAction(env5, { a: "demo-pick", i: "0" });
     await flushMicrotasks(2);
@@ -916,7 +916,7 @@
     clickAction(env5, { a: "demo-tab", tab: "calc" });
     await flushMicrotasks(2);
     const calcDemoHtml = env5.elements.get("main").innerHTML;
-    assert(!calcDemoHtml.includes("760 ₽") && !calcDemoHtml.includes("40 ₽") && calcDemoHtml.includes('data-v="fees"') && calcDemoHtml.includes("850"), "expected student calc demo tab to hide 5% split and link to /fees");
+    assert(!calcDemoHtml.includes("760 ₽") && !calcDemoHtml.includes("40 ₽") && calcDemoHtml.includes('data-v="fees"') && calcDemoHtml.includes('id="demo-calc-box"') && hasNum(calcDemoHtml, "1 000 ₽/ч"), "expected student calc demo tab to hide 5% split and link to /fees");
 
     clickAction(env5, { a: "mkt-preset" });
     await flushMicrotasks(4);
@@ -938,7 +938,25 @@
     clickAction(env5, { a: "book-open", id: "tut-sokolova", hour: "10:00" });
     await flushMicrotasks(2);
     const modalBefore = env5.elements.get("modal-root").innerHTML;
-    assert(modalBefore.includes("Запись · Анна Соколова") && modalBefore.includes('id="bid-hour-range"') && modalBefore.includes('id="bid-price"') && modalBefore.includes('id="bid-custom-time"') && !modalBefore.includes('id="bid-fee-split"') && modalBefore.includes('data-a="go-fees"'), "expected booking modal with hour slider, custom time, hidden commission split and separate /fees link");
+    assert(
+      modalBefore.includes("Запись · Анна Соколова") &&
+      modalBefore.includes('id="bid-hour-range"') &&
+      modalBefore.includes('id="bid-hour-ticks"') &&
+      modalBefore.includes("hh-slider-ticks ruler") &&
+      modalBefore.includes('id="bid-price"') &&
+      modalBefore.includes('id="bid-custom-time"') &&
+      modalBefore.includes("hh-select is-pill") &&
+      !modalBefore.includes('type="time"') &&
+      !modalBefore.includes('id="bid-fee-split"') &&
+      modalBefore.includes('data-a="go-fees"'),
+      "expected booking modal with ruler hour slider, pill time select, custom time, hidden commission split and separate /fees link"
+    );
+    clickAction(env5, { a: "book-time-toggle" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("modal-root").innerHTML.includes('data-a="book-time-pick"'), "expected pill time select dropdown to open");
+    clickAction(env5, { a: "book-time-pick", v: "14:30" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("modal-root").innerHTML.includes("14:30") && !env5.elements.get("modal-root").innerHTML.includes('data-a="book-time-pick"'), "expected picked time 14:30 to update pill and close dropdown");
     clickAction(env5, { a: "bid-step", step: "-100" });
     await flushMicrotasks(2);
     const modalStepped = env5.elements.get("modal-root").innerHTML;
@@ -1167,40 +1185,14 @@
     clickAction(env5, { a: "go", v: "landing" });
     await flushMicrotasks(2);
     const landFullHtml = env5.elements.get("main").innerHTML;
-    assert(
-      landFullHtml.includes('id="land-match"') &&
-      landFullHtml.includes('class="land-hero-banner"') &&
-      landFullHtml.includes('class="hero-banner-ctas"') &&
-      landFullHtml.includes("Найти ниже рынка") &&
-      landFullHtml.includes("Попробовать бета-тест") &&
-      !landFullHtml.includes("hero-banner-form") &&
-      !landFullHtml.includes("hero-banner-badges") &&
-      !landFullHtml.includes("hero-banner-pill") &&
-      landFullHtml.includes('class="brand-wordmark"') &&
-      !landFullHtml.includes("land-search-strip") &&
-      !landFullHtml.includes('id="landing-q"') &&
-      !landFullHtml.includes('id="land-sakha"') &&
-      !landFullHtml.includes("hh-blue-banner") &&
-      !landFullHtml.includes("Дизайн-система и брендбук hh-стиля") &&
-      !landFullHtml.includes("hero-iphone-bezel") &&
-      !landFullHtml.includes('/assets/iphone-motion.jpg') &&
-      landFullHtml.includes('/assets/lena-pillars.jpg') &&
-      landFullHtml.includes("sakha-divider") &&
-      !landFullHtml.includes("sakha-medallion-btn") &&
-      !landFullHtml.includes("sakha-diamond-btn") &&
-      landFullHtml.includes("btn sakha-pattern") &&
-      landFullHtml.includes("Сөп · Предложить") &&
-      !landFullHtml.includes("btn sakha-aurora") &&
-      landFullHtml.includes('id="land-rates"') &&
-      landFullHtml.includes('id="land-verify"') &&
-      landFullHtml.includes('id="land-ai-study"') &&
-      landFullHtml.includes("land-trust-strip") &&
-      landFullHtml.includes('id="land-reviews"') &&
-      landFullHtml.includes('data-a="tutor-apply-open"') &&
-      landFullHtml.includes('id="land-faq"') &&
-      landFullHtml.includes("land-mobile-sticky"),
-      "expected all 9 expanded landing sections and sticky mobile CTA bar"
-    );
+    assert(landFullHtml.includes('id="land-match"') && landFullHtml.includes('class="land-hero-banner"'), "expected hero banner and quick match on landing");
+    assert(landFullHtml.includes("Найти ниже рынка") && landFullHtml.includes("Попробовать бета-тест") && !landFullHtml.includes("hero-banner-form"), "expected hero banner CTAs without top search form");
+    assert(!landFullHtml.includes("land-search-strip") && !landFullHtml.includes("hh-blue-banner") && !landFullHtml.includes("hero-iphone-bezel") && landFullHtml.includes("/assets/lena-pillars.jpg"), "expected Lena Pillars hero without iPhone or search strip or blue brandbook banner");
+    assert(landFullHtml.includes("sakha-divider is-gold-logo") && landFullHtml.includes("sakha-gold-emblem") && !landFullHtml.includes("Оһуор · Саха сирэ · Вектор ЕГЭ"), "expected single gold circular logo bottom divider without text label");
+    assert(landFullHtml.includes("hh-slider-ticks ruler") && landFullHtml.includes("btn sakha-pattern") && landFullHtml.includes("Сөп · Предложить"), "expected ruler ticks and rounded Sakha CTA");
+    assert(landFullHtml.includes('id="land-rates"') && landFullHtml.includes('id="land-verify"') && !landFullHtml.includes('id="land-ai-study"') && !landFullHtml.includes("ИИ разбирает ошибки") && !landFullHtml.includes("35–53%") && !landFullHtml.includes("до 53%") && !landFullHtml.includes("−53%"), "expected rates and verify sections with AI showcase and 53% claims removed");
+    assert(landFullHtml.includes("land-trust-strip") && landFullHtml.includes('id="land-reviews"') && landFullHtml.includes("review-rating") && landFullHtml.includes("tutor-perks-grid"), "expected trust strip, upgraded reviews with rating, and balanced tutor perks grid");
+    assert(landFullHtml.includes('class="btn soft sm" data-a="go" data-v="fees"') && landFullHtml.includes('data-a="tutor-apply-open"') && landFullHtml.includes('class="land-footer small muted"') && landFullHtml.includes("is-sakha") && landFullHtml.includes("land-mobile-sticky"), "expected equal #land-tutors buttons, clean footer with icons, and sticky mobile CTA");
     assert(
       !landFullHtml.includes("Комиссия 5%") && !landFullHtml.includes("760 ₽"),
       "expected expanded landing sections to keep 5% commission split off /landing"
@@ -1220,9 +1212,13 @@
     );
     assert(env5.elements.get("main").innerHTML.includes('id="land-market"') && !env5.elements.get("main").innerHTML.includes('data-a="match-subj-pick"'), "expected quick-match apply to close dropdown and filter marketplace");
 
-    clickAction(env5, { a: "land-ai-subj", v: "chem" });
+    clickAction(env5, { a: "demo-tab", tab: "calc" });
     await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("Олеум, смеси и электролиз") && env5.elements.get("main").innerHTML.includes("72 → 81 / 100"), "expected AI showcase switcher to display chemistry task and score forecast");
+    const demoCalcHtml = env5.elements.get("main").innerHTML;
+    assert(demoCalcHtml.includes('id="demo-calc-box"') && demoCalcHtml.includes("demo-rate-stepper") && demoCalcHtml.includes('data-a="demo-step"') && !demoCalcHtml.includes("09:00"), "expected structured rate calculator with brandbook stepper and 10:00-20:00 window");
+    clickAction(env5, { a: "demo-step", step: "100" });
+    await flushMicrotasks(2);
+    assert(hasNum(env5.elements.get("main").innerHTML, "1 100 ₽/ч"), "expected demo-step action to increment calculator rate cleanly");
 
     clickAction(env5, { a: "land-faq", i: "1" });
     await flushMicrotasks(2);

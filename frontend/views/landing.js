@@ -13,7 +13,6 @@
     marqueePillsHTML,
     rateBenchCardHTML,
     trustStripHTML,
-    aiErrorBoxesHTML,
     reviewCardHTML,
     faqListHTML
   } = EGE.kit;
@@ -147,8 +146,8 @@
             <span class="small muted">Удобный час с 10:00 до 20:00</span>
             <span class="hh-time-val num" data-m="hour-pill">Сб · ${esc(slot)}</span>
           </div>
-          <input class="hh-time-range" id="hero-hour-range" type="range" min="10" max="20" step="1" value="${hourNum}" style="--pct:${hourPct}%" data-mstep-target="0" aria-label="Удобный час с 10:00 до 20:00">
-          ${sliderTicksHTML(hourNum, "ticks")}
+          <input class="hh-time-range is-ruler" id="hero-hour-range" type="range" min="10" max="20" step="1" value="${hourNum}" style="--pct:${hourPct}%" data-mstep-target="0" aria-label="Удобный час с 10:00 до 20:00">
+          ${sliderTicksHTML(hourNum, "ruler", { id: "hero-hour-ticks" })}
           <div class="hh-time-ticks" aria-hidden="true"><span>10:00</span><span>12:00</span><span>14:00</span><span>16:00</span><span>18:00</span><span>20:00</span></div>
         </div>
         <div class="hh-price-stepper">
@@ -234,7 +233,7 @@
       if (typeof stage.querySelectorAll === "function") {
         stage.querySelectorAll(".hh-slider-ticks i").forEach((it) => {
           const tv = Number(it.getAttribute && it.getAttribute("data-tick")) || 0;
-          if (it.classList) it.classList.toggle("on", Math.abs(tv - meta.hourNum) <= 1);
+          if (it.classList) it.classList.toggle("on", tv === meta.hourNum);
         });
       }
       const pRow = q('[data-m="price-row"]');
@@ -395,10 +394,10 @@
   function savingsStats() {
     const ui = getUi();
     const TDATA = getTDATA();
-    const s = ui.savings || (ui.savings = { freq: 2, marketRate: 1600, offerRate: 950 });
+    const s = ui.savings || (ui.savings = { freq: 2, marketRate: 1350, offerRate: 1000 });
     const freq = Math.max(1, Math.min(4, Number(s.freq) || 2));
-    const mktRate = Math.max(1000, Math.min(3500, Number(s.marketRate) || 1600));
-    const offRate = Math.max(600, Math.min(mktRate - 100, Number(s.offerRate) || 950));
+    const mktRate = Math.max(1000, Math.min(3500, Number(s.marketRate) || 1350));
+    const offRate = Math.max(600, Math.min(mktRate - 100, Number(s.offerRate) || 1000));
     const monthMkt = freq * 4 * mktRate;
     const monthOff = freq * 4 * offRate;
     const monthSave = Math.max(0, monthMkt - monthOff);
@@ -418,8 +417,8 @@
       <div class="land-sec-head">
         <div>
           <div class="eyebrow">Ниже рынка · честная экономика</div>
-          <h2 class="h2">Почему занятия здесь обходятся дешевле на 35–53%</h2>
-          <p class="small muted">Онлайн-школы закладывают до 50% наценки. Мы собираем анкеты с Доски Ykt, Telegram, WhatsApp, MAX и других сервисов — предлагай свою ставку напрямую без лишних переплат.</p>
+          <h2 class="h2">Почему занятия здесь обходятся дешевле на 15–30%</h2>
+          <p class="small muted">Онлайн-школы закладывают до 35% наценки. Мы собираем анкеты с Доски Ykt, Telegram, WhatsApp, MAX и других сервисов — предлагай свою ставку напрямую без лишних переплат.</p>
         </div>
       </div>
       <div class="savings-grid">
@@ -542,14 +541,15 @@
           ${tbl}
         </div>` : `<div class="empty">Выбери предмет для просмотра конспекта.</div>`}`;
     } else if (dm.tab === "calc") {
-      const rate = Math.max(500, Math.min(3000, Number(dm.bidRate) || 800));
-      const rates = [700, 800, 1000, 1200];
+      const rate = Math.max(500, Math.min(3000, Number(dm.bidRate) || 1000));
+      const rates = [800, 1000, 1200, 1400];
       const n5 = Math.max(1, Math.floor(5000 / rate));
       const n10 = Math.max(1, Math.floor(10000 / rate));
-      const marketEx = 1650;
-      const saveRub = Math.max(0, marketEx - rate);
       const sampleTut = TDATA && TDATA.LIST[0];
-      const winLabel = sampleTut ? sampleTut.windowLabel : "с 09:00 до 19:00";
+      const tutorBase = sampleTut ? sampleTut.price : 1200;
+      const marketEx = sampleTut && sampleTut.marketPrice ? sampleTut.marketPrice : 1550;
+      const saveRub = Math.max(0, marketEx - rate);
+      const winLabel = sampleTut ? sampleTut.windowLabel : "с 10:00 до 20:00";
       const previewTxt = TDATA ? TDATA.botPreviewText({
         exam: "ЕГЭ",
         subjectName: sampleTut ? sampleTut.subjectName : "Английский язык",
@@ -557,28 +557,41 @@
         dayLabel: "ближайшая суббота",
         hour: dm.bidHour || "10:00",
         offerPrice: rate,
-        tutorPrice: sampleTut ? sampleTut.price : 1200
+        tutorPrice: tutorBase
       }) : "";
-      body = `<div class="demo-grid">
-        <div class="card stack" style="gap:12px">
-          <div class="row between" style="gap:8px;flex-wrap:wrap">
-            <b>Выбери свою ставку за урок</b>
-            <span class="chip">${esc(winLabel)} · Ykt, TG, WA, MAX</span>
+      body = `<div class="demo-grid" id="demo-calc-box">
+        <div class="card pad demo-calc-card">
+          <div class="stack" style="gap:12px">
+            <div class="row between" style="gap:8px;flex-wrap:wrap">
+              <b>Выбери свою ставку за урок</b>
+              <span class="chip">${esc(winLabel)} · Ykt, TG, WA, MAX</span>
+            </div>
+            <div class="demo-rate-row">
+              <div class="demo-rate-chips">
+                ${rates.map((r) => `<button type="button" class="chip-btn${rate === r ? " on" : ""}" data-a="demo-rate" data-rate="${r}">${r.toLocaleString("ru-RU")} ₽/ч</button>`).join("")}
+              </div>
+              <div class="hh-price-stepper compact demo-rate-stepper">
+                <button type="button" class="hh-step-btn" data-a="demo-step" data-step="-100" aria-label="Снизить ставку на 100 рублей">−100 ₽</button>
+                <div class="hh-step-readout">
+                  <input class="demo-rate-input num" id="demo-rate-inp" type="number" min="500" max="3000" step="50" value="${rate}" aria-label="Своя ставка в рублях">
+                  <span class="small muted">₽/ч</span>
+                </div>
+                <button type="button" class="hh-step-btn" data-a="demo-step" data-step="100" aria-label="Повысить ставку на 100 рублей">+100 ₽</button>
+              </div>
+            </div>
+            <div class="fee-split-box">
+              <div class="fee-pill"><span>Цена часа</span><b class="num" data-dc="rate">${rate.toLocaleString("ru-RU")} ₽/ч</b></div>
+              <div class="fee-pill"><span>Ниже рынка (${marketEx.toLocaleString("ru-RU")} ₽)</span><b class="num" data-dc="save" style="color:var(--confirm)">${saveRub > 0 ? "−" + saveRub.toLocaleString("ru-RU") + " ₽" : "По рынку"}</b></div>
+              <div class="fee-pill"><span>На «Пробнике» 5 000 ₽</span><b class="num" data-dc="n5">${n5} ${plural(n5, "урок", "урока", "уроков")}</b></div>
+            </div>
           </div>
-          <div class="chip-rail">
-            ${rates.map((r) => `<button type="button" class="chip-btn${rate === r ? " on" : ""}" data-a="demo-rate" data-rate="${r}">${r} ₽/ч</button>`).join("")}
-            <input class="input num" id="demo-rate-inp" type="number" min="500" max="3000" step="50" value="${rate}" aria-label="Своя ставка в рублях" style="width:110px">
-          </div>
-          <div class="fee-split-box">
-            <div class="fee-pill"><span>Цена часа</span><b class="num">${rate.toLocaleString("ru-RU")} ₽/ч</b></div>
-            <div class="fee-pill"><span>Выгода от рынка</span><b class="num">${saveRub > 0 ? "−" + saveRub.toLocaleString("ru-RU") + " ₽" : "По рынку"}</b></div>
-            <div class="fee-pill"><span>На «Пробнике» 5 000 ₽</span><b class="num">${n5} ${plural(n5, "урок", "урока", "уроков")}</b></div>
-          </div>
-          <p class="small muted">На тарифе 10 000 ₽ выйдет примерно <b>${n10} ${plural(n10, "урок", "урока", "уроков")}</b>. Оплата замораживается только после согласия преподавателя. <button type="button" class="link-btn small" data-a="go" data-v="fees">Правила оплаты →</button></p>
+          <p class="small muted">На тарифе 10 000 ₽ выйдет примерно <b data-dc="n10">${n10} ${plural(n10, "урок", "урока", "уроков")}</b>. Оплата замораживается только после согласия преподавателя. <a href="/fees" class="link-btn small" data-a="go" data-v="fees">Правила оплаты →</a></p>
         </div>
-        <div class="card stack" style="gap:10px">
-          <b class="small">Карточка заявки (пришлём уведомление при ответе)</b>
-          <div class="bot-preview"><span>${esc(previewTxt)}</span></div>
+        <div class="card pad demo-calc-card">
+          <div class="stack" style="gap:10px">
+            <b class="small">Карточка заявки (пришлём уведомление при ответе)</b>
+            <div class="bot-preview"><span data-dc="preview">${esc(previewTxt)}</span></div>
+          </div>
           <div class="row" style="gap:8px;flex-wrap:wrap">
             <button type="button" class="btn sm" data-a="land-scroll" data-target="land-market">Выбрать время и преподавателя</button>
           </div>
@@ -647,59 +660,69 @@
     </section>`;
   }
 
-  const AI_SHOWCASE_DATA = {
-    bio: {
-      label: "Биология · №28",
-      topic: "Генетика и кроссинговер",
-      question: "При дигибридном скрещивании получены 4 фенотипические группы в соотношении 42% : 42% : 8% : 8%. Почему не 9:3:3:1?",
-      mistake: "Ответ ученика: «Произошло независимое наследование по 3-му закону Менделя с неполным доминированием».",
-      aiFix: "Признаки сцеплены в одной хромосоме (закон Моргана). Две большие группы по 42% — некроссоверные гаметы (84%), а две по 8% — результат кроссинговера (16%, расстояние между генами 16 морганид).",
-      before: 76,
-      after: 84,
-      delta: "+8 баллов к прогнозу",
-      cta: "Разобрать биологию в тренажёре"
-    },
-    chem: {
-      label: "Химия · №34",
-      topic: "Олеум, смеси и электролиз",
-      question: "Какую массу 20%-ного олеума нужно добавить к воде для получения раствора серной кислоты заданной молярности?",
-      mistake: "Ответ ученика: «Принял весь 20%-ный олеум за 20%-ный раствор H₂SO₄ в воде без пересчёта SO₃».",
-      aiFix: "20%-ный олеум — это 20% свободного SO₃ и 80% безводной H₂SO₄. При добавлении воды каждый моль SO₃ забирает моль H₂O и даёт ещё 1 моль H₂SO₄: n(H₂SO₄ из олеума) = n₀ + n(SO₃).",
-      before: 72,
-      after: 81,
-      delta: "+9 баллов к прогнозу",
-      cta: "Открыть задачи по химии"
-    },
-    rus: {
-      label: "Русский · №27",
-      topic: "Сочинение ЕГЭ по критериям ФИПИ",
-      question: "Комментарий к проблеме: два примера-иллюстрации даны, но авторская позиция подменена пересказом сюжета.",
-      mistake: "Черновик ученика: «В первом абзаце герой пошёл к реке, а во втором автор просто описывает природу…».",
-      aiFix: "Замени пересказ на анализ связи: объясни, *зачем* автор противопоставил поступки (контраст), а в К3 сформулируй чёткий тезис позиции автора — это сразу вернёт 3 первичных балла.",
-      before: 79,
-      after: 88,
-      delta: "+9 баллов к прогнозу",
-      cta: "Проверить сочинение с ИИ"
+  function patchDemoCalcDOM() {
+    const box = typeof document.getElementById === "function" ? document.getElementById("demo-calc-box") : null;
+    if (!box || typeof box.querySelector !== "function") return false;
+    const TDATA = getTDATA();
+    const ui = getUi();
+    const dm = ui.demo || {};
+    const rate = Math.max(500, Math.min(3000, Number(dm.bidRate) || 1000));
+    const n5 = Math.max(1, Math.floor(5000 / rate));
+    const n10 = Math.max(1, Math.floor(10000 / rate));
+    const sampleTut = TDATA && TDATA.LIST[0];
+    const tutorBase = sampleTut ? sampleTut.price : 1200;
+    const marketEx = sampleTut && sampleTut.marketPrice ? sampleTut.marketPrice : 1550;
+    const saveRub = Math.max(0, marketEx - rate);
+    const previewTxt = TDATA ? TDATA.botPreviewText({
+      exam: "ЕГЭ",
+      subjectName: sampleTut ? sampleTut.subjectName : "Английский язык",
+      format: "онлайн",
+      dayLabel: "ближайшая суббота",
+      hour: dm.bidHour || "10:00",
+      offerPrice: rate,
+      tutorPrice: tutorBase
+    }) : "";
+    const inp = box.querySelector("#demo-rate-inp");
+    if (inp && document.activeElement !== inp) inp.value = String(rate);
+    if (typeof box.querySelectorAll === "function") {
+      box.querySelectorAll('[data-a="demo-rate"]').forEach((btn) => {
+        const bRate = Number(btn.getAttribute && btn.getAttribute("data-rate")) || 0;
+        if (btn.classList) btn.classList.toggle("on", bRate === rate);
+      });
     }
-  };
+    const q = (s) => box.querySelector(s);
+    const elRate = q('[data-dc="rate"]');
+    if (elRate) elRate.textContent = rate.toLocaleString("ru-RU") + " ₽/ч";
+    const elSave = q('[data-dc="save"]');
+    if (elSave) elSave.textContent = saveRub > 0 ? "−" + saveRub.toLocaleString("ru-RU") + " ₽" : "По рынку";
+    const elN5 = q('[data-dc="n5"]');
+    if (elN5) elN5.textContent = n5 + " " + plural(n5, "урок", "урока", "уроков");
+    const elN10 = q('[data-dc="n10"]');
+    if (elN10) elN10.textContent = n10 + " " + plural(n10, "урок", "урока", "уроков");
+    const elPrev = q('[data-dc="preview"]');
+    if (elPrev) elPrev.textContent = previewTxt;
+    return true;
+  }
 
   const LAND_REVIEWS = [
     {
       name: "Екатерина М.",
       role: "Мама 11-классницы · Биология ЕГЭ",
-      oldPrice: 1800,
+      oldPrice: 1450,
       newPrice: 1050,
+      rating: "5.0",
       badge: "Нашли за 12 мин · Медвуз",
-      text: "Нужен был срочный разбор заданий №28 и №25. Предложили 1 050 ₽/ч вместо 1 800 ₽ на вечернее окно — репетитор подтвердила в тот же день. За 4 месяца сэкономили 24 000 ₽.",
+      text: "Нужен был разбор генетики и заданий второй части. Предложили 1 050 ₽/ч вместо 1 450 ₽ на вечерний слот — репетитор подтвердила в тот же день. За 4 месяца сэкономили около 12 000 ₽.",
       pro: false
     },
     {
       name: "Артём К.",
-      role: "11 класс · Python и КЕГЭ №24–27",
-      oldPrice: 1750,
+      role: "11 класс · Информатика КЕГЭ",
+      oldPrice: 1350,
       newPrice: 1000,
-      badge: "Рост +22 балла · 64 → 86",
-      text: "Удобно, что на лендинге сразу потыкал ставку −100 ₽ и попал в свободный слот 16:00. После уроков добирал баллы в тренажёре и ИИ-разборе прямо в этом же кабинете.",
+      rating: "5.0",
+      badge: "−26% к рынку · Слот 16:00",
+      text: "Выбрал на ползунке час 16:00 и предложил 1 000 ₽/ч кнопками ±100 ₽. После уроков повторял темы и конспекты в этом же кабинете — пробник написал на 86 баллов.",
       pro: false
     },
     {
@@ -707,6 +730,7 @@
       role: "Поступление на бюджет · Химия 92",
       oldPrice: 1600,
       newPrice: 1700,
+      rating: "5.0",
       badge: "Профи выше рынка · Высокая квалификация",
       text: "Специально выбрали ставку Профи по химии для сложной задачи №34 с олеумом и атомистикой. Деньги с баланса списались только после подтверждения — на экзамене 92 балла.",
       pro: true
@@ -736,7 +760,7 @@
     },
     {
       q: "Можно ли готовиться к ЕГЭ бесплатно без покупки подписки на уроки?",
-      a: "Да. Тариф 0 ₽ навсегда открывает тренажёр ЕГЭ, конспекты, проверку сочинений с ИИ, план подготовки и поиск по базе анкет. Платный баланс нужен только для регулярных занятий с репетиторами.",
+      a: "Да. Тариф 0 ₽ навсегда открывает тренажёр ЕГЭ, конспекты по темам, план подготовки и поиск по базе анкет. Платный баланс нужен только для регулярных занятий с репетиторами.",
       hasFeesLink: true
     }
   ];
@@ -786,7 +810,7 @@
       ["18:00", "Вечер · 18:00"]
     ];
     const tierChips = [
-      ["below", "Ниже рынка −35..53%"],
+      ["below", "Ниже рынка −15..30%"],
       ["budget", "До 1 200 ₽/ч"],
       ["pro", "Профи выше рынка"]
     ];
@@ -856,8 +880,8 @@
       if (!sb || !tutors.length) return "";
       const minRate = Math.min(...tutors.map((t) => t.price));
       const maxRate = Math.max(...tutors.map((t) => t.price));
-      const avgMarket = Math.round(tutors.reduce((s, t) => s + (t.marketPrice || Math.round(t.price * 1.45)), 0) / tutors.length / 50) * 50;
-      const savePct = avgMarket > minRate ? Math.round(((avgMarket - minRate) / avgMarket) * 100) : 35;
+      const avgMarket = Math.round(tutors.reduce((s, t) => s + (t.marketPrice || Math.round(t.price * 1.28)), 0) / tutors.length / 50) * 50;
+      const savePct = avgMarket > minRate ? Math.round(((avgMarket - minRate) / avgMarket) * 100) : 22;
       const barPct = Math.max(32, Math.min(88, Math.round((minRate / Math.max(1, avgMarket)) * 100)));
       return rateBenchCardHTML({
         sid,
@@ -906,27 +930,6 @@
     </section>`;
   }
 
-  function aiShowcaseSectionHTML(inside) {
-    const ui = getUi();
-    const sid = AI_SHOWCASE_DATA[ui.landAiSubj] ? ui.landAiSubj : "bio";
-    const item = AI_SHOWCASE_DATA[sid];
-    const subjButtons = Object.keys(AI_SHOWCASE_DATA).map((k) => {
-      const it = AI_SHOWCASE_DATA[k];
-      return `<button type="button" class="chip-btn${sid === k ? " on" : ""}" data-a="land-ai-subj" data-v="${k}">${esc(it.label)}</button>`;
-    }).join("");
-    return `<section class="land-sec" id="land-ai-study" aria-label="ИИ-разбор и трекер готовности">
-      <div class="land-sec-head">
-        <div>
-          <div class="eyebrow">Бесплатно в кабинете (0 ₽) · ИИ-репетитор</div>
-          <h2 class="h2">ИИ разбирает ошибки ЕГЭ за 5 секунд и считает прогноз баллов</h2>
-          <p class="small muted">Пока подбираешь репетитора или между уроками, тренируй реальные задания ФИПИ с моментальным разбором и трекером готовности.</p>
-        </div>
-        <div class="chip-rail">${subjButtons}</div>
-      </div>
-      ${aiErrorBoxesHTML(item, { inside })}
-    </section>`;
-  }
-
   function trustUnderPlansHTML() {
     return trustStripHTML();
   }
@@ -936,7 +939,7 @@
       <div class="land-sec-head">
         <div>
           <div class="eyebrow">Кейсы «Было → Стало» · Отзывы</div>
-          <h2 class="h2">Как ученики находят преподавателей и экономят до 53% бюджета</h2>
+          <h2 class="h2">Отзывы учеников и родителей: как проходит подбор</h2>
         </div>
       </div>
       <div class="land-reviews-grid">${LAND_REVIEWS.map((r) => reviewCardHTML(r)).join("")}</div>
@@ -1054,42 +1057,50 @@
 
       ${verifySectionHTML()}
       ${demoSectionHTML(inside)}
-      ${aiShowcaseSectionHTML(inside)}
       ${mktApi ? mktApi.marketSectionHTML({ landing: true }) : ""}
       ${mktApi ? mktApi.plansSectionHTML({ landing: true }) : ""}
       ${trustUnderPlansHTML()}
       ${reviewsSectionHTML()}
 
       <section class="land-sec" id="land-tutors">
-        <div class="card pad-lg stack" style="gap:14px">
-          <div class="row between" style="flex-wrap:wrap;gap:10px">
+        <div class="card pad-lg stack" style="gap:16px">
+          <div class="land-sec-head">
             <div>
               <div class="eyebrow">Для преподавателей</div>
               <h2 class="h2">Анкеты с Доски Ykt, Telegram, WhatsApp, MAX без наценок школ</h2>
             </div>
-            <div class="row" style="gap:8px;flex-wrap:wrap">
+            <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
+              <a href="/fees" class="btn soft sm" data-a="go" data-v="fees">Условия оплаты →</a>
               <button type="button" class="btn sm${tutorApplied ? " is-confirmed" : ""}" data-a="tutor-apply-open">${tutorApplied ? "✓ Анкета отправлена (" + esc(tutorApplied.name) + ")" : "Разместить анкету за 1 минуту"}</button>
-              <a href="/fees" class="chip accent" data-a="go" data-v="fees">Условия оплаты →</a>
             </div>
           </div>
-          <div class="grid-3">
-            <div class="stack" style="gap:4px"><b>Готовые заявки по времени и цене</b><p class="small ink2">Ученик выбирает час и ставку — сервис аккуратно передаёт предложение и уведомляет при ответе.</p></div>
-            <div class="stack" style="gap:4px"><b>Бесплатный топ каждый день</b><p class="small ink2">Раз в сутки нажимаете «Актуален сегодня» — ваша анкета сразу поднимается вверх каталога.</p></div>
-            <div class="stack" style="gap:4px"><b>Безопасный баланс и расчёты</b><p class="small ink2">Ученик пополняет баланс 5 000 или 10 000 ₽ — средства бронируются только после вашего подтверждения. <a href="/fees" data-a="go" data-v="fees" style="color:var(--accent)">Подробнее об оплате →</a></p></div>
+          <div class="tutor-perks-grid">
+            <div class="tutor-perk-card">
+              <span class="tutor-perk-ico" aria-hidden="true">${icon("clock")}</span>
+              <div class="stack" style="gap:4px"><b>Готовые заявки по времени и цене</b><p class="small ink2">Ученик выбирает час и ставку — сервис аккуратно передаёт предложение и уведомляет при ответе.</p></div>
+            </div>
+            <div class="tutor-perk-card">
+              <span class="tutor-perk-ico" aria-hidden="true">${icon("flame")}</span>
+              <div class="stack" style="gap:4px"><b>Бесплатный топ каждый день</b><p class="small ink2">Раз в сутки нажимаете «Актуален сегодня» — ваша анкета сразу поднимается вверх каталога.</p></div>
+            </div>
+            <div class="tutor-perk-card">
+              <span class="tutor-perk-ico" aria-hidden="true">${icon("shield")}</span>
+              <div class="stack" style="gap:4px"><b>Безопасный баланс и расчёты</b><p class="small ink2">Ученик пополняет баланс 5 000 или 10 000 ₽ — средства бронируются только после вашего подтверждения. <a href="/fees" data-a="go" data-v="fees" style="color:var(--accent);font-weight:600">Подробнее об оплате →</a></p></div>
+            </div>
           </div>
         </div>
       </section>
 
       ${faqSectionHTML()}
 
-      ${sakhaOhyorHTML("Оһуор · Саха сирэ · Вектор ЕГЭ")}
+      ${sakhaOhyorHTML("Вектор ЕГЭ · Саха", { goldLogo: true })}
 
-      <footer class="row between small muted" style="flex-wrap:wrap;gap:10px;padding:8px 0 18px;border-top:1px solid var(--line)">
+      <footer class="land-footer small muted">
         <span>Вектор ЕГЭ · тесты, конспекты и маркетплейс репетиторов</span>
-        <div class="row" style="gap:14px;flex-wrap:wrap">
-          <a href="/fees" data-a="go" data-v="fees">Условия оплаты и сбор системы</a>
-          <a href="/privacy">Политика конфиденциальности</a>
-          <button type="button" class="link-btn small" data-a="bug-site">Сообщить о баге (${esc(_ctx.BUG_EMAIL || "willagegg@gmail.com")})</button>
+        <div class="land-footer-links">
+          <a href="/fees" class="land-foot-link" data-a="go" data-v="fees">${icon("shield")}<span>Условия оплаты и сбор системы</span></a>
+          <a href="/privacy" class="land-foot-link is-sakha">${icon("ohyorCross")}<span>Политика конфиденциальности</span></a>
+          <button type="button" class="land-foot-link" data-a="bug-site">${icon("bug")}<span>Сообщить о баге (${esc(_ctx.BUG_EMAIL || "willagegg@gmail.com")})</span></button>
         </div>
       </footer>
 
@@ -1118,6 +1129,7 @@
     heroPhotoBannerHTML,
     landingPageHTML,
     demoSectionHTML,
+    patchDemoCalcDOM,
     marqueeSectionHTML,
     savingsSectionHTML
   };

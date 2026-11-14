@@ -764,7 +764,7 @@
       <div class="land-sec-head">
         <div>
           <div class="eyebrow">Все паттерны /landing в одном месте · EGE.kit</div>
-          <h2 class="h2">Полный каталог секций витрины: лента, ставки, ИИ-разбор и FAQ</h2>
+          <h2 class="h2">Полный каталог секций витрины: лента, ставки, защита и FAQ</h2>
         </div>
         <button type="button" class="btn soft sm" data-a="go" data-v="landing">Открыть живой /landing →</button>
       </div>
@@ -804,16 +804,18 @@
         </div>
 
         <div class="card pad stack" style="gap:10px">
-          <div class="row between"><b>04 · ИИ-разбор ошибок (EGE.kit.aiErrorBoxesHTML)</b><span class="bb-spec-pill pro">.ai-spark-ico</span></div>
-          ${aiErrorBoxesHTML({
-            topic: "Задание №28 · Генетика",
-            question: "Сцепленное наследование с кроссинговером",
-            mistake: "Частая ошибка: потеря одного типа гамет при записи скрещивания.",
-            aiFix: "Пошаговая схема Моргана + 3 тренировочных задачи на закрепление.",
-            delta: "+14 баллов к прогнозу",
-            before: 64,
-            after: 88
-          }, { hideCta: true })}
+          <div class="row between"><b>04 · Карточка защиты баланса и верификации</b><span class="bb-spec-pill">.verified-badge / .tutor-perk-card</span></div>
+          <div class="tutor-perk-card">
+            <span class="tutor-perk-ico" aria-hidden="true">${icon("shield")}</span>
+            <div class="stack" style="gap:3px">
+              <b>Безопасное резервирование оплаты</b>
+              <span class="small muted">Деньги списываются только после согласия репетитора на вашу ставку. При отказе — мгновенный возврат на баланс.</span>
+            </div>
+          </div>
+          <div class="row between small muted" style="padding:8px 12px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line)">
+            <span class="row" style="gap:6px"><span class="verified-badge sm" aria-hidden="true">${icon("check")}</span><span>Проверенный преподаватель Саха</span></span>
+            <b class="num" style="color:var(--confirm)">Слот 10:00–20:00</b>
+          </div>
         </div>
 
         <div class="card pad stack" style="gap:10px">

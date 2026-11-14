@@ -76,11 +76,12 @@
     return tags.join("");
   }
 
-  function sliderTicksHTML(hourNum, style) {
+  function sliderTicksHTML(hourNum, style, opts) {
     const h = Math.max(10, Math.min(20, Number(hourNum) || 10));
+    const idAttr = opts && opts.id ? ` id="${esc(opts.id)}"` : "";
     if (style === "clean") return "";
     if (style === "ruler") {
-      return `<div class="hh-slider-ticks ruler" aria-hidden="true">${[10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map((tick) => {
+      return `<div class="hh-slider-ticks ruler"${idAttr} aria-hidden="true">${[10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map((tick) => {
         const cls = (tick % 2 === 0 ? "major" : "") + (tick === h ? " on" : "");
         return `<i${cls ? ` class="${cls.trim()}"` : ""} data-tick="${tick}"></i>`;
       }).join("")}</div>`;
@@ -107,12 +108,15 @@
     const value = opts.value != null ? String(opts.value) : (options[0] ? String(options[0].id) : "");
     const cur = options.find((o) => String(o.id) === value) || options[0] || { id: "", label: "", meta: "" };
     const open = !!opts.open;
+    const isPill = !!opts.pill;
+    const leadIcon = opts.leadIcon && EGE.ui && typeof EGE.ui.icon === "function" ? EGE.ui.icon(opts.leadIcon) : "";
     const okIcon = EGE.ui && typeof EGE.ui.icon === "function" ? EGE.ui.icon("ok") : "";
     const chevIcon = EGE.ui && typeof EGE.ui.icon === "function" ? EGE.ui.icon("chevDown") : "";
-    return `<div class="hh-select${open ? " open" : ""}"${opts.id ? ` id="${esc(opts.id)}"` : ""}>
-      <button type="button" class="hh-select-btn" data-a="${esc(opts.toggleAction || "")}" aria-haspopup="listbox" aria-expanded="${open}">
+    return `<div class="hh-select${isPill ? " is-pill" : ""}${open ? " open" : ""}"${opts.id ? ` id="${esc(opts.id)}"` : ""}>
+      <button type="button" class="hh-select-btn" data-a="${esc(opts.toggleAction || "")}" aria-haspopup="listbox" aria-expanded="${open}"${opts.ariaLabel ? ` aria-label="${esc(opts.ariaLabel)}"` : ""}>
         <span class="hh-select-val">
-          <span>${esc(cur.label)}</span>
+          ${leadIcon ? `<span class="hh-select-lead">${leadIcon}</span>` : ""}
+          <span class="${isPill ? "num" : ""}">${esc(cur.label)}</span>
           ${cur.meta ? `<span class="hh-select-meta">${esc(cur.meta)}</span>` : ""}
         </span>
         <span class="hh-select-chev">${chevIcon}</span>
