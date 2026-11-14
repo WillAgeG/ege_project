@@ -781,7 +781,7 @@ button, .btn, .opt, .ord, .step-btn, .seg button, .switch button, .check { touch
 }
 @media (max-width: 899px) { .toast { bottom: calc(86px + env(safe-area-inset-bottom, 0px)); } }
 .empty { display: grid; gap: 8px; justify-items: start; padding: 18px; border: 1px dashed var(--line-strong); border-radius: var(--r); color: var(--ink-2); }
-.confirm { display: grid; gap: 10px; padding: 14px 16px; border-radius: var(--r-sm); border: 1px solid var(--bad); background: var(--bad-soft); }
+div.confirm { display: grid; gap: 10px; padding: 14px 16px; border-radius: var(--r-sm); border: 1px solid var(--bad); background: var(--bad-soft); }
 .steps { display: grid; gap: 8px; }
 .step-btn {
   display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 12px;
@@ -1512,8 +1512,9 @@ body[data-auth="1"] .auth-wrap { margin: 8vh auto; padding: 0 16px; }
   transition: border-color .25s ease, background-color .25s ease;
 }
 .hh-motion-status.sent {
-  border-color: color-mix(in srgb, var(--notif) 45%, var(--line));
-  background: var(--notif-soft);
+  border-color: color-mix(in srgb, var(--confirm) 42%, var(--line));
+  background: var(--confirm-soft);
+  transition: border-color .38s ease, background-color .38s ease;
 }
 
 .motion-cursor {
