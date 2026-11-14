@@ -132,13 +132,14 @@ def _pkce_challenge(verifier: str) -> str:
     return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
 
 
-def _render_index_html() -> str:
+def _render_index_html(landing: bool = False) -> str:
     raw = (ROOT_DIR / "index.html").read_text(encoding="utf-8")
+    flag_script = "<script>window.EGE_HOST={backend:true,landing:true};</script>" if landing else HOST_FLAG_SCRIPT
     target = '<script src="app.js"></script>'
     if target in raw:
-        raw = raw.replace(target, HOST_FLAG_SCRIPT + "\n" + target, 1)
+        raw = raw.replace(target, flag_script + "\n" + target, 1)
     else:
-        raw = raw + "\n" + HOST_FLAG_SCRIPT
+        raw = raw + "\n" + flag_script
     return SHELL_PREFIX + raw + "</body></html>"
 
 
@@ -388,6 +389,13 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
     async def index_page() -> HTMLResponse:
         return HTMLResponse(
             content=_render_index_html(),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @app.get("/landing", response_class=HTMLResponse)
+    async def landing_page() -> HTMLResponse:
+        return HTMLResponse(
+            content=_render_index_html(landing=True),
             headers={"Cache-Control": "no-store"},
         )
 

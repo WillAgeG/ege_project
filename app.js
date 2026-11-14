@@ -108,7 +108,9 @@
     search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
     logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
     hint: '<path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.7.6 1 1.4 1 2.3h6c0-.9.3-1.7 1-2.3A7 7 0 0 0 12 2z"/>',
-    bug: '<path d="m8 2 1.88 1.88M14.12 3.88 16 2M9 7.13v-1a3 3 0 1 1 6 0v1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"/><path d="M12 20v-9M6.53 9C4.6 8.8 3 7.1 3 5M6 13H2M3 21c0-2.1 1.7-3.9 3.8-4M20.97 5c0 2.1-1.6 3.8-3.5 4M22 13h-4M17.2 17c2.1.1 3.8 1.9 3.8 4"/>'
+    bug: '<path d="m8 2 1.88 1.88M14.12 3.88 16 2M9 7.13v-1a3 3 0 1 1 6 0v1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"/><path d="M12 20v-9M6.53 9C4.6 8.8 3 7.1 3 5M6 13H2M3 21c0-2.1 1.7-3.9 3.8-4M20.97 5c0 2.1-1.6 3.8-3.5 4M22 13h-4M17.2 17c2.1.1 3.8 1.9 3.8 4"/>',
+    users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+    cal: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>'
   };
   function icon(name) {
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[name] || "") + "</svg>";
@@ -901,8 +903,42 @@
     statsSubj: "all",
     statsRepBucket: 1,
     statsRepAll: false,
-    bug: null
+    bug: null,
+    booking: null,
+    market: null
   };
+  const MARKET_LS_KEY = "vektor-ege:market";
+  const TDATA = EGE.tutors || null;
+  function defaultMarketState() {
+    return {
+      planId: "free",
+      balance: 0,
+      calcRate: 1000,
+      exam: "all",
+      subject: "all",
+      format: "all",
+      maxPrice: 2000,
+      onlyBumped: false,
+      sort: "actual",
+      day: "all",
+      hour: "all",
+      bookings: []
+    };
+  }
+  function mkt() {
+    if (ui.market) return ui.market;
+    let saved = null;
+    try {
+      const raw = localStorage.getItem(MARKET_LS_KEY);
+      if (raw) saved = JSON.parse(raw);
+    } catch (e) { /* игнор */ }
+    ui.market = Object.assign(defaultMarketState(), saved && typeof saved === "object" ? saved : {});
+    if (!Array.isArray(ui.market.bookings)) ui.market.bookings = [];
+    return ui.market;
+  }
+  function saveMkt() {
+    try { localStorage.setItem(MARKET_LS_KEY, JSON.stringify(mkt())); } catch (e) { /* игнор */ }
+  }
   function draft(key, fallback) { return Object.prototype.hasOwnProperty.call(ui.drafts, key) ? ui.drafts[key] : fallback; }
   function clearDrafts(prefix, keep) { for (const k of Object.keys(ui.drafts)) if (k.indexOf(prefix) === 0 && !(keep || []).includes(k)) delete ui.drafts[k]; }
 
@@ -944,7 +980,9 @@
     if (TOPICS[h]) { ui.view = "topic"; ui.topicId = h; ui.sid = TOPICS[h].sid; return; }
     if (SUBJ[h]) { ui.view = "subject"; ui.sid = h; return; }
     if (h === "essay" && EGE.essay && SUBJ.rus) { ui.view = "essay"; ui.sid = "rus"; return; }
-    if (["home", "plan", "stats", "tutor", "profile"].includes(h)) ui.view = h;
+    if (["home", "plan", "stats", "tutor", "market", "landing", "profile"].includes(h)) { ui.view = h; return; }
+    try { if (!h && typeof location !== "undefined" && location.pathname === "/landing") ui.view = "landing"; } catch (e) { /* игнор */ }
+    if (!h && HOST && HOST.landing) ui.view = "landing";
   }
   function writeHash() {
     const tok = ui.view === "topic" ? ui.topicId : ui.view === "subject" ? ui.sid : ui.view === "quiz" ? null : ui.view;
@@ -960,7 +998,7 @@
     renderQueued = true;
     Promise.resolve().then(() => { renderQueued = false; render(); });
   }
-  const VIEWS = { home: viewHome, subject: viewSubject, topic: viewTopic, quiz: viewQuiz, essay: viewEssay, plan: viewPlan, stats: viewStats, tutor: viewTutor, profile: viewProfile };
+  const VIEWS = { home: viewHome, subject: viewSubject, topic: viewTopic, quiz: viewQuiz, essay: viewEssay, plan: viewPlan, stats: viewStats, tutor: viewTutor, market: viewMarket, landing: viewLanding, profile: viewProfile };
   function setAuthLayout(on) {
     try {
       if (document.body && document.body.dataset) {
@@ -1018,7 +1056,7 @@
     if (scrollTopPending) { scrollTopPending = false; window.scrollTo(0, 0); }
   }
   const BUG_EMAIL = "willagegg@gmail.com";
-  const VIEW_LABELS = { home: "Главная", subject: "Предмет", topic: "Тема", quiz: "Тест", plan: "План поступления", stats: "Показатели", tutor: "Справочник", essay: "Сочинение", profile: "Настройки" };
+  const VIEW_LABELS = { home: "Главная", subject: "Предмет", topic: "Тема", quiz: "Тест", plan: "План поступления", stats: "Показатели", tutor: "Справочник", essay: "Сочинение", market: "Репетиторы", landing: "О сервисе и тарифы", profile: "Настройки" };
   function bugMailtoHref(bug) {
     return `mailto:${BUG_EMAIL}?subject=${encodeURIComponent(bug.subject)}&body=${encodeURIComponent(bug.body)}`;
   }
@@ -1073,9 +1111,89 @@
       ].filter((x, i, a) => x || (a[i - 1] !== "")).join("\n")
     };
   }
+  function bookingModalHTML() {
+    if (!ui.booking || !TDATA) return "";
+    const b = ui.booking, tutor = TDATA.LIST.find((x) => x.id === b.tutorId);
+    if (!tutor) return "";
+    const days = TDATA.buildCalendarDays(7);
+    const dayObj = days.find((d) => d.iso === b.dayIso) || days[0];
+    const daySlots = TDATA.tutorSlotsForDay(tutor, dayObj.dow);
+    const curHour = daySlots.includes(b.hour) ? b.hour : (daySlots[0] || "10:00");
+    const sig = TDATA.offerSignal(tutor.price, b.offerPrice);
+    const preview = TDATA.botPreviewText({
+      exam: b.exam,
+      subjectName: tutor.subjectName,
+      format: b.format,
+      dayLabel: dayObj.fullLabel,
+      hour: curHour,
+      offerPrice: b.offerPrice,
+      tutorPrice: tutor.price
+    });
+    const st = mkt();
+    const n5 = b.offerPrice > 0 ? Math.floor(5000 / b.offerPrice) : 0;
+    const n10 = b.offerPrice > 0 ? Math.floor(10000 / b.offerPrice) : 0;
+    return `<div class="modal-back" role="dialog" aria-modal="true" aria-labelledby="book-modal-title">
+      <div class="modal-card">
+        <div class="modal-head">
+          <div class="row" style="gap:8px">${icon("cal")}<b id="book-modal-title">Запись · ${esc(tutor.name)}</b></div>
+          <button type="button" class="icon-btn sm" data-a="book-close" aria-label="Закрыть">${icon("x")}</button>
+        </div>
+        <div class="row between small muted" style="flex-wrap:wrap;gap:6px">
+          <span>${esc(tutor.subjectName)} · ставка преподавателя <b>${tutor.price} ₽/ч</b></span>
+          <span>Баланс: <b class="num">${st.balance.toLocaleString("ru-RU")} ₽</b></span>
+        </div>
+        <div class="fields">
+          <div class="field">
+            <label>Экзамен</label>
+            <div class="switch">${tutor.exams.map((ex) => `<button type="button" data-a="book-exam" data-v="${esc(ex)}" aria-pressed="${b.exam === ex}">${esc(ex)}</button>`).join("")}</div>
+          </div>
+          <div class="field">
+            <label>Формат</label>
+            <div class="switch">${tutor.formats.map((fm) => `<button type="button" data-a="book-format" data-v="${esc(fm)}" aria-pressed="${b.format === fm}">${esc(fm)}</button>`).join("")}</div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Выбери день</label>
+          <div class="cal-days">${days.map((d) => {
+            const cnt = TDATA.tutorSlotsForDay(tutor, d.dow).length;
+            if (!cnt) return "";
+            const on = d.iso === dayObj.iso;
+            return `<button type="button" class="day-cir${on ? " on" : ""}" data-a="book-day" data-v="${d.iso}"><span class="day-wd">${esc(d.wd)}</span><span class="day-dot">${d.num}</span><span class="day-cnt">${cnt} слот.</span></button>`;
+          }).join("")}</div>
+        </div>
+        <div class="field">
+          <label>Выбери время (кружочки)</label>
+          <div class="hour-circles">${daySlots.map((h) => `<button type="button" class="hr-cir${h === curHour ? " on" : ""}" data-a="book-hour" data-v="${esc(h)}">${esc(h)}</button>`).join("")}</div>
+        </div>
+        <div class="field">
+          <label for="bid-price">Твоя цена за занятие (₽/ч) — как в inDrive</label>
+          <div class="bid-stepper">
+            <button type="button" class="btn ghost sm" data-a="bid-step" data-step="-100">−100 ₽</button>
+            <input class="input bid-input num" id="bid-price" type="number" min="500" max="5000" step="50" inputmode="numeric" value="${b.offerPrice}">
+            <button type="button" class="btn ghost sm" data-a="bid-step" data-step="100">+100 ₽</button>
+          </div>
+          <div id="bid-signal" class="small"><span class="chip ${sig.tone}">${esc(sig.label)}</span></div>
+        </div>
+        <div class="field">
+          <label for="bid-note">Пожелания по подготовке (необязательно)</label>
+          <input class="input" id="bid-note" maxlength="140" placeholder="Например: цель 80+ баллов, разбор устной части и эссе" value="${esc(b.note || "")}">
+        </div>
+        <div class="bot-preview">
+          <b class="small">Сообщение, которое бот отправит преподавателю:</b>
+          <span id="bot-preview-txt">${esc(preview)}</span>
+          <span class="small muted">На «Пробник» (5 000 ₽) хватит на <b>${n5} ур.</b> · на «Месяц» (10 000 ₽) на <b>${n10} ур.</b> Телефон ученика скрыт до оплаты.</span>
+        </div>
+        <div class="row" style="flex-wrap:wrap;gap:8px">
+          <button type="button" class="btn" data-a="book-submit">Отправить предложение репетитору</button>
+          <button type="button" class="btn ghost" data-a="book-close">Отмена</button>
+        </div>
+      </div>
+    </div>`;
+  }
   function renderModal() {
     const root = $("#modal-root");
     if (!root) return;
+    if (ui.booking) { root.innerHTML = bookingModalHTML(); return; }
     if (!ui.bug) { root.innerHTML = ""; return; }
     root.innerHTML = `<div class="modal-back" role="dialog" aria-modal="true" aria-labelledby="bug-modal-title">
       <div class="modal-card">
@@ -1128,7 +1246,7 @@
     const tutorReady = ai.state === "ready";
     const tutorLabel = tutorReady ? "Репетитор" : "Справочник";
     const tutorIcon = tutorReady ? "chat" : "book";
-    const nav = [["home", "Главная", "home"], ["plan", "План поступления", "list"], ["stats", "Показатели", "chart"], ["tutor", tutorLabel, tutorIcon]];
+    const nav = [["home", "Главная", "home"], ["market", "Репетиторы", "users"], ["plan", "План поступления", "list"], ["stats", "Показатели", "chart"], ["tutor", tutorLabel, tutorIcon]];
     $("#side-nav").innerHTML = nav.map(([v, l, ic]) => `<button type="button" class="nav-btn" data-a="go" data-v="${v}"${ui.view === v ? ' aria-current="page"' : ""}>${icon(ic)}<span>${l}</span></button>`).join("");
     $("#side-subjects").innerHTML = SUBJECTS.map((s) => {
       const cur = inSubject && ui.sid === s.id && s.content;
@@ -1159,6 +1277,11 @@
       topTheme.innerHTML = icon(dark ? "sun" : "moon");
       topTheme.setAttribute("aria-label", themeLabel);
       topTheme.setAttribute("title", themeLabel);
+    }
+    const topMkt = $("#top-market");
+    if (topMkt) {
+      if (ui.view === "market") topMkt.setAttribute("aria-current", "page");
+      else topMkt.removeAttribute("aria-current");
     }
     const topProf = $("#top-profile");
     if (topProf) {
@@ -1303,24 +1426,361 @@
       </div>
     </form>`;
   }
-  function authScreen() {
-    return `<div class="auth-wrap">
-      <div class="auth-brand">
-        ${BRAND_MARK_HTML}
-        <div class="brand-name">Вектор ЕГЭ</div>
-        <p class="muted small">Подготовка к ЕГЭ 2027 · ${esc(CONTENT.map((s) => s.name).join(" · "))}</p>
-        <div class="auth-perks">
-          <span class="chip accent">Темы и задания ФИПИ</span>
-          <span class="chip leaf">Адаптивный план</span>
-          <span class="chip">Синхронизация прогресса</span>
+  function plansSectionHTML(opts) {
+    opts = opts || {};
+    if (!TDATA) return "";
+    const st = mkt();
+    const rate = st.calcRate || 1000;
+    const rates = [800, 1000, 1250, 1500];
+    const cards = TDATA.PLANS.map((p) => {
+      const picked = st.planId === p.id;
+      const lessons = p.balance > 0 ? Math.max(1, Math.floor(p.balance / rate)) : 0;
+      const note = p.balance > 0
+        ? `≈ ${lessons} ${plural(lessons, "урок", "урока", "уроков")} при ставке ${rate.toLocaleString("ru-RU")} ₽/ч`
+        : "Самостоятельная подготовка к ЕГЭ бесплатно";
+      return `<article class="card pad-lg plan-card${p.featured ? " featured" : ""}${picked ? " picked" : ""}">
+        <div class="stack" style="gap:10px">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <span class="chip ${p.featured ? "accent" : p.balance ? "leaf" : ""}">${esc(p.badge)}</span>
+            ${picked ? '<span class="chip good">Выбран сейчас</span>' : ""}
+          </div>
+          <div>
+            <h3 class="h2">${esc(p.name)}</h3>
+            <div class="plan-price num" style="margin-top:6px">${esc(p.priceLabel)}</div>
+            <div class="small muted">${esc(p.period)}</div>
+          </div>
+          <p class="small ink2">${esc(p.tagline)}</p>
+          <div class="chip">${esc(note)}</div>
+          <ul class="plan-feats">${p.features.map((f) => `<li><span>${esc(f)}</span></li>`).join("")}</ul>
+        </div>
+        <div class="stack" style="gap:8px">
+          <button type="button" class="btn${p.featured || picked ? "" : " soft"}" data-a="mkt-plan" data-id="${p.id}"${picked && p.id !== "free" ? ' aria-current="true"' : ""}>${picked && p.id !== "free" ? "Баланс активен · " + st.balance.toLocaleString("ru-RU") + " ₽" : esc(p.cta)}</button>
+          ${opts.landing && p.id === "free" ? `<button type="button" class="link-btn small" data-a="auth-guest">Открыть тренажёр ЕГЭ без оплаты</button>` : ""}
+        </div>
+      </article>`;
+    }).join("");
+    return `<section class="land-sec" id="land-plans" aria-label="Тарифы и баланс">
+      <div class="land-sec-head">
+        <div>
+          <div class="eyebrow">3 вида подписки</div>
+          <h2 class="h2">Бесплатные тесты — или баланс 5 000 / 10 000 ₽ на репетиторов</h2>
+          <p class="small muted">Оплата проходит через сервис. Вся сумма падает на твой баланс: если репетитор не подошёл, остаток не сгорает и переносится к другому.</p>
+        </div>
+        <div class="row" style="gap:6px;flex-wrap:wrap">
+          <span class="small muted">Цена урока для расчёта:</span>
+          ${rates.map((r) => `<button type="button" class="chip-btn${rate === r ? " on" : ""}" data-a="mkt-calc" data-rate="${r}">${r} ₽/ч</button>`).join("")}
         </div>
       </div>
-      ${authCard({ standalone: true })}
-      <div class="auth-foot">
-        <button type="button" class="link-btn small" data-a="auth-guest">Продолжить без аккаунта (данные останутся только в этом браузере)</button>
-        <div style="margin-top:8px"><a class="muted small" href="/privacy">Политика конфиденциальности</a></div>
+      <div class="plan-grid">${cards}</div>
+    </section>`;
+  }
+
+  function marketSectionHTML(opts) {
+    opts = opts || {};
+    if (!TDATA) return "";
+    const st = mkt();
+    const days = TDATA.buildCalendarDays(7);
+    const activeDayObj = st.day !== "all" ? (days.find((d) => d.iso === st.day) || null) : null;
+    const activeDow = activeDayObj ? activeDayObj.dow : "all";
+    const list = TDATA.filterTutors(st, days);
+    const activePlan = TDATA.PLANS.find((p) => p.id === st.planId) || TDATA.PLANS[0];
+    const totalTasks = Object.keys(QS).length || 2182;
+
+    const bookingsHTML = st.bookings.length
+      ? `<div class="reqs-strip">${st.bookings.map((bk) => {
+          const accepted = bk.status === "accepted";
+          return `<div class="req-item">
+            <div class="stack" style="gap:3px;min-width:0">
+              <div class="row" style="gap:8px;flex-wrap:wrap">
+                <b>${esc(bk.tutorName)}</b>
+                <span class="chip">${esc(bk.exam)} · ${esc(bk.subjectName)}</span>
+                <span class="chip ${accepted ? "good" : "warn"}">${accepted ? "Преподаватель ответил «Да»" : "Ожидает ответа бота"}</span>
+              </div>
+              <div class="small ink2">${esc(bk.dayLabel)} в ${esc(bk.hour)} (${esc(bk.format)}) · твоя ставка <b class="num">${bk.offerPrice} ₽/ч</b> <span class="muted">(вместо ${bk.tutorPrice} ₽)</span></div>
+            </div>
+            <div class="row" style="gap:8px;flex-wrap:wrap">
+              ${!accepted ? `<button type="button" class="btn soft sm" data-a="mkt-sim-accept" data-id="${esc(bk.id)}">Тест: ответ «Да»</button>` : ""}
+              <button type="button" class="btn ghost sm" data-a="mkt-cancel-book" data-id="${esc(bk.id)}">${accepted ? "Сменить репетитора" : "Отменить"}</button>
+            </div>
+          </div>`;
+        }).join("")}</div>`
+      : "";
+
+    const dayPills = `<button type="button" class="day-cir${st.day === "all" ? " on" : ""}" data-a="mkt-day" data-v="all">
+        <span class="day-wd">Все</span>
+        <span class="day-dot">${days[0].num}–${days[days.length - 1].num}</span>
+        <span class="day-cnt">7 дней</span>
+      </button>` + days.map((d) => {
+        const cnt = TDATA.countForDay(st, d.dow);
+        return `<button type="button" class="day-cir${st.day === d.iso ? " on" : ""}" data-a="mkt-day" data-v="${d.iso}">
+          <span class="day-wd">${esc(d.wd)}</span>
+          <span class="day-dot">${d.num}</span>
+          <span class="day-cnt">${cnt ? cnt + " преп." : "нет"}</span>
+        </button>`;
+      }).join("");
+
+    const hourPills = `<button type="button" class="hr-cir${st.hour === "all" ? " on" : ""}" data-a="mkt-hour" data-v="all">Любое</button>` +
+      TDATA.HOURS.map((h) => {
+        const cnt = TDATA.countForHour(st, activeDow, h);
+        return `<button type="button" class="hr-cir${st.hour === h ? " on" : ""}${cnt === 0 ? " empty-slot" : ""}" data-a="mkt-hour" data-v="${esc(h)}"><span>${esc(h)}</span><span class="hr-cnt">${cnt}</span></button>`;
+      }).join("");
+
+    const cardsHTML = list.length
+      ? `<div class="tutor-grid">${list.map((t) => {
+          const daySlots = TDATA.tutorSlotsForDay(t, activeDow).slice(0, 5);
+          const pickHour = st.hour !== "all" && daySlots.includes(st.hour) ? st.hour : (daySlots[0] || "10:00");
+          return `<article class="card tutor-card">
+            <div class="stack" style="gap:10px">
+              <div class="tutor-head">
+                <div class="tutor-id">
+                  <span class="tutor-avatar" aria-hidden="true">${esc(initials(t.name))}</span>
+                  <div style="min-width:0">
+                    <div class="row" style="gap:6px;flex-wrap:wrap">
+                      <b>${esc(t.name)}</b>
+                      <span class="small muted">★ ${t.rating.toFixed(1)} (${t.reviews})</span>
+                    </div>
+                    <div class="small muted">${esc(t.subjectName)} · ${esc(t.exp)}</div>
+                  </div>
+                </div>
+                <span class="chip ${t.bumpedToday ? "good" : ""}">${t.bumpedToday ? "Актуален сегодня" : "В каталоге"}</span>
+              </div>
+              <div class="row" style="gap:6px;flex-wrap:wrap">
+                ${t.exams.map((ex) => `<span class="chip accent">${esc(ex)}</span>`).join("")}
+                ${t.formats.map((fm) => `<span class="chip">${esc(fm)}</span>`).join("")}
+                <span class="chip leaf">${esc(t.tag)}</span>
+              </div>
+              <p class="tutor-bio">${esc(t.bio)}</p>
+              <div class="slot-mini-row">
+                <span class="small muted">${activeDayObj ? esc(activeDayObj.wd) + " слоты:" : "Свободно:"}</span>
+                ${daySlots.map((h) => `<button type="button" class="slot-mini${st.hour === h ? " picked" : ""}" data-a="book-open" data-id="${esc(t.id)}" data-hour="${esc(h)}">${esc(h)}</button>`).join("")}
+              </div>
+            </div>
+            <div class="tutor-foot">
+              <div class="tutor-price">
+                <b class="num">${t.price.toLocaleString("ru-RU")} ₽/ч</b>
+                <span class="small muted">Можно предложить от ${t.minFair} ₽ · телефон скрыт до оплаты</span>
+              </div>
+              <button type="button" class="btn sm" data-a="book-open" data-id="${esc(t.id)}" data-hour="${esc(pickHour)}">Предложить цену</button>
+            </div>
+          </article>`;
+        }).join("")}</div>`
+      : `<div class="empty">
+          <b>По выбранным кружочкам и фильтрам пока никого нет.</b>
+          <span>Попробуй расширить максимальную цену, выбрать «Любой день» или сбросить час.</span>
+          <button type="button" class="btn soft sm" data-a="mkt-reset">Сбросить фильтры</button>
+        </div>`;
+
+    const selTimeDesc = (activeDayObj ? activeDayObj.shortLabel : "Все 7 дней") + " · " + (st.hour === "all" ? "любое время" : st.hour);
+
+    return `<section class="land-sec" id="land-market" aria-label="Маркетплейс репетиторов">
+      <div class="land-sec-head">
+        <div>
+          <div class="eyebrow">Живой подбор репетиторов</div>
+          <h2 class="h2">Выбери кружочек времени, предмет и предложи свою цену</h2>
+          <p class="small muted">Подготовка к ЕГЭ и ОГЭ: фильтр по ставке, актуальные анкеты (как на hh.ru) и быстрая заявка преподавателю (как в inDrive).</p>
+        </div>
+        <button type="button" class="chip-btn" data-a="mkt-preset">Пример: Английский · ЕГЭ · Сб 10:00</button>
       </div>
+
+      <div class="wallet-bar">
+        <div class="stack" style="gap:2px">
+          <span class="small muted">Твой тариф: <b>${esc(activePlan.name)}</b></span>
+          <div class="row" style="gap:10px;align-items:baseline">
+            <span class="wallet-num num">${st.balance.toLocaleString("ru-RU")} ₽</span>
+            <span class="small muted">${st.balance ? "можно сразу тратить на репетиторов из списка" : "пока тестовый режим — выбери пакет 5 000 или 10 000 ₽ ниже или в тренажёр за 0 ₽ (" + totalTasks + " заданий)"}</span>
+          </div>
+        </div>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <button type="button" class="btn ${st.planId === "trial5k" ? "" : "soft"} sm" data-a="mkt-plan" data-id="trial5k">Баланс 5 000 ₽</button>
+          <button type="button" class="btn ${st.planId === "month10k" ? "" : "soft"} sm" data-a="mkt-plan" data-id="month10k">Баланс 10 000 ₽</button>
+        </div>
+      </div>
+
+      ${bookingsHTML}
+
+      <div class="card pad-lg mkt-controls">
+        <div class="mkt-row">
+          <div class="row" style="gap:10px;flex-wrap:wrap">
+            <div class="switch" role="group" aria-label="Экзамен">
+              ${[["all", "ЕГЭ и ОГЭ"], ["ЕГЭ", "ЕГЭ"], ["ОГЭ", "ОГЭ"]].map(([v, l]) => `<button type="button" data-a="mkt-exam" data-v="${v}" aria-pressed="${st.exam === v}">${l}</button>`).join("")}
+            </div>
+            <div class="switch" role="group" aria-label="Формат">
+              ${[["all", "Любой"], ["Онлайн", "Онлайн"], ["Очно", "Очно"]].map(([v, l]) => `<button type="button" data-a="mkt-format" data-v="${v}" aria-pressed="${st.format === v}">${l}</button>`).join("")}
+            </div>
+          </div>
+          <div class="row" style="gap:8px;flex-wrap:wrap">
+            <button type="button" class="chip-btn${st.onlyBumped ? " on" : ""}" data-a="mkt-bumped">Поднятые сегодня (hh.ru)</button>
+            <button type="button" class="link-btn small" data-a="mkt-reset">Сбросить</button>
+          </div>
+        </div>
+
+        <div class="chip-rail swipe" role="group" aria-label="Предметы">
+          <button type="button" class="chip-btn${st.subject === "all" ? " on" : ""}" data-a="mkt-subj" data-v="all">Все предметы</button>
+          ${TDATA.SUBJECTS.map((sb) => `<button type="button" class="chip-btn${st.subject === sb.id ? " on" : ""}" data-a="mkt-subj" data-v="${sb.id}">${esc(sb.short)}</button>`).join("")}
+        </div>
+
+        <div class="price-box">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <label class="small muted" for="mkt-max-price">Фильтр цены: <b class="num">${st.maxPrice >= 2000 ? "до 2 000+ ₽/ч" : "до " + st.maxPrice + " ₽/ч"}</b></label>
+            <div class="chip-rail">
+              ${[1000, 1300, 1600, 2000].map((pr) => `<button type="button" class="chip-btn${st.maxPrice === pr ? " on" : ""}" data-a="mkt-price" data-v="${pr}">${pr >= 2000 ? "Любая" : "до " + pr + " ₽"}</button>`).join("")}
+            </div>
+          </div>
+          <input class="price-range" id="mkt-max-price" type="range" min="800" max="2000" step="50" value="${st.maxPrice}">
+        </div>
+
+        <div class="cal-box">
+          <div class="cal-label">
+            <b>Календарь занятий (выбери кружочек дня и часа)</b>
+            <span class="chip accent">${esc(selTimeDesc)}</span>
+          </div>
+          <div class="cal-days" aria-label="Дни недели">${dayPills}</div>
+          <div class="hour-circles" aria-label="Часы занятий">${hourPills}</div>
+        </div>
+      </div>
+
+      <div class="row between" style="flex-wrap:wrap;gap:10px">
+        <div class="small muted">Найдено репетиторов: <b class="num" style="color:var(--ink)">${list.length}</b></div>
+        <div class="switch" role="group" aria-label="Сортировка">
+          ${[["actual", "Актуальные"], ["price_asc", "Сначала дешевле"], ["rating_desc", "По рейтингу"]].map(([v, l]) => `<button type="button" data-a="mkt-sort" data-v="${v}" aria-pressed="${st.sort === v}">${l}</button>`).join("")}
+        </div>
+      </div>
+
+      ${cardsHTML}
+    </section>`;
+  }
+
+  function landingPageHTML(opts) {
+    opts = opts || {};
+    const inside = !!opts.inside;
+    const dark = effectiveDark();
+    const totalTasks = Object.keys(QS).length || 2182;
+    const subjectNames = CONTENT.map((s) => s.name).join(" · ");
+    const rightHero = inside
+      ? `<div class="card pad-lg stack">
+          <div class="eyebrow">Твой кабинет открыт</div>
+          <h2 class="h2">Перейти к тренажёру ЕГЭ или маркетплейсу</h2>
+          <p class="small ink2">В базе уже доступны ${totalTasks} заданий ФИПИ (${esc(subjectNames)}), справочник и пробники — всё бесплатно. Репетиторов можно подключить с баланса.</p>
+          <div class="row" style="flex-wrap:wrap;gap:10px">
+            <button type="button" class="btn" data-a="go" data-v="home">Открыть кабинет подготовки</button>
+            <button type="button" class="btn soft" data-a="go" data-v="market">Раздел «Репетиторы»</button>
+          </div>
+        </div>`
+      : `<div class="stack" id="land-auth" style="gap:10px">
+          ${authCard({ standalone: true })}
+          <div class="auth-foot">
+            <button type="button" class="link-btn small" data-a="auth-guest">Продолжить без аккаунта (данные останутся только в этом браузере)</button>
+            <div style="margin-top:8px"><a class="muted small" href="/privacy">Политика конфиденциальности</a></div>
+          </div>
+        </div>`;
+
+    return `<div class="land-page">
+      <header class="land-top">
+        <div class="brand-lockup">
+          ${BRAND_MARK_HTML}
+          <div class="brand-text">
+            <div class="brand-name">Вектор ЕГЭ</div>
+            <div class="brand-sub">ЕГЭ · ОГЭ · Маркетплейс репетиторов</div>
+          </div>
+        </div>
+        <nav class="land-links" aria-label="Разделы лендинга">
+          <a href="#land-how" data-a="land-scroll" data-target="land-how">Как работает</a>
+          <a href="#land-market" data-a="land-scroll" data-target="land-market">Репетиторы</a>
+          <a href="#land-plans" data-a="land-scroll" data-target="land-plans">Тарифы</a>
+          <a href="#land-tutors" data-a="land-scroll" data-target="land-tutors">Для преподавателей</a>
+        </nav>
+        <div class="land-top-actions">
+          <button type="button" class="icon-btn sm" data-a="theme-toggle" aria-label="Сменить тему" title="Сменить тему">${icon(dark ? "sun" : "moon")}</button>
+          ${inside
+            ? `<button type="button" class="btn sm" data-a="go" data-v="home">В кабинет</button>`
+            : `<button type="button" class="btn soft sm" data-a="auth-guest">Тесты бесплатно</button>
+               <button type="button" class="btn sm" data-a="land-scroll" data-target="land-auth">Войти</button>`}
+        </div>
+      </header>
+
+      <section class="land-hero">
+        <div class="land-hero-copy">
+          <div class="row" style="gap:6px;flex-wrap:wrap">
+            <span class="chip accent">ЕГЭ 2027 и ОГЭ</span>
+            <span class="chip leaf">Торг ценой как в inDrive</span>
+            <span class="chip">Запись в кружочках</span>
+          </div>
+          <h1 class="land-h1">Готовься к ЕГЭ бесплатно и находи репетитора по своей цене</h1>
+          <p class="land-lead">Решай ${totalTasks} заданий ФИПИ, читай справочник и пиши пробники. А когда нужен живой преподаватель — выбери кружок времени в календаре, предложи свою ставку и занимайся с единого баланса без риска потерять деньги.</p>
+          <div class="land-hero-ctas">
+            <button type="button" class="btn" data-a="land-scroll" data-target="land-market">Выбрать репетитора по времени</button>
+            ${inside
+              ? `<button type="button" class="btn soft" data-a="go" data-v="subject" data-sid="${firstSubject.id}">Решать задания ЕГЭ</button>`
+              : `<button type="button" class="btn soft" data-a="auth-guest">Начать тесты ЕГЭ бесплатно</button>`}
+          </div>
+          <div class="land-stats">
+            <div class="land-stat"><b>${totalTasks} заданий</b><span>Биология, русский и химия в тренажёре бесплатно</span></div>
+            <div class="land-stat"><b>Твоя ставка</b><span>Предложи 1 000 ₽ вместо 1 200 ₽ — бот спросит препода</span></div>
+            <div class="land-stat"><b>5к или 10к ₽</b><span>Баланс на уроки и замена репетитора в 1 клик</span></div>
+          </div>
+        </div>
+        ${rightHero}
+      </section>
+
+      <section class="land-sec" id="land-how">
+        <div class="land-sec-head">
+          <div>
+            <div class="eyebrow">Как это устроено</div>
+            <h2 class="h2">От выбора кружочка времени до урока за 2 минуты</h2>
+          </div>
+        </div>
+        <div class="how-grid">
+          <div class="card how-card"><span class="how-num">01</span><b>Фильтр ЕГЭ / ОГЭ и бюджет</b><p class="small ink2">Выбираешь предмет (например, английский), формат и потолок цены за час.</p></div>
+          <div class="card how-card"><span class="how-num">02</span><b>Кружочки дня и часа</b><p class="small ink2">Тапаешь нужный день и час (например, суббота 10:00) — видишь только свободных преподавателей.</p></div>
+          <div class="card how-card"><span class="how-num">03</span><b>Торг ценой (inDrive)</b><p class="small ink2">Предлагаешь свою цену — бот сразу пишет репетитору, а тот отвечает «Да / Нет / Перенести».</p></div>
+          <div class="card how-card"><span class="how-num">04</span><b>Безопасный баланс 5к / 10к</b><p class="small ink2">Оплата идёт через платформу. Не сошлись с репетитором — меняешь на другого с тем же балансом.</p></div>
+        </div>
+      </section>
+
+      ${marketSectionHTML({ landing: true })}
+      ${plansSectionHTML({ landing: true })}
+
+      <section class="land-sec" id="land-tutors">
+        <div class="card pad-lg stack" style="gap:14px">
+          <div class="row between" style="flex-wrap:wrap;gap:10px">
+            <div>
+              <div class="eyebrow">Для репетиторов</div>
+              <h2 class="h2">Стабильный поток учеников без холодных звонков</h2>
+            </div>
+            <span class="chip leaf">Поднятие анкеты раз в 24 ч (hh.ru)</span>
+          </div>
+          <div class="grid-3">
+            <div class="stack" style="gap:4px"><b>Заявки приходят сами</b><p class="small ink2">Бот присылает готовое окно («суббота, 10:00, ЕГЭ английский») и предложенную ставку — остаётся нажать «Да» или «Перенести».</p></div>
+            <div class="stack" style="gap:4px"><b>Бесплатный топ каждый день</b><p class="small ink2">Раз в сутки нажимаешь кнопку «Актуален сегодня» — анкета сразу поднимается вверх выдачи, а позже доступен буст ×5 просмотров.</p></div>
+            <div class="stack" style="gap:4px"><b>Ученик уже с балансом</b><p class="small ink2">Уроки оплачиваются через систему с баланса 5 000 или 10 000 ₽. Попытка увести ученика в обход платформы ведёт к блокировке анкеты.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <footer class="row between small muted" style="flex-wrap:wrap;gap:10px;padding:8px 0 18px;border-top:1px solid var(--line)">
+        <span>Вектор ЕГЭ · подготовка к экзаменам и маркетплейс репетиторов</span>
+        <div class="row" style="gap:14px;flex-wrap:wrap">
+          <a href="/privacy">Политика конфиденциальности</a>
+          <button type="button" class="link-btn small" data-a="bug-site">Сообщить о баге (${BUG_EMAIL})</button>
+        </div>
+      </footer>
     </div>`;
+  }
+
+  function viewMarket() {
+    const parts = [];
+    parts.push(`<div class="head"><div class="row between" style="flex-wrap:wrap;gap:10px"><div><div class="eyebrow">Маркетплейс</div><h1 class="h1">Подбор репетитора</h1></div><button type="button" class="btn ghost sm" data-a="go" data-v="landing">Открыть витрину-лендинг</button></div><p class="lead">Выбери день и время в кружочках, экзамен ЕГЭ/ОГЭ и предложи свою ставку как в inDrive. Баланс тарифа защищён — преподавателя можно сменить в 1 клик.</p></div>`);
+    parts.push(marketSectionHTML({ landing: false }));
+    parts.push(plansSectionHTML({ landing: false }));
+    return parts.join("");
+  }
+
+  function viewLanding() {
+    return landingPageHTML({ inside: true });
+  }
+
+  function authScreen() {
+    return landingPageHTML({ inside: false });
   }
   function accountCard() {
     if (!store.user) return authCard();
@@ -1354,6 +1814,11 @@
     if (store.mode === "local" && !store.backend) parts.push(localNotice());
     parts.push(staleNotice());
     parts.push(`<div class="grid-hero">${heroCard(prof)}${readinessCard(prof)}</div>`);
+    const stMkt = mkt();
+    const balTxt = stMkt.balance
+      ? "Активный баланс: " + stMkt.balance.toLocaleString("ru-RU") + " ₽ · выбери кружочек времени и предложи ставку"
+      : "Задания и справочник бесплатны всегда · или открой баланс 5 000 / 10 000 ₽ на уроки с выбором времени в кружочках";
+    parts.push(`<section class="section"><div class="card" style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><div class="stack" style="gap:3px"><b>Маркетплейс репетиторов (ЕГЭ / ОГЭ)</b><span class="small muted">${esc(balTxt)}</span></div><div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="btn soft sm" data-a="go" data-v="landing">Тарифы 0 / 5к / 10к</button><button type="button" class="btn sm" data-a="go" data-v="market">Подобрать репетитора</button></div></div></section>`);
     parts.push(`<section class="section"><div class="section-head"><h2 class="h2">Что дальше</h2><span class="small muted">по твоему прогрессу</span></div><div class="steps">${nextSteps().map(stepBtn).join("")}</div></section>`);
     parts.push(`<div class="grid-2">${upcomingCard()}${examsCard(prof)}</div>`);
     parts.push(activityCard());
@@ -3297,6 +3762,183 @@
         toast((e && e.message) || "Не удалось перенести данные");
       }
       scheduleRender();
+    },
+    "land-scroll": (el) => {
+      const id = el.dataset.target;
+      const node = id ? document.getElementById(id) : null;
+      if (node && typeof node.scrollIntoView === "function") {
+        node.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    },
+    "mkt-plan": (el) => {
+      if (!TDATA) return;
+      const plan = TDATA.PLANS.find((p) => p.id === el.dataset.id);
+      if (!plan) return;
+      const st = mkt();
+      st.planId = plan.id;
+      if (!plan.balance) {
+        st.balance = 0;
+        st.bookings.forEach((bk) => { bk.reserved = 0; });
+      } else {
+        const reserved = st.bookings.reduce((sum, bk) => sum + (bk.reserved || 0), 0);
+        st.balance = Math.max(0, plan.balance - reserved);
+      }
+      saveMkt();
+      if (plan.id === "free" && !store.user && !ui.guest && ACTIONS["auth-guest"]) {
+        toast("Открыт бесплатный тренажёр ЕГЭ");
+        ACTIONS["auth-guest"]();
+        return;
+      }
+      toast(plan.balance ? `Подключён тариф «${plan.name}»: баланс ${st.balance.toLocaleString("ru-RU")} ₽` : "Выбран бесплатный тариф");
+      scheduleRender();
+    },
+    "mkt-calc": (el) => {
+      const rate = Number(el.dataset.rate);
+      if (!rate) return;
+      mkt().calcRate = rate;
+      saveMkt();
+      scheduleRender();
+    },
+    "mkt-preset": () => {
+      if (!TDATA) return;
+      const st = mkt();
+      const days = TDATA.buildCalendarDays(7);
+      const sat = days.find((d) => d.dow === 6) || days[0];
+      st.exam = "ЕГЭ";
+      st.subject = "eng";
+      st.format = "Онлайн";
+      st.maxPrice = 2000;
+      st.onlyBumped = false;
+      st.day = sat ? sat.iso : "all";
+      st.hour = "10:00";
+      saveMkt();
+      toast("Фильтр: Английский · ЕГЭ · Сб 10:00");
+      scheduleRender();
+    },
+    "mkt-exam": (el) => { mkt().exam = el.dataset.v || "all"; saveMkt(); scheduleRender(); },
+    "mkt-format": (el) => { mkt().format = el.dataset.v || "all"; saveMkt(); scheduleRender(); },
+    "mkt-subj": (el) => { mkt().subject = el.dataset.v || "all"; saveMkt(); scheduleRender(); },
+    "mkt-price": (el) => { mkt().maxPrice = Number(el.dataset.v) || 2000; saveMkt(); scheduleRender(); },
+    "mkt-bumped": () => { const st = mkt(); st.onlyBumped = !st.onlyBumped; saveMkt(); scheduleRender(); },
+    "mkt-sort": (el) => { mkt().sort = el.dataset.v || "actual"; saveMkt(); scheduleRender(); },
+    "mkt-day": (el) => { mkt().day = el.dataset.v || "all"; saveMkt(); scheduleRender(); },
+    "mkt-hour": (el) => { mkt().hour = el.dataset.v || "all"; saveMkt(); scheduleRender(); },
+    "mkt-reset": () => {
+      const cur = mkt(), fresh = defaultMarketState();
+      fresh.planId = cur.planId;
+      fresh.balance = cur.balance;
+      fresh.calcRate = cur.calcRate;
+      fresh.bookings = cur.bookings;
+      ui.market = fresh;
+      saveMkt();
+      scheduleRender();
+    },
+    "book-open": (el) => {
+      if (!TDATA) return;
+      const tutor = TDATA.LIST.find((x) => x.id === el.dataset.id);
+      if (!tutor) return;
+      const st = mkt();
+      const days = TDATA.buildCalendarDays(7);
+      const pickDay = (st.day !== "all" ? days.find((d) => d.iso === st.day) : null)
+        || days.find((d) => TDATA.tutorSlotsForDay(tutor, d.dow).length > 0)
+        || days[0];
+      const daySlots = TDATA.tutorSlotsForDay(tutor, pickDay.dow);
+      const wantedHour = el.dataset.hour || (st.hour !== "all" ? st.hour : "");
+      const hour = daySlots.includes(wantedHour) ? wantedHour : (daySlots[0] || "10:00");
+      const exam = st.exam !== "all" && tutor.exams.includes(st.exam) ? st.exam : tutor.exams[0];
+      const format = st.format !== "all" && tutor.formats.includes(st.format) ? st.format : tutor.formats[0];
+      const offerPrice = Math.max(500, tutor.minFair || (tutor.price - 200));
+      ui.booking = { tutorId: tutor.id, exam, format, dayIso: pickDay.iso, hour, offerPrice, note: "" };
+      renderModal();
+    },
+    "book-close": () => { ui.booking = null; renderModal(); },
+    "book-exam": (el) => { if (ui.booking && el.dataset.v) { ui.booking.exam = el.dataset.v; renderModal(); } },
+    "book-format": (el) => { if (ui.booking && el.dataset.v) { ui.booking.format = el.dataset.v; renderModal(); } },
+    "book-day": (el) => {
+      if (!ui.booking || !TDATA || !el.dataset.v) return;
+      const tutor = TDATA.LIST.find((x) => x.id === ui.booking.tutorId);
+      const days = TDATA.buildCalendarDays(7);
+      const d = days.find((x) => x.iso === el.dataset.v);
+      if (!d) return;
+      ui.booking.dayIso = d.iso;
+      const slots = tutor ? TDATA.tutorSlotsForDay(tutor, d.dow) : [];
+      if (slots.length && !slots.includes(ui.booking.hour)) ui.booking.hour = slots[0];
+      renderModal();
+    },
+    "book-hour": (el) => { if (ui.booking && el.dataset.v) { ui.booking.hour = el.dataset.v; renderModal(); } },
+    "bid-step": (el) => {
+      if (!ui.booking) return;
+      const delta = Number(el.dataset.step) || 0;
+      const cur = Number(ui.booking.offerPrice) || 1000;
+      ui.booking.offerPrice = Math.max(500, Math.min(5000, cur + delta));
+      renderModal();
+    },
+    "book-submit": () => {
+      if (!ui.booking || !TDATA) return;
+      const b = ui.booking;
+      const tutor = TDATA.LIST.find((x) => x.id === b.tutorId);
+      if (!tutor) return;
+      const days = TDATA.buildCalendarDays(7);
+      const dayObj = days.find((d) => d.iso === b.dayIso) || days[0];
+      const daySlots = TDATA.tutorSlotsForDay(tutor, dayObj.dow);
+      const hour = daySlots.includes(b.hour) ? b.hour : (daySlots[0] || "10:00");
+      const offerPrice = Math.max(500, Math.min(5000, Math.round(Number(b.offerPrice) || tutor.price)));
+      const st = mkt();
+      let reserved = 0;
+      if (st.balance >= offerPrice) {
+        reserved = offerPrice;
+        st.balance -= reserved;
+      }
+      st.bookings.unshift({
+        id: "bk-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
+        tutorId: tutor.id,
+        tutorName: tutor.name,
+        subjectName: tutor.subjectName,
+        exam: b.exam || tutor.exams[0],
+        format: b.format || tutor.formats[0],
+        dayIso: dayObj.iso,
+        dayLabel: dayObj.shortLabel,
+        hour,
+        offerPrice,
+        tutorPrice: tutor.price,
+        note: String(b.note || "").trim(),
+        reserved,
+        status: "pending",
+        createdAt: Date.now()
+      });
+      ui.booking = null;
+      saveMkt();
+      renderModal();
+      toast(reserved
+        ? `Заявка отправлена ботом · ${reserved.toLocaleString("ru-RU")} ₽ зарезервировано с баланса`
+        : "Заявка создана в демо — выбери тариф 5 000 или 10 000 ₽ для оплаты с баланса");
+      scheduleRender();
+    },
+    "mkt-sim-accept": (el) => {
+      const st = mkt();
+      const bk = st.bookings.find((x) => x.id === el.dataset.id);
+      if (!bk) return;
+      bk.status = "accepted";
+      if (!bk.reserved && st.balance >= bk.offerPrice) {
+        bk.reserved = bk.offerPrice;
+        st.balance -= bk.reserved;
+      }
+      saveMkt();
+      toast(`${bk.tutorName} подтвердил(а) время ${bk.hour} по ставке ${bk.offerPrice} ₽/ч`);
+      scheduleRender();
+    },
+    "mkt-cancel-book": (el) => {
+      const st = mkt();
+      const idx = st.bookings.findIndex((x) => x.id === el.dataset.id);
+      if (idx < 0) return;
+      const bk = st.bookings[idx];
+      if (bk.reserved) st.balance += bk.reserved;
+      st.bookings.splice(idx, 1);
+      saveMkt();
+      toast(bk.reserved
+        ? `Заявка отменена · ${bk.reserved.toLocaleString("ru-RU")} ₽ возвращены на баланс`
+        : "Заявка отменена — можно выбрать другого репетитора");
+      scheduleRender();
     }
   };
   function authErrorText(e) {
@@ -3394,8 +4036,33 @@
     }
   };
 
+  function updateBookingModalLive() {
+    if (!ui.booking || !TDATA) return;
+    const b = ui.booking, tutor = TDATA.LIST.find((x) => x.id === b.tutorId);
+    if (!tutor) return;
+    const days = TDATA.buildCalendarDays(7);
+    const dayObj = days.find((d) => d.iso === b.dayIso) || days[0];
+    const sigEl = document.getElementById("bid-signal");
+    if (sigEl) {
+      const sig = TDATA.offerSignal(tutor.price, b.offerPrice);
+      sigEl.innerHTML = `<span class="chip ${sig.tone}">${esc(sig.label)}</span>`;
+    }
+    const prevEl = document.getElementById("bot-preview-txt");
+    if (prevEl) {
+      prevEl.textContent = TDATA.botPreviewText({
+        exam: b.exam,
+        subjectName: tutor.subjectName,
+        format: b.format,
+        dayLabel: dayObj.fullLabel,
+        hour: b.hour,
+        offerPrice: b.offerPrice,
+        tutorPrice: tutor.price
+      });
+    }
+  }
+
   document.addEventListener("click", (e) => {
-    if (e.target && e.target.classList && e.target.classList.contains("modal-back")) { ui.bug = null; renderModal(); return; }
+    if (e.target && e.target.classList && e.target.classList.contains("modal-back")) { ui.bug = null; ui.booking = null; renderModal(); return; }
     const el = e.target.closest("[data-a]");
     if (!el || el.disabled) return;
     const h = ACTIONS[el.dataset.a];
@@ -3433,9 +4100,38 @@
     if (el.id === "essay-body") { essayState().body = el.value; paintEssayCount(); essayDraftLater(); }
     if (el.id === "essay-src") { essayState().own.text = el.value; essayDraftLater(); }
     if (el.id === "essay-problem") { essayState().own.problem = el.value; essayDraftLater(); }
+    if (el.id === "mkt-max-price") {
+      const val = Number(el.value) || 2000;
+      mkt().maxPrice = val;
+      const lbl = el.parentElement && el.parentElement.querySelector("label b");
+      if (lbl) lbl.textContent = val >= 2000 ? "до 2 000+ ₽/ч" : "до " + val + " ₽/ч";
+      saveMkt();
+      return;
+    }
+    if (el.id === "bid-price") {
+      if (ui.booking) {
+        const raw = parseInt(el.value, 10);
+        if (Number.isFinite(raw)) {
+          ui.booking.offerPrice = Math.max(500, Math.min(5000, raw));
+          updateBookingModalLive();
+        }
+      }
+      return;
+    }
+    if (el.id === "bid-note") { if (ui.booking) ui.booking.note = el.value; return; }
   });
   document.addEventListener("change", (e) => {
     const el = e.target;
+    if (el.id === "mkt-max-price") { mkt().maxPrice = Number(el.value) || 2000; saveMkt(); scheduleRender(); return; }
+    if (el.id === "bid-price") {
+      if (ui.booking) {
+        const raw = parseInt(el.value, 10);
+        ui.booking.offerPrice = Number.isFinite(raw) ? Math.max(500, Math.min(5000, raw)) : (ui.booking.offerPrice || 1000);
+        el.value = String(ui.booking.offerPrice);
+        updateBookingModalLive();
+      }
+      return;
+    }
     if (el.dataset && el.dataset.d) { ui.drafts[el.dataset.d] = el.value; return; }
     if (el.dataset && el.dataset.c === "todo") { toggleTodo(el.dataset.id, el.dataset.custom === "1", el.checked); return; }
     if (el.dataset && el.dataset.c === "self-sum") { // отметки в итогах полного варианта
@@ -3457,8 +4153,8 @@
     if (el.id === "import-file" && el.files && el.files[0]) { readImport(el.files[0]); el.value = ""; }
   });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && ui.bug) { e.preventDefault(); ui.bug = null; renderModal(); return; }
-    if (ui.bug) return;
+    if (e.key === "Escape" && (ui.bug || ui.booking)) { e.preventDefault(); ui.bug = null; ui.booking = null; renderModal(); return; }
+    if (ui.bug || ui.booking) return;
     if (e.target && e.target.id === "chat-input" && e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(ui.chat.draft); return; }
     if (ui.view !== "quiz" || !ui.quiz || ui.quiz.done || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.target && e.target.id === "self-text") return; // в поле развёрнутого ответа Enter — перенос строки

@@ -811,7 +811,10 @@
       bio2Html = env4.elements.get("main").innerHTML;
     }
     assert(bio2Html.includes('data-qnum="2"'), "expected to reach Biology variant question #2");
-    assert(bio2Html.includes("увеличилась") && bio2Html.includes("уменьшилась") && bio2Html.includes("не изменилась"), "expected experiment match format for Biology question #2");
+    assert(
+      (/увеличил[ао]сь/.test(bio2Html) && /уменьшил[ао]сь/.test(bio2Html) && /не изменил[ао]сь/.test(bio2Html)),
+      "expected experiment match format for Biology question #2"
+    );
     clickAction(env4, { a: "quiz-exit" });
     await flushMicrotasks(6);
 
@@ -832,6 +835,77 @@
     assert(rus23Html.includes('data-qnum="23"'), "expected to reach Russian variant question #23 after #22");
     clickAction(env4, { a: "quiz-exit" });
     await flushMicrotasks(6);
+
+    await flushMicrotasks(6);
+
+    // 7. Проверка лендинга, тарифов 0/5к/10к, кружочков календаря и inDrive-заявки
+    const env5 = installGlobals({
+      host: { backend: true },
+      localStorage: {},
+      fetch: async (url) => {
+        if (url === "/api/me") return { ok: true, status: 200, headers: { get: () => "application/json" }, json: async () => ({ user: null, ai: { enabled: false }, inviteRequired: false, providers: { local: true, google: false } }) };
+        return { ok: false, status: 404, headers: { get: () => "application/json" }, json: async () => ({ detail: "not found" }) };
+      }
+    });
+    loadScripts(dataScripts);
+    vmRun(readFileText("app.js"), "app.js");
+    await flushMicrotasks(12);
+
+    const landHtml = env5.elements.get("main").innerHTML;
+    assert(landHtml.includes("Бесплатная") && landHtml.includes("Пробник") && landHtml.includes("Месяц под ключ"), "expected 3 tariff names on landing");
+    assert(landHtml.includes("5 000 ₽") && landHtml.includes("10 000 ₽"), "expected 5k and 10k prices on landing");
+    assert(landHtml.includes('data-a="mkt-day"') && landHtml.includes('data-a="mkt-hour"'), "expected day and hour circles on landing");
+
+    clickAction(env5, { a: "mkt-preset" });
+    await flushMicrotasks(4);
+    const presetHtml = env5.elements.get("main").innerHTML;
+    assert(presetHtml.includes("Анна Соколова"), "expected English 10:00 Saturday tutor after preset");
+
+    clickAction(env5, { a: "mkt-exam", v: "ОГЭ" });
+    clickAction(env5, { a: "mkt-subj", v: "eng" });
+    clickAction(env5, { a: "mkt-day", v: "all" });
+    clickAction(env5, { a: "mkt-hour", v: "10:00" });
+    await flushMicrotasks(4);
+    assert(env5.elements.get("main").innerHTML.includes("Анна Соколова"), "expected circle/exam/subject filtering to work");
+
+    clickAction(env5, { a: "mkt-reset" });
+    clickAction(env5, { a: "mkt-plan", id: "trial5k" });
+    await flushMicrotasks(4);
+    assert(env5.elements.get("main").innerHTML.includes("5\u00a0000 ₽") || env5.elements.get("main").innerHTML.includes("5 000 ₽"), "expected 5 000 ₽ wallet balance after trial5k");
+
+    clickAction(env5, { a: "book-open", id: "tut-sokolova", hour: "10:00" });
+    await flushMicrotasks(2);
+    const modalBefore = env5.elements.get("modal-root").innerHTML;
+    assert(modalBefore.includes("Запись · Анна Соколова") && modalBefore.includes('id="bid-price"'), "expected booking modal open");
+    clickAction(env5, { a: "bid-step", step: "-100" });
+    await flushMicrotasks(2);
+    const modalStepped = env5.elements.get("modal-root").innerHTML;
+    assert(modalStepped.includes('value="900"') && modalStepped.includes("900 ₽/ч"), "expected -100 step to update offerPrice to 900");
+
+    clickAction(env5, { a: "book-submit" });
+    await flushMicrotasks(4);
+    assert(!env5.elements.get("modal-root").innerHTML.trim(), "expected booking modal closed after submit");
+    const afterBookHtml = env5.elements.get("main").innerHTML;
+    assert(afterBookHtml.includes("Ожидает ответа бота") && (afterBookHtml.includes("4\u00a0100 ₽") || afterBookHtml.includes("4 100 ₽")), "expected 900 ₽ reserved from 5 000 ₽ balance");
+
+    const acceptIdMatch = /data-a="mkt-sim-accept" data-id="([^"]+)"/.exec(afterBookHtml);
+    assert(acceptIdMatch, "expected sim-accept button for pending booking");
+    clickAction(env5, { a: "mkt-sim-accept", id: acceptIdMatch[1] });
+    await flushMicrotasks(4);
+    assert(env5.elements.get("main").innerHTML.includes("Преподаватель ответил «Да»"), "expected tutor accepted state");
+
+    clickAction(env5, { a: "mkt-cancel-book", id: acceptIdMatch[1] });
+    await flushMicrotasks(4);
+    const afterCancelHtml = env5.elements.get("main").innerHTML;
+    assert(afterCancelHtml.includes("5\u00a0000 ₽") || afterCancelHtml.includes("5 000 ₽"), "expected balance restored to 5 000 ₽ on tutor cancel/switch");
+
+    clickAction(env5, { a: "auth-guest" });
+    await flushMicrotasks(6);
+    assert(env5.elements.get("side-nav").innerHTML.includes("Репетиторы"), "expected side-nav Репетиторы link");
+    assert(env5.elements.get("main").innerHTML.includes("Маркетплейс репетиторов"), "expected Home marketplace quick card");
+    clickAction(env5, { a: "go", v: "market" });
+    await flushMicrotasks(4);
+    assert(env5.elements.get("main").innerHTML.includes("Подбор репетитора"), "expected market view");
 
     out("APP_SMOKE_TESTS_OK");
   }

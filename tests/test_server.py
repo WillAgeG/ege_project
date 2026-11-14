@@ -608,3 +608,18 @@ def test_legacy_sqlite_migration(tmp_path: Path) -> None:
     )
     assert oauth_u.id == user.id
 
+
+def test_landing_and_tutors_catalog(tmp_path: Path) -> None:
+    app = create_app(_make_settings(tmp_path))
+    with TestClient(app) as client:
+        r_land = client.get("/landing")
+        assert r_land.status_code == 200
+        assert "window.EGE_HOST={backend:true,landing:true}" in r_land.text
+        assert 'src="data/tutors.js"' in r_land.text
+
+        r_js = client.get("/data/tutors.js")
+        assert r_js.status_code == 200
+        assert "javascript" in r_js.headers["content-type"]
+        assert "EGE.tutors" in r_js.text
+
+
