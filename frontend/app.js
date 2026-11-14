@@ -829,7 +829,7 @@
     motion: { playing: true, preset: "design", step: 0, slot: "10:00", offer: 1200, sent: false, clicking: false, hitTarget: "" },
     savings: { freq: 2, marketRate: 1600, offerRate: 950 },
     bbModal: false,
-    brandbook: { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, vpWidth: 390, chipOn: true, sent: false, fav: true, switchVal: "online", pickedPlan: "month10k", quizOpt: 1 }
+    brandbook: { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, vpWidth: 390, chipOn: true, sent: false, fav: true, switchVal: "online", pickedPlan: "month10k", quizOpt: 1, marketDemoAccepted: false, reducedMotion: false }
   };
   const MARKET_LS_KEY = "vektor-ege:market";
   const TDATA = EGE.tutors || null;
@@ -3989,11 +3989,7 @@
     "bb-copy-token": (el) => {
       const txt = (el.dataset && el.dataset.copy) || "";
       if (!txt) return;
-      try {
-        if (typeof navigator !== "undefined" && navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
-          navigator.clipboard.writeText(txt).catch(() => {});
-        }
-      } catch (e) { /* без буфера в тестовом окружении */ }
+      copyTextSafe(txt);
       toast("Скопировано: " + txt);
     },
     "bb-switch": (el) => {
@@ -4210,19 +4206,130 @@
       scheduleRender();
       notifySide("Hero CTA №2 · Бета-тест", bb.heroBetaOn ? "Кнопка бета-теста на фото -> .is-confirmed" : "Возврат в полупрозрачный контур на фото");
     },
+    "bb-logo-dl": (el) => {
+      const surface = (el.dataset && el.dataset.surface) || "light";
+      const kind = (el.dataset && el.dataset.kind) || "lockup";
+      const svg = EGE.ui && typeof EGE.ui.brandLogoSVG === "function" ? EGE.ui.brandLogoSVG(surface, kind) : "";
+      if (!svg) return;
+      const filename = `vektor-ege-${kind}-${surface}.svg`;
+      try {
+        if (typeof Blob === "function" && typeof URL !== "undefined" && typeof URL.createObjectURL === "function") {
+          const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+          const href = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = href;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          if (typeof URL.revokeObjectURL === "function") setTimeout(() => URL.revokeObjectURL(href), 500);
+        }
+      } catch (e) { /* в тестовом окружении скачивание файла пропускается */ }
+      bbState().lastExportedSvg = svg;
+      toast("Скачан " + filename);
+      notifySide("Экспорт SVG · Вектор ЕГЭ", `Файл ${filename} (${surface}, ${kind})`);
+    },
+    "bb-logo-copy": (el) => {
+      const surface = (el.dataset && el.dataset.surface) || "light";
+      const kind = (el.dataset && el.dataset.kind) || "lockup";
+      const svg = EGE.ui && typeof EGE.ui.brandLogoSVG === "function" ? EGE.ui.brandLogoSVG(surface, kind) : "";
+      if (!svg) return;
+      copyTextSafe(svg);
+      bbState().lastExportedSvg = svg;
+      toast(`SVG (${surface}) скопирован`);
+      notifySide("SVG в буфере", `Векторный ${kind} для поверхности «${surface}» скопирован`);
+    },
+    "bb-export-tokens": (el) => {
+      const fmt = (el.dataset && el.dataset.fmt) === "json" ? "json" : "css";
+      const payload = buildBrandbookTokensExport(fmt);
+      copyTextSafe(payload);
+      bbState().lastExportedTokens = { fmt, payload };
+      toast(fmt === "json" ? "Скопирован tokens.json" : "Скопирован :root CSS");
+      notifySide(fmt === "json" ? "Экспорт tokens.json" : "Экспорт :root CSS", `Токены (${payload.length} симв.) скопированы в буфер`);
+    },
+    "bb-market-req-toggle": () => {
+      const bb = bbState();
+      bb.marketDemoAccepted = !bb.marketDemoAccepted;
+      scheduleRender();
+      notifySide(
+        "Отклик /market · Состояние",
+        bb.marketDemoAccepted ? "Статус «Преподаватель подтвердил» → открыт чат" : "Статус «На рассмотрении · уведомим» → кнопка «Отменить»"
+      );
+    },
+    "bb-reduced-toggle": () => {
+      const bb = bbState();
+      bb.reducedMotion = !bb.reducedMotion;
+      scheduleRender();
+      toast(bb.reducedMotion ? "prefers-reduced-motion: ВКЛ" : "Анимации восстановлены");
+      notifySide("Доступность · Motion", bb.reducedMotion ? "Анимации отключены через .is-reduced" : "Плавные переходы и hover-эффекты активны");
+    },
     "fees-rate": (el) => {
       ui.feesRate = Math.max(600, Math.min(3500, Number(el.dataset.rate) || 800));
       scheduleRender();
     }
   };
+  const BB_EXPORT_SCHEMA = {
+    light: {
+      bg: "#f4f5f7", surface: "#ffffff", "surface-2": "#f2f3f6", ink: "#141517", "ink-2": "#3d424d",
+      muted: "#7c828e", line: "#e4e6ec", "line-strong": "#cdd2dc", accent: "#0070ff", "accent-hover": "#005ce0",
+      "accent-ink": "#ffffff", "accent-soft": "#ebf3ff", notif: "#f97316", "notif-soft": "#fff3eb",
+      confirm: "#16a34a", "confirm-hover": "#15803d", "confirm-soft": "#dcfce7",
+      pro: "#7c3aed", "pro-soft": "#f3e8ff", bad: "#ff2b4d", "bad-soft": "#ffe4e8", warn: "#b45309", "warn-soft": "#fef3c7"
+    },
+    dark: {
+      bg: "#000000", surface: "#16181d", "surface-2": "#22252e", ink: "#ffffff", "ink-2": "#d4d8e2",
+      muted: "#8b909d", line: "#282b36", "line-strong": "#373b49", accent: "#1d7bff", "accent-hover": "#0d67e8",
+      "accent-ink": "#ffffff", "accent-soft": "#102548", notif: "#fb923c", "notif-soft": "#2e1909",
+      confirm: "#22c55e", "confirm-hover": "#16a34a", "confirm-soft": "#0c2b17",
+      pro: "#a78bfa", "pro-soft": "#21153b", bad: "#ff4d5e", "bad-soft": "#3a171c"
+    },
+    sakha: {
+      auroraCyan: "#0EA5E9", auroraGreen: "#10B981", ornamentGold: "#C59B5F",
+      glacierLight: "#EFF9FF", glacierBorderLight: "#7DD3FC", glacierDark: "#091E32", glacierBorderDark: "#0284C7"
+    },
+    zIndex: { stickyTop: 10, selectMenu: 25, mobileTabbar: 40, sideToast: 60, modal: 100 },
+    editorial: { currencyFormat: "1 200 ₽/ч", timeWindow: "10:00–20:00" }
+  };
+  function copyTextSafe(txt) {
+    if (!txt) return;
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+        navigator.clipboard.writeText(txt).catch(() => {});
+      }
+    } catch (e) { /* без буфера в тестовом окружении */ }
+  }
+  function cssVarsBlock(selector, varsMap) {
+    return `${selector} {\n${Object.keys(varsMap).map((k) => `  --${k}: ${varsMap[k]};`).join("\n")}\n}`;
+  }
+  function buildBrandbookTokensExport(fmt) {
+    if (fmt === "json") return JSON.stringify(BB_EXPORT_SCHEMA, null, 2);
+    const extraVars = {
+      "sakha-cyan": BB_EXPORT_SCHEMA.sakha.auroraCyan,
+      "sakha-green": BB_EXPORT_SCHEMA.sakha.auroraGreen,
+      "sakha-gold": BB_EXPORT_SCHEMA.sakha.ornamentGold,
+      "z-sticky-top": BB_EXPORT_SCHEMA.zIndex.stickyTop,
+      "z-select-menu": BB_EXPORT_SCHEMA.zIndex.selectMenu,
+      "z-mobile-tabbar": BB_EXPORT_SCHEMA.zIndex.mobileTabbar,
+      "z-side-toast": BB_EXPORT_SCHEMA.zIndex.sideToast,
+      "z-modal": BB_EXPORT_SCHEMA.zIndex.modal
+    };
+    return [
+      cssVarsBlock(":root", Object.assign({}, BB_EXPORT_SCHEMA.light, extraVars)),
+      cssVarsBlock('[data-theme="dark"]', BB_EXPORT_SCHEMA.dark)
+    ].join("\n\n");
+  }
   function bbState() {
-    return ui.brandbook || (ui.brandbook = {
+    const bb = ui.brandbook || (ui.brandbook = {
       mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true,
       vpWidth: 390, chipOn: true, sent: false, fav: true, switchVal: "online",
       subj: "bio", subjMenuOpen: false, pickedPlan: "month10k", quizOpt: 1,
       cancelDemoUndone: false, previewToastDismissed: false, sakhaSent: false, sakhaKunOn: false, sakhaStarOn: false,
-      heroSubmitted: false, heroBetaOn: false, heroSearchSubmitted: false, heroQ: "", cat: "all", catQ: "", faqOpen: 0
+      heroSubmitted: false, heroBetaOn: false, heroSearchSubmitted: false, heroQ: "", cat: "all", catQ: "", faqOpen: 0,
+      marketDemoAccepted: false, reducedMotion: false
     });
+    if (bb.marketDemoAccepted === undefined) bb.marketDemoAccepted = false;
+    if (bb.reducedMotion === undefined) bb.reducedMotion = false;
+    return bb;
   }
   function applyBrandbookViewport(rawW) { return EGE.views.brandbook.applyBrandbookViewport(ui, rawW); }
   function authErrorText(e) {

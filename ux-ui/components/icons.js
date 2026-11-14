@@ -170,6 +170,41 @@
     return `<div class="brand-lockup"${surfAttr}>${BRAND_MARK_HTML}<div class="brand-text"><div class="brand-name">${BRAND_WORDMARK_HTML}${tagHTML}</div>${subHTML}</div></div>`;
   }
 
+  function brandLogoSVG(surface, kind) {
+    const mode = surface === "dark" || surface === "blue" ? surface : "light";
+    const isLockup = kind === "lockup";
+    const bgCircle = mode === "dark" ? "#0b0d12" : "#ffffff";
+    const starInk = mode === "dark" ? "#ffffff" : (mode === "blue" ? "#0057d9" : "#0e1116");
+    const ringInk = mode === "dark" ? "#ffffff" : (mode === "blue" ? "#ffffff" : "#0e1116");
+    const wmInk = mode === "light" ? "#0e1116" : "#ffffff";
+    const wmAccent = mode === "light" ? "#0070ff" : (mode === "dark" ? "#3b8fff" : "#bae6fd");
+    const circleMark =
+      `<circle cx="32" cy="32" r="29.5" fill="${bgCircle}" stroke="${ringInk}" stroke-width="2.5"/>` +
+      `<g color="${starInk}" style="color:${starInk}">${sakhaStarCoreSVG()}</g>`;
+    if (!isLockup) {
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">${circleMark}</svg>`;
+    }
+    const lockupCanvas = mode === "blue" ? '<rect width="260" height="72" rx="16" fill="#0070ff"/>' : "";
+    const wordPaths =
+      `<g transform="translate(80, 17) scale(1.22)" stroke-width="2.55" stroke-linecap="round" stroke-linejoin="round">` +
+      `<g stroke="${wmInk}" fill="none">` +
+      `<path d="M3 22.5V6h7.2l2.6 2.6v3.2l-2.4 2.4H3"/>` +
+      `<path d="M10.4 14.2l3 2.6v3.2l-2.6 2.5H3"/>` +
+      `<path d="M17.5 16.4H27v-2.9L24.5 11H20l-2.5 2.5V20l2.5 2.5h5l1.8-1.8"/>` +
+      `<path d="M31.5 11v11.5M40.8 11l-6.6 5.7 7 5.8M31.5 16.7h3"/>` +
+      `<path d="M44.5 11h11M50 11v11.5"/>` +
+      `<path d="M61 11h5l2.5 2.5V20L66 22.5h-5L58.5 20v-6.5Z"/>` +
+      `<path d="M73 11v16.5M73 11h7.2l2.6 2.6v6.3l-2.6 2.6H73"/>` +
+      `</g>` +
+      `<polygon points="90,11.6 93,14.6 90,17.6 87,14.6" fill="${wmAccent}"/>` +
+      `<g stroke="${wmAccent}" fill="none">` +
+      `<path d="M108 6h-8.2L97.5 8.3v11.9l2.3 2.3H108M97.5 14.2h8.5"/>` +
+      `<path d="M113.5 22.5V8.3l2.3-2.3h8"/>` +
+      `<path d="M128.5 6h9l2.7 2.7v11.1l-2.7 2.7h-9M130.5 14.2h9.7"/>` +
+      `</g></g>`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="260" height="72" viewBox="0 0 260 72" fill="none">${lockupCanvas}<g transform="translate(8, 4)">${circleMark}</g>${wordPaths}</svg>`;
+  }
+
   const GOOGLE_SVG =
     '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5a5.6 5.6 0 0 1-2.4 3.6v3h3.9c2.3-2.1 3.5-5.2 3.5-8.8z"/><path fill="#34A853" d="M12 24c3.2 0 6-1.1 8-3l-3.9-3c-1.1.7-2.5 1.2-4.1 1.2-3.1 0-5.8-2.1-6.8-5H1.2v3.1A12 12 0 0 0 12 24z"/><path fill="#FBBC05" d="M5.2 14.2A7.2 7.2 0 0 1 4.8 12c0-.8.1-1.5.4-2.2V6.7H1.2A12 12 0 0 0 0 12c0 1.9.5 3.8 1.2 5.3l4-3.1z"/><path fill="#EA4335" d="M12 4.8c1.8 0 3.3.6 4.6 1.8l3.4-3.4A11.9 11.9 0 0 0 12 0 12 12 0 0 0 1.2 6.7l4 3.1c1-2.9 3.7-5 6.8-5z"/></svg>';
 
@@ -239,6 +274,7 @@
     BRAND_MARK_HTML,
     BRAND_WORDMARK_HTML,
     brandLockupHTML,
+    brandLogoSVG,
     GOOGLE_SVG,
     getIconCatalog,
     triggerIconTileAnim

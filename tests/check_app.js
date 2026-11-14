@@ -1101,6 +1101,69 @@
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes('data-a="bb-faq-toggle" data-i="1" aria-expanded="true"'), "expected FAQ item in brandbook landing catalog to expand on click");
 
+    clickAction(env5, { a: "bb-mode", v: "both" });
+    await flushMicrotasks(2);
+    const bbV2Html = env5.elements.get("main").innerHTML;
+    const catTargetIds = globalThis.EGE.kit.CATALOG_ITEMS.map((it) => it.targetId);
+    assert(
+      globalThis.EGE.kit.CATALOG_ITEMS.length === 17 &&
+      ["bb-market-app", "bb-motion", "bb-bounds", "bb-dodont", "bb-compare"].every((id) => catTargetIds.includes(id)),
+      "expected 17 catalog items covering all brandbook sections including /market, motion, bounds, dodont, and compare"
+    );
+    assert(
+      !bbV2Html.includes("Unbounded") &&
+      bbV2Html.includes("Inter + IBM Plex Mono") &&
+      bbV2Html.includes('id="bb-toc"') &&
+      bbV2Html.includes("bb-logo-donts") &&
+      bbV2Html.includes("bb-wcag-grid") &&
+      bbV2Html.includes("bb-elev-grid") &&
+      bbV2Html.includes('id="bb-market-app"') &&
+      bbV2Html.includes("bb-tone-grid") &&
+      bbV2Html.includes("Шкала слоёв интерфейса (z-index)"),
+      "expected updated brandbook sections: Inter + IBM Plex Mono typography, quick TOC, logo don'ts, WCAG contrast grid, elevation grid, /market anatomy, Tone of Voice, and z-index table"
+    );
+
+    const directSvg = globalThis.EGE.ui.brandLogoSVG("blue", "lockup");
+    const directMarkSvg = globalThis.EGE.ui.brandLogoSVG("dark", "mark");
+    assert(
+      directSvg.startsWith("<svg ") && directSvg.includes('xmlns="http://www.w3.org/2000/svg"') && directSvg.includes('viewBox="0 0 260 72"') && directSvg.includes('fill="#0070ff"') && directSvg.includes("<path d=") &&
+      directMarkSvg.startsWith("<svg ") && directMarkSvg.includes('viewBox="0 0 64 64"') && directMarkSvg.includes('fill="#0b0d12"'),
+      "expected brandLogoSVG to emit valid standalone lockup and mark SVGs"
+    );
+    clickAction(env5, { a: "bb-logo-dl", surface: "blue", kind: "lockup" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("toast").innerHTML.includes("Экспорт SVG"), "expected bb-logo-dl to trigger SVG export side toast");
+    clickAction(env5, { a: "bb-logo-copy", surface: "dark", kind: "mark" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("toast").innerHTML.includes("SVG в буфере"), "expected bb-logo-copy to store dark mark SVG and notify");
+
+    clickAction(env5, { a: "bb-export-tokens", fmt: "css" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("toast").innerHTML.includes("Экспорт :root CSS"), "expected bb-export-tokens css notification");
+    clickAction(env5, { a: "bb-export-tokens", fmt: "json" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("toast").innerHTML.includes("Экспорт tokens.json"), "expected bb-export-tokens json notification");
+
+    clickAction(env5, { a: "bb-market-req-toggle" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("Преподаватель подтвердил") && env5.elements.get("main").innerHTML.includes("Написать"), "expected bb-market-req-toggle to switch demo request into confirmed state with chat action");
+
+    clickAction(env5, { a: "bb-reduced-toggle" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes('class="land-page is-reduced"') && env5.elements.get("main").innerHTML.includes("Reduced Motion: ВКЛ ✓"), "expected bb-reduced-toggle to apply .is-reduced class to brandbook page");
+    clickAction(env5, { a: "bb-reduced-toggle" });
+    await flushMicrotasks(2);
+    assert(!env5.elements.get("main").innerHTML.includes("is-reduced"), "expected second bb-reduced-toggle click to restore normal motion");
+
+    clickAction(env5, { a: "bb-mode", v: "dark" });
+    await flushMicrotasks(2);
+    const bbDarkSynced = env5.elements.get("main").innerHTML;
+    const surfSlice = bbDarkSynced.slice(bbDarkSynced.indexOf('id="bb-surfaces"'), bbDarkSynced.indexOf('id="bb-fonts"'));
+    const yakSlice = bbDarkSynced.slice(bbDarkSynced.indexOf('id="bb-yakutia"'), bbDarkSynced.indexOf('id="bb-buttons"'));
+    assert(!surfSlice.includes("cols-3") && surfSlice.includes('class="bb-pane is-dark"') && !yakSlice.includes('class="bb-cols"'), "expected bb-mode=dark to sync #bb-surfaces and #bb-yakutia to dark-only panes");
+    clickAction(env5, { a: "bb-mode", v: "both" });
+    await flushMicrotasks(2);
+
     clickAction(env5, { a: "go", v: "landing" });
     await flushMicrotasks(2);
     const landFullHtml = env5.elements.get("main").innerHTML;
