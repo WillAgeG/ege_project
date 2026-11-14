@@ -1048,7 +1048,7 @@
       <div class="land-media-showcase">
         <article class="land-photo-card is-iphone">
           <div class="land-photo-frame">
-            <img src="/assets/iphone-motion.jpg" alt="Новейший титановый iPhone Pro Max с моушен-интерфейсом подбора цены" loading="lazy">
+            <img src="/assets/iphone-motion.jpg" alt="Новейший титановый iPhone Pro Max с моушен-интерфейсом подбора цены" decoding="sync">
             <div class="land-photo-scrim"></div>
             <div class="land-photo-badges">
               <span class="chip" style="background:rgba(15,23,42,.82);color:#fff;border:1px solid rgba(255,255,255,.22)">${icon("video")}<span>iPhone 17 Pro · Моушен-интерфейс</span></span>
@@ -1070,7 +1070,7 @@
 
         <article class="land-photo-card is-lena">
           <div class="land-photo-frame">
-            <img src="/assets/lena-pillars.jpg" alt="Природа Якутии — Ленские столбы на рассвете над рекой Леной и северное сияние" loading="lazy">
+            <img src="/assets/lena-pillars.jpg" alt="Природа Якутии — Ленские столбы на рассвете над рекой Леной и северное сияние" decoding="sync">
             <div class="land-photo-scrim"></div>
             <div class="land-photo-badges">
               <span class="chip sakha" style="background:rgba(9,30,50,.85);color:#bae6fd;border-color:rgba(125,211,252,.45)">${icon("aurora")}<span>Ленские столбы · Якутия</span></span>

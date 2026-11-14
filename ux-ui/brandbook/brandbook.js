@@ -478,7 +478,7 @@
       <div class="bb-media-grid" id="bb-media">
         <article class="bb-media-card">
           <div class="bb-media-frame">
-            <img src="/assets/iphone-motion.jpg" alt="Новейший iPhone Pro Max с моушен-интерфейсом ставок" loading="lazy">
+            <img src="/assets/iphone-motion.jpg" alt="Новейший iPhone Pro Max с моушен-интерфейсом ставок" decoding="sync">
             <div class="bb-media-scrim"></div>
             <div class="bb-media-badges">
               <span class="chip" style="background:rgba(15,23,42,.82);color:#fff;border:1px solid rgba(255,255,255,.22)">iPhone Pro · Моушен 60 fps</span>
@@ -492,7 +492,7 @@
         </article>
         <article class="bb-media-card">
           <div class="bb-media-frame">
-            <img src="/assets/lena-pillars.jpg" alt="Природа Якутии — Ленские столбы на рассвете с сиянием Дьүкээбил" loading="lazy">
+            <img src="/assets/lena-pillars.jpg" alt="Природа Якутии — Ленские столбы на рассвете с сиянием Дьүкээбил" decoding="sync">
             <div class="bb-media-scrim"></div>
             <div class="bb-media-badges">
               <span class="chip sakha" style="background:rgba(9,30,50,.85);color:#bae6fd;border-color:rgba(125,211,252,.45)">${icon("aurora")}<span>Ленские столбы · 61°N</span></span>

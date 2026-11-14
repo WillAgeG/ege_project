@@ -908,7 +908,7 @@ body[data-auth="1"] .auth-wrap { margin: 8vh auto; padding: 0 16px; }
   position: relative; aspect-ratio: 16 / 10; overflow: hidden; background: #070b12;
 }
 .land-photo-frame img {
-  width: 100%; height: 100%; object-fit: cover; display: block;
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block;
   transition: transform .55s cubic-bezier(.22, 1, .36, 1);
 }
 .land-photo-card:hover .land-photo-frame img { transform: scale(1.03); }

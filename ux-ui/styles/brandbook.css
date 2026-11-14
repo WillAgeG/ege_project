@@ -486,7 +486,7 @@
   position: relative; aspect-ratio: 16 / 10; overflow: hidden; background: #070b12;
 }
 .bb-media-frame img {
-  width: 100%; height: 100%; object-fit: cover; display: block;
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block;
 }
 .bb-media-scrim {
   position: absolute; inset: 0; pointer-events: none;
