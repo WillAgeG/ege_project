@@ -57,7 +57,8 @@ def test_health_and_html_shell(tmp_path: Path) -> None:
         html = r_home.text
         assert html.startswith("<!doctype html><html>")
         assert "<title>Вектор ЕГЭ</title>" in html
-        assert "--accent: #13794b" in html
+        assert "--accent: #2f7cff" in html
+        assert "#13794b" not in html
         flag_pos = html.find("<script>window.EGE_HOST={backend:true};</script>")
         app_pos = html.find('<script src="app.js"></script>')
         assert 0 < flag_pos < app_pos

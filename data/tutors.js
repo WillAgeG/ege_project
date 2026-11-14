@@ -385,6 +385,26 @@
     }
   ];
 
+  var WA_PHONES = {
+    "tut-sokolova": "79142100101",
+    "tut-kim": "79142100102",
+    "tut-morozova": "79142100103",
+    "tut-gromova": "79142100104",
+    "tut-nikolaev": "79142100105",
+    "tut-petrova": "79142100106",
+    "tut-efimov": "79142100107",
+    "tut-orlova": "79142100108",
+    "tut-popov": "79142100109",
+    "tut-voronov": "79142100110",
+    "tut-lebedev": "79142100111",
+    "tut-belova": "79142100112"
+  };
+  LIST.forEach(function (t, idx) {
+    t.whatsapp = t.whatsapp || WA_PHONES[t.id] || ("791421001" + String(10 + idx));
+    t.verified = t.verified !== false;
+    t.responseMin = t.bumpedToday ? 10 : 25;
+  });
+
   function toISODate(d) {
     var y = d.getFullYear();
     var m = String(d.getMonth() + 1).padStart(2, "0");
@@ -434,6 +454,13 @@
     if (filters.format && filters.format !== "all" && tutor.formats.indexOf(filters.format) < 0) return false;
     if (filters.maxPrice && tutor.price > filters.maxPrice) return false;
     if (filters.onlyBumped && !tutor.bumpedToday) return false;
+    if (filters.q) {
+      var q = String(filters.q).trim().toLowerCase();
+      if (q) {
+        var hay = [tutor.name, tutor.subjectName, tutor.tag, tutor.bio, tutor.city, (tutor.exams || []).join(" ")].join(" ").toLowerCase();
+        if (hay.indexOf(q) < 0) return false;
+      }
+    }
     return true;
   }
 
@@ -498,17 +525,34 @@
       " Ответьте: Да / Нет / Перенести время.»";
   }
 
+  function buildWeekDays(weekOffset) {
+    var now = new Date();
+    now.setHours(12, 0, 0, 0);
+    var dow = now.getDay();
+    var mondayDelta = dow === 0 ? -6 : 1 - dow;
+    var monday = new Date(now.getTime() + (mondayDelta + (Number(weekOffset) || 0) * 7) * 86400000);
+    return buildCalendarDays(7, monday);
+  }
+
+  function whatsappUrl(tutor, message) {
+    var phone = String((tutor && tutor.whatsapp) || "79142100100").replace(/\D+/g, "");
+    var text = message || ("Здравствуйте, " + ((tutor && tutor.name) || "") + "! Пишу с платформы Вектор ЕГЭ по поводу занятий (" + ((tutor && tutor.subjectName) || "подготовка") + ").");
+    return "https://wa.me/" + phone + "?text=" + encodeURIComponent(text);
+  }
+
   EGE.tutors = {
     SUBJECTS: SUBJECTS,
     HOURS: HOURS,
     PLANS: PLANS,
     LIST: LIST,
     buildCalendarDays: buildCalendarDays,
+    buildWeekDays: buildWeekDays,
     tutorSlotsForDay: tutorSlotsForDay,
     filterTutors: filterTutors,
     countForDay: countForDay,
     countForHour: countForHour,
     offerSignal: offerSignal,
-    botPreviewText: botPreviewText
+    botPreviewText: botPreviewText,
+    whatsappUrl: whatsappUrl
   };
 })();

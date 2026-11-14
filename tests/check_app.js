@@ -328,26 +328,20 @@
     const homePreLogin = env2.elements.get("main").innerHTML;
     assert(env2.body.dataset.auth === "1", "expected auth gate body flag before login");
     assert(homePreLogin.includes("Вектор ЕГЭ") && homePreLogin.includes("brand-mark"), "expected new brand name and SVG logo on auth screen");
-    assert(homePreLogin.includes("Продолжить через Google"), "expected Google OAuth button on auth screen");
-    assert(homePreLogin.includes("Продолжить без аккаунта"), "expected guest fallback button on auth screen");
+    assert(!homePreLogin.includes("Тесты бесплатно") && !homePreLogin.includes("Начать тесты ЕГЭ бесплатно") && !homePreLogin.includes("Открыть тренажёр ЕГЭ без оплаты"), "should not show free tests CTAs on landing");
+    assert(!homePreLogin.includes('data-f="auth"') && !homePreLogin.includes("Продолжить без аккаунта"), "should not embed inline login card or guest link on landing");
+    assert(homePreLogin.includes('data-a="auth-modal-open"') && homePreLogin.includes("Войти"), "expected single Войти modal trigger on landing");
     assert(!homePreLogin.includes("Путь в медицину") && !homePreLogin.includes("СВФУ"), "should not show old medical branding");
     assert(!homePreLogin.includes("Давай настроим подготовку"), "should not show onboarding before login on backend");
 
-    // Гостевой режим без входа -> затем возврат на экран входа
+    // Кнопка «Войти» открывает модалку авторизации
     env2.emitDoc("click", {
-      target: { closest: (sel) => sel === "[data-a]" ? { dataset: { a: "auth-guest" }, disabled: false } : null },
-      preventDefault() {}
-    });
-    await flushMicrotasks(10);
-    assert(!env2.body.dataset.auth, "expected auth flag cleared in guest mode");
-    assert(env2.elements.get("main").innerHTML.includes("Гостевой режим"), "expected guest notice on home");
-
-    env2.emitDoc("click", {
-      target: { closest: (sel) => sel === "[data-a]" ? { dataset: { a: "auth-screen" }, disabled: false } : null },
+      target: { closest: (sel) => sel === "[data-a]" ? { dataset: { a: "auth-modal-open" }, disabled: false } : null },
       preventDefault() {}
     });
     await flushMicrotasks(8);
-    assert(env2.body.dataset.auth === "1", "expected return to auth gate");
+    const modalPre = env2.elements.get("modal-root").innerHTML;
+    assert(modalPre.includes("Продолжить через Google") && modalPre.includes("Вход в аккаунт"), "expected Google OAuth button and login form in auth modal");
 
     // Переключаемся на регистрацию
     env2.emitDoc("click", {
@@ -355,7 +349,7 @@
       preventDefault() {}
     });
     await flushMicrotasks(8);
-    const regHtml = env2.elements.get("main").innerHTML;
+    const regHtml = env2.elements.get("modal-root").innerHTML;
     assert(regHtml.includes("Код приглашения"), "expected invite code field on register tab");
     assert(regHtml.includes("Перенести текущий прогресс"), "expected local migration checkbox");
 
@@ -378,7 +372,7 @@
       preventDefault() {}
     });
     await flushMicrotasks(8);
-    assert(env2.elements.get("main").innerHTML.includes("Пароли не совпадают"), "expected password mismatch error");
+    assert(env2.elements.get("modal-root").innerHTML.includes("Пароли не совпадают"), "expected password mismatch error");
 
     // Ошибочный код инвайта не падает и показывает ошибку
     env2.emitDoc("submit", {
@@ -399,7 +393,7 @@
       preventDefault() {}
     });
     await flushMicrotasks(15);
-    assert(env2.elements.get("main").innerHTML.includes("Неверный код приглашения"), "expected invite error rendered");
+    assert(env2.elements.get("modal-root").innerHTML.includes("Неверный код приглашения"), "expected invite error rendered");
 
     // Верная регистрация -> миграция + вход + загрузка профиля Оли
     env2.emitDoc("submit", {
@@ -635,19 +629,33 @@
 
     clickAction(env4, { a: "theme-toggle" });
     await flushMicrotasks(6);
-    assert(globalThis.document.documentElement.dataset.theme === "dark", "expected theme toggle to activate dark theme");
-    assert(env4.lsMap["vektor-ege:theme"] === "dark", "expected persisted theme preference");
+    assert(globalThis.document.documentElement.dataset.theme === "light", "expected first theme toggle from dark default to activate light theme");
+    assert(env4.lsMap["vektor-ege:theme"] === "light", "expected persisted light theme preference");
+    clickAction(env4, { a: "theme-toggle" });
+    await flushMicrotasks(6);
+    assert(globalThis.document.documentElement.dataset.theme === "dark", "expected second toggle to activate dark theme");
     clickAction(env4, { a: "theme-set", theme: "auto" });
     await flushMicrotasks(6);
     assert(!globalThis.document.documentElement.dataset.theme, "expected auto theme to clear data-theme");
 
-    // Нижняя шестерёнка + «Выйти» в сайдбаре, «Справочник» вместо недоступного Репетитора
+    // Нижняя шестерёнка + «Выйти» в сайдбаре, 4 вкладки (Тесты, Репетиторы, Учёба, Показатели)
     const sideNavHtml = env4.elements.get("side-nav").innerHTML;
     const sideFootHtml = env4.elements.get("side-foot").innerHTML;
     const tabHtml = env4.elements.get("tabbar").innerHTML;
     assert(!sideNavHtml.includes('data-v="profile"'), "expected Settings removed from top sidebar nav");
     assert(sideFootHtml.includes('data-v="profile"') && sideFootHtml.includes('data-a="auth-logout"') && sideFootHtml.includes("Выйти"), "expected Settings gear and Logout button in sidebar footer");
-    assert(sideNavHtml.includes("Справочник") && tabHtml.includes("Справочник"), "expected Справочник nav label when AI is off");
+    for (const label of ["Тесты", "Репетиторы", "Учёба", "Показатели"]) {
+      assert(sideNavHtml.includes(label) && tabHtml.includes(label), `expected ${label} in sidebar and bottom tabbar`);
+    }
+
+    // Раздел «Учёба»: график недели с учителями и WhatsApp-ссылками
+    clickAction(env4, { a: "go", v: "study" });
+    await flushMicrotasks(6);
+    const studyWeekHtml = env4.elements.get("main").innerHTML;
+    assert(studyWeekHtml.includes("График недели") && studyWeekHtml.includes("https://wa.me/"), "expected weekly tutor schedule and WhatsApp links in study view");
+    clickAction(env4, { a: "study-tab", tab: "chats" });
+    await flushMicrotasks(6);
+    assert(env4.elements.get("main").innerHTML.includes("hh-chat-list") && env4.elements.get("main").innerHTML.includes("https://wa.me/"), "expected WhatsApp chat list in study chats tab");
 
     // Справочник без нейросети: мгновенный поиск по темам и сочинению
     clickAction(env4, { a: "go", v: "tutor" });
@@ -899,10 +907,18 @@
     const afterCancelHtml = env5.elements.get("main").innerHTML;
     assert(afterCancelHtml.includes("5\u00a0000 ₽") || afterCancelHtml.includes("5 000 ₽"), "expected balance restored to 5 000 ₽ on tutor cancel/switch");
 
+    clickAction(env5, { a: "filter-open" });
+    await flushMicrotasks(2);
+    const filterSheet = env5.elements.get("modal-root").innerHTML;
+    assert(filterSheet.includes("Фильтры") && filterSheet.includes("Показать"), "expected filter sheet drawer open");
+    clickAction(env5, { a: "filter-close" });
+    await flushMicrotasks(2);
+    assert(!env5.elements.get("modal-root").innerHTML.trim(), "expected filter sheet closed");
+
     clickAction(env5, { a: "auth-guest" });
     await flushMicrotasks(6);
     assert(env5.elements.get("side-nav").innerHTML.includes("Репетиторы"), "expected side-nav Репетиторы link");
-    assert(env5.elements.get("main").innerHTML.includes("Маркетплейс репетиторов"), "expected Home marketplace quick card");
+    assert(env5.elements.get("main").innerHTML.includes("Тесты и справочник"), "expected default Tests hub after login/guest");
     clickAction(env5, { a: "go", v: "market" });
     await flushMicrotasks(4);
     assert(env5.elements.get("main").innerHTML.includes("Подбор репетитора"), "expected market view");
