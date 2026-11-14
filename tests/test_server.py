@@ -614,6 +614,7 @@ def test_landing_and_tutors_catalog(tmp_path: Path) -> None:
     with TestClient(app) as client:
         r_land = client.get("/landing")
         assert r_land.status_code == 200
+        assert '<meta name="viewport"' in r_land.text
         assert "window.EGE_HOST={backend:true,landing:true}" in r_land.text
         assert 'src="data/tutors.js"' in r_land.text
 
