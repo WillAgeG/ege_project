@@ -42,8 +42,9 @@
   ];
 
   var CATALOG_TOTAL = 2480;
+  var SOURCE_CHANNELS = ["Доска Ykt", "Telegram", "WhatsApp", "MAX", "Доска Ykt · TG", "WA · MAX"];
 
-  var HOURS = ["09:00", "10:00", "11:00", "12:00", "14:00", "15:00", "16:00", "18:00", "19:00", "20:00", "21:00"];
+  var HOURS = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
   var WEEKDAYS_SHORT = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
   var WEEKDAYS_LONG = ["воскресенье", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота"];
   var MONTHS_GEN = ["янв.", "февр.", "мар.", "апр.", "мая", "июн.", "июл.", "авг.", "сент.", "окт.", "нояб.", "дек."];
@@ -64,12 +65,12 @@
       balance: 0,
       priceLabel: "0 ₽",
       period: "навсегда",
-      tagline: "Тренажёр ЕГЭ, конспекты и просмотр анкет с Доски Ykt",
+      tagline: "Тренажёр ЕГЭ, конспекты и огромная база репетиторов",
       cta: "Готовиться бесплатно",
       features: [
         "Полный тренажёр ЕГЭ: задания ФИПИ, конспекты и разбор ошибок",
         "План подготовки к поступлению и отслеживание прогресса",
-        "Просмотр каталога репетиторов с Доски Ykt и их окон времени",
+        "Анкеты с Доски Ykt, Telegram, WhatsApp, MAX и других сервисов",
         "Комиссия 5% действует только при бронировании платных уроков"
       ]
     },
@@ -85,7 +86,7 @@
       cta: "Выбрать за 5 000 ₽",
       features: [
         "Баланс 5 000 ₽ на любые занятия с репетиторами из каталога",
-        "Выбор любого часа в окне преподавателя + торг ценой как в inDrive",
+        "Выбор времени с 10:00 до 20:00 и шаг цены −100 / +100 ₽",
         "Честная комиссия 5%: с 800 ₽ — 760 ₽ репетитору и 40 ₽ сервису",
         "Замена репетитора в 1 клик — неиспользованный остаток не сгорает"
       ]
@@ -100,11 +101,11 @@
       balance: 10000,
       priceLabel: "10 000 ₽",
       period: "супер-подписка · баланс на месяц",
-      tagline: "Полноценная подготовка по 1–3 предметам с приоритетным ботом и защитой баланса",
+      tagline: "Полноценная подготовка с приоритетным подбором и защитой баланса",
       cta: "Подключить за 10 000 ₽",
       features: [
         "10 000 ₽ на внутренний баланс — хватает примерно на 10–12 уроков по 800–1000 ₽",
-        "Приоритетный WhatsApp-бот: подберёт замену за 15 мин, если репетитор занят",
+        "Приоритетный подбор: найдём замену за 15 мин, если преподаватель занят",
         "Комиссия сервиса всего 5% (пример: 800 ₽ = 760 ₽ репетитору + 40 ₽ платформа)",
         "Безлимитные тесты ЕГЭ, конспекты и заморозка остатка баланса"
       ]
@@ -553,8 +554,9 @@
   LIST.forEach(function (t, idx) {
     t.whatsapp = t.whatsapp || WA_PHONES[t.id] || ("791421001" + String(10 + idx));
     t.verified = t.verified !== false;
-    t.source = t.source || "Доска Ykt";
+    t.source = t.source || SOURCE_CHANNELS[idx % SOURCE_CHANNELS.length];
     t.marketPrice = t.marketPrice || Math.round((t.price * 1.38) / 50) * 50;
+    t.belowRub = Math.max(0, t.marketPrice - t.price);
     t.belowPct = Math.max(10, Math.round((1 - (t.minFair || t.price) / t.marketPrice) * 100));
     t.responseMin = t.bumpedToday ? 10 : 25;
     if (!t.availableFrom || !t.availableTo) {
@@ -678,10 +680,11 @@
 
   function offerSignal(tutorPrice, offerPrice) {
     var ratio = offerPrice / tutorPrice;
-    if (ratio >= 1) return { tone: "good", label: "По полной ставке — репетитор почти наверняка сразу скажет «Да»" };
-    if (ratio >= 0.85) return { tone: "good", label: "Хорошее предложение (−" + Math.round((1 - ratio) * 100) + "%) — высокий шанс отклика за 10–15 мин" };
-    if (ratio >= 0.72) return { tone: "warn", label: "Смелый торг (−" + Math.round((1 - ratio) * 100) + "%) — бот передаст ставку репетитору" };
-    return { tone: "bad", label: "Слишком низкая ставка — преподаватель может предложить свою цену" };
+    var diff = Math.round(tutorPrice - offerPrice);
+    if (ratio >= 1) return { tone: "good", label: "Ставка анкеты — преподаватель почти сразу подтвердит время" };
+    if (ratio >= 0.85) return { tone: "good", label: "Ниже анкеты на " + diff + " ₽ (−" + Math.round((1 - ratio) * 100) + "%) — высокий шанс отклика за 10–15 мин" };
+    if (ratio >= 0.72) return { tone: "warn", label: "Смелая ставка (−" + diff + " ₽) — отправим запрос и уведомим об ответе" };
+    return { tone: "bad", label: "Сильно ниже ставки — преподаватель может предложить свою цену" };
   }
 
   function botPreviewText(params) {
@@ -692,11 +695,9 @@
     var hour = params.hour || "10:00";
     var split = commissionSplit(params.offerPrice);
     var priceLine = params.offerPrice < params.tutorPrice
-      ? "Предлагает ставку " + split.total + " ₽/ч вместо " + params.tutorPrice + " ₽ (вам " + split.payout + " ₽, комиссия сервиса " + split.pct + "% = " + split.fee + " ₽)."
-      : "Готов заниматься по ставке " + split.total + " ₽/ч (вам " + split.payout + " ₽, комиссия " + split.pct + "% = " + split.fee + " ₽).";
-    return "«Здравствуйте! Новая заявка с Вектор ЕГЭ (анкета с Доски Ykt). Хочу подготовиться к " + exam +
-      " (" + subj + "), " + fmt + ", " + dayText + " в " + hour + ". " + priceLine +
-      " Ответьте: Да / Нет / Перенести время.»";
+      ? "Предложена ставка " + split.total + " ₽/ч вместо " + params.tutorPrice + " ₽ (на " + (params.tutorPrice - split.total) + " ₽ дешевле; преподавателю " + split.payout + " ₽, сервис " + split.pct + "% = " + split.fee + " ₽)."
+      : "Ставка " + split.total + " ₽/ч (преподавателю " + split.payout + " ₽, комиссия " + split.pct + "% = " + split.fee + " ₽).";
+    return "Заявка на " + exam + " (" + subj + "), " + fmt + ", " + dayText + " в " + hour + ". " + priceLine + " Как только преподаватель ответит — пришлём уведомление.";
   }
 
   function buildWeekDays(weekOffset) {

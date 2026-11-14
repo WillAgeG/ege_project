@@ -861,32 +861,36 @@
 
     const sp800 = globalThis.EGE.tutors.commissionSplit(800);
     assert(sp800.total === 800 && sp800.payout === 760 && sp800.fee === 40 && sp800.pct === 5, "expected 5% commission split (800 -> 760 + 40)");
+    const hasNum = (s, n) => s.includes(n) || s.includes(n.replace(/(\d) (?=\d)/g, "$1\u00a0"));
     assert(globalThis.EGE.tutors.SUBJECTS.length >= 10 && Array.isArray(globalThis.EGE.tutors.PREP_UNIVERSE) && Array.isArray(globalThis.EGE.tutors.LIVE_DEALS), "expected broadened 10+ subjects, marquee universe and live deals");
     assert(globalThis.EGE.tutors.CATALOG_TOTAL === 2480 && globalThis.EGE.tutors.LIST.length >= 16, "expected 2480+ catalog positioning and 16+ tutors");
-    assert(globalThis.EGE.tutors.LIST.every((t) => t.source === "Доска Ykt" && t.availableFrom && t.availableTo && t.marketPrice > t.price && t.belowPct > 0), "expected Доска Ykt window and below-market metadata on all tutors");
+    assert(globalThis.EGE.tutors.HOURS[0] === "10:00" && globalThis.EGE.tutors.HOURS[globalThis.EGE.tutors.HOURS.length - 1] === "20:00", "expected 10:00..20:00 hourly slots");
+    assert(new Set(globalThis.EGE.tutors.LIST.map((t) => t.source)).size >= 3 && globalThis.EGE.tutors.LIST.every((t) => Boolean(t.source) && t.availableFrom && t.availableTo && t.marketPrice > t.price && t.belowPct > 0 && t.belowRub > 0), "expected multi-channel sources, window and below-market metadata on all tutors");
 
     const landHtml = env5.elements.get("main").innerHTML;
     assert(landHtml.includes("Бесплатная") && landHtml.includes("Пробник") && landHtml.includes("Месяц под ключ"), "expected 3 tariff names on landing");
     assert(landHtml.includes("Супер-подписка") && landHtml.includes("plan-card featured super"), "expected distinct super class and badge on 10k tariff");
     assert(landHtml.includes("5 000 ₽") && landHtml.includes("10 000 ₽"), "expected 5k and 10k prices on landing");
-    assert(landHtml.includes('data-a="mkt-day"') && landHtml.includes('data-a="mkt-hour"') && landHtml.includes("7 дн"), "expected single-line 7 дн badge and hour circles on landing");
-    assert(landHtml.includes('id="land-demo"') && landHtml.includes("Доска Ykt") && landHtml.includes("5%"), "expected interactive beta demo, Доска Ykt and 5% fee on landing");
-    assert(landHtml.includes('id="hero-motion-stage"') && landHtml.includes('id="hero-motion-bid-btn"') && landHtml.includes("Предложить цену") && landHtml.includes("Денис Ковалёв") && landHtml.includes("marquee-band") && landHtml.includes('id="land-savings"'), "expected UX/UI motion stage, marquee, savings comparator and below-market messaging");
+    assert(landHtml.includes('data-a="mkt-day"') && landHtml.includes('id="mkt-hour-range"') && landHtml.includes("7 дн"), "expected single-line 7 дн badge and 10:00-20:00 hour range slider on landing");
+    assert(landHtml.includes('id="land-demo"') && landHtml.includes("Доска Ykt") && landHtml.includes("Telegram") && landHtml.includes("MAX") && landHtml.includes("5%"), "expected interactive beta demo, multi-channel sources (Ykt/TG/WA/MAX) and 5% fee on landing");
+    assert(landHtml.includes('id="hero-motion-stage"') && landHtml.includes('id="hero-motion-bid-btn"') && landHtml.includes('id="hero-hour-range"') && landHtml.includes('id="hero-price-minus"') && !landHtml.includes("01 Выбор") && hasNum(landHtml, "Предложить 1 200 ₽") && landHtml.includes("Денис Ковалёв") && landHtml.includes("marquee-band") && landHtml.includes('id="land-savings"'), "expected clean hh-style UX/UI motion stage without 01..05 breadcrumb, marquee, savings comparator and simple Предложить 1 200 ₽ CTA");
 
+    clickAction(env5, { a: "motion-step-price", step: "-100" });
+    await flushMicrotasks(2);
+    const motionSteppedHtml = env5.elements.get("main").innerHTML;
+    assert(hasNum(motionSteppedHtml, "Предложить 1 100 ₽") && motionSteppedHtml.includes("на 100 ₽ ниже анкеты") && motionSteppedHtml.includes("ниже рынка"), "expected -100 ₽ stepper to update simple Предложить CTA and separate colored diff tags");
     clickAction(env5, { a: "motion-bid-press" });
     await flushMicrotasks(2);
     const motionBidHtml = env5.elements.get("main").innerHTML;
-    assert(motionBidHtml.includes("motion-bid-btn is-pressed") && !motionBidHtml.includes("motion-drawer dim") && motionBidHtml.includes("−53%"), "expected pressing Предложить цену to trigger tactile press and unlock below-market bid drawer");
-    clickAction(env5, { a: "motion-bid-press" });
-    await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("Ответ «Да!»"), "expected WhatsApp bot accepted state on second press");
+    assert(motionBidHtml.includes("motion-bid-btn is-pressed") && motionBidHtml.includes("отправлен") && motionBidHtml.includes("Уведомим о подтверждении"), "expected pressing Предложить to trigger tactile state and notification status");
     clickAction(env5, { a: "motion-preset", v: "inf" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes("Роман Лебедев"), "expected motion preset switch to Python/IT tutor");
+    clickAction(env5, { a: "save-step", which: "off", step: "-100" });
     clickAction(env5, { a: "save-freq", v: "3" });
     await flushMicrotasks(2);
     const saveHtml = env5.elements.get("main").innerHTML;
-    assert(saveHtml.includes("19\u00a0200 ₽/мес") || saveHtml.includes("19 200 ₽/мес"), "expected savings comparator to recalculate 3 lessons/week");
+    assert(hasNum(saveHtml, "19 200 ₽/мес") && hasNum(saveHtml, "10 200 ₽/мес"), "expected savings comparator ±100 ₽ steppers and freq=3 to recalculate monthly savings");
 
     clickAction(env5, { a: "demo-pick", i: "0" });
     await flushMicrotasks(2);
@@ -909,7 +913,7 @@
     clickAction(env5, { a: "mkt-day", v: "all" });
     clickAction(env5, { a: "mkt-hour", v: "15:00" });
     await flushMicrotasks(4);
-    assert(env5.elements.get("main").innerHTML.includes("Анна Соколова"), "expected Доска Ykt window matching for intermediate hour 15:00");
+    assert(env5.elements.get("main").innerHTML.includes("Анна Соколова"), "expected tutor window matching for intermediate hour 15:00");
 
     clickAction(env5, { a: "mkt-reset" });
     clickAction(env5, { a: "mkt-plan", id: "trial5k" });
@@ -919,7 +923,7 @@
     clickAction(env5, { a: "book-open", id: "tut-sokolova", hour: "10:00" });
     await flushMicrotasks(2);
     const modalBefore = env5.elements.get("modal-root").innerHTML;
-    assert(modalBefore.includes("Запись · Анна Соколова") && modalBefore.includes('id="bid-price"') && modalBefore.includes('id="bid-custom-time"') && modalBefore.includes('id="bid-fee-split"'), "expected booking modal with custom time and 5% split");
+    assert(modalBefore.includes("Запись · Анна Соколова") && modalBefore.includes('id="bid-hour-range"') && modalBefore.includes('id="bid-price"') && modalBefore.includes('id="bid-custom-time"') && modalBefore.includes('id="bid-fee-split"'), "expected booking modal with hour slider, custom time and 5% split");
     clickAction(env5, { a: "bid-step", step: "-100" });
     await flushMicrotasks(2);
     const modalStepped = env5.elements.get("modal-root").innerHTML;
@@ -929,13 +933,13 @@
     await flushMicrotasks(4);
     assert(!env5.elements.get("modal-root").innerHTML.trim(), "expected booking modal closed after submit");
     const afterBookHtml = env5.elements.get("main").innerHTML;
-    assert(afterBookHtml.includes("Ожидает ответа бота") && (afterBookHtml.includes("4\u00a0100 ₽") || afterBookHtml.includes("4 100 ₽")), "expected 900 ₽ reserved from 5 000 ₽ balance");
+    assert(afterBookHtml.includes("На рассмотрении · уведомим") && (afterBookHtml.includes("4\u00a0100 ₽") || afterBookHtml.includes("4 100 ₽")), "expected 900 ₽ reserved from 5 000 ₽ balance");
 
     const acceptIdMatch = /data-a="mkt-sim-accept" data-id="([^"]+)"/.exec(afterBookHtml);
     assert(acceptIdMatch, "expected sim-accept button for pending booking");
     clickAction(env5, { a: "mkt-sim-accept", id: acceptIdMatch[1] });
     await flushMicrotasks(4);
-    assert(env5.elements.get("main").innerHTML.includes("Преподаватель ответил «Да»"), "expected tutor accepted state");
+    assert(env5.elements.get("main").innerHTML.includes("Преподаватель подтвердил"), "expected tutor accepted state");
 
     clickAction(env5, { a: "mkt-cancel-book", id: acceptIdMatch[1] });
     await flushMicrotasks(4);

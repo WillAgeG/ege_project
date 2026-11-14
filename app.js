@@ -916,7 +916,7 @@
     booking: null,
     market: null,
     demo: { tab: "quiz", sid: firstSubject.id, qIdx: 0, pick: null, revealed: false, topicIdx: 0, bidRate: 800, bidHour: "10:00" },
-    motion: { playing: true, preset: "design", step: 0, slot: "10:00", offer: 950, clicking: false },
+    motion: { playing: true, preset: "design", step: 0, slot: "10:00", offer: 1200, sent: false, clicking: false, hitTarget: "" },
     savings: { freq: 2, marketRate: 1600, offerRate: 950 }
   };
   const MARKET_LS_KEY = "vektor-ege:market";
@@ -1146,6 +1146,8 @@
     const dayObj = days.find((d) => d.iso === b.dayIso) || days[0];
     const daySlots = TDATA.tutorSlotsForDay(tutor, dayObj.dow);
     const curHour = isValidHHMM(b.hour) ? b.hour : (daySlots[0] || "10:00");
+    const curHourNum = Math.max(10, Math.min(20, parseInt(String(curHour).split(":")[0], 10) || 10));
+    const curHourPct = Math.round(((curHourNum - 10) / 10) * 100);
     const sig = TDATA.offerSignal(tutor.price, b.offerPrice);
     const preview = TDATA.botPreviewText({
       exam: b.exam,
@@ -1161,6 +1163,8 @@
     const n10 = b.offerPrice > 0 ? Math.floor(10000 / b.offerPrice) : 0;
     const winTxt = tutor.windowLabel || ("с " + tutor.availableFrom + " до " + tutor.availableTo);
     const inWin = typeof TDATA.tutorInWindow === "function" ? TDATA.tutorInWindow(tutor, curHour) : true;
+    const diffTutor = tutor.price - b.offerPrice;
+    const diffMarket = (tutor.marketPrice || tutor.price) - b.offerPrice;
     return `<div class="modal-back" role="dialog" aria-modal="true" aria-labelledby="book-modal-title">
       <div class="modal-card">
         <div class="modal-head">
@@ -1168,7 +1172,7 @@
           <button type="button" class="icon-btn sm" data-a="book-close" aria-label="Закрыть">${icon("x")}</button>
         </div>
         <div class="row between small muted" style="flex-wrap:wrap;gap:6px">
-          <span>${esc(tutor.subjectName)} · ${esc(tutor.source || "Доска Ykt")} · окно <b>${esc(winTxt)}</b></span>
+          <span>${esc(tutor.subjectName)} · ${esc(tutor.source)} · окно <b>${esc(winTxt)}</b></span>
           <span>Баланс: <b class="num">${st.balance.toLocaleString("ru-RU")} ₽</b></span>
         </div>
         <div class="fields">
@@ -1191,15 +1195,27 @@
           }).join("")}</div>
         </div>
         <div class="field">
-          <label>Быстрые слоты и своё время (${esc(winTxt)})</label>
-          <div class="hour-circles">${daySlots.map((h) => `<button type="button" class="hr-cir${h === curHour ? " on" : ""}" data-a="book-hour" data-v="${esc(h)}">${esc(h)}</button>`).join("")}</div>
+          <label>Выбери час с 10:00 до 20:00 (${esc(winTxt)})</label>
+          <div class="hh-time-picker">
+            <div class="row between">
+              <span class="small muted">Время занятия</span>
+              <span class="hh-time-val num" id="bid-hour-pill">${esc(curHour)}</span>
+            </div>
+            <input class="hh-time-range" id="bid-hour-range" type="range" min="10" max="20" step="1" value="${curHourNum}" style="--pct:${curHourPct}%" aria-label="Час занятия с 10:00 до 20:00">
+            <div class="hh-time-ticks" aria-hidden="true"><span>10:00</span><span>12:00</span><span>14:00</span><span>16:00</span><span>18:00</span><span>20:00</span></div>
+          </div>
           <div class="bid-time-row" style="margin-top:8px">
-            <span class="small muted" id="bid-win-status">${inWin ? `Входит в окно на Доске Ykt (${esc(winTxt)})` : `Вне типового окна (${esc(winTxt)}) — бот уточнит у преподавателя`}</span>
+            <span class="small muted" id="bid-win-status">${inWin ? `Входит в свободное окно (${esc(winTxt)})` : `Вне типового окна (${esc(winTxt)}) — уточним и уведомим`}</span>
             <input class="input num" id="bid-custom-time" type="time" value="${esc(curHour)}" aria-label="Выбрать точное время урока" style="width:120px">
           </div>
         </div>
         <div class="field">
           <label for="bid-price">Твоя цена за занятие (₽/ч) — комиссия сервиса 5%</label>
+          <div class="hh-diff-strip" id="bid-diff-strip" style="margin-bottom:4px">
+            ${tutor.marketPrice ? `<span class="diff-tag market num">Рынок ${tutor.marketPrice} ₽</span>` : ""}
+            ${diffTutor > 0 ? `<span class="diff-tag save-hot num">на ${diffTutor} ₽ ниже анкеты</span>` : ""}
+            ${diffMarket > 0 ? `<span class="diff-tag save-cool num">на ${diffMarket} ₽ ниже рынка</span>` : ""}
+          </div>
           <div class="bid-stepper">
             <button type="button" class="btn ghost sm" data-a="bid-step" data-step="-100">−100 ₽</button>
             <input class="input bid-input num" id="bid-price" type="number" min="500" max="5000" step="50" inputmode="numeric" value="${b.offerPrice}">
@@ -1213,12 +1229,12 @@
           <input class="input" id="bid-note" maxlength="140" placeholder="Например: цель 80+ баллов, разбор устной части и эссе" value="${esc(b.note || "")}">
         </div>
         <div class="bot-preview">
-          <b class="small">Сообщение, которое бот отправит преподавателю в WhatsApp:</b>
+          <b class="small">Детали заявки (уведомим о подтверждении):</b>
           <span id="bot-preview-txt">${esc(preview)}</span>
-          <span class="small muted">На «Пробник» (5 000 ₽) хватит на <b>${n5} ур.</b> · на «Месяц» (10 000 ₽) на <b>${n10} ур.</b> Комиссия 5% уже учтена, скрытых доплат нет.</span>
+          <span class="small muted">На «Пробник» (5 000 ₽) хватит на <b>${n5} ур.</b> · на «Месяц» (10 000 ₽) на <b>${n10} ур.</b> Комиссия 5% уже учтена.</span>
         </div>
         <div class="row" style="flex-wrap:wrap;gap:8px">
-          <button type="button" class="btn" data-a="book-submit">Отправить предложение репетитору</button>
+          <button type="button" class="btn" id="bid-submit-btn" data-a="book-submit">Предложить ${b.offerPrice.toLocaleString("ru-RU")} ₽</button>
           <button type="button" class="btn ghost" data-a="book-close">Отмена</button>
         </div>
       </div>
@@ -1571,7 +1587,7 @@
       const lessons = p.balance > 0 ? Math.max(1, Math.floor(p.balance / rate)) : 0;
       const note = p.balance > 0
         ? `≈ ${lessons} ${plural(lessons, "урок", "урока", "уроков")} по ${sp.total} ₽ · ${sp.payout} ₽ преподу + ${sp.fee} ₽ (${sp.pct}%)`
-        : "Тесты, конспекты и каталог Доски Ykt";
+        : "Тесты, конспекты и огромная база репетиторов";
       return `<article class="card pad-lg plan-card${p.featured ? " featured" : ""}${p.super ? " super" : ""}${picked ? " picked" : ""}">
         <div class="stack" style="gap:10px">
           <div class="row between" style="gap:8px;flex-wrap:wrap">
@@ -1617,16 +1633,19 @@
     const daySlots = TDATA.tutorSlotsForDay(t, activeDow).slice(0, 5);
     const pickHour = opts.pickHour || (st.hour !== "all" ? st.hour : (daySlots[0] || t.availableFrom || "10:00"));
     const winTxt = t.windowLabel || ("с " + t.availableFrom + " до " + t.availableTo);
-    const waHref = TDATA.whatsappUrl(t, opts.waText || `Здравствуйте, ${t.name}! Вижу вашу анкету с Доски Ykt на Вектор ЕГЭ (${t.subjectName}). Хочу заниматься около ${pickHour}, готов(а) обсудить ставку от ${t.minFair} ₽/ч.`);
+    const belowRub = t.belowRub || Math.max(0, (t.marketPrice || t.price) - t.price);
     return `<article class="card tutor-card">
       <div class="stack" style="gap:10px">
         <div class="tutor-head">
           <div style="min-width:0">
             <h3 class="h3" style="font-size:17px">Репетитор · ${esc(t.subjectName)}</h3>
             <div class="row" style="gap:8px;align-items:baseline;flex-wrap:wrap;margin-top:4px">
-              <div class="tutor-rate num">от ${t.price.toLocaleString("ru-RU")} ₽/ч</div>
-              ${t.marketPrice ? `<span class="mkt-strike num">${t.marketPrice.toLocaleString("ru-RU")} ₽</span>` : ""}
-              ${t.belowPct ? `<span class="below-badge num">−${t.belowPct}% ниже рынка</span>` : ""}
+              <div class="tutor-rate num">${t.price.toLocaleString("ru-RU")} ₽/ч</div>
+            </div>
+            <div class="hh-diff-strip" style="margin-top:6px">
+              ${t.marketPrice ? `<span class="diff-tag market num">Рынок ${t.marketPrice.toLocaleString("ru-RU")} ₽</span>` : ""}
+              ${belowRub ? `<span class="diff-tag save-hot num">на ${belowRub.toLocaleString("ru-RU")} ₽ ниже рынка</span>` : ""}
+              ${t.belowPct ? `<span class="diff-tag save-cool num">−${t.belowPct}%</span>` : ""}
             </div>
           </div>
           <button type="button" class="fav-btn" data-a="mkt-fav" data-id="${esc(t.id)}" aria-pressed="${isFav}" aria-label="В избранное">${icon(isFav ? "heartFill" : "heart")}</button>
@@ -1646,16 +1665,15 @@
         <p class="tutor-bio">${esc(t.bio)}</p>
         <div class="row between small muted" style="gap:6px;flex-wrap:wrap">
           <span>${esc(t.bumpText)}</span>
-          <span class="num">Торг от ${t.minFair} ₽/ч · комиссия 5%</span>
+          <span class="num">Можно −100 ₽ от ${t.minFair} ₽/ч · 5%</span>
         </div>
         ${daySlots.length ? `<div class="slot-mini-row">
           <span class="small muted">${opts.dayLabel ? esc(opts.dayLabel) + ":" : "Слоты:"}</span>
           ${daySlots.map((h) => `<button type="button" class="slot-mini${st.hour === h ? " picked" : ""}" data-a="book-open" data-id="${esc(t.id)}" data-hour="${esc(h)}">${esc(h)}</button>`).join("")}
         </div>` : ""}
       </div>
-      <div class="tutor-actions">
-        <button type="button" class="btn" data-a="book-open" data-id="${esc(t.id)}" data-hour="${esc(pickHour)}">Предложить цену</button>
-        <a class="btn soft" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>WhatsApp</span></a>
+      <div class="tutor-actions single">
+        <button type="button" class="btn" data-a="book-open" data-id="${esc(t.id)}" data-hour="${esc(pickHour)}">Предложить ${t.price.toLocaleString("ru-RU")} ₽</button>
       </div>
     </article>`;
   }
@@ -1665,19 +1683,21 @@
     return `<div class="reqs-strip">${st.bookings.map((bk) => {
       const accepted = bk.status === "accepted";
       const tutor = TDATA.LIST.find((x) => x.id === bk.tutorId);
-      const waHref = TDATA.whatsappUrl(tutor || { name: bk.tutorName, subjectName: bk.subjectName, whatsapp: "79142100101" }, `Здравствуйте, ${bk.tutorName}! Напоминаю про занятие (${bk.subjectName}, ${bk.dayLabel} в ${bk.hour}, ставка ${bk.offerPrice} ₽/ч).`);
+      const waHref = accepted
+        ? TDATA.whatsappUrl(tutor || { name: bk.tutorName, subjectName: bk.subjectName, whatsapp: "79142100101" }, `Здравствуйте, ${bk.tutorName}! Напоминаю про занятие (${bk.subjectName}, ${bk.dayLabel} в ${bk.hour}, ставка ${bk.offerPrice} ₽/ч).`)
+        : "";
       return `<div class="req-item">
         <div class="stack" style="gap:3px;min-width:0">
           <div class="row" style="gap:8px;flex-wrap:wrap">
             <b>${esc(bk.tutorName)}</b>
             <span class="chip">${esc(bk.exam)} · ${esc(bk.subjectName)}</span>
-            <span class="chip ${accepted ? "accent" : "warn"}">${accepted ? "Преподаватель ответил «Да»" : "Ожидает ответа бота"}</span>
+            <span class="chip ${accepted ? "accent" : "warn"}">${accepted ? "Преподаватель подтвердил" : "На рассмотрении · уведомим"}</span>
           </div>
           <div class="small ink2">${esc(bk.dayLabel)} в ${esc(bk.hour)} (${esc(bk.format)}) · твоя ставка <b class="num">${bk.offerPrice} ₽/ч</b> <span class="muted">(вместо ${bk.tutorPrice} ₽)</span></div>
         </div>
         <div class="row" style="gap:8px;flex-wrap:wrap">
-          <a class="wa-btn" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>WhatsApp</span></a>
-          ${!accepted ? `<button type="button" class="btn soft sm" data-a="mkt-sim-accept" data-id="${esc(bk.id)}">Тест: ответ «Да»</button>` : ""}
+          ${accepted ? `<a class="wa-btn" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>Написать</span></a>` : ""}
+          ${!accepted ? `<button type="button" class="btn soft sm" data-a="mkt-sim-accept" data-id="${esc(bk.id)}">Тест: подтвердить</button>` : ""}
           <button type="button" class="btn ghost sm" data-a="mkt-cancel-book" data-id="${esc(bk.id)}">${accepted ? "Сменить репетитора" : "Отменить"}</button>
         </div>
       </div>`;
@@ -1734,11 +1754,13 @@
         </div>`;
 
     const selTimeDesc = (activeDayObj ? activeDayObj.shortLabel : "Все 7 дней") + " · " + (st.hour === "all" ? "любое время" : st.hour);
+    const mktHourNum = st.hour !== "all" ? Math.max(10, Math.min(20, parseInt(String(st.hour).split(":")[0], 10) || 10)) : 10;
+    const mktHourPct = Math.round(((mktHourNum - 10) / 10) * 100);
 
     return `<section class="land-sec" id="land-market" aria-label="Маркетплейс репетиторов">
       <div class="land-sec-head">
         <div>
-          <div class="eyebrow">Огромная база · ${TDATA.CATALOG_TOTAL ? TDATA.CATALOG_TOTAL.toLocaleString("ru-RU") + "+ анкет" : "подготовка к чему угодно"}</div>
+          <div class="eyebrow">Огромная база · ${TDATA.CATALOG_TOTAL ? TDATA.CATALOG_TOTAL.toLocaleString("ru-RU") + "+ анкет" : "Ykt, Telegram, WhatsApp, MAX и др."}</div>
           <h2 class="h2">Ищи репетиторов ниже рынка для любой задачи</h2>
         </div>
       </div>
@@ -1779,12 +1801,23 @@
 
       <div class="card mkt-controls">
         <div class="cal-label">
-          <b>Когда удобно заниматься (кружочки времени)</b>
+          <b>Когда удобно заниматься (10:00 – 20:00)</b>
           <span class="chip accent">${esc(selTimeDesc)}</span>
         </div>
         <div class="cal-days" aria-label="Дни недели">${dayPills}</div>
+        <div class="hh-time-picker">
+          <div class="row between">
+            <span class="small muted">Ползунок часа с 10:00 до 20:00</span>
+            <div class="row" style="gap:6px">
+              <button type="button" class="chip-btn${st.hour === "all" ? " on" : ""}" data-a="mkt-hour" data-v="all">Любое время</button>
+              <span class="hh-time-val num" id="mkt-hour-pill">${st.hour === "all" ? "Все часы" : esc(st.hour)}</span>
+            </div>
+          </div>
+          <input class="hh-time-range" id="mkt-hour-range" type="range" min="10" max="20" step="1" value="${mktHourNum}" style="--pct:${mktHourPct}%" aria-label="Выбрать час с 10:00 до 20:00">
+          <div class="hh-time-ticks" aria-hidden="true"><span>10:00</span><span>12:00</span><span>14:00</span><span>16:00</span><span>18:00</span><span>20:00</span></div>
+        </div>
         <div class="hour-circles" aria-label="Часы занятий">${hourPills}</div>
-        <div class="small muted">Анкеты подтягиваются с Доски Ykt с окном доступности (например, с 09:00 до 20:00). В форме записи можно выбрать любой точный час и минуту.</div>
+        <div class="small muted">Анкеты объединены с Доски Ykt, Telegram, WhatsApp, MAX и других сервисов — выбирай удобный час или предлагай свою ставку.</div>
       </div>
 
       <div class="hh-sort-row">
@@ -1858,7 +1891,7 @@
         <div class="card stack" style="gap:12px">
           <div class="row between" style="gap:8px;flex-wrap:wrap">
             <b>Выбери ставку за урок (комиссия ${sp.pct}%)</b>
-            <span class="chip">${esc(winLabel)} · Доска Ykt</span>
+            <span class="chip">${esc(winLabel)} · Ykt, TG, WA, MAX</span>
           </div>
           <div class="chip-rail">
             ${rates.map((r) => `<button type="button" class="chip-btn${rate === r ? " on" : ""}" data-a="demo-rate" data-rate="${r}">${r} ₽/ч</button>`).join("")}
@@ -1868,10 +1901,10 @@
           <p class="small muted">С каждой оплаты платформа берёт фиксированные 5%: например, с 800 ₽ преподаватель получает 760 ₽, а 40 ₽ остаётся сервису. Баланс защищён до начала урока.</p>
         </div>
         <div class="card stack" style="gap:10px">
-          <b class="small">Пример сообщения бота в WhatsApp</b>
+          <b class="small">Карточка заявки (пришлём уведомление при ответе)</b>
           <div class="bot-preview"><span>${esc(previewTxt)}</span></div>
           <div class="row" style="gap:8px;flex-wrap:wrap">
-            <button type="button" class="btn sm" data-a="land-scroll" data-target="land-market">Выбрать время на карте</button>
+            <button type="button" class="btn sm" data-a="land-scroll" data-target="land-market">Выбрать время и преподавателя</button>
           </div>
         </div>
       </div>`;
@@ -1939,18 +1972,22 @@
   }
 
   const MOTION_PRESETS = {
-    design: { id: "design", label: "UX/UI и Моушен", short: "Моушен-дизайн", tutorId: "tut-kovalev", fallbackName: "Денис Ковалёв", role: "Figma · After Effects · UX/UI портфолио", defaultSlot: "10:00", defaultOffer: 950, slots: ["10:00", "12:00", "15:00", "18:00"] },
-    eng: { id: "eng", label: "Английский · ЕГЭ", short: "Английский", tutorId: "tut-sokolova", fallbackName: "Анна Соколова", role: "ЕГЭ 90+ · ОГЭ · разговорная практика", defaultSlot: "10:00", defaultOffer: 850, slots: ["10:00", "12:00", "15:00", "17:00"] },
-    inf: { id: "inf", label: "Python и IT", short: "Python / КЕГЭ", tutorId: "tut-lebedev", fallbackName: "Роман Лебедев", role: "Python · алгоритмы · №24–27 ЕГЭ", defaultSlot: "16:00", defaultOffer: 950, slots: ["14:00", "16:00", "18:00", "20:00"] },
-    music: { id: "music", label: "Вокал и гитара", short: "Вокал и гитара", tutorId: "tut-melnikova", fallbackName: "Алина Мельникова", role: "Постановка голоса · акустика · онлайн", defaultSlot: "18:00", defaultOffer: 750, slots: ["12:00", "15:00", "18:00", "20:00"] }
+    design: { id: "design", label: "UX/UI и Моушен", short: "Моушен-дизайн", tutorId: "tut-kovalev", fallbackName: "Денис Ковалёв", role: "Figma · After Effects · портфолио", defaultHour: 10, defaultOffer: 1200 },
+    eng: { id: "eng", label: "Английский", short: "Английский", tutorId: "tut-sokolova", fallbackName: "Анна Соколова", role: "ЕГЭ 90+ · ОГЭ · разговорный", defaultHour: 12, defaultOffer: 1200 },
+    inf: { id: "inf", label: "Python и IT", short: "Python / КЕГЭ", tutorId: "tut-lebedev", fallbackName: "Роман Лебедев", role: "Python · алгоритмы · №24–27", defaultHour: 16, defaultOffer: 1300 },
+    music: { id: "music", label: "Вокал и гитара", short: "Вокал и гитара", tutorId: "tut-melnikova", fallbackName: "Алина Мельникова", role: "Постановка голоса · акустика", defaultHour: 18, defaultOffer: 900 }
   };
   const MOTION_ORDER = ["design", "eng", "inf", "music"];
-  const MOTION_STEP_LABELS = ["01 Выбор", "02 Время", "03 Кнопка", "04 Торг", "05 Ответ"];
   let motionTimer = null;
   let motionPulseTimer = null;
 
+  function parseHourInt(slot) {
+    const n = parseInt(String(slot || "10").split(":")[0], 10);
+    return Number.isFinite(n) ? Math.max(10, Math.min(20, n)) : 10;
+  }
+
   function heroMotionMeta() {
-    const m = ui.motion || (ui.motion = { playing: true, preset: "design", step: 0, slot: "10:00", offer: 950, clicking: false });
+    const m = ui.motion || (ui.motion = { playing: true, preset: "design", step: 0, slot: "10:00", offer: 1200, sent: false, clicking: false, hitTarget: "" });
     const preset = MOTION_PRESETS[m.preset] || MOTION_PRESETS.design;
     const list = TDATA && TDATA.LIST ? TDATA.LIST : [];
     const tutor = list.find((t) => t.id === preset.tutorId) || list[0] || {
@@ -1958,76 +1995,75 @@
       name: preset.fallbackName,
       subject: preset.id,
       subjectName: preset.label,
+      source: "Доска Ykt · Telegram · MAX",
       price: 1200,
       marketPrice: 2000,
       minFair: 900,
       belowPct: 40,
-      windowLabel: "с 10:00 до 20:00",
       whatsapp: "79142100100"
     };
     const market = tutor.marketPrice || Math.round(((tutor.price || 1200) * 1.45) / 50) * 50;
     const tutorPrice = tutor.price || 1200;
-    const minOffer = Math.max(500, Math.round(((tutor.minFair || tutorPrice * 0.72) - 100) / 50) * 50);
-    const offer = Math.max(minOffer, Math.min(market, Number(m.offer) || preset.defaultOffer || tutorPrice));
-    const saveRub = Math.max(0, market - offer);
+    const minOffer = Math.max(500, Math.round(((tutor.minFair || tutorPrice * 0.72) - 100) / 100) * 100);
+    const maxOffer = Math.max(market, tutorPrice + 400);
+    const offer = Math.max(minOffer, Math.min(maxOffer, Number(m.offer) || preset.defaultOffer || tutorPrice));
+    const belowMarketRub = Math.max(0, market - offer);
+    const belowTutorRub = Math.max(0, tutorPrice - offer);
+    const aboveTutorRub = Math.max(0, offer - tutorPrice);
     const offerBelowPct = market > offer ? Math.round(((market - offer) / market) * 100) : 0;
+    const hourNum = parseHourInt(m.slot);
+    const slot = String(hourNum).padStart(2, "0") + ":00";
+    const hourPct = Math.round(((hourNum - 10) / 10) * 100);
     const split = TDATA && TDATA.commissionSplit
       ? TDATA.commissionSplit(offer)
       : { total: offer, fee: Math.round(offer * 0.05), payout: offer - Math.round(offer * 0.05), pct: 5 };
-    const slot = preset.slots.includes(m.slot) ? m.slot : preset.defaultSlot;
-    return { m, preset, tutor, market, tutorPrice, minOffer, offer, saveRub, offerBelowPct, split, slot };
+    return { m, preset, tutor, market, tutorPrice, minOffer, maxOffer, offer, belowMarketRub, belowTutorRub, aboveTutorRub, offerBelowPct, hourNum, slot, hourPct, split };
   }
 
-  function motionBotHTML(meta, step) {
-    if (step === 4) {
-      return `<div class="row between" style="gap:8px;flex-wrap:wrap">
-          <b style="color:var(--accent)">WhatsApp-бот · Ответ «Да!»</b>
-          <span class="badge accent">${esc(meta.slot)} · ${meta.offer.toLocaleString("ru-RU")} ₽/ч</span>
-        </div>
-        <span class="ink2">«Хочу ${esc(meta.preset.short)} в ${esc(meta.slot)} за ${meta.offer.toLocaleString("ru-RU")} ₽ вместо ${meta.market.toLocaleString("ru-RU")} ₽ на рынке!» → Подтверждено.</span>`;
+  function motionDiffHTML(meta) {
+    const tags = [`<span class="diff-tag market num">Рынок ${meta.market.toLocaleString("ru-RU")} ₽</span>`];
+    tags.push(`<span class="diff-tag rate num">Анкета ${meta.tutorPrice.toLocaleString("ru-RU")} ₽</span>`);
+    if (meta.belowTutorRub > 0) {
+      tags.push(`<span class="diff-tag save-hot num">на ${meta.belowTutorRub.toLocaleString("ru-RU")} ₽ ниже анкеты</span>`);
+    } else if (meta.aboveTutorRub > 0) {
+      tags.push(`<span class="diff-tag save-hot num">+${meta.aboveTutorRub.toLocaleString("ru-RU")} ₽ выше анкеты</span>`);
     }
-    return `<div class="row between" style="gap:8px;flex-wrap:wrap">
-        <b>Авто-бот WhatsApp готов</b>
-        <span class="muted">Сб · ${esc(meta.slot)}</span>
-      </div>
-      <span class="muted">Нажми «Предложить цену» или двигай ползунок — бот отправит ставку преподавателю.</span>`;
+    if (meta.belowMarketRub > 0) {
+      tags.push(`<span class="diff-tag save-cool num">на ${meta.belowMarketRub.toLocaleString("ru-RU")} ₽ ниже рынка</span>`);
+    }
+    if (meta.offerBelowPct > 0) {
+      tags.push(`<span class="diff-tag save-cyan num">−${meta.offerBelowPct}%</span>`);
+    }
+    return tags.join("");
+  }
+
+  function motionStatusHTML(meta) {
+    if (meta.m.sent) {
+      return `<b style="color:var(--accent)">Отклик на ${esc(meta.slot)} · ${meta.offer.toLocaleString("ru-RU")} ₽ отправлен</b>
+        <span class="small muted">Уведомим о подтверждении</span>`;
+    }
+    return `<span class="small muted">Преподу: <b class="num">${meta.split.payout} ₽</b> · комиссия 5% (${meta.split.fee} ₽)</span>
+      <button type="button" class="link-btn small" data-a="motion-book-now">Выбрать день →</button>`;
   }
 
   function heroMotionInnerHTML() {
     const meta = heroMotionMeta();
-    const { m, preset, tutor, market, tutorPrice, minOffer, offer, saveRub, offerBelowPct, split, slot } = meta;
-    const step = Math.max(0, Math.min(4, Number(m.step) || 0));
+    const { m, preset, tutor, offer, hourNum, slot, hourPct } = meta;
 
     const presetPills = MOTION_ORDER.map((id) => {
       const p = MOTION_PRESETS[id];
       const on = preset.id === id;
-      return `<button type="button" class="chip-btn${on ? " on" : ""}" data-a="motion-preset" data-v="${id}"${on ? ' data-mstep-target="0"' : ""}>${esc(p.label)}</button>`;
+      return `<button type="button" class="chip-btn${on ? " on" : ""}" data-a="motion-preset" data-v="${id}" style="flex:none">${esc(p.label)}</button>`;
     }).join("");
 
-    const stepBtns = MOTION_STEP_LABELS.map((lbl, idx) => {
-      const cls = "m-step-btn" + (step === idx ? " on" : (idx < step ? " done" : ""));
-      return `<button type="button" class="${cls}" data-a="motion-step" data-i="${idx}" aria-pressed="${step === idx}">${lbl}</button>`;
-    }).join("");
-
-    const slotChips = preset.slots.map((h) => {
-      const isSel = slot === h;
-      const isTarget = step === 1 && isSel;
-      return `<button type="button" class="chip-btn motion-slot-chip${isSel ? " on" : ""}${isTarget ? " is-targeted" : ""}" data-a="motion-slot" data-v="${esc(h)}"${isSel ? ' data-mstep-target="1"' : ""}>${esc(h)}</button>`;
-    }).join("");
-
-    return `<div class="motion-cursor${m.clicking ? " clicking" : ""}" id="hero-motion-cursor" aria-hidden="true" style="left:24%;top:64px">
+    return `<div class="motion-cursor${m.clicking ? " clicking" : ""}" id="hero-motion-cursor" aria-hidden="true" style="left:36%;top:220px">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none"><path d="M4.5 3.5L19.5 11.2L12.6 13.5L9.8 20.5L4.5 3.5Z" fill="#ffffff" stroke="#2f7cff" stroke-width="1.8" stroke-linejoin="round"/></svg>
         <span class="cursor-ring"></span>
       </div>
-      <div class="motion-chrome">
-        <div class="row" style="gap:7px;font-size:12px;font-weight:600;min-width:0">
-          <span class="live-dot"></span>
-          <span data-m="mode-lbl">${m.playing ? "Авто-моушен · живой сценарий торга" : "Ручной режим · нажимай и двигай сам"}</span>
-        </div>
-        <button type="button" class="chip-btn" data-a="motion-toggle" style="padding:4px 10px;font-size:11.5px">${m.playing ? "Пауза" : "Авто-моушен"}</button>
+      <div class="motion-head-rail">
+        <div class="motion-preset-rail" role="group" aria-label="Направления подготовки">${presetPills}</div>
+        <button type="button" class="chip-btn" data-a="motion-toggle" style="padding:5px 10px;font-size:11.5px;flex:none;gap:5px"><span class="live-dot" style="${m.playing ? "" : "opacity:.35;animation:none"}"></span><span>${m.playing ? "Пауза" : "Авто"}</span></button>
       </div>
-      <div class="chip-rail" role="group" aria-label="Направления в моушен-демо">${presetPills}</div>
-      <div class="motion-steps" role="group" aria-label="Шаги сценария">${stepBtns}</div>
       <div class="motion-card-body">
         <div class="row between" style="align-items:flex-start;gap:10px;flex-wrap:wrap">
           <div class="row" style="gap:10px;min-width:0">
@@ -2037,44 +2073,39 @@
                 <b>${esc(tutor.name)}</b>
                 <span class="badge accent">${esc(preset.short)}</span>
               </div>
-              <span class="small muted">${esc(preset.role)}</span>
+              <span class="small muted">${esc(tutor.source || "Доска Ykt · Telegram · MAX")} · ${esc(preset.role)}</span>
             </div>
           </div>
-          <div class="stack" style="gap:3px;align-items:flex-end;text-align:right">
-            <div class="row" style="gap:6px;align-items:baseline">
-              <span class="mkt-strike">${market.toLocaleString("ru-RU")} ₽</span>
-              <b class="num" style="font-size:16px">${tutorPrice.toLocaleString("ru-RU")} ₽/ч</b>
-            </div>
-            <span class="below-badge" data-m="save-pill">ниже рынка до −${offerBelowPct}%</span>
+        </div>
+        <div class="hh-diff-strip" data-m="diff-strip">${motionDiffHTML(meta)}</div>
+        <div class="hh-time-picker">
+          <div class="row between">
+            <span class="small muted">Удобный час с 10:00 до 20:00</span>
+            <span class="hh-time-val num" data-m="hour-pill">Сб · ${esc(slot)}</span>
           </div>
+          <input class="hh-time-range" id="hero-hour-range" type="range" min="10" max="20" step="1" value="${hourNum}" style="--pct:${hourPct}%" data-mstep-target="0" aria-label="Удобный час с 10:00 до 20:00">
+          <div class="hh-time-ticks" aria-hidden="true"><span>10:00</span><span>12:00</span><span>14:00</span><span>16:00</span><span>18:00</span><span>20:00</span></div>
         </div>
-        <div class="row" style="gap:6px;flex-wrap:wrap">
-          <span class="small muted">Сб, окно ${esc(tutor.windowLabel || "с 10:00 до 20:00")}:</span>
-          ${slotChips}
+        <div class="hh-price-stepper">
+          <button type="button" class="hh-step-btn${m.hitTarget === "minus" ? " is-hit" : ""}" id="hero-price-minus" data-a="motion-step-price" data-step="-100" data-mstep-target="1" aria-label="Снизить цену на 100 рублей">−100 ₽</button>
+          <div class="hh-step-readout">
+            <b class="num" data-m="offer-val">${offer.toLocaleString("ru-RU")} ₽/ч</b>
+            <span class="small muted">твоя ставка</span>
+          </div>
+          <button type="button" class="hh-step-btn${m.hitTarget === "plus" ? " is-hit" : ""}" id="hero-price-plus" data-a="motion-step-price" data-step="100" aria-label="Повысить цену на 100 рублей">+100 ₽</button>
         </div>
-        <button type="button" class="btn motion-bid-btn${(m.clicking || step === 2) ? " is-pressed" : ""}" id="hero-motion-bid-btn" data-a="motion-bid-press" data-mstep-target="2">
-          ${icon("spark")}<span data-m="offer-btn-lbl">Предложить цену · ${offer.toLocaleString("ru-RU")} ₽/ч (−${offerBelowPct}% ниже рынка)</span>
+        <button type="button" class="btn motion-bid-btn${(m.clicking && m.hitTarget === "bid") ? " is-pressed" : ""}" id="hero-motion-bid-btn" data-a="motion-bid-press" data-mstep-target="2">
+          <span data-m="offer-btn-lbl">Предложить ${offer.toLocaleString("ru-RU")} ₽</span>
         </button>
-        <div class="motion-drawer${step < 3 ? " dim" : ""}" id="hero-motion-drawer">
-          <div class="row between" style="gap:8px;flex-wrap:wrap">
-            <span class="small muted">Твоя ставка вместо ${market.toLocaleString("ru-RU")} ₽:</span>
-            <b class="num" style="color:var(--accent)" data-m="offer-val">${offer.toLocaleString("ru-RU")} ₽/ч (−${saveRub.toLocaleString("ru-RU")} ₽)</b>
-          </div>
-          <input id="hero-bid-range" type="range" min="${minOffer}" max="${market}" step="50" value="${offer}" data-mstep-target="3" aria-label="Предложить цену в час">
-          <div class="row between small muted" style="gap:8px;flex-wrap:wrap">
-            <span data-m="split-txt">Преподу: ${split.payout} ₽ · сервис 5% (${split.fee} ₽)</span>
-            <button type="button" class="link-btn small" data-a="motion-book-now">Открыть заявку →</button>
-          </div>
-        </div>
-        <div class="motion-bot-toast${step === 4 ? " accepted" : ""}" id="hero-motion-bot" data-mstep-target="4" data-m="bot-toast">
-          ${motionBotHTML(meta, step)}
+        <div class="hh-motion-status${m.sent ? " sent" : ""}" id="hero-motion-status" data-mstep-target="3" data-m="status-strip">
+          ${motionStatusHTML(meta)}
         </div>
       </div>`;
   }
 
   function heroMotionStageHTML() {
     const m = ui.motion || { playing: true };
-    return `<div class="motion-stage${m.playing ? "" : " paused"}" id="hero-motion-stage" aria-label="Интерактивный UX/UI и моушен-торг">
+    return `<div class="motion-stage${m.playing ? "" : " paused"}" id="hero-motion-stage" aria-label="Быстрый выбор времени и цены">
       ${heroMotionInnerHTML()}
     </div>`;
   }
@@ -2084,23 +2115,22 @@
     const cursor = stage.querySelector("#hero-motion-cursor");
     if (!cursor || !cursor.style) return;
     const fallbacks = [
-      ["20%", "78px"],
-      ["28%", "230px"],
-      ["52%", "290px"],
-      ["44%", "365px"],
-      ["64%", "442px"]
+      ["42%", "215px"],
+      ["18%", "286px"],
+      ["50%", "346px"],
+      ["54%", "398px"]
     ];
     const target = stage.querySelector('[data-mstep-target="' + step + '"]');
     const sr = stage.getBoundingClientRect();
     if (target && typeof target.getBoundingClientRect === "function" && sr && sr.width > 0 && sr.height > 0) {
       const tr = target.getBoundingClientRect();
-      let x = tr.left - sr.left + tr.width * 0.54;
-      let y = tr.top - sr.top + tr.height * 0.56;
-      if (step === 3 && target.type === "range") {
-        const mn = Number(target.min) || 700;
-        const mx = Number(target.max) || 2000;
-        const val = Number(target.value) || 950;
-        const pct = Math.max(0.08, Math.min(0.92, (val - mn) / Math.max(1, mx - mn)));
+      let x = tr.left - sr.left + tr.width * 0.52;
+      let y = tr.top - sr.top + tr.height * 0.54;
+      if (step === 0 && target.type === "range") {
+        const mn = Number(target.min) || 10;
+        const mx = Number(target.max) || 20;
+        const val = Number(target.value) || 10;
+        const pct = Math.max(0.06, Math.min(0.94, (val - mn) / Math.max(1, mx - mn)));
         x = tr.left - sr.left + tr.width * pct;
       }
       x = Math.max(12, Math.min(sr.width - 26, x));
@@ -2122,37 +2152,29 @@
       return;
     }
     const meta = heroMotionMeta();
-    const step = Math.max(0, Math.min(4, Number(meta.m.step) || 0));
+    const step = Math.max(0, Math.min(3, Number(meta.m.step) || 0));
     if (opts.liveOnly) {
       const q = (s) => stage.querySelector(s);
       if (stage.classList) stage.classList.toggle("paused", !meta.m.playing);
-      const modeLbl = q('[data-m="mode-lbl"]');
-      if (modeLbl) modeLbl.textContent = meta.m.playing ? "Авто-моушен · живой сценарий торга" : "Ручной режим · нажимай и двигай сам";
       const togBtn = q('[data-a="motion-toggle"]');
-      if (togBtn) togBtn.textContent = meta.m.playing ? "Пауза" : "Авто-моушен";
-      const lbl = q('[data-m="offer-btn-lbl"]');
-      if (lbl) lbl.textContent = `Предложить цену · ${meta.offer.toLocaleString("ru-RU")} ₽/ч (−${meta.offerBelowPct}% ниже рынка)`;
-      const pill = q('[data-m="save-pill"]');
-      if (pill) pill.textContent = `ниже рынка до −${meta.offerBelowPct}%`;
-      const oval = q('[data-m="offer-val"]');
-      if (oval) oval.textContent = `${meta.offer.toLocaleString("ru-RU")} ₽/ч (−${meta.saveRub.toLocaleString("ru-RU")} ₽)`;
-      const stxt = q('[data-m="split-txt"]');
-      if (stxt) stxt.textContent = `Преподу: ${meta.split.payout} ₽ · сервис 5% (${meta.split.fee} ₽)`;
-      const drw = q("#hero-motion-drawer");
-      if (drw && drw.classList) drw.classList.toggle("dim", step < 3);
-      const bot = q("#hero-motion-bot");
-      if (bot) {
-        if (bot.classList) bot.classList.toggle("accepted", step === 4);
-        bot.innerHTML = motionBotHTML(meta, step);
+      if (togBtn) togBtn.innerHTML = `<span class="live-dot" style="${meta.m.playing ? "" : "opacity:.35;animation:none"}"></span><span>${meta.m.playing ? "Пауза" : "Авто"}</span>`;
+      const hp = q('[data-m="hour-pill"]');
+      if (hp) hp.textContent = "Сб · " + meta.slot;
+      const rng = q("#hero-hour-range");
+      if (rng) {
+        if (String(rng.value) !== String(meta.hourNum)) rng.value = String(meta.hourNum);
+        if (rng.style && rng.style.setProperty) rng.style.setProperty("--pct", meta.hourPct + "%");
       }
-      if (typeof stage.querySelectorAll === "function") {
-        stage.querySelectorAll(".m-step-btn").forEach((b, idx) => {
-          if (b.classList) {
-            b.classList.toggle("on", idx === step);
-            b.classList.toggle("done", idx < step);
-          }
-          b.setAttribute("aria-pressed", String(idx === step));
-        });
+      const ds = q('[data-m="diff-strip"]');
+      if (ds) ds.innerHTML = motionDiffHTML(meta);
+      const oval = q('[data-m="offer-val"]');
+      if (oval) oval.textContent = meta.offer.toLocaleString("ru-RU") + " ₽/ч";
+      const lbl = q('[data-m="offer-btn-lbl"]');
+      if (lbl) lbl.textContent = "Предложить " + meta.offer.toLocaleString("ru-RU") + " ₽";
+      const st = q("#hero-motion-status");
+      if (st) {
+        if (st.classList) st.classList.toggle("sent", !!meta.m.sent);
+        st.innerHTML = motionStatusHTML(meta);
       }
       positionMotionCursor(stage, step);
       return;
@@ -2174,7 +2196,7 @@
       return;
     }
     const m = ui.motion || { playing: true, step: 0 };
-    const place = () => positionMotionCursor(stage, Math.max(0, Math.min(4, Number(m.step) || 0)));
+    const place = () => positionMotionCursor(stage, Math.max(0, Math.min(3, Number(m.step) || 0)));
     if (typeof requestAnimationFrame === "function") requestAnimationFrame(place);
     else place();
 
@@ -2184,39 +2206,66 @@
       return;
     }
     if (motionTimer || typeof setTimeout !== "function") return;
-    const delay = m.step === 4 ? 2600 : 1950;
+    const delay = m.step === 3 ? 2500 : 1850;
     motionTimer = setTimeout(() => {
       motionTimer = null;
       const curStage = typeof document.getElementById === "function" ? document.getElementById("hero-motion-stage") : null;
       if (!curStage || !ui.motion || !ui.motion.playing) return;
-      const nextStep = (Number(ui.motion.step || 0) + 1) % 5;
+      const nextStep = (Number(ui.motion.step || 0) + 1) % 4;
+      const meta = heroMotionMeta();
+      ui.motion.step = nextStep;
+      ui.motion.clicking = false;
+      ui.motion.hitTarget = "";
+
       if (nextStep === 0) {
         const curIdx = MOTION_ORDER.indexOf(ui.motion.preset || "design");
         const nextPresetId = MOTION_ORDER[(curIdx + 1) % MOTION_ORDER.length];
         const np = MOTION_PRESETS[nextPresetId] || MOTION_PRESETS.design;
         const nt = (TDATA && TDATA.LIST || []).find((t) => t.id === np.tutorId);
         ui.motion.preset = nextPresetId;
-        ui.motion.slot = np.defaultSlot;
+        ui.motion.slot = String(np.defaultHour).padStart(2, "0") + ":00";
         ui.motion.offer = nt ? nt.price : np.defaultOffer;
-      } else if (nextStep === 3) {
-        const np = MOTION_PRESETS[ui.motion.preset] || MOTION_PRESETS.design;
-        ui.motion.offer = np.defaultOffer;
+        ui.motion.sent = false;
+        patchHeroMotionDOM();
+        if (typeof setTimeout === "function") {
+          setTimeout(() => {
+            if (!ui.motion || !ui.motion.playing || ui.motion.step !== 0) return;
+            const bumpedH = np.defaultHour < 18 ? np.defaultHour + 3 : 14;
+            ui.motion.slot = String(bumpedH).padStart(2, "0") + ":00";
+            patchHeroMotionDOM({ liveOnly: true });
+          }, 550);
+        }
+        return;
       }
-      ui.motion.step = nextStep;
-      ui.motion.clicking = nextStep === 2;
+
+      if (nextStep === 1) {
+        ui.motion.offer = Math.max(meta.minOffer, meta.tutorPrice - 100);
+        ui.motion.clicking = true;
+        ui.motion.hitTarget = "minus";
+      } else if (nextStep === 2) {
+        ui.motion.clicking = true;
+        ui.motion.hitTarget = "bid";
+        ui.motion.sent = true;
+      }
+
       patchHeroMotionDOM();
-      if (nextStep === 2 && typeof setTimeout === "function") {
+      if ((nextStep === 1 || nextStep === 2) && typeof setTimeout === "function") {
         if (motionPulseTimer && typeof clearTimeout === "function") clearTimeout(motionPulseTimer);
         motionPulseTimer = setTimeout(() => {
           motionPulseTimer = null;
           if (!ui.motion) return;
           ui.motion.clicking = false;
+          ui.motion.hitTarget = "";
           const s2 = typeof document.getElementById === "function" ? document.getElementById("hero-motion-stage") : null;
           if (s2 && typeof s2.querySelector === "function") {
             const c = s2.querySelector("#hero-motion-cursor");
             if (c && c.classList) c.classList.remove("clicking");
+            const b = s2.querySelector("#hero-motion-bid-btn");
+            if (b && b.classList) b.classList.remove("is-pressed");
+            const hm = s2.querySelector("#hero-price-minus");
+            if (hm && hm.classList) hm.classList.remove("is-hit");
           }
-        }, 520);
+        }, 460);
       }
     }, delay);
   }
@@ -2244,7 +2293,7 @@
     const s = ui.savings || (ui.savings = { freq: 2, marketRate: 1600, offerRate: 950 });
     const freq = Math.max(1, Math.min(4, Number(s.freq) || 2));
     const mktRate = Math.max(1000, Math.min(3500, Number(s.marketRate) || 1600));
-    const offRate = Math.max(600, Math.min(mktRate - 50, Number(s.offerRate) || 950));
+    const offRate = Math.max(600, Math.min(mktRate - 100, Number(s.offerRate) || 950));
     const monthMkt = freq * 4 * mktRate;
     const monthOff = freq * 4 * offRate;
     const monthSave = Math.max(0, monthMkt - monthOff);
@@ -2265,22 +2314,30 @@
         <div>
           <div class="eyebrow">Ниже рынка · честная экономика</div>
           <h2 class="h2">Почему занятия здесь обходятся дешевле на 35–53%</h2>
-          <p class="small muted">Онлайн-школы и агрегаторы закладывают наценку до 50%. Ты выбираешь анкету напрямую с Доски Ykt и предлагаешь свою ставку — комиссия сервиса всего 5%.</p>
+          <p class="small muted">Онлайн-школы закладывают до 50% наценки. Мы собираем анкеты с Доски Ykt, Telegram, WhatsApp, MAX и других сервисов — предлагай свою ставку с комиссией всего 5%.</p>
         </div>
       </div>
       <div class="savings-grid">
         <div class="card pad stack" style="gap:14px">
           <div class="row between" style="gap:8px;flex-wrap:wrap">
-            <span class="small muted">Интенсивность занятий</span>
+            <span class="small muted">Занятий в неделю</span>
             <div class="row" style="gap:6px;flex-wrap:wrap">${freqBtns}</div>
           </div>
           <div class="stack" style="gap:6px">
-            <div class="row between"><label class="small" for="save-mkt-range">Средняя цена на рынке / в школе</label><b class="num" data-s="mkt-val">${st.mktRate.toLocaleString("ru-RU")} ₽/ч</b></div>
-            <input id="save-mkt-range" type="range" min="1100" max="3000" step="50" value="${st.mktRate}">
+            <span class="small muted">Средняя ставка на рынке</span>
+            <div class="hh-price-stepper">
+              <button type="button" class="hh-step-btn" data-a="save-step" data-which="mkt" data-step="-100">−100 ₽</button>
+              <div class="hh-step-readout"><b class="num" data-s="mkt-val">${st.mktRate.toLocaleString("ru-RU")} ₽/ч</b></div>
+              <button type="button" class="hh-step-btn" data-a="save-step" data-which="mkt" data-step="100">+100 ₽</button>
+            </div>
           </div>
           <div class="stack" style="gap:6px">
-            <div class="row between"><label class="small" for="save-off-range">Твоя ставка через «Предложить цену»</label><b class="num" style="color:var(--accent)" data-s="off-val">${st.offRate.toLocaleString("ru-RU")} ₽/ч</b></div>
-            <input id="save-off-range" type="range" min="650" max="2200" step="50" value="${st.offRate}">
+            <span class="small muted">Твоя цена на платформе</span>
+            <div class="hh-price-stepper">
+              <button type="button" class="hh-step-btn" data-a="save-step" data-which="off" data-step="-100">−100 ₽</button>
+              <div class="hh-step-readout"><b class="num" style="color:var(--accent)" data-s="off-val">${st.offRate.toLocaleString("ru-RU")} ₽/ч</b></div>
+              <button type="button" class="hh-step-btn" data-a="save-step" data-which="off" data-step="100">+100 ₽</button>
+            </div>
           </div>
           <div class="badge" style="justify-content:space-between;width:100%" data-s="split-txt">При ${st.offRate} ₽/ч репетитор получает ${st.split.payout} ₽ (5% = ${st.split.fee} ₽ сервис)</div>
         </div>
@@ -2298,7 +2355,7 @@
           <div class="card" style="padding:12px 14px;background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 42%,var(--line))">
             <div class="small muted">Чистая выгода с твоей ставкой</div>
             <div style="font-size:24px;font-weight:700;letter-spacing:-.02em;color:var(--accent)" data-s="month-save">−${st.monthSave.toLocaleString("ru-RU")} ₽/мес (−${st.pct}%)</div>
-            <div class="small ink2" data-s="year-save">За 9 месяцев подготовки экономишь ${st.yearSave.toLocaleString("ru-RU")} ₽</div>
+            <div class="small ink2" data-s="year-save">За 9 месяцев экономишь ${st.yearSave.toLocaleString("ru-RU")} ₽</div>
           </div>
           <button type="button" class="btn soft" data-a="land-scroll" data-target="land-market">Найти репетитора ниже рынка →</button>
         </div>
@@ -2320,7 +2377,7 @@
     setT('[data-s="month-mkt"]', st.monthMkt.toLocaleString("ru-RU") + " ₽/мес");
     setT('[data-s="month-off"]', st.monthOff.toLocaleString("ru-RU") + " ₽/мес");
     setT('[data-s="month-save"]', `−${st.monthSave.toLocaleString("ru-RU")} ₽/мес (−${st.pct}%)`);
-    setT('[data-s="year-save"]', `За 9 месяцев подготовки экономишь ${st.yearSave.toLocaleString("ru-RU")} ₽`);
+    setT('[data-s="year-save"]', `За 9 месяцев экономишь ${st.yearSave.toLocaleString("ru-RU")} ₽`);
     const bar = box.querySelector('[data-s="off-bar"]');
     if (bar && bar.style) bar.style.width = st.barPct + "%";
     if (typeof box.querySelectorAll === "function") {
@@ -2362,7 +2419,7 @@
           </div>
         </div>
         <nav class="land-links" aria-label="Разделы лендинга">
-          <a href="#hero-motion-stage" data-a="land-scroll" data-target="hero-motion-stage">Моушен</a>
+          <a href="#hero-motion-stage" data-a="land-scroll" data-target="hero-motion-stage">Подбор</a>
           <a href="#land-savings" data-a="land-scroll" data-target="land-savings">Выгода</a>
           <a href="#land-demo" data-a="land-scroll" data-target="land-demo">Бета-тест</a>
           <a href="#land-market" data-a="land-scroll" data-target="land-market">Репетиторы</a>
@@ -2382,12 +2439,12 @@
         <section class="land-hero">
           <div class="land-hero-copy">
             <div class="row" style="gap:6px;flex-wrap:wrap">
-              <span class="chip accent">${catalogTotal}+ анкет с Доски Ykt</span>
+              <span class="chip accent">${catalogTotal}+ анкет · Ykt, TG, WA, MAX и др.</span>
               <span class="chip">Ниже рынка на 35–53%</span>
               <span class="chip">Комиссия 5%</span>
             </div>
             <h1 class="land-h1">Ищи репетиторов <span class="land-h1-grad">ниже рынка</span> для подготовки к чему угодно</h1>
-            <p class="land-lead">Огромная база анкет с Доски Ykt: ЕГЭ и ОГЭ, Python, UX/UI и моушен-дизайн, физика, вокал и подготовка в ВУЗ. Выбирай время, сам нажимай «Предложить цену» и бронируй через бота в WhatsApp без наценок онлайн-школ.</p>
+            <p class="land-lead">Единая база анкет с Доски Ykt, Telegram, WhatsApp, MAX и других сервисов: ЕГЭ и ОГЭ, Python, UX/UI и моушен-дизайн, физика, вокал и ВУЗ. Выбирай час с 10:00 до 20:00, нажимай −100 ₽ и отправляй свою ставку.</p>
             <div class="land-hero-ctas">
               <button type="button" class="btn" data-a="land-scroll" data-target="land-market">Найти ниже рынка</button>
               <button type="button" class="btn soft" data-a="land-scroll" data-target="land-demo">Попробовать бета-тест</button>
@@ -2395,8 +2452,8 @@
             </div>
             <div class="chip-rail" role="group" aria-label="Быстрый выбор направления">${quickCats.map(([sid, label]) => `<button type="button" class="chip-btn" data-a="hero-cat" data-subj="${sid}">${esc(label)}</button>`).join("")}</div>
             <div class="land-stats">
-              <div class="land-stat"><b>${catalogTotal}+ анкет</b><span>ЕГЭ, ОГЭ, IT, UX/UI, музыка и ВУЗ</span></div>
-              <div class="land-stat"><b>−35…−53% цены</b><span>Прямой торг «Предложить цену»</span></div>
+              <div class="land-stat"><b>${catalogTotal}+ анкет</b><span>Ykt, Telegram, WhatsApp, MAX и др.</span></div>
+              <div class="land-stat"><b>Шаг ±100 ₽</b><span>Простая ставка ниже рынка</span></div>
               <div class="land-stat"><b>Комиссия 5%</b><span>Из 800 ₽ — 760 ₽ преподу, 40 ₽ сервису</span></div>
             </div>
           </div>
@@ -2411,14 +2468,14 @@
         <div class="land-sec-head">
           <div>
             <div class="eyebrow">Как это устроено</div>
-            <h2 class="h2">От выбора кружочка времени до урока и разбора тем за 2 минуты</h2>
+            <h2 class="h2">От выбора часа до подтверждения преподавателя — в пару кликов</h2>
           </div>
         </div>
         <div class="how-grid">
-          <div class="card how-card"><span class="how-num">01</span><b>Фильтр ЕГЭ / ОГЭ и бюджет</b><p class="small ink2">Выбираешь предмет, формат и потолок цены, а анкеты подтягиваются с Доски Ykt.</p></div>
-          <div class="card how-card"><span class="how-num">02</span><b>Кружочки и своё время</b><p class="small ink2">У преподавателей указано окно (например, с 09:00 до 20:00), но выбрать можно любой час.</p></div>
-          <div class="card how-card"><span class="how-num">03</span><b>Торг ценой и комиссия 5%</b><p class="small ink2">Предлагаешь ставку (например, 800 ₽: 760 ₽ преподу, 40 ₽ сервису) — бот пишет в WhatsApp.</p></div>
-          <div class="card how-card"><span class="how-num">04</span><b>Тесты, конспекты и график</b><p class="small ink2">Тренируешься на заданиях ЕГЭ, читаешь конспекты и видишь расписание уроков на неделю.</p></div>
+          <div class="card how-card"><span class="how-num">01</span><b>Единая база из 5+ источников</b><p class="small ink2">Собираем анкеты с Доски Ykt, Telegram, WhatsApp, MAX и других сервисов по всем предметам и навыкам.</p></div>
+          <div class="card how-card"><span class="how-num">02</span><b>Ползунок времени 10:00–20:00</b><p class="small ink2">Двигай удобный час с 10:00 до 20:00 и сразу видишь свободных репетиторов в нужный интервал.</p></div>
+          <div class="card how-card"><span class="how-num">03</span><b>Ставка кнопками ±100 ₽</b><p class="small ink2">Выбирай цену без лишних форм и нажимай «Предложить» — комиссия сервиса фиксированные 5%.</p></div>
+          <div class="card how-card"><span class="how-num">04</span><b>Уведомление и расписание</b><p class="small ink2">Когда преподаватель подтвердит время и ставку, придёт уведомление — всё расписание в «Учёбе».</p></div>
         </div>
       </section>
 
@@ -2431,14 +2488,14 @@
           <div class="row between" style="flex-wrap:wrap;gap:10px">
             <div>
               <div class="eyebrow">Для преподавателей</div>
-              <h2 class="h2">Автоимпорт с Доски Ykt и честная комиссия 5%</h2>
+              <h2 class="h2">Анкеты с Доски Ykt, Telegram, WhatsApp, MAX и комиссия 5%</h2>
             </div>
             <span class="chip leaf">Из 800 ₽ — 760 ₽ на руки</span>
           </div>
           <div class="grid-3">
-            <div class="stack" style="gap:4px"><b>Заявки приходят в WhatsApp</b><p class="small ink2">Анкеты с Доски Ykt показывают ваше окно доступности; бот передаёт время ученика и предложенную ставку.</p></div>
-            <div class="stack" style="gap:4px"><b>Бесплатный топ каждый день</b><p class="small ink2">Раз в сутки нажимаете кнопку «Актуален сегодня» — анкета сразу поднимается вверх списка.</p></div>
-            <div class="stack" style="gap:4px"><b>Комиссия 5% и гарантия оплаты</b><p class="small ink2">Ученик платит с баланса 5 000 или 10 000 ₽: с 800 ₽ вы получаете 760 ₽ (5% = 40 ₽ комиссия сервиса).</p></div>
+            <div class="stack" style="gap:4px"><b>Готовые заявки по времени и цене</b><p class="small ink2">Ученик выбирает час и ставку — сервис аккуратно передаёт предложение и уведомляет при ответе.</p></div>
+            <div class="stack" style="gap:4px"><b>Бесплатный топ каждый день</b><p class="small ink2">Раз в сутки нажимаете «Актуален сегодня» — ваша анкета сразу поднимается вверх каталога.</p></div>
+            <div class="stack" style="gap:4px"><b>Комиссия 5% и защита оплаты</b><p class="small ink2">Ученик вносит баланс 5 000 или 10 000 ₽: с 800 ₽ вы получаете 760 ₽ (5% = 40 ₽ платформа).</p></div>
           </div>
         </div>
       </section>
@@ -4825,8 +4882,8 @@
       saveMkt();
       renderModal();
       toast(reserved
-        ? `Заявка отправлена ботом · ${reserved.toLocaleString("ru-RU")} ₽ зарезервировано (5% комиссия внутри)`
-        : "Заявка создана в демо — выбери тариф 5 000 или 10 000 ₽ для оплаты с баланса");
+        ? `Отклик отправлен · ${reserved.toLocaleString("ru-RU")} ₽ зарезервировано · уведомим о подтверждении`
+        : "Отклик создан в демо — выбери тариф 5 000 или 10 000 ₽ для оплаты с баланса");
       scheduleRender();
     },
     "demo-tab": (el) => {
@@ -4875,7 +4932,7 @@
         st.balance -= bk.reserved;
       }
       saveMkt();
-      toast(`${bk.tutorName} подтвердил(а) время ${bk.hour} по ставке ${bk.offerPrice} ₽/ч`);
+      toast(`${bk.tutorName} подтвердил(а) занятие ${bk.hour} по ставке ${bk.offerPrice} ₽/ч · уведомили в Учёбе`);
       scheduleRender();
     },
     "mkt-cancel-book": (el) => {
@@ -4895,45 +4952,63 @@
       const id = el.dataset.v;
       const preset = MOTION_PRESETS[id];
       if (!preset) return;
-      if (!ui.motion) ui.motion = { playing: true, preset: id, step: 0, slot: preset.defaultSlot, offer: preset.defaultOffer, clicking: false };
+      const dh = preset.defaultHour || 10;
+      const slot = String(dh).padStart(2, "0") + ":00";
+      if (!ui.motion) ui.motion = { playing: true, preset: id, step: 0, slot, offer: preset.defaultOffer, sent: false, clicking: false, hitTarget: "" };
       ui.motion.preset = id;
-      ui.motion.slot = preset.defaultSlot;
+      ui.motion.slot = slot;
       ui.motion.offer = preset.defaultOffer;
-      ui.motion.step = 2;
+      ui.motion.sent = false;
+      ui.motion.step = 0;
       ui.motion.playing = false;
       ui.motion.clicking = false;
+      ui.motion.hitTarget = "";
+      stopMotionTimers();
       patchHeroMotionDOM();
     },
-    "motion-slot": (el) => {
-      if (!ui.motion || !el.dataset.v) return;
-      ui.motion.slot = el.dataset.v;
-      ui.motion.step = 2;
+    "motion-step-price": (el) => {
+      if (!ui.motion) ui.motion = { playing: false, preset: "design", step: 1, slot: "10:00", offer: 1200, sent: false, clicking: false, hitTarget: "" };
+      const meta = heroMotionMeta();
+      const step = Number(el.dataset.step) || 0;
+      ui.motion.offer = Math.max(meta.minOffer, Math.min(meta.maxOffer, meta.offer + step));
+      ui.motion.sent = false;
+      ui.motion.step = 1;
       ui.motion.playing = false;
+      ui.motion.clicking = false;
+      ui.motion.hitTarget = step < 0 ? "minus" : "plus";
+      stopMotionTimers();
       patchHeroMotionDOM();
-    },
-    "motion-step": (el) => {
-      if (!ui.motion) return;
-      const idx = Math.max(0, Math.min(4, Number(el.dataset.i) || 0));
-      ui.motion.step = idx;
-      ui.motion.playing = false;
-      ui.motion.clicking = idx === 2;
-      if (idx === 3) ui.motion.offer = heroMotionMeta().preset.defaultOffer;
-      patchHeroMotionDOM();
+      if (typeof setTimeout === "function") {
+        if (motionPulseTimer && typeof clearTimeout === "function") clearTimeout(motionPulseTimer);
+        motionPulseTimer = setTimeout(() => {
+          motionPulseTimer = null;
+          if (!ui.motion) return;
+          ui.motion.hitTarget = "";
+          const st = typeof document.getElementById === "function" ? document.getElementById("hero-motion-stage") : null;
+          if (st && typeof st.querySelector === "function") {
+            const hm = st.querySelector("#hero-price-minus");
+            const hp = st.querySelector("#hero-price-plus");
+            if (hm && hm.classList) hm.classList.remove("is-hit");
+            if (hp && hp.classList) hp.classList.remove("is-hit");
+          }
+        }, 280);
+      }
     },
     "motion-toggle": () => {
       if (!ui.motion) return;
       ui.motion.playing = !ui.motion.playing;
       if (!ui.motion.playing) stopMotionTimers();
+      else { ui.motion.sent = false; ui.motion.step = 0; }
       patchHeroMotionDOM();
     },
     "motion-bid-press": () => {
-      if (!ui.motion) ui.motion = { playing: false, preset: "design", step: 2, slot: "10:00", offer: 950, clicking: false };
-      const meta = heroMotionMeta();
+      if (!ui.motion) ui.motion = { playing: false, preset: "design", step: 2, slot: "10:00", offer: 1200, sent: false, clicking: false, hitTarget: "" };
       ui.motion.playing = false;
       stopMotionTimers();
+      ui.motion.sent = true;
+      ui.motion.step = 2;
       ui.motion.clicking = true;
-      ui.motion.step = meta.m.step < 3 ? 3 : (meta.m.step === 3 ? 4 : 3);
-      if (ui.motion.step === 3) ui.motion.offer = meta.preset.defaultOffer;
+      ui.motion.hitTarget = "bid";
       patchHeroMotionDOM();
       if (typeof setTimeout === "function") {
         if (motionPulseTimer && typeof clearTimeout === "function") clearTimeout(motionPulseTimer);
@@ -4941,14 +5016,13 @@
           motionPulseTimer = null;
           if (!ui.motion) return;
           ui.motion.clicking = false;
+          ui.motion.hitTarget = "";
           const st = typeof document.getElementById === "function" ? document.getElementById("hero-motion-stage") : null;
           if (st && typeof st.querySelector === "function") {
-            const c = st.querySelector("#hero-motion-cursor");
-            if (c && c.classList) c.classList.remove("clicking");
             const b = st.querySelector("#hero-motion-bid-btn");
-            if (b && b.classList && ui.motion.step !== 2) b.classList.remove("is-pressed");
+            if (b && b.classList) b.classList.remove("is-pressed");
           }
-        }, 450);
+        }, 420);
       }
     },
     "motion-book-now": () => {
@@ -4979,6 +5053,21 @@
     "save-freq": (el) => {
       if (!ui.savings) ui.savings = { freq: 2, marketRate: 1600, offerRate: 950 };
       ui.savings.freq = Math.max(1, Math.min(4, Number(el.dataset.v) || 2));
+      patchSavingsDOM();
+    },
+    "save-step": (el) => {
+      if (!ui.savings) ui.savings = { freq: 2, marketRate: 1600, offerRate: 950 };
+      const which = el.dataset.which === "mkt" ? "marketRate" : "offerRate";
+      const step = Number(el.dataset.step) || 0;
+      if (which === "marketRate") {
+        ui.savings.marketRate = Math.max(1000, Math.min(3500, (Number(ui.savings.marketRate) || 1600) + step));
+        if ((Number(ui.savings.offerRate) || 950) > ui.savings.marketRate - 100) {
+          ui.savings.offerRate = Math.max(600, ui.savings.marketRate - 100);
+        }
+      } else {
+        const cap = Math.max(600, (Number(ui.savings.marketRate) || 1600) - 100);
+        ui.savings.offerRate = Math.max(600, Math.min(cap, (Number(ui.savings.offerRate) || 950) + step));
+      }
       patchSavingsDOM();
     }
   };
@@ -5085,6 +5174,31 @@
     if (!tutor) return;
     const days = TDATA.buildCalendarDays(7);
     const dayObj = days.find((d) => d.iso === b.dayIso) || days[0];
+    const hourPill = document.getElementById("bid-hour-pill");
+    if (hourPill) hourPill.textContent = b.hour;
+    const hourRange = document.getElementById("bid-hour-range");
+    if (hourRange) {
+      const hNum = Math.max(10, Math.min(20, parseInt(String(b.hour || "10").slice(0, 2), 10) || 10));
+      hourRange.value = String(hNum);
+      if (hourRange.style && typeof hourRange.style.setProperty === "function") {
+        hourRange.style.setProperty("--pct", ((hNum - 10) * 10) + "%");
+      }
+    }
+    const customEl = document.getElementById("bid-custom-time");
+    if (customEl && customEl.value !== b.hour && document.activeElement !== customEl) {
+      customEl.value = b.hour;
+    }
+    const diffEl = document.getElementById("bid-diff-strip");
+    if (diffEl) {
+      const diffTutor = Math.max(0, (tutor.price || 0) - b.offerPrice);
+      const diffMarket = Math.max(0, (tutor.marketPrice || tutor.price || 0) - b.offerPrice);
+      diffEl.innerHTML =
+        (tutor.marketPrice ? `<span class="diff-tag market num">Рынок ${tutor.marketPrice} ₽</span>` : "") +
+        (diffTutor > 0 ? `<span class="diff-tag save-hot num">на ${diffTutor} ₽ ниже анкеты</span>` : "") +
+        (diffMarket > 0 ? `<span class="diff-tag save-cool num">на ${diffMarket} ₽ ниже рынка</span>` : "");
+    }
+    const subBtn = document.getElementById("bid-submit-btn");
+    if (subBtn) subBtn.textContent = `Предложить ${b.offerPrice.toLocaleString("ru-RU")} ₽`;
     const sigEl = document.getElementById("bid-signal");
     if (sigEl) {
       const sig = TDATA.offerSignal(tutor.price, b.offerPrice);
@@ -5097,8 +5211,8 @@
       const winTxt = tutor.windowLabel || ("с " + tutor.availableFrom + " до " + tutor.availableTo);
       const inWin = TDATA.tutorInWindow(tutor, b.hour);
       winEl.textContent = inWin
-        ? `Входит в окно на Доске Ykt (${winTxt})`
-        : `Вне типового окна (${winTxt}) — бот уточнит у преподавателя`;
+        ? `Входит в свободное окно (${winTxt})`
+        : `Вне типового окна (${winTxt}) — уточним и уведомим`;
     }
     const prevEl = document.getElementById("bot-preview-txt");
     if (prevEl) {
@@ -5191,34 +5305,30 @@
       }
       return;
     }
-    if (el.id === "hero-bid-range") {
-      const meta = heroMotionMeta();
-      const raw = parseInt(el.value, 10);
-      if (Number.isFinite(raw)) {
-        ui.motion.playing = false;
-        stopMotionTimers();
-        ui.motion.offer = Math.max(meta.minOffer, Math.min(meta.market, raw));
-        if ((ui.motion.step || 0) < 3) ui.motion.step = 3;
-        patchHeroMotionDOM({ liveOnly: true });
-      }
+    if (el.id === "hero-hour-range") {
+      const hNum = Math.max(10, Math.min(20, parseInt(el.value, 10) || 10));
+      if (!ui.motion) ui.motion = { playing: false, preset: "design", step: 0, slot: "10:00", offer: 1200, sent: false, clicking: false, hitTarget: "" };
+      ui.motion.playing = false;
+      stopMotionTimers();
+      ui.motion.slot = (hNum < 10 ? "0" : "") + hNum + ":00";
+      ui.motion.sent = false;
+      ui.motion.step = 0;
+      patchHeroMotionDOM({ liveOnly: true });
       return;
     }
-    if (el.id === "save-mkt-range" || el.id === "save-off-range") {
-      if (!ui.savings) ui.savings = { freq: 2, marketRate: 1600, offerRate: 950 };
-      const raw = parseInt(el.value, 10);
-      if (Number.isFinite(raw)) {
-        if (el.id === "save-mkt-range") {
-          ui.savings.marketRate = Math.max(1000, Math.min(3500, raw));
-          if (ui.savings.offerRate >= ui.savings.marketRate) {
-            ui.savings.offerRate = Math.max(600, ui.savings.marketRate - 100);
-            const orng = typeof document.getElementById === "function" ? document.getElementById("save-off-range") : null;
-            if (orng) orng.value = String(ui.savings.offerRate);
-          }
-        } else {
-          ui.savings.offerRate = Math.max(600, Math.min(ui.savings.marketRate - 50, raw));
-          if (ui.savings.offerRate !== raw) el.value = String(ui.savings.offerRate);
-        }
-        patchSavingsDOM();
+    if (el.id === "mkt-hour-range") {
+      const hNum = Math.max(10, Math.min(20, parseInt(el.value, 10) || 10));
+      const hh = (hNum < 10 ? "0" : "") + hNum + ":00";
+      if (el.style && typeof el.style.setProperty === "function") el.style.setProperty("--pct", ((hNum - 10) * 10) + "%");
+      const pill = typeof document.getElementById === "function" ? document.getElementById("mkt-hour-pill") : null;
+      if (pill) pill.textContent = hh;
+      return;
+    }
+    if (el.id === "bid-hour-range") {
+      if (ui.booking) {
+        const hNum = Math.max(10, Math.min(20, parseInt(el.value, 10) || 10));
+        ui.booking.hour = (hNum < 10 ? "0" : "") + hNum + ":00";
+        updateBookingModalLive();
       }
       return;
     }
@@ -5227,6 +5337,21 @@
   document.addEventListener("change", (e) => {
     const el = e.target;
     if (el.id === "mkt-max-price") { mkt().maxPrice = Number(el.value) || 2000; saveMkt(); scheduleRender(); return; }
+    if (el.id === "mkt-hour-range") {
+      const hNum = Math.max(10, Math.min(20, parseInt(el.value, 10) || 10));
+      mkt().hour = (hNum < 10 ? "0" : "") + hNum + ":00";
+      saveMkt();
+      scheduleRender();
+      return;
+    }
+    if (el.id === "bid-hour-range") {
+      if (ui.booking) {
+        const hNum = Math.max(10, Math.min(20, parseInt(el.value, 10) || 10));
+        ui.booking.hour = (hNum < 10 ? "0" : "") + hNum + ":00";
+        updateBookingModalLive();
+      }
+      return;
+    }
     if (el.id === "bid-price") {
       if (ui.booking) {
         const raw = parseInt(el.value, 10);
@@ -5239,7 +5364,7 @@
     if (el.id === "bid-custom-time") {
       if (ui.booking && isValidHHMM(el.value)) {
         ui.booking.hour = el.value;
-        renderModal();
+        updateBookingModalLive();
       }
       return;
     }
