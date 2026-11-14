@@ -968,6 +968,13 @@
     const bbHtml = env5.elements.get("main").innerHTML;
     assert(bbHtml.includes('id="brandbook-page"') && bbHtml.includes('data-bb-pane="light"') && bbHtml.includes('data-bb-pane="dark"') && bbHtml.includes("Синий фон") && bbHtml.includes("hh-price-old") && bbHtml.includes("Inter") && bbHtml.includes("#F97316") && bbHtml.includes('id="bb-buttons"') && bbHtml.includes('id="bb-bounds"') && bbHtml.includes("bb-phone-frame"), "expected brandbook with white/dark/blue surfaces, orange notifications #F97316, full button/heart/icon catalog, spacing boundaries and mobile 390px frame");
     assert(bbHtml.includes('id="bb-sliders"') && bbHtml.includes('id="bb-hour-range-clean"') && bbHtml.includes('id="bb-hour-range-ticks"') && bbHtml.includes('id="bb-hour-range-ruler"') && bbHtml.includes('id="bb-motion"') && bbHtml.includes('id="bb-responsive"') && bbHtml.includes('id="bb-vp-slider"') && bbHtml.includes("bb-blueprint-grid") && bbHtml.includes('data-a="bb-day" data-v="sat"') && !bbHtml.includes("Нажми «Предложить» для перехода") && !bbHtml.includes("5%:"), "expected 3 brandbook sliders, responsive lab, clean CTA card without clipped hint or commission string");
+    const iconMatches = bbHtml.match(/data-a="bb-icon-play"/g) || [];
+    assert(iconMatches.length === 36 && bbHtml.includes('data-icon="wallet"') && bbHtml.includes('data-icon="shield"') && bbHtml.includes('data-icon="send"') && bbHtml.includes('data-a="bb-icons-wave"'), "expected expanded 36-icon interactive catalog with animations");
+    clickAction(env5, { a: "bb-icon-play", icon: "bell", label: "Уведомление (оранж.)", animDesc: "Звон" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes('bb-icon-tile is-active is-anim') && env5.elements.get("main").innerHTML.includes("Уведомление (оранж.) · Звон"), "expected clicking an icon tile to activate its animation and update status readout");
+    clickAction(env5, { a: "bb-icons-wave" });
+    await flushMicrotasks(2);
     clickAction(env5, { a: "bb-day", v: "sat" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes('class="day-cir on" data-a="bb-day" data-v="sat"') && env5.elements.get("main").innerHTML.includes('data-bb="day-label">Сб 14'), "expected clicking Сб 14 in brandbook to activate Saturday and update mobile day readout");

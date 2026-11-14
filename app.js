@@ -119,7 +119,20 @@
     msg: '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>',
     bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
     eyeOff: '<path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.53 13.53 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/>',
-    star: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>'
+    eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
+    star: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+    wallet: '<path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/>',
+    shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>',
+    video: '<polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>',
+    clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+    send: '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
+    flame: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
+    award: '<circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/>',
+    copy: '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+    share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>',
+    pin: '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>',
+    lock: '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+    plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>'
   };
   function icon(name) {
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[name] || "") + "</svg>";
@@ -2648,22 +2661,44 @@
       (mode === "dark" || mode === "both" ? brandbookPaneHTML(true, bb) : "");
 
     const iconCatalog = [
-      ["heartFill", "Избранное (актив.)", "var(--bad)"],
-      ["heart", "Избранное (контур)", "var(--muted)"],
-      ["eyeOff", "Скрыть анкету", "var(--ink-2)"],
-      ["bell", "Уведомление (оранж.)", "var(--notif)", "3"],
-      ["check", "Проверено ✓", "var(--accent)"],
-      ["star", "Рейтинг 4.9", "var(--ink)"],
-      ["search", "Поиск", "var(--ink-2)"],
-      ["sliders", "Фильтры", "var(--ink-2)"],
-      ["cal", "Расписание", "var(--accent)"],
-      ["msg", "Чат / Отклик", "var(--accent)"],
-      ["users", "Репетиторы", "var(--ink-2)"],
-      ["bug", "Баг-репорт", "var(--ink-2)"],
-      ["gear", "Настройки", "var(--ink-2)"],
-      [dark ? "sun" : "moon", "Смена темы", "var(--ink-2)"],
-      ["logout", "Выход", "var(--bad)"]
+      ["heartFill", "Избранное (актив.)", "var(--bad)", "", "heartbeat", "Пульс ♥"],
+      ["heart", "Избранное (контур)", "var(--muted)", "", "heartbeat", "Пульс ♡"],
+      ["eyeOff", "Скрыть анкету", "var(--ink-2)", "", "shake", "Встряска"],
+      ["eye", "Просмотр анкеты", "var(--accent)", "", "pop", "Фокус"],
+      ["bell", "Уведомление (оранж.)", "var(--notif)", "3", "ring", "Звон"],
+      ["flame", "Горящая ставка", "var(--notif)", "", "jiggle", "Искра"],
+      ["check", "Проверено ✓", "var(--confirm)", "", "pop-bounce", "Подтверждено"],
+      ["shield", "Защита оплаты", "var(--confirm)", "", "pop-bounce", "Щит"],
+      ["star", "Рейтинг 4.9", "var(--pro)", "", "spin-pop", "Звезда 360°"],
+      ["award", "Эксперт / ВсОШ", "var(--pro)", "", "spin-pop", "Медаль"],
+      ["search", "Поиск", "var(--ink-2)", "", "scan", "Поиск"],
+      ["sliders", "Фильтры", "var(--ink-2)", "", "nudge", "Настройка"],
+      ["cal", "Расписание", "var(--accent)", "", "tick", "Календарь"],
+      ["clock", "Время 10–20 ч", "var(--accent)", "", "tick", "Тик-так"],
+      ["msg", "Чат / Отклик", "var(--accent)", "", "fly", "Отклик"],
+      ["send", "Отправить ставку", "var(--accent)", "", "fly", "Полёт ↗"],
+      ["video", "Онлайн-урок", "var(--accent)", "", "pop", "Камера"],
+      ["users", "Репетиторы", "var(--ink-2)", "", "pop", "Каталог"],
+      ["wallet", "Баланс / Тариф", "var(--confirm)", "", "lift", "Баланс"],
+      ["lock", "Заморозка цены", "var(--ink-2)", "", "shake", "Бронь"],
+      ["pin", "Город / Очно", "var(--accent)", "", "bounce-down", "Локация"],
+      ["spark", "Подбор / ИИ", "var(--pro)", "", "twinkle", "Искры"],
+      ["book", "Конспекты", "var(--ink-2)", "", "flip", "Страница"],
+      ["list", "Тесты ЕГЭ", "var(--ink-2)", "", "pop", "Тесты"],
+      ["chart", "Показатели", "var(--accent)", "", "lift", "Рост"],
+      ["home", "Главная", "var(--ink-2)", "", "pop", "Домой"],
+      ["repeat", "Обновить базу", "var(--ink-2)", "", "spin-ccw", "Обновить"],
+      ["sort", "Сортировка", "var(--ink-2)", "", "nudge", "Порядок"],
+      ["copy", "Копировать", "var(--ink-2)", "", "pop", "Скопировано"],
+      ["share", "Поделиться", "var(--accent)", "", "lift", "Ссылка"],
+      ["download", "Скачать PDF", "var(--ink-2)", "", "bounce-down", "Загрузка"],
+      ["upload", "Загрузить файл", "var(--ink-2)", "", "lift", "Выгрузка"],
+      ["bug", "Баг-репорт", "var(--ink-2)", "", "jiggle", "Проверка"],
+      ["gear", "Настройки", "var(--ink-2)", "", "spin-180", "Поворот 180°"],
+      [dark ? "sun" : "moon", "Смена темы", "var(--ink-2)", "", "spin-pop", "Тема 360°"],
+      ["logout", "Выход", "var(--bad)", "", "fly", "Выход"]
     ];
+    const activeIconItem = bb.activeIcon ? iconCatalog.find((it) => it[0] === bb.activeIcon) : null;
 
     const specRules = [
       ["Контейнер страниц / лендинга", "max-width: 1140 px · 0 px переполнения", ""],
@@ -2894,18 +2929,28 @@
         </div>
 
         <div class="card pad stack" style="gap:10px">
-          <div class="row between" style="gap:8px;flex-wrap:wrap">
-            <b>Полный набор иконок (38×38 px и малые 32×32 px)</b>
-            <span class="small muted">Единая толщина штриха 1.8 px · скругления round</span>
+          <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
+            <div class="stack" style="gap:2px">
+              <b>Полный набор иконок (36 шт. · 38×38 px и 32×32 px)</b>
+              <span class="small muted">Единая толщина штриха 1.8 px · скругления round · нажми на любую иконку</span>
+            </div>
+            <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
+              <span class="bb-spec-pill" data-bb="icon-status">${activeIconItem ? `${activeIconItem[1]} · ${activeIconItem[5]}` : "Нажми любую иконку"}</span>
+              <button type="button" class="btn soft sm" data-a="bb-icons-wave">Анимировать все</button>
+            </div>
           </div>
           <div class="bb-icon-grid">
-            ${iconCatalog.map(([ic, label, col, badge]) => `<div class="bb-icon-tile">
-              <span class="bb-bell-wrap">
-                <span class="icon-btn sm" style="color:${col}">${icon(ic)}</span>
-                ${badge ? `<span class="bb-notif-badge">${badge}</span>` : ""}
-              </span>
-              <b>${label}</b>
-            </div>`).join("")}
+            ${iconCatalog.map(([ic, label, col, badge, anim, animDesc]) => {
+              const isAct = bb.activeIcon === ic;
+              return `<button type="button" class="bb-icon-tile${isAct ? " is-active is-anim" : ""}" data-a="bb-icon-play" data-icon="${ic}" data-anim="${anim}" data-label="${label}" data-anim-desc="${animDesc}" aria-pressed="${isAct}">
+                <span class="bb-bell-wrap">
+                  <span class="icon-btn sm" style="color:${col}">${icon(ic)}</span>
+                  ${badge ? `<span class="bb-notif-badge">${badge}</span>` : ""}
+                </span>
+                <b>${label}</b>
+                <span class="bb-icon-anim-tag">${animDesc}</span>
+              </button>`;
+            }).join("")}
           </div>
         </div>
       </section>
@@ -6049,6 +6094,47 @@
       applyBrandbookViewport(w);
       if (!vpEl) scheduleRender();
     },
+    "bb-icon-play": (el) => {
+      const bb = ui.brandbook || (ui.brandbook = { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, chipOn: true, sent: false, fav: true, vpWidth: 390 });
+      const ic = (el.dataset && el.dataset.icon) || "bell";
+      const label = (el.dataset && el.dataset.label) || ic;
+      const animDesc = (el.dataset && el.dataset.animDesc) || "Анимация";
+      bb.activeIcon = ic;
+      const tiles = typeof document.querySelectorAll === "function" ? document.querySelectorAll(".bb-icon-tile") : null;
+      if (tiles && tiles.length) {
+        tiles.forEach((tile) => {
+          const isMe = tile === el || (tile.dataset && tile.dataset.icon === ic);
+          if (tile.classList) {
+            tile.classList.toggle("is-active", isMe);
+            if (!isMe) tile.classList.remove("is-anim");
+          }
+          if (typeof tile.setAttribute === "function") tile.setAttribute("aria-pressed", isMe ? "true" : "false");
+        });
+        triggerIconTileAnim(el);
+        document.querySelectorAll('[data-bb="icon-status"]').forEach((st) => {
+          st.textContent = label + " · " + animDesc;
+        });
+      } else {
+        scheduleRender();
+      }
+    },
+    "bb-icons-wave": () => {
+      const tiles = typeof document.querySelectorAll === "function" ? document.querySelectorAll(".bb-icon-tile") : null;
+      if (tiles && tiles.length) {
+        document.querySelectorAll('[data-bb="icon-status"]').forEach((st) => {
+          st.textContent = "Каскад · 36 анимаций";
+        });
+        tiles.forEach((tile, idx) => {
+          const run = () => triggerIconTileAnim(tile);
+          if (typeof setTimeout === "function") setTimeout(run, idx * 24);
+          else run();
+        });
+      } else {
+        const bb = ui.brandbook || (ui.brandbook = { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, chipOn: true, sent: false, fav: true, vpWidth: 390 });
+        bb.activeIcon = "spark";
+        scheduleRender();
+      }
+    },
     "go-fees": () => {
       ui.booking = null;
       renderModal();
@@ -6059,6 +6145,18 @@
       scheduleRender();
     }
   };
+  function triggerIconTileAnim(tile) {
+    if (!tile || !tile.classList) return;
+    tile.classList.remove("is-anim");
+    if (typeof tile.offsetWidth === "number") void tile.offsetWidth;
+    tile.classList.add("is-anim");
+    clearTimeout(tile._animTimer);
+    if (typeof setTimeout === "function") {
+      tile._animTimer = setTimeout(() => {
+        if (tile.classList) tile.classList.remove("is-anim");
+      }, 720);
+    }
+  }
   function applyBrandbookViewport(rawW) {
     const bb = ui.brandbook || (ui.brandbook = { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, chipOn: true, sent: false, fav: true, vpWidth: 390 });
     const vpW = Math.max(320, Math.min(1100, Math.round(Number(rawW) || 390)));
