@@ -117,7 +117,7 @@
             <div class="stack" style="gap:2px;min-width:0">
               <div class="row" style="gap:6px;flex-wrap:wrap">
                 <b>${esc(tutor.name)}</b>
-                <span class="badge accent">${esc(preset.short)}</span>
+                <span class="chip accent">${esc(preset.short)}</span>
               </div>
               <span class="small muted">${esc(tutor.source || "Доска Ykt · Telegram · MAX")} · ${esc(preset.role)}</span>
             </div>
@@ -436,7 +436,7 @@
               <button type="button" class="hh-step-btn" data-a="save-step" data-which="off" data-step="100">+100 ₽</button>
             </div>
           </div>
-          <div class="badge" style="justify-content:space-between;width:100%" data-s="split-txt">При ${st.offRate} ₽/ч экономия с каждого урока: ${Math.max(0, st.mktRate - st.offRate)} ₽</div>
+          <div class="chip" style="justify-content:space-between;width:100%;white-space:normal;padding:6px 12px;border-radius:10px" data-s="split-txt">При ${st.offRate} ₽/ч экономия с каждого урока: ${Math.max(0, st.mktRate - st.offRate)} ₽</div>
         </div>
         <div class="card pad stack" style="gap:14px;justify-content:space-between">
           <div class="stack" style="gap:10px">
@@ -788,7 +788,7 @@
           <div class="eyebrow">Квиз-подбор за 20 секунд</div>
           <h2 class="h2">Ответь на 3 пункта — сразу покажем лучшие анкеты</h2>
         </div>
-        <span class="badge accent">${icon("spark")}<span>Мгновенный фильтр каталога</span></span>
+        <span class="chip accent">${icon("spark")}<span>Мгновенный фильтр каталога</span></span>
       </div>
       <div class="land-match-grid">
         <div class="card pad stack" style="gap:12px">
@@ -820,7 +820,7 @@
         <div class="land-match-result">
           <div class="stack" style="gap:8px">
             <div class="row between" style="gap:6px;flex-wrap:wrap">
-              <span class="badge accent">Готово к отклику</span>
+              <span class="chip accent">Готово к отклику</span>
               <span class="small muted num">${filtered.length} ${plural(filtered.length, "анкета", "анкеты", "анкет")} сейчас</span>
             </div>
             <div class="hh-price-row">
@@ -900,7 +900,7 @@
           <div class="eyebrow">Качество базы · Ykt · Telegram · MAX</div>
           <h2 class="h2">Как мы отсеиваем фейки и устаревшие анкеты</h2>
         </div>
-        <span class="badge confirm">${icon("shield")}<span>Проверка актуальности</span></span>
+        <span class="chip confirm">${icon("shield")}<span>Проверка актуальности</span></span>
       </div>
       <div class="land-verify-grid">
         ${steps.map(([num, title, desc]) => `<div class="card pad stack" style="gap:8px">
@@ -931,13 +931,13 @@
       </div>
       <div class="land-ai-grid">
         <div class="ai-err-box">
-          <div class="row between"><span class="badge">${esc(item.topic)}</span><span class="small muted">Задание КИМ</span></div>
+          <div class="row between"><span class="chip">${esc(item.topic)}</span><span class="small muted">Задание КИМ</span></div>
           <b>${esc(item.question)}</b>
           <span class="small muted" style="padding:8px 10px;border-radius:10px;background:var(--surface);border:1px solid var(--line)">${esc(item.mistake)}</span>
         </div>
         <div class="ai-fix-box">
           <div class="row between" style="gap:8px;flex-wrap:wrap">
-            <span class="row" style="gap:6px"><span style="color:var(--pro)">${icon("spark")}</span><b>Разбор ИИ-помощника</b></span>
+            <span class="row" style="gap:6px"><span class="ai-spark-ico" aria-hidden="true">${icon("spark")}</span><b>Разбор ИИ-помощника</b></span>
             <span class="diff-tag pro num">${esc(item.delta)}</span>
           </div>
           <p class="small ink2" style="line-height:1.55">${esc(item.aiFix)}</p>

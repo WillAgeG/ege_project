@@ -316,7 +316,7 @@ p { margin: 0; }
 .chip.bad { background: var(--bad-soft); color: var(--bad); }
 .chip.accent { background: var(--accent-soft); color: var(--accent); }
 .chip.leaf { background: var(--leaf-soft); color: var(--leaf); }
-.chip svg { width: 13px; height: 13px; }
+.chip svg { width: 13px; height: 13px; flex: none; display: block; }
 .notif-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--notif); flex: none; }
 
 /* ---------- метры ---------- */

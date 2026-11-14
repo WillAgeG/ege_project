@@ -34,8 +34,8 @@ body[data-auth="1"] .auth-wrap { margin: 8vh auto; padding: 0 16px; }
 }
 .land-links a:hover { color: var(--accent); background: var(--accent-soft); }
 .land-top-actions { display: flex; align-items: center; gap: 8px; flex: none; }
-@media (max-width: 1180px) { .land-top .brand-sub { display: none; } }
-@media (max-width: 1020px) { .land-links { display: none; } }
+@media (max-width: 1180px) { .land-top .brand-sub { display: none; } .land-links { gap: 4px; } .land-links a { font-size: 12.5px; padding: 4px 6px; } }
+@media (max-width: 760px) { .land-links { display: none; } }
 
 .land-hero { display: grid; grid-template-columns: minmax(0, 1.28fr) minmax(330px, 420px); gap: 26px; align-items: start; min-width: 0; }
 @media (max-width: 960px) { .land-hero { grid-template-columns: minmax(0, 1fr); gap: 20px; } }
@@ -801,6 +801,8 @@ body[data-auth="1"] .auth-wrap { margin: 8vh auto; padding: 0 16px; }
   border: 1.5px solid color-mix(in srgb, var(--pro) 42%, var(--line));
   display: grid; gap: 10px; align-content: start;
 }
+.ai-spark-ico { display: inline-flex; align-items: center; flex: none; color: var(--pro); }
+.ai-spark-ico svg { width: 18px; height: 18px; display: block; }
 .review-card { padding: 16px; border-radius: var(--r); border: 1px solid var(--line); background: var(--surface); display: flex; flex-direction: column; justify-content: space-between; gap: 12px; }
 .review-quote { font-size: 14px; line-height: 1.5; color: var(--ink-2); }
 
