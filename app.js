@@ -914,7 +914,8 @@
     studySubj: "all",
     bug: null,
     booking: null,
-    market: null
+    market: null,
+    demo: { tab: "quiz", sid: firstSubject.id, qIdx: 0, pick: null, revealed: false, topicIdx: 0, bidRate: 800, bidHour: "10:00" }
   };
   const MARKET_LS_KEY = "vektor-ege:market";
   const TDATA = EGE.tutors || null;
@@ -922,7 +923,7 @@
     return {
       planId: "free",
       balance: 0,
-      calcRate: 1000,
+      calcRate: 800,
       q: "",
       exam: "all",
       subject: "all",
@@ -1124,6 +1125,16 @@
       ].filter((x, i, a) => x || (a[i - 1] !== "")).join("\n")
     };
   }
+  function isValidHHMM(s) {
+    return /^([01]\d|2[0-3]):([0-5]\d)$/.test(String(s || "").trim());
+  }
+  function feeSplitHTML(price) {
+    if (!TDATA || typeof TDATA.commissionSplit !== "function") return "";
+    const sp = TDATA.commissionSplit(price);
+    return `<div class="fee-pill"><span>Ученик платит</span><b class="num">${sp.total.toLocaleString("ru-RU")} ₽/ч</b></div>
+      <div class="fee-pill"><span>Преподавателю (95%)</span><b class="num">${sp.payout.toLocaleString("ru-RU")} ₽</b></div>
+      <div class="fee-pill"><span>Комиссия сервиса (${sp.pct}%)</span><b class="num">${sp.fee.toLocaleString("ru-RU")} ₽</b></div>`;
+  }
   function bookingModalHTML() {
     if (!ui.booking || !TDATA) return "";
     const b = ui.booking, tutor = TDATA.LIST.find((x) => x.id === b.tutorId);
@@ -1131,7 +1142,7 @@
     const days = TDATA.buildCalendarDays(7);
     const dayObj = days.find((d) => d.iso === b.dayIso) || days[0];
     const daySlots = TDATA.tutorSlotsForDay(tutor, dayObj.dow);
-    const curHour = daySlots.includes(b.hour) ? b.hour : (daySlots[0] || "10:00");
+    const curHour = isValidHHMM(b.hour) ? b.hour : (daySlots[0] || "10:00");
     const sig = TDATA.offerSignal(tutor.price, b.offerPrice);
     const preview = TDATA.botPreviewText({
       exam: b.exam,
@@ -1145,6 +1156,8 @@
     const st = mkt();
     const n5 = b.offerPrice > 0 ? Math.floor(5000 / b.offerPrice) : 0;
     const n10 = b.offerPrice > 0 ? Math.floor(10000 / b.offerPrice) : 0;
+    const winTxt = tutor.windowLabel || ("с " + tutor.availableFrom + " до " + tutor.availableTo);
+    const inWin = typeof TDATA.tutorInWindow === "function" ? TDATA.tutorInWindow(tutor, curHour) : true;
     return `<div class="modal-back" role="dialog" aria-modal="true" aria-labelledby="book-modal-title">
       <div class="modal-card">
         <div class="modal-head">
@@ -1152,7 +1165,7 @@
           <button type="button" class="icon-btn sm" data-a="book-close" aria-label="Закрыть">${icon("x")}</button>
         </div>
         <div class="row between small muted" style="flex-wrap:wrap;gap:6px">
-          <span>${esc(tutor.subjectName)} · ставка преподавателя <b>${tutor.price} ₽/ч</b></span>
+          <span>${esc(tutor.subjectName)} · ${esc(tutor.source || "Доска Ykt")} · окно <b>${esc(winTxt)}</b></span>
           <span>Баланс: <b class="num">${st.balance.toLocaleString("ru-RU")} ₽</b></span>
         </div>
         <div class="fields">
@@ -1175,26 +1188,31 @@
           }).join("")}</div>
         </div>
         <div class="field">
-          <label>Выбери время (кружочки)</label>
+          <label>Быстрые слоты и своё время (${esc(winTxt)})</label>
           <div class="hour-circles">${daySlots.map((h) => `<button type="button" class="hr-cir${h === curHour ? " on" : ""}" data-a="book-hour" data-v="${esc(h)}">${esc(h)}</button>`).join("")}</div>
+          <div class="bid-time-row" style="margin-top:8px">
+            <span class="small muted" id="bid-win-status">${inWin ? `Входит в окно на Доске Ykt (${esc(winTxt)})` : `Вне типового окна (${esc(winTxt)}) — бот уточнит у преподавателя`}</span>
+            <input class="input num" id="bid-custom-time" type="time" value="${esc(curHour)}" aria-label="Выбрать точное время урока" style="width:120px">
+          </div>
         </div>
         <div class="field">
-          <label for="bid-price">Твоя цена за занятие (₽/ч) — как в inDrive</label>
+          <label for="bid-price">Твоя цена за занятие (₽/ч) — комиссия сервиса 5%</label>
           <div class="bid-stepper">
             <button type="button" class="btn ghost sm" data-a="bid-step" data-step="-100">−100 ₽</button>
             <input class="input bid-input num" id="bid-price" type="number" min="500" max="5000" step="50" inputmode="numeric" value="${b.offerPrice}">
             <button type="button" class="btn ghost sm" data-a="bid-step" data-step="100">+100 ₽</button>
           </div>
           <div id="bid-signal" class="small"><span class="chip ${sig.tone}">${esc(sig.label)}</span></div>
+          <div class="fee-split-box" id="bid-fee-split">${feeSplitHTML(b.offerPrice)}</div>
         </div>
         <div class="field">
           <label for="bid-note">Пожелания по подготовке (необязательно)</label>
           <input class="input" id="bid-note" maxlength="140" placeholder="Например: цель 80+ баллов, разбор устной части и эссе" value="${esc(b.note || "")}">
         </div>
         <div class="bot-preview">
-          <b class="small">Сообщение, которое бот отправит преподавателю:</b>
+          <b class="small">Сообщение, которое бот отправит преподавателю в WhatsApp:</b>
           <span id="bot-preview-txt">${esc(preview)}</span>
-          <span class="small muted">На «Пробник» (5 000 ₽) хватит на <b>${n5} ур.</b> · на «Месяц» (10 000 ₽) на <b>${n10} ур.</b> Телефон ученика скрыт до оплаты.</span>
+          <span class="small muted">На «Пробник» (5 000 ₽) хватит на <b>${n5} ур.</b> · на «Месяц» (10 000 ₽) на <b>${n10} ур.</b> Комиссия 5% уже учтена, скрытых доплат нет.</span>
         </div>
         <div class="row" style="flex-wrap:wrap;gap:8px">
           <button type="button" class="btn" data-a="book-submit">Отправить предложение репетитору</button>
@@ -1542,18 +1560,19 @@
     opts = opts || {};
     if (!TDATA) return "";
     const st = mkt();
-    const rate = st.calcRate || 1000;
+    const rate = st.calcRate || 800;
     const rates = [800, 1000, 1250, 1500];
+    const sp = typeof TDATA.commissionSplit === "function" ? TDATA.commissionSplit(rate) : { total: rate, payout: Math.round(rate * 0.95), fee: Math.round(rate * 0.05), pct: 5 };
     const cards = TDATA.PLANS.map((p) => {
       const picked = st.planId === p.id;
       const lessons = p.balance > 0 ? Math.max(1, Math.floor(p.balance / rate)) : 0;
       const note = p.balance > 0
-        ? `≈ ${lessons} ${plural(lessons, "урок", "урока", "уроков")} при ставке ${rate.toLocaleString("ru-RU")} ₽/ч`
-        : "Самостоятельная подготовка к ЕГЭ и ОГЭ";
-      return `<article class="card pad-lg plan-card${p.featured ? " featured" : ""}${picked ? " picked" : ""}">
+        ? `≈ ${lessons} ${plural(lessons, "урок", "урока", "уроков")} по ${sp.total} ₽ · ${sp.payout} ₽ преподу + ${sp.fee} ₽ (${sp.pct}%)`
+        : "Тесты, конспекты и каталог Доски Ykt";
+      return `<article class="card pad-lg plan-card${p.featured ? " featured" : ""}${p.super ? " super" : ""}${picked ? " picked" : ""}">
         <div class="stack" style="gap:10px">
           <div class="row between" style="gap:8px;flex-wrap:wrap">
-            <span class="chip ${p.featured ? "accent" : p.balance ? "leaf" : ""}">${esc(p.badge)}</span>
+            <span class="chip ${p.super || p.featured ? "accent" : p.balance ? "leaf" : ""}">${esc(p.badge)}</span>
             ${picked ? '<span class="chip good">Выбран сейчас</span>' : ""}
           </div>
           <div>
@@ -1566,19 +1585,19 @@
           <ul class="plan-feats">${p.features.map((f) => `<li><span>${esc(f)}</span></li>`).join("")}</ul>
         </div>
         <div class="stack" style="gap:8px">
-          <button type="button" class="btn${p.featured || picked ? "" : " soft"}" data-a="mkt-plan" data-id="${p.id}"${picked && p.id !== "free" ? ' aria-current="true"' : ""}>${picked && p.id !== "free" ? "Баланс активен · " + st.balance.toLocaleString("ru-RU") + " ₽" : esc(p.cta)}</button>
+          <button type="button" class="btn${p.featured || p.super || picked ? "" : " soft"}" data-a="mkt-plan" data-id="${p.id}"${picked && p.id !== "free" ? ' aria-current="true"' : ""}>${picked && p.id !== "free" ? "Баланс активен · " + st.balance.toLocaleString("ru-RU") + " ₽" : esc(p.cta)}</button>
         </div>
       </article>`;
     }).join("");
     return `<section class="land-sec" id="land-plans" aria-label="Тарифы и баланс">
       <div class="land-sec-head">
         <div>
-          <div class="eyebrow">3 вида подписки</div>
+          <div class="eyebrow">3 вида подписки · комиссия ${sp.pct}%</div>
           <h2 class="h2">Баланс 5 000 / 10 000 ₽ на репетиторов или базовый доступ</h2>
-          <p class="small muted">Оплата проходит через сервис. Вся сумма падает на твой баланс: если репетитор не подошёл, остаток не сгорает и переносится к другому.</p>
+          <p class="small muted">Оплата проходит через сервис с прозрачной комиссией 5%: например, с урока ${sp.total} ₽ преподаватель получает ${sp.payout} ₽, а ${sp.fee} ₽ — комиссия платформы.</p>
         </div>
         <div class="row" style="gap:6px;flex-wrap:wrap">
-          <span class="small muted">Цена урока для расчёта:</span>
+          <span class="small muted">Ставка для расчёта:</span>
           ${rates.map((r) => `<button type="button" class="chip-btn${rate === r ? " on" : ""}" data-a="mkt-calc" data-rate="${r}">${r} ₽/ч</button>`).join("")}
         </div>
       </div>
@@ -1593,8 +1612,9 @@
     const isFav = Array.isArray(st.favs) && st.favs.includes(t.id);
     const activeDow = opts.activeDow !== undefined ? opts.activeDow : "all";
     const daySlots = TDATA.tutorSlotsForDay(t, activeDow).slice(0, 5);
-    const pickHour = opts.pickHour || (st.hour !== "all" && daySlots.includes(st.hour) ? st.hour : (daySlots[0] || "10:00"));
-    const waHref = TDATA.whatsappUrl(t, opts.waText || `Здравствуйте, ${t.name}! Хочу подготовиться к ЕГЭ/ОГЭ (${t.subjectName}). Свободное время около ${pickHour}, готов(а) обсудить ставку от ${t.minFair} ₽/ч.`);
+    const pickHour = opts.pickHour || (st.hour !== "all" ? st.hour : (daySlots[0] || t.availableFrom || "10:00"));
+    const winTxt = t.windowLabel || ("с " + t.availableFrom + " до " + t.availableTo);
+    const waHref = TDATA.whatsappUrl(t, opts.waText || `Здравствуйте, ${t.name}! Вижу вашу анкету с Доски Ykt на Вектор ЕГЭ (${t.subjectName}). Хочу заниматься около ${pickHour}, готов(а) обсудить ставку от ${t.minFair} ₽/ч.`);
     return `<article class="card tutor-card">
       <div class="stack" style="gap:10px">
         <div class="tutor-head">
@@ -1606,10 +1626,11 @@
         </div>
         <div class="tutor-name-line">
           <b style="color:var(--ink)">${esc(t.name)}</b>
-          ${t.verified ? `<span class="verified-badge" title="Проверенный преподаватель">${icon("check")}</span>` : ""}
+          ${t.verified ? `<span class="verified-badge" title="Проверенная анкета">${icon("check")}</span>` : ""}
           <span class="small muted">· ${esc(t.city)} · ★ ${t.rating.toFixed(1)} (${t.reviews})</span>
         </div>
         <div class="tutor-tags">
+          <span class="tutor-tag-pill">${esc(t.source || "Доска Ykt")} · ${esc(winTxt)}</span>
           <span class="tutor-tag-pill">${esc(t.exams.join(" и "))}</span>
           <span class="tutor-tag-pill">${esc(t.exp)}</span>
           <span class="tutor-tag-pill">${esc(t.formats.join(" / "))}</span>
@@ -1618,10 +1639,10 @@
         <p class="tutor-bio">${esc(t.bio)}</p>
         <div class="row between small muted" style="gap:6px;flex-wrap:wrap">
           <span>${esc(t.bumpText)}</span>
-          <span class="num">Торг от ${t.minFair} ₽/ч</span>
+          <span class="num">Торг от ${t.minFair} ₽/ч · комиссия 5%</span>
         </div>
         ${daySlots.length ? `<div class="slot-mini-row">
-          <span class="small muted">${opts.dayLabel ? esc(opts.dayLabel) + ":" : "Окна:"}</span>
+          <span class="small muted">${opts.dayLabel ? esc(opts.dayLabel) + ":" : "Слоты:"}</span>
           ${daySlots.map((h) => `<button type="button" class="slot-mini${st.hour === h ? " picked" : ""}" data-a="book-open" data-id="${esc(t.id)}" data-hour="${esc(h)}">${esc(h)}</button>`).join("")}
         </div>` : ""}
       </div>
@@ -1669,8 +1690,8 @@
 
     const dayPills = `<button type="button" class="day-cir${st.day === "all" ? " on" : ""}" data-a="mkt-day" data-v="all">
         <span class="day-wd">Все</span>
-        <span class="day-dot">${days[0].num}–${days[days.length - 1].num}</span>
-        <span class="day-cnt">7 дней</span>
+        <span class="day-dot all-badge">7 дн</span>
+        <span class="day-cnt">${days[0].num}–${days[days.length - 1].num} ${days[0].month}</span>
       </button>` + days.map((d) => {
         const cnt = TDATA.countForDay(st, d.dow);
         return `<button type="button" class="day-cir${st.day === d.iso ? " on" : ""}" data-a="mkt-day" data-v="${d.iso}">
@@ -1750,6 +1771,7 @@
         </div>
         <div class="cal-days" aria-label="Дни недели">${dayPills}</div>
         <div class="hour-circles" aria-label="Часы занятий">${hourPills}</div>
+        <div class="small muted">Анкеты подтягиваются с Доски Ykt с окном доступности (например, с 09:00 до 20:00). В форме записи можно выбрать любой точный час и минуту.</div>
       </div>
 
       <div class="hh-sort-row">
@@ -1758,6 +1780,148 @@
       </div>
 
       ${cardsHTML}
+    </section>`;
+  }
+
+  function demoPool(sid) {
+    const subj = SUBJ[sid] || (CONTENT[0] && CONTENT[0].content);
+    if (!subj) return [];
+    const list = [];
+    for (const t of (subj.topicList || [])) {
+      for (const q of (t.q || [])) {
+        if (q && q.t === "single" && !q.ctx && !q.svg && Array.isArray(q.o) && Number.isInteger(q.a) && q.q && q.q.length <= 260) {
+          list.push(q);
+          if (list.length >= 6) return list;
+        }
+      }
+    }
+    return list;
+  }
+
+  function demoSectionHTML(inside) {
+    const dm = ui.demo || (ui.demo = { tab: "quiz", sid: firstSubject.id, qIdx: 0, pick: null, revealed: false, topicIdx: 0, bidRate: 800, bidHour: "10:00" });
+    const subjObj = CONTENT.find((s) => s.id === dm.sid) || CONTENT[0];
+    const sid = subjObj ? subjObj.id : firstSubject.id;
+    const totalQ = CONTENT.reduce((acc, s) => acc + (s.content && s.content.topics ? Object.keys(s.content.topics).reduce((n, k) => n + ((s.content.topics[k].q || []).length), 0) : 0), 0) || Object.keys(QS).length;
+    const totalTopics = CONTENT.reduce((acc, s) => acc + ((s.content && s.content.topicList) ? s.content.topicList.length : 0), 0);
+
+    let body = "";
+    if (dm.tab === "notes") {
+      const tList = (subjObj && subjObj.content && subjObj.content.topicList) ? subjObj.content.topicList : [];
+      const curIdx = tList.length ? (dm.topicIdx % tList.length) : 0;
+      const t = tList[curIdx] || null;
+      const chips = CONTENT.map((s) => `<button type="button" class="chip-btn${s.id === sid ? " on" : ""}" data-a="demo-subj" data-sid="${esc(s.id)}">${esc(s.name)}</button>`).join("");
+      const tBtns = tList.slice(0, 4).map((tp, idx) => `<button type="button" class="chip-btn${idx === curIdx ? " on" : ""}" data-a="demo-topic" data-i="${idx}">${esc(tp.title.length > 28 ? tp.title.slice(0, 26) + "…" : tp.title)}</button>`).join("");
+      const bullets = t ? (t.theory || []).slice(0, 6).map((x) => x.startsWith("## ") ? `<li class="th-h">${rich(x.slice(3))}</li>` : `<li>${rich(x)}</li>`).join("") : "";
+      const tbl = t && t.tables && t.tables.length ? tablesHTML({ tables: [t.tables[0]] }) : "";
+      body = `<div class="chip-rail">${chips}</div>
+        ${tBtns ? `<div class="chip-rail">${tBtns}</div>` : ""}
+        ${t ? `<div class="card pad-lg stack" style="gap:10px">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <div><div class="eyebrow">${esc(subjObj.name)} · конспект темы</div><h3 class="h3">${esc(t.title)}</h3></div>
+            <span class="chip accent">${(t.q || []).length} заданий</span>
+          </div>
+          <ul class="theory">${bullets}</ul>
+          ${tbl}
+        </div>` : `<div class="empty">Выбери предмет для просмотра конспекта.</div>`}`;
+    } else if (dm.tab === "calc") {
+      const rate = Math.max(500, Math.min(3000, Number(dm.bidRate) || 800));
+      const rates = [700, 800, 1000, 1200];
+      const sp = TDATA && typeof TDATA.commissionSplit === "function"
+        ? TDATA.commissionSplit(rate)
+        : { total: rate, payout: Math.round(rate * 0.95), fee: Math.round(rate * 0.05), pct: 5 };
+      const sampleTut = TDATA && TDATA.LIST[0];
+      const winLabel = sampleTut ? sampleTut.windowLabel : "с 09:00 до 19:00";
+      const previewTxt = TDATA ? TDATA.botPreviewText({
+        exam: "ЕГЭ",
+        subjectName: sampleTut ? sampleTut.subjectName : "Английский язык",
+        format: "онлайн",
+        dayLabel: "ближайшая суббота",
+        hour: dm.bidHour || "10:00",
+        offerPrice: sp.total,
+        tutorPrice: sampleTut ? sampleTut.price : 1200
+      }) : "";
+      body = `<div class="demo-grid">
+        <div class="card stack" style="gap:12px">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <b>Выбери ставку за урок (комиссия ${sp.pct}%)</b>
+            <span class="chip">${esc(winLabel)} · Доска Ykt</span>
+          </div>
+          <div class="chip-rail">
+            ${rates.map((r) => `<button type="button" class="chip-btn${rate === r ? " on" : ""}" data-a="demo-rate" data-rate="${r}">${r} ₽/ч</button>`).join("")}
+            <input class="input num" id="demo-rate-inp" type="number" min="500" max="3000" step="50" value="${rate}" aria-label="Своя ставка в рублях" style="width:110px">
+          </div>
+          <div class="fee-split-box">${feeSplitHTML(sp.total)}</div>
+          <p class="small muted">С каждой оплаты платформа берёт фиксированные 5%: например, с 800 ₽ преподаватель получает 760 ₽, а 40 ₽ остаётся сервису. Баланс защищён до начала урока.</p>
+        </div>
+        <div class="card stack" style="gap:10px">
+          <b class="small">Пример сообщения бота в WhatsApp</b>
+          <div class="bot-preview"><span>${esc(previewTxt)}</span></div>
+          <div class="row" style="gap:8px;flex-wrap:wrap">
+            <button type="button" class="btn sm" data-a="land-scroll" data-target="land-market">Выбрать время на карте</button>
+          </div>
+        </div>
+      </div>`;
+    } else {
+      const pool = demoPool(sid);
+      const q = pool.length ? pool[dm.qIdx % pool.length] : null;
+      const tp = q && TOPICS[q.topic];
+      const chips = CONTENT.map((s) => `<button type="button" class="chip-btn${s.id === sid ? " on" : ""}" data-a="demo-subj" data-sid="${esc(s.id)}">${esc(s.name)}</button>`).join("");
+      const optsHTML = q ? q.o.map((opt, idx) => {
+        const picked = dm.pick === idx;
+        const ok = dm.revealed && idx === q.a;
+        const bad = dm.revealed && picked && idx !== q.a;
+        return `<button type="button" class="demo-opt${ok ? " ok" : bad ? " bad" : picked ? " picked" : ""}" data-a="demo-pick" data-i="${idx}"${dm.revealed ? " disabled" : ""}><span><b>${idx + 1}.</b> ${esc(opt)}</span><span class="small muted">${ok ? "Верно" : bad ? "Ошибка" : ""}</span></button>`;
+      }).join("") : "";
+      const fb = q && dm.revealed
+        ? `<div class="feedback" data-r="${dm.pick === q.a ? "2" : "0"}"><div class="fb-title">${icon(dm.pick === q.a ? "check" : "x")}${dm.pick === q.a ? "Верно!" : `Ошибка · правильный ответ: ${esc(q.o[q.a])}`}</div>${q.e ? `<div class="small ink2">${esc(q.e)}</div>` : ""}</div>`
+        : "";
+      body = `<div class="demo-grid">
+        <div class="card stack" style="gap:12px">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <div class="chip-rail">${chips}</div>
+            ${q ? `<span class="chip accent">Вопрос ${(dm.qIdx % pool.length) + 1} / ${pool.length}</span>` : ""}
+          </div>
+          ${q ? `<div class="stack" style="gap:8px">
+            ${tp ? `<div class="small muted">Тема: ${esc(tp.title)}</div>` : ""}
+            <div style="font-size:16px;font-weight:600;line-height:1.45">${esc(q.q)}</div>
+            <div class="stack" style="gap:8px">${optsHTML}</div>
+            ${fb}
+            <div class="row between" style="gap:8px;flex-wrap:wrap;padding-top:4px">
+              <button type="button" class="btn soft sm" data-a="demo-next">Следующий вопрос</button>
+              <button type="button" class="btn ghost sm" data-a="demo-tab" data-tab="notes">Открыть конспект</button>
+            </div>
+          </div>` : `<div class="empty">Вопросы загружаются…</div>`}
+        </div>
+        <div class="card stack" style="gap:10px">
+          <div class="eyebrow">Что внутри тренажёра</div>
+          <h3 class="h3">${totalQ}+ заданий ЕГЭ и ${totalTopics} конспекта</h3>
+          <p class="small ink2">Каждый вопрос связан со справочником: если ошибся — сразу видишь разбор и ссылку на нужный конспект, а сложные номера попадают в повторение.</p>
+          <div class="row" style="gap:8px;flex-wrap:wrap;padding-top:4px">
+            ${inside
+              ? `<button type="button" class="btn sm" data-a="go" data-v="tests">Перейти к тренажёру</button>`
+              : `<button type="button" class="btn sm" data-a="auth-modal-open">Войти и сохранять прогресс</button>`}
+          </div>
+        </div>
+      </div>`;
+    }
+
+    return `<section class="land-sec" id="land-demo" aria-label="Пример работы бета">
+      <div class="land-sec-head">
+        <div>
+          <div class="eyebrow">Пример работы · Бета</div>
+          <h2 class="h2">Потыкай прямо сейчас: тест ЕГЭ, конспект и расчёт 5%</h2>
+          <p class="small muted">Без регистрации можно проверить задания по биологии, русскому и химии, полистать шпаргалку и посчитать выплату репетитору.</p>
+        </div>
+      </div>
+      <div class="demo-box">
+        <div class="hh-seg" role="group" aria-label="Режим бета-примера">
+          <button type="button" data-a="demo-tab" data-tab="quiz" aria-pressed="${dm.tab === "quiz"}">Мини-тест ЕГЭ</button>
+          <button type="button" data-a="demo-tab" data-tab="notes" aria-pressed="${dm.tab === "notes"}">Конспекты</button>
+          <button type="button" data-a="demo-tab" data-tab="calc" aria-pressed="${dm.tab === "calc"}">Торг и 5%</button>
+        </div>
+        ${body}
+      </div>
     </section>`;
   }
 
@@ -1772,7 +1936,7 @@
           <div class="card" style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
             <div class="stack" style="gap:2px">
               <b class="small">График недели и связь в WhatsApp</b>
-              <span class="small muted">Видно, кто свободен в каждую неделю, с прямым переходом в чат.</span>
+              <span class="small muted">Видно окно каждого репетитора с Доски Ykt и прямой переход в чат.</span>
             </div>
             <button type="button" class="btn soft sm" data-a="land-scroll" data-target="land-market">Все ${TDATA.LIST.length} анкет</button>
           </div>
@@ -1785,14 +1949,15 @@
           ${BRAND_MARK_HTML}
           <div class="brand-text">
             <div class="brand-name">Вектор ЕГЭ</div>
-            <div class="brand-sub">ЕГЭ · ОГЭ · Маркетплейс репетиторов</div>
+            <div class="brand-sub">ЕГЭ · ОГЭ · Тесты и репетиторы</div>
           </div>
         </div>
         <nav class="land-links" aria-label="Разделы лендинга">
           <a href="#land-how" data-a="land-scroll" data-target="land-how">Как работает</a>
+          <a href="#land-demo" data-a="land-scroll" data-target="land-demo">Бета-тест</a>
           <a href="#land-market" data-a="land-scroll" data-target="land-market">Репетиторы</a>
           <a href="#land-plans" data-a="land-scroll" data-target="land-plans">Тарифы</a>
-          <a href="#land-tutors" data-a="land-scroll" data-target="land-tutors">Для преподавателей</a>
+          <a href="#land-tutors" data-a="land-scroll" data-target="land-tutors">Преподавателям</a>
         </nav>
         <div class="land-top-actions">
           <button type="button" class="icon-btn sm" data-a="theme-toggle" aria-label="Сменить тему" title="Сменить тему">${icon(dark ? "sun" : "moon")}</button>
@@ -1806,21 +1971,20 @@
         <div class="land-hero-copy">
           <div class="row" style="gap:6px;flex-wrap:wrap">
             <span class="chip accent">ЕГЭ 2027 и ОГЭ</span>
-            <span class="chip leaf">Торг ценой как в inDrive</span>
-            <span class="chip">WhatsApp и календарь недели</span>
+            <span class="chip leaf">Тесты + конспекты + репетиторы</span>
+            <span class="chip">Комиссия 5%</span>
           </div>
-          <h1 class="land-h1">Выбирай репетитора по времени, цене и пиши в WhatsApp</h1>
-          <p class="land-lead">Подготовка к ЕГЭ и ОГЭ: отметь кружочек дня и часа, предложи свою ставку за занятие и отслеживай график учителей на каждую неделю. Вся оплата хранится на защищённом балансе.</p>
+          <h1 class="land-h1">Готовься по тестам и конспектам и выбирай репетитора по своей цене</h1>
+          <p class="land-lead">Полные тесты ФИПИ и конспекты по биологии, русскому и химии + маркетплейс репетиторов с Доски Ykt: выбирай удобное время в окне преподавателя, предлагай свою ставку и плати через сервис с комиссией 5%.</p>
           <div class="land-hero-ctas">
-            <button type="button" class="btn" data-a="land-scroll" data-target="land-market">Выбрать репетитора</button>
-            ${inside
-              ? `<button type="button" class="btn soft" data-a="go" data-v="tests">Перейти к тестам</button>`
-              : `<button type="button" class="btn soft" data-a="auth-modal-open">Личный кабинет</button>`}
+            <button type="button" class="btn" data-a="land-scroll" data-target="land-demo">Попробовать бета-тест</button>
+            <button type="button" class="btn soft" data-a="land-scroll" data-target="land-market">Выбрать репетитора</button>
+            ${inside ? `<button type="button" class="btn ghost" data-a="go" data-v="tests">Перейти к тестам</button>` : ""}
           </div>
           <div class="land-stats">
-            <div class="land-stat"><b>${TDATA ? TDATA.LIST.length : 12} репетиторов</b><span>Проверенные анкеты, реальный рейтинг и свободные окна</span></div>
-            <div class="land-stat"><b>Твоя ставка</b><span>Предложи 1 000 ₽ вместо 1 200 ₽ — бот спросит препода</span></div>
-            <div class="land-stat"><b>5к или 10к ₽</b><span>Баланс на уроки и смена преподавателя без потерь</span></div>
+            <div class="land-stat"><b>Тесты и конспекты</b><span>Задания ФИПИ, шпаргалки и разбор ошибок внутри</span></div>
+            <div class="land-stat"><b>База с Доски Ykt</b><span>${TDATA ? TDATA.LIST.length : 12} анкет с окном «с… до…» и выбором любого часа</span></div>
+            <div class="land-stat"><b>Комиссия 5%</b><span>Из 800 ₽ преподаватель получает 760 ₽, 40 ₽ сервису</span></div>
           </div>
         </div>
         ${rightHero}
@@ -1830,17 +1994,18 @@
         <div class="land-sec-head">
           <div>
             <div class="eyebrow">Как это устроено</div>
-            <h2 class="h2">От выбора кружочка времени до урока за 2 минуты</h2>
+            <h2 class="h2">От выбора кружочка времени до урока и разбора тем за 2 минуты</h2>
           </div>
         </div>
         <div class="how-grid">
-          <div class="card how-card"><span class="how-num">01</span><b>Фильтр ЕГЭ / ОГЭ и бюджет</b><p class="small ink2">Выбираешь предмет (например, английский), формат и потолок цены за час.</p></div>
-          <div class="card how-card"><span class="how-num">02</span><b>Кружочки дня и часа</b><p class="small ink2">Тапаешь нужный день и час (например, суббота 10:00) — видишь только свободных преподавателей.</p></div>
-          <div class="card how-card"><span class="how-num">03</span><b>Торг ценой (inDrive)</b><p class="small ink2">Предлагаешь свою цену — бот пишет репетитору, а диалог можно сразу продолжить в WhatsApp.</p></div>
-          <div class="card how-card"><span class="how-num">04</span><b>Недельный график и баланс</b><p class="small ink2">В разделе «Учёба» сразу видно, какие учителя ждут в каждую неделю и какой остаток баланса.</p></div>
+          <div class="card how-card"><span class="how-num">01</span><b>Фильтр ЕГЭ / ОГЭ и бюджет</b><p class="small ink2">Выбираешь предмет, формат и потолок цены, а анкеты подтягиваются с Доски Ykt.</p></div>
+          <div class="card how-card"><span class="how-num">02</span><b>Кружочки и своё время</b><p class="small ink2">У преподавателей указано окно (например, с 09:00 до 20:00), но выбрать можно любой час.</p></div>
+          <div class="card how-card"><span class="how-num">03</span><b>Торг ценой и комиссия 5%</b><p class="small ink2">Предлагаешь ставку (например, 800 ₽: 760 ₽ преподу, 40 ₽ сервису) — бот пишет в WhatsApp.</p></div>
+          <div class="card how-card"><span class="how-num">04</span><b>Тесты, конспекты и график</b><p class="small ink2">Тренируешься на заданиях ЕГЭ, читаешь конспекты и видишь расписание уроков на неделю.</p></div>
         </div>
       </section>
 
+      ${demoSectionHTML(inside)}
       ${marketSectionHTML({ landing: true })}
       ${plansSectionHTML({ landing: true })}
 
@@ -1848,21 +2013,21 @@
         <div class="card pad-lg stack" style="gap:14px">
           <div class="row between" style="flex-wrap:wrap;gap:10px">
             <div>
-              <div class="eyebrow">Для репетиторов</div>
-              <h2 class="h2">Стабильный поток учеников без холодных звонков</h2>
+              <div class="eyebrow">Для преподавателей</div>
+              <h2 class="h2">Автоимпорт с Доски Ykt и честная комиссия 5%</h2>
             </div>
-            <span class="chip leaf">Поднятие анкеты раз в 24 ч</span>
+            <span class="chip leaf">Из 800 ₽ — 760 ₽ на руки</span>
           </div>
           <div class="grid-3">
-            <div class="stack" style="gap:4px"><b>Заявки приходят сами</b><p class="small ink2">Бот присылает готовое окно («суббота, 10:00, ЕГЭ английский») и предложенную ставку — остаётся нажать «Да» или «Перенести».</p></div>
-            <div class="stack" style="gap:4px"><b>Бесплатный топ каждый день</b><p class="small ink2">Раз в сутки нажимаешь кнопку «Актуален сегодня» — анкета сразу поднимается вверх выдачи.</p></div>
-            <div class="stack" style="gap:4px"><b>Ученик уже с балансом</b><p class="small ink2">Уроки оплачиваются через систему с баланса 5 000 или 10 000 ₽. Попытка увести ученика в обход платформы ведёт к блокировке анкеты.</p></div>
+            <div class="stack" style="gap:4px"><b>Заявки приходят в WhatsApp</b><p class="small ink2">Анкеты с Доски Ykt показывают ваше окно доступности; бот передаёт время ученика и предложенную ставку.</p></div>
+            <div class="stack" style="gap:4px"><b>Бесплатный топ каждый день</b><p class="small ink2">Раз в сутки нажимаете кнопку «Актуален сегодня» — анкета сразу поднимается вверх списка.</p></div>
+            <div class="stack" style="gap:4px"><b>Комиссия 5% и гарантия оплаты</b><p class="small ink2">Ученик платит с баланса 5 000 или 10 000 ₽: с 800 ₽ вы получаете 760 ₽ (5% = 40 ₽ комиссия сервиса).</p></div>
           </div>
         </div>
       </section>
 
       <footer class="row between small muted" style="flex-wrap:wrap;gap:10px;padding:8px 0 18px;border-top:1px solid var(--line)">
-        <span>Вектор ЕГЭ · подготовка к экзаменам и маркетплейс репетиторов</span>
+        <span>Вектор ЕГЭ · тесты, конспекты и маркетплейс репетиторов</span>
         <div class="row" style="gap:14px;flex-wrap:wrap">
           <a href="/privacy">Политика конфиденциальности</a>
           <button type="button" class="link-btn small" data-a="bug-site">Сообщить о баге (${BUG_EMAIL})</button>
@@ -4174,7 +4339,7 @@
         || days[0];
       const daySlots = TDATA.tutorSlotsForDay(tutor, pickDay.dow);
       const wantedHour = el.dataset.hour || (st.hour !== "all" ? st.hour : "");
-      const hour = daySlots.includes(wantedHour) ? wantedHour : (daySlots[0] || "10:00");
+      const hour = isValidHHMM(wantedHour) ? wantedHour : (daySlots[0] || "10:00");
       const exam = st.exam !== "all" && tutor.exams.includes(st.exam) ? st.exam : tutor.exams[0];
       const format = st.format !== "all" && tutor.formats.includes(st.format) ? st.format : tutor.formats[0];
       const offerPrice = Math.max(500, tutor.minFair || (tutor.price - 200));
@@ -4211,8 +4376,9 @@
       const days = TDATA.buildCalendarDays(7);
       const dayObj = days.find((d) => d.iso === b.dayIso) || days[0];
       const daySlots = TDATA.tutorSlotsForDay(tutor, dayObj.dow);
-      const hour = daySlots.includes(b.hour) ? b.hour : (daySlots[0] || "10:00");
+      const hour = isValidHHMM(b.hour) ? b.hour : (daySlots[0] || "10:00");
       const offerPrice = Math.max(500, Math.min(5000, Math.round(Number(b.offerPrice) || tutor.price)));
+      const feeSplit = typeof TDATA.commissionSplit === "function" ? TDATA.commissionSplit(offerPrice) : { total: offerPrice, fee: Math.round(offerPrice * 0.05), payout: offerPrice - Math.round(offerPrice * 0.05), pct: 5 };
       const st = mkt();
       let reserved = 0;
       if (st.balance >= offerPrice) {
@@ -4230,6 +4396,8 @@
         dayLabel: dayObj.shortLabel,
         hour,
         offerPrice,
+        fee: feeSplit.fee,
+        payout: feeSplit.payout,
         tutorPrice: tutor.price,
         note: String(b.note || "").trim(),
         reserved,
@@ -4240,8 +4408,44 @@
       saveMkt();
       renderModal();
       toast(reserved
-        ? `Заявка отправлена ботом · ${reserved.toLocaleString("ru-RU")} ₽ зарезервировано с баланса`
+        ? `Заявка отправлена ботом · ${reserved.toLocaleString("ru-RU")} ₽ зарезервировано (5% комиссия внутри)`
         : "Заявка создана в демо — выбери тариф 5 000 или 10 000 ₽ для оплаты с баланса");
+      scheduleRender();
+    },
+    "demo-tab": (el) => {
+      if (!el.dataset.tab) return;
+      ui.demo.tab = el.dataset.tab;
+      scheduleRender();
+    },
+    "demo-subj": (el) => {
+      if (!el.dataset.sid) return;
+      ui.demo.sid = el.dataset.sid;
+      ui.demo.qIdx = 0;
+      ui.demo.pick = null;
+      ui.demo.revealed = false;
+      ui.demo.topicIdx = 0;
+      scheduleRender();
+    },
+    "demo-pick": (el) => {
+      const idx = Number(el.dataset.i);
+      if (!Number.isFinite(idx)) return;
+      ui.demo.pick = idx;
+      ui.demo.revealed = true;
+      scheduleRender();
+    },
+    "demo-next": () => {
+      ui.demo.qIdx = (ui.demo.qIdx || 0) + 1;
+      ui.demo.pick = null;
+      ui.demo.revealed = false;
+      scheduleRender();
+    },
+    "demo-topic": (el) => {
+      ui.demo.topicIdx = Math.max(0, Number(el.dataset.i) || 0);
+      scheduleRender();
+    },
+    "demo-rate": (el) => {
+      const r = Number(el.dataset.rate) || 800;
+      ui.demo.bidRate = Math.max(500, Math.min(3000, r));
       scheduleRender();
     },
     "mkt-sim-accept": (el) => {
@@ -4379,6 +4583,16 @@
       const sig = TDATA.offerSignal(tutor.price, b.offerPrice);
       sigEl.innerHTML = `<span class="chip ${sig.tone}">${esc(sig.label)}</span>`;
     }
+    const feeEl = document.getElementById("bid-fee-split");
+    if (feeEl) feeEl.innerHTML = feeSplitHTML(b.offerPrice);
+    const winEl = document.getElementById("bid-win-status");
+    if (winEl && typeof TDATA.tutorInWindow === "function") {
+      const winTxt = tutor.windowLabel || ("с " + tutor.availableFrom + " до " + tutor.availableTo);
+      const inWin = TDATA.tutorInWindow(tutor, b.hour);
+      winEl.textContent = inWin
+        ? `Входит в окно на Доске Ykt (${winTxt})`
+        : `Вне типового окна (${winTxt}) — бот уточнит у преподавателя`;
+    }
     const prevEl = document.getElementById("bot-preview-txt");
     if (prevEl) {
       prevEl.textContent = TDATA.botPreviewText({
@@ -4455,6 +4669,21 @@
       }
       return;
     }
+    if (el.id === "bid-custom-time") {
+      if (ui.booking && isValidHHMM(el.value)) {
+        ui.booking.hour = el.value;
+        updateBookingModalLive();
+      }
+      return;
+    }
+    if (el.id === "demo-rate-inp") {
+      const raw = parseInt(el.value, 10);
+      if (Number.isFinite(raw)) {
+        ui.demo.bidRate = Math.max(500, Math.min(3000, raw));
+        scheduleRender();
+      }
+      return;
+    }
     if (el.id === "bid-note") { if (ui.booking) ui.booking.note = el.value; return; }
   });
   document.addEventListener("change", (e) => {
@@ -4466,6 +4695,13 @@
         ui.booking.offerPrice = Number.isFinite(raw) ? Math.max(500, Math.min(5000, raw)) : (ui.booking.offerPrice || 1000);
         el.value = String(ui.booking.offerPrice);
         updateBookingModalLive();
+      }
+      return;
+    }
+    if (el.id === "bid-custom-time") {
+      if (ui.booking && isValidHHMM(el.value)) {
+        ui.booking.hour = el.value;
+        renderModal();
       }
       return;
     }

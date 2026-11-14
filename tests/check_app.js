@@ -859,10 +859,27 @@
     vmRun(readFileText("app.js"), "app.js");
     await flushMicrotasks(12);
 
+    const sp800 = globalThis.EGE.tutors.commissionSplit(800);
+    assert(sp800.total === 800 && sp800.payout === 760 && sp800.fee === 40 && sp800.pct === 5, "expected 5% commission split (800 -> 760 + 40)");
+    assert(globalThis.EGE.tutors.LIST.every((t) => t.source === "Доска Ykt" && t.availableFrom && t.availableTo), "expected Доска Ykt source and availability window on all tutors");
+
     const landHtml = env5.elements.get("main").innerHTML;
     assert(landHtml.includes("Бесплатная") && landHtml.includes("Пробник") && landHtml.includes("Месяц под ключ"), "expected 3 tariff names on landing");
+    assert(landHtml.includes("Супер-подписка") && landHtml.includes("plan-card featured super"), "expected distinct super class and badge on 10k tariff");
     assert(landHtml.includes("5 000 ₽") && landHtml.includes("10 000 ₽"), "expected 5k and 10k prices on landing");
-    assert(landHtml.includes('data-a="mkt-day"') && landHtml.includes('data-a="mkt-hour"'), "expected day and hour circles on landing");
+    assert(landHtml.includes('data-a="mkt-day"') && landHtml.includes('data-a="mkt-hour"') && landHtml.includes("7 дн"), "expected single-line 7 дн badge and hour circles on landing");
+    assert(landHtml.includes('id="land-demo"') && landHtml.includes("Доска Ykt") && landHtml.includes("5%"), "expected interactive beta demo, Доска Ykt and 5% fee on landing");
+
+    clickAction(env5, { a: "demo-pick", i: "0" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("Следующий вопрос") && env5.elements.get("main").innerHTML.includes('data-r="'), "expected instant answer feedback in landing beta quiz");
+    clickAction(env5, { a: "demo-tab", tab: "notes" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("конспект темы"), "expected notes tab in landing beta demo");
+    clickAction(env5, { a: "demo-tab", tab: "calc" });
+    await flushMicrotasks(2);
+    const calcDemoHtml = env5.elements.get("main").innerHTML;
+    assert(calcDemoHtml.includes("760 ₽") && calcDemoHtml.includes("40 ₽"), "expected 760 payout and 40 fee (5%) in calc beta tab");
 
     clickAction(env5, { a: "mkt-preset" });
     await flushMicrotasks(4);
@@ -872,9 +889,9 @@
     clickAction(env5, { a: "mkt-exam", v: "ОГЭ" });
     clickAction(env5, { a: "mkt-subj", v: "eng" });
     clickAction(env5, { a: "mkt-day", v: "all" });
-    clickAction(env5, { a: "mkt-hour", v: "10:00" });
+    clickAction(env5, { a: "mkt-hour", v: "15:00" });
     await flushMicrotasks(4);
-    assert(env5.elements.get("main").innerHTML.includes("Анна Соколова"), "expected circle/exam/subject filtering to work");
+    assert(env5.elements.get("main").innerHTML.includes("Анна Соколова"), "expected Доска Ykt window matching for intermediate hour 15:00");
 
     clickAction(env5, { a: "mkt-reset" });
     clickAction(env5, { a: "mkt-plan", id: "trial5k" });
@@ -884,11 +901,11 @@
     clickAction(env5, { a: "book-open", id: "tut-sokolova", hour: "10:00" });
     await flushMicrotasks(2);
     const modalBefore = env5.elements.get("modal-root").innerHTML;
-    assert(modalBefore.includes("Запись · Анна Соколова") && modalBefore.includes('id="bid-price"'), "expected booking modal open");
+    assert(modalBefore.includes("Запись · Анна Соколова") && modalBefore.includes('id="bid-price"') && modalBefore.includes('id="bid-custom-time"') && modalBefore.includes('id="bid-fee-split"'), "expected booking modal with custom time and 5% split");
     clickAction(env5, { a: "bid-step", step: "-100" });
     await flushMicrotasks(2);
     const modalStepped = env5.elements.get("modal-root").innerHTML;
-    assert(modalStepped.includes('value="900"') && modalStepped.includes("900 ₽/ч"), "expected -100 step to update offerPrice to 900");
+    assert(modalStepped.includes('value="900"') && modalStepped.includes("900 ₽/ч") && modalStepped.includes("855 ₽") && modalStepped.includes("45 ₽"), "expected -100 step to update offerPrice to 900 with 855/45 split");
 
     clickAction(env5, { a: "book-submit" });
     await flushMicrotasks(4);

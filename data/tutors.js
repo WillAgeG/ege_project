@@ -12,27 +12,34 @@
     { id: "inf", name: "Информатика", short: "Информатика" }
   ];
 
-  var HOURS = ["09:00", "10:00", "11:00", "12:00", "14:00", "16:00", "18:00", "19:00", "20:00", "21:00"];
+  var HOURS = ["09:00", "10:00", "11:00", "12:00", "14:00", "15:00", "16:00", "18:00", "19:00", "20:00", "21:00"];
   var WEEKDAYS_SHORT = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
   var WEEKDAYS_LONG = ["воскресенье", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота"];
   var MONTHS_GEN = ["янв.", "февр.", "мар.", "апр.", "мая", "июн.", "июл.", "авг.", "сент.", "окт.", "нояб.", "дек."];
+  var COMMISSION_PCT = 5;
+
+  function commissionSplit(price) {
+    var total = Math.max(0, Math.round(Number(price) || 0));
+    var fee = Math.round(total * COMMISSION_PCT / 100);
+    return { total: total, fee: fee, payout: total - fee, pct: COMMISSION_PCT };
+  }
 
   var PLANS = [
     {
       id: "free",
       name: "Бесплатная",
-      badge: "База и тесты",
+      badge: "Тесты и база",
       price: 0,
       balance: 0,
       priceLabel: "0 ₽",
       period: "навсегда",
-      tagline: "Для самостоятельной подготовки и знакомства с репетиторами",
+      tagline: "Тренажёр ЕГЭ, конспекты и просмотр анкет с Доски Ykt",
       cta: "Готовиться бесплатно",
       features: [
-        "Полный тренажёр ЕГЭ: задания ФИПИ, справочник и разбор ошибок",
+        "Полный тренажёр ЕГЭ: задания ФИПИ, конспекты и разбор ошибок",
         "План подготовки к поступлению и отслеживание прогресса",
-        "Просмотр каталога репетиторов, свободных кружочков времени и ставок",
-        "Без баланса на оплату индивидуальных занятий"
+        "Просмотр каталога репетиторов с Доски Ykt и их окон времени",
+        "Комиссия 5% действует только при бронировании платных уроков"
       ]
     },
     {
@@ -47,27 +54,28 @@
       cta: "Выбрать за 5 000 ₽",
       features: [
         "Баланс 5 000 ₽ на любые занятия с репетиторами из каталога",
-        "Быстрая запись по кружочкам календаря + торг ценой как в inDrive",
-        "Контакты ученика скрыты до подтверждения и оплаты",
+        "Выбор любого часа в окне преподавателя + торг ценой как в inDrive",
+        "Честная комиссия 5%: с 800 ₽ — 760 ₽ репетитору и 40 ₽ сервису",
         "Замена репетитора в 1 клик — неиспользованный остаток не сгорает"
       ]
     },
     {
       id: "month10k",
       name: "Месяц под ключ",
-      badge: "Хит · выгоднее",
+      badge: "Супер-подписка",
+      super: true,
       featured: true,
       price: 10000,
       balance: 10000,
       priceLabel: "10 000 ₽",
-      period: "единый баланс на месяц",
-      tagline: "Полноценная подготовка сразу по 1–3 предметам с защитой баланса",
+      period: "супер-подписка · баланс на месяц",
+      tagline: "Полноценная подготовка по 1–3 предметам с приоритетным ботом и защитой баланса",
       cta: "Подключить за 10 000 ₽",
       features: [
-        "10 000 ₽ на внутренний баланс — хватает примерно на 8–12 занятий",
-        "Можно распределять баланс между разными предметами и преподавателями",
-        "Приоритетный автоподбор ботом: если препод занят, ищем замену за 15 мин",
-        "Безлимитный тренажёр ЕГЭ + личный баланс и история всех уроков"
+        "10 000 ₽ на внутренний баланс — хватает примерно на 10–12 уроков по 800–1000 ₽",
+        "Приоритетный WhatsApp-бот: подберёт замену за 15 мин, если репетитор занят",
+        "Комиссия сервиса всего 5% (пример: 800 ₽ = 760 ₽ репетитору + 40 ₽ платформа)",
+        "Безлимитные тесты ЕГЭ, конспекты и заморозка остатка баланса"
       ]
     }
   ];
@@ -399,10 +407,29 @@
     "tut-lebedev": "79142100111",
     "tut-belova": "79142100112"
   };
+  function timeToMinutes(hhmm) {
+    var m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || "").trim());
+    if (!m) return -1;
+    var hh = Number(m[1]), mm = Number(m[2]);
+    if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return -1;
+    return hh * 60 + mm;
+  }
+
   LIST.forEach(function (t, idx) {
     t.whatsapp = t.whatsapp || WA_PHONES[t.id] || ("791421001" + String(10 + idx));
     t.verified = t.verified !== false;
+    t.source = t.source || "Доска Ykt";
     t.responseMin = t.bumpedToday ? 10 : 25;
+    if (!t.availableFrom || !t.availableTo) {
+      var allH = [];
+      Object.keys(t.slots || {}).forEach(function (k) {
+        (t.slots[k] || []).forEach(function (h) { allH.push(h); });
+      });
+      allH.sort(function (a, b) { return timeToMinutes(a) - timeToMinutes(b); });
+      t.availableFrom = t.availableFrom || allH[0] || "09:00";
+      t.availableTo = t.availableTo || allH[allH.length - 1] || "21:00";
+    }
+    t.windowLabel = "с " + t.availableFrom + " до " + t.availableTo;
   });
 
   function toISODate(d) {
@@ -464,11 +491,20 @@
     return true;
   }
 
+  function tutorInWindow(tutor, hhmm) {
+    if (!hhmm || hhmm === "all") return true;
+    var mins = timeToMinutes(hhmm);
+    var from = timeToMinutes(tutor && tutor.availableFrom);
+    var to = timeToMinutes(tutor && tutor.availableTo);
+    if (mins < 0 || from < 0 || to < 0) return false;
+    return mins >= from && mins <= to;
+  }
+
   function tutorMatchesTime(tutor, dow, hour) {
     var daySlots = tutorSlotsForDay(tutor, dow);
     if (!daySlots.length) return false;
-    if (hour && hour !== "all" && daySlots.indexOf(hour) < 0) return false;
-    return true;
+    if (!hour || hour === "all") return true;
+    return daySlots.indexOf(hour) >= 0 || tutorInWindow(tutor, hour);
   }
 
   function filterTutors(filters, days) {
@@ -517,10 +553,11 @@
     var fmt = (params.format || "онлайн").toLowerCase();
     var dayText = params.dayLabel || "ближайший свободный день";
     var hour = params.hour || "10:00";
+    var split = commissionSplit(params.offerPrice);
     var priceLine = params.offerPrice < params.tutorPrice
-      ? "Предлагает ставку " + params.offerPrice + " ₽/ч вместо " + params.tutorPrice + " ₽."
-      : "Готов заниматься по вашей ставке " + params.offerPrice + " ₽/ч.";
-    return "«Здравствуйте! Новая заявка с Вектор ЕГЭ. Хочу подготовиться к " + exam +
+      ? "Предлагает ставку " + split.total + " ₽/ч вместо " + params.tutorPrice + " ₽ (вам " + split.payout + " ₽, комиссия сервиса " + split.pct + "% = " + split.fee + " ₽)."
+      : "Готов заниматься по ставке " + split.total + " ₽/ч (вам " + split.payout + " ₽, комиссия " + split.pct + "% = " + split.fee + " ₽).";
+    return "«Здравствуйте! Новая заявка с Вектор ЕГЭ (анкета с Доски Ykt). Хочу подготовиться к " + exam +
       " (" + subj + "), " + fmt + ", " + dayText + " в " + hour + ". " + priceLine +
       " Ответьте: Да / Нет / Перенести время.»";
   }
@@ -545,6 +582,9 @@
     HOURS: HOURS,
     PLANS: PLANS,
     LIST: LIST,
+    COMMISSION_PCT: COMMISSION_PCT,
+    commissionSplit: commissionSplit,
+    tutorInWindow: tutorInWindow,
     buildCalendarDays: buildCalendarDays,
     buildWeekDays: buildWeekDays,
     tutorSlotsForDay: tutorSlotsForDay,
