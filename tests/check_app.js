@@ -1075,6 +1075,67 @@
 
     clickAction(env5, { a: "go", v: "landing" });
     await flushMicrotasks(2);
+    const landFullHtml = env5.elements.get("main").innerHTML;
+    assert(
+      landFullHtml.includes('id="land-match"') &&
+      landFullHtml.includes('id="land-rates"') &&
+      landFullHtml.includes('id="land-verify"') &&
+      landFullHtml.includes('id="land-ai-study"') &&
+      landFullHtml.includes("land-trust-strip") &&
+      landFullHtml.includes('id="land-reviews"') &&
+      landFullHtml.includes('data-a="tutor-apply-open"') &&
+      landFullHtml.includes('id="land-faq"') &&
+      landFullHtml.includes("land-mobile-sticky"),
+      "expected all 9 expanded landing sections and sticky mobile CTA bar"
+    );
+    assert(
+      !landFullHtml.includes("Комиссия 5%") && !landFullHtml.includes("760 ₽"),
+      "expected expanded landing sections to keep 5% commission split off /landing"
+    );
+
+    clickAction(env5, { a: "match-subj-toggle" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes('data-a="match-subj-pick"'), "expected quick-match hh-select subject menu to open");
+    clickAction(env5, { a: "match-subj-pick", v: "bio" });
+    clickAction(env5, { a: "match-tier", v: "pro" });
+    clickAction(env5, { a: "match-apply" });
+    await flushMicrotasks(3);
+    const matchAppliedToast = env5.elements.get("toast");
+    assert(
+      matchAppliedToast && matchAppliedToast.className === "toast is-side" && matchAppliedToast.innerHTML.includes("Подборка применена"),
+      "expected quick-match apply to trigger side toast notification"
+    );
+    assert(env5.elements.get("main").innerHTML.includes('id="land-market"') && !env5.elements.get("main").innerHTML.includes('data-a="match-subj-pick"'), "expected quick-match apply to close dropdown and filter marketplace");
+
+    clickAction(env5, { a: "land-ai-subj", v: "chem" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("Олеум, смеси и электролиз") && env5.elements.get("main").innerHTML.includes("72 → 81 / 100"), "expected AI showcase switcher to display chemistry task and score forecast");
+
+    clickAction(env5, { a: "land-faq", i: "1" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes('data-a="land-faq" data-i="1" aria-expanded="true"'), "expected FAQ item 1 to expand on click");
+
+    clickAction(env5, { a: "tutor-apply-open" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("modal-root").innerHTML.includes('id="ta-modal-title"'), "expected tutor application modal to open");
+    clickAction(env5, { a: "tutor-apply-step", step: "100" });
+    clickAction(env5, { a: "tutor-apply-step", step: "100" });
+    clickAction(env5, { a: "tutor-apply-step", step: "100" });
+    await flushMicrotasks(2);
+    assert(hasNum(env5.elements.get("modal-root").innerHTML, "1 400 ₽/ч") && env5.elements.get("modal-root").innerHTML.includes("Выше рынка · Профи"), "expected tutor apply stepper to reach 1 400 ₽/ч with Pro qualification hint");
+    env5.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "tutor-apply" } }) }, preventDefault() {} });
+    assert(env5.elements.get("modal-root").innerHTML.includes("Укажи имя и фамилию преподавателя."), "expected validation error when submitting empty tutor application");
+    env5.elements.set("ta-name", { value: "Анна Соколова" });
+    env5.elements.set("ta-subj", { value: "bio" });
+    env5.elements.set("ta-contact", { value: "t.me/anna_bio" });
+    env5.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "tutor-apply" } }) }, preventDefault() {} });
+    await flushMicrotasks(2);
+    assert(!env5.elements.get("modal-root").innerHTML.trim(), "expected tutor apply modal closed after valid submit");
+    const tutorSideToast = env5.elements.get("toast");
+    assert(tutorSideToast && tutorSideToast.className === "toast is-side" && tutorSideToast.innerHTML.includes("Анкета принята на проверку"), "expected side notification after submitting tutor application");
+    assert(env5.elements.get("main").innerHTML.includes("✓ Анкета отправлена (Анна Соколова)"), "expected #land-tutors button to transition to green confirmed state");
+    clickAction(env5, { a: "mkt-reset" });
+    await flushMicrotasks(2);
 
     clickAction(env5, { a: "auth-guest" });
     await flushMicrotasks(6);

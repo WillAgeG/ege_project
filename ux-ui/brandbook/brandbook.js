@@ -12,7 +12,8 @@
     priceDiffTagsHTML,
     sliderTicksHTML,
     BB_DAYS,
-    bbDayObj
+    bbDayObj,
+    hhSelectHTML
   } = EGE.hh;
 
   const BB_SUBJECTS = [
@@ -199,8 +200,6 @@
 
   function formsSectionHTML(bb) {
     const sw = bb.switchVal || "online";
-    const curSubj = BB_SUBJECTS.find((s) => s.id === (bb.subj || "bio")) || BB_SUBJECTS[0];
-    const menuOpen = !!bb.subjMenuOpen;
     return `<section class="land-sec" id="bb-forms">
       <div class="land-sec-head">
         <div>
@@ -234,27 +233,15 @@
           <div class="stack" style="gap:10px">
             <div class="field">
               <span class="label">Выбор предмета (.hh-select)</span>
-              <div class="hh-select${menuOpen ? " open" : ""}" id="bb-demo-select">
-                <button type="button" class="hh-select-btn" data-a="bb-subj-toggle" aria-haspopup="listbox" aria-expanded="${menuOpen}">
-                  <span class="hh-select-val">
-                    <span>${curSubj.label}</span>
-                    <span class="hh-select-meta">${curSubj.meta}</span>
-                  </span>
-                  <span class="hh-select-chev">${icon("chevDown")}</span>
-                </button>
-                ${menuOpen ? `<div class="hh-select-menu" role="listbox" aria-label="Предмет подготовки">
-                  ${BB_SUBJECTS.map((s) => {
-                    const isOn = s.id === curSubj.id;
-                    return `<button type="button" class="hh-select-item${isOn ? " on" : ""}" role="option" aria-selected="${isOn}" data-a="bb-subj-pick" data-v="${s.id}">
-                      <span class="hh-select-item-main">
-                        <span>${s.label}</span>
-                        <span class="hh-select-item-sub">${s.meta}</span>
-                      </span>
-                      ${isOn ? icon("ok") : ""}
-                    </button>`;
-                  }).join("")}
-                </div>` : ""}
-              </div>
+              ${hhSelectHTML({
+                id: "bb-demo-select",
+                options: BB_SUBJECTS,
+                value: bb.subj || "bio",
+                open: !!bb.subjMenuOpen,
+                toggleAction: "bb-subj-toggle",
+                pickAction: "bb-subj-pick",
+                ariaLabel: "Предмет подготовки"
+              })}
               <span class="hint">Тематический список в цветах Светлой/Тёмной темы без системного тёмного меню браузера.</span>
             </div>
             <div class="field">

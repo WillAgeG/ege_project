@@ -90,6 +90,37 @@
     return BB_DAYS.find((d) => d.id === dayId) || BB_DAYS[0];
   }
 
+  function hhSelectHTML(opts) {
+    opts = opts || {};
+    const options = Array.isArray(opts.options) ? opts.options : [];
+    const value = opts.value != null ? String(opts.value) : (options[0] ? String(options[0].id) : "");
+    const cur = options.find((o) => String(o.id) === value) || options[0] || { id: "", label: "", meta: "" };
+    const open = !!opts.open;
+    const okIcon = EGE.ui && typeof EGE.ui.icon === "function" ? EGE.ui.icon("ok") : "";
+    const chevIcon = EGE.ui && typeof EGE.ui.icon === "function" ? EGE.ui.icon("chevDown") : "";
+    return `<div class="hh-select${open ? " open" : ""}"${opts.id ? ` id="${esc(opts.id)}"` : ""}>
+      <button type="button" class="hh-select-btn" data-a="${esc(opts.toggleAction || "")}" aria-haspopup="listbox" aria-expanded="${open}">
+        <span class="hh-select-val">
+          <span>${esc(cur.label)}</span>
+          ${cur.meta ? `<span class="hh-select-meta">${esc(cur.meta)}</span>` : ""}
+        </span>
+        <span class="hh-select-chev">${chevIcon}</span>
+      </button>
+      ${open ? `<div class="hh-select-menu" role="listbox"${opts.ariaLabel ? ` aria-label="${esc(opts.ariaLabel)}"` : ""}>
+        ${options.map((o) => {
+          const isOn = String(o.id) === String(cur.id);
+          return `<button type="button" class="hh-select-item${isOn ? " on" : ""}" role="option" aria-selected="${isOn}" data-a="${esc(opts.pickAction || "")}" data-v="${esc(o.id)}">
+            <span class="hh-select-item-main">
+              <span>${esc(o.label)}</span>
+              ${o.meta ? `<span class="hh-select-item-sub">${esc(o.meta)}</span>` : ""}
+            </span>
+            ${isOn ? okIcon : ""}
+          </button>`;
+        }).join("")}
+      </div>` : ""}
+    </div>`;
+  }
+
   EGE.hh = {
     isValidHHMM,
     feeSplitHTML,
@@ -98,6 +129,7 @@
     priceDiffTagsHTML,
     sliderTicksHTML,
     BB_DAYS,
-    bbDayObj
+    bbDayObj,
+    hhSelectHTML
   };
 })();

@@ -1067,12 +1067,57 @@
       <div style="width:min(480px,100%);min-width:0">${authCard({ modal: true })}</div>
     </div>`;
   }
+  function tutorApplyModalHTML() {
+    const ta = ui.tutorApply || (ui.tutorApply = { name: "", subject: "eng", rate: 1100, contact: "", error: "" });
+    const subjects = (TDATA && TDATA.SUBJECTS) ? TDATA.SUBJECTS : [{ id: "eng", name: "Английский язык" }];
+    const rate = Math.max(600, Math.min(3500, Number(ta.rate) || 1100));
+    const isPro = rate >= 1400;
+    return `<div class="modal-back" role="dialog" aria-modal="true" aria-labelledby="ta-modal-title">
+      <div class="modal-card">
+        <div class="modal-head">
+          <div class="row" style="gap:8px">${icon("users")}<b id="ta-modal-title">Разместить анкету преподавателя</b></div>
+          <button type="button" class="icon-btn sm" data-a="tutor-apply-close" aria-label="Закрыть">${icon("x")}</button>
+        </div>
+        <form class="stack" style="gap:12px" data-f="tutor-apply">
+          <div class="field">
+            <label for="ta-name">Имя и фамилия</label>
+            <input class="input" id="ta-name" type="text" placeholder="Например, Анна Соколова" value="${esc(ta.name || "")}">
+          </div>
+          <div class="field">
+            <label for="ta-subj">Предмет или направление</label>
+            <select class="select" id="ta-subj">
+              ${subjects.map((s) => `<option value="${esc(s.id)}"${s.id === ta.subject ? " selected" : ""}>${esc(s.name)}</option>`).join("")}
+            </select>
+          </div>
+          <div class="field">
+            <span class="label">Желаемая ставка за урок (₽/ч)</span>
+            <div class="hh-price-stepper compact">
+              <button type="button" class="hh-step-btn" data-a="tutor-apply-step" data-step="-100">−100 ₽</button>
+              <div class="hh-step-readout"><b class="num">${rate.toLocaleString("ru-RU")} ₽/ч</b></div>
+              <button type="button" class="hh-step-btn" data-a="tutor-apply-step" data-step="100">+100 ₽</button>
+            </div>
+            <span class="hint">${isPro ? `<span class="diff-tag pro">Выше рынка · Профи</span> Анкета получит фиолетовый бейдж высокой квалификации.` : "Базовая ставка каталога · шаг для торга можно ограничить позже."}</span>
+          </div>
+          <div class="field">
+            <label for="ta-contact">Ссылка на анкету (Ykt / Telegram / MAX) или телефон</label>
+            <input class="input" id="ta-contact" type="text" placeholder="t.me/username или +7 9..." value="${esc(ta.contact || "")}">
+          </div>
+          ${ta.error ? `<div class="small" style="color:var(--bad);font-weight:600">${esc(ta.error)}</div>` : ""}
+          <div class="row" style="gap:8px;flex-wrap:wrap">
+            <button type="submit" class="btn">Отправить анкету</button>
+            <button type="button" class="btn ghost" data-a="tutor-apply-close">Отмена</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  }
   function renderModal() {
     const root = $("#modal-root");
     if (!root) return;
     if (ui.authModal) { root.innerHTML = authModalHTML(); return; }
     if (ui.filterModal) { root.innerHTML = filterModalHTML(); return; }
     if (ui.booking) { root.innerHTML = bookingModalHTML(); return; }
+    if (ui.tutorApplyModal) { root.innerHTML = tutorApplyModalHTML(); return; }
     if (ui.bbModal) {
       root.innerHTML = `<div class="modal-back" role="dialog" aria-modal="true" aria-labelledby="bb-modal-title">
         <div class="modal-card">
@@ -3928,6 +3973,74 @@
       bbState().quizOpt = Number.isFinite(idx) ? idx : 0;
       scheduleRender();
     },
+    "match-subj-toggle": () => {
+      const lm = ui.landMatch || (ui.landMatch = { subject: "all", tier: "below", hour: "all", menuOpen: false });
+      lm.menuOpen = !lm.menuOpen;
+      scheduleRender();
+    },
+    "match-subj-pick": (el) => {
+      const lm = ui.landMatch || (ui.landMatch = { subject: "all", tier: "below", hour: "all", menuOpen: false });
+      lm.subject = el.dataset.v || "all";
+      lm.menuOpen = false;
+      scheduleRender();
+    },
+    "match-tier": (el) => {
+      const lm = ui.landMatch || (ui.landMatch = { subject: "all", tier: "below", hour: "all", menuOpen: false });
+      lm.tier = ["below", "budget", "pro"].includes(el.dataset.v) ? el.dataset.v : "below";
+      scheduleRender();
+    },
+    "match-hour": (el) => {
+      const lm = ui.landMatch || (ui.landMatch = { subject: "all", tier: "below", hour: "all", menuOpen: false });
+      lm.hour = el.dataset.v || "all";
+      scheduleRender();
+    },
+    "match-apply": () => {
+      const lm = ui.landMatch || { subject: "all", tier: "below", hour: "all" };
+      const st = mkt();
+      st.subject = lm.subject || "all";
+      st.maxPrice = lm.tier === "budget" ? 1200 : 2000;
+      st.hour = lm.hour || "all";
+      st.day = "all";
+      st.exam = "all";
+      st.q = "";
+      st.onlyBumped = false;
+      st.sort = lm.tier === "pro" ? "rating_desc" : "price_asc";
+      saveMkt();
+      scheduleRender();
+      if (typeof setTimeout === "function") setTimeout(() => scrollToEl("land-market"), 40);
+      const cnt = EGE.views.landing && EGE.views.landing.computeQuickMatchMeta ? EGE.views.landing.computeQuickMatchMeta().filtered.length : 0;
+      notifySide("Подборка применена", `Показано анкет по твоим условиям: ${cnt}`);
+    },
+    "land-ai-subj": (el) => {
+      ui.landAiSubj = ["bio", "chem", "rus"].includes(el.dataset.v) ? el.dataset.v : "bio";
+      scheduleRender();
+    },
+    "land-faq": (el) => {
+      const idx = Number(el.dataset.i);
+      const cur = ui.landFaqOpen === undefined ? 0 : ui.landFaqOpen;
+      ui.landFaqOpen = cur === idx ? -1 : idx;
+      scheduleRender();
+    },
+    "tutor-apply-open": () => {
+      if (!ui.tutorApply) ui.tutorApply = { name: "", subject: "eng", rate: 1100, contact: "", error: "" };
+      ui.tutorApply.error = "";
+      ui.tutorApplyModal = true;
+      renderModal();
+    },
+    "tutor-apply-close": () => {
+      ui.tutorApplyModal = false;
+      renderModal();
+    },
+    "tutor-apply-step": (el) => {
+      if (!ui.tutorApply) ui.tutorApply = { name: "", subject: "eng", rate: 1100, contact: "", error: "" };
+      const nm = $("#ta-name"), ct = $("#ta-contact"), sb = $("#ta-subj");
+      if (nm) ui.tutorApply.name = nm.value;
+      if (ct) ui.tutorApply.contact = ct.value;
+      if (sb) ui.tutorApply.subject = sb.value;
+      const step = Number(el.dataset.step) || 0;
+      ui.tutorApply.rate = Math.max(600, Math.min(3500, (Number(ui.tutorApply.rate) || 1100) + step));
+      renderModal();
+    },
     "toast-close": () => { dismissSideToast(); },
     "bb-subj-toggle": () => {
       const bb = bbState();
@@ -4091,18 +4204,46 @@
       }
       a.busy = false;
       scheduleRender();
+    },
+    "tutor-apply": () => {
+      const ta = ui.tutorApply || (ui.tutorApply = { name: "", subject: "eng", rate: 1100, contact: "", error: "" });
+      const name = String(($("#ta-name") && $("#ta-name").value) || ta.name || "").trim();
+      const subjId = String(($("#ta-subj") && $("#ta-subj").value) || ta.subject || "eng");
+      const contact = String(($("#ta-contact") && $("#ta-contact").value) || ta.contact || "").trim();
+      ta.name = name; ta.subject = subjId; ta.contact = contact;
+      if (!name || name.length < 2) { ta.error = "Укажи имя и фамилию преподавателя."; renderModal(); return; }
+      if (!contact || contact.length < 3) { ta.error = "Оставь ссылку (Ykt / Telegram / MAX) или номер телефона."; renderModal(); return; }
+      ta.error = "";
+      const subjObj = (TDATA && TDATA.SUBJECTS || []).find((s) => s.id === subjId);
+      const subjName = subjObj ? subjObj.name : "Подготовка к ЕГЭ";
+      const rate = Math.max(600, Math.min(3500, Number(ta.rate) || 1100));
+      ui.tutorApplyDone = { name, subjectName: subjName, rate, contact };
+      ui.tutorApplyModal = false;
+      renderModal();
+      scheduleRender();
+      notifySide("Анкета принята на проверку", `${name} · ${subjName} · ${rate.toLocaleString("ru-RU")} ₽/ч — появится в каталоге сегодня`);
     }
   };
 
   function updateBookingModalLive() { return EGE.views.marketplace.updateBookingModalLive(); }
 
-  document.addEventListener("click", (e) => {
-    if (ui.brandbook && ui.brandbook.subjMenuOpen && (!e.target || typeof e.target.closest !== "function" || !e.target.closest(".hh-select"))) {
+  function closeSelectMenus(target) {
+    let changed = false;
+    if (ui.brandbook && ui.brandbook.subjMenuOpen && (!target || typeof target.closest !== "function" || !target.closest("#bb-demo-select"))) {
       ui.brandbook.subjMenuOpen = false;
-      scheduleRender();
+      changed = true;
     }
+    if (ui.landMatch && ui.landMatch.menuOpen && (!target || typeof target.closest !== "function" || !target.closest("#land-match-select"))) {
+      ui.landMatch.menuOpen = false;
+      changed = true;
+    }
+    return changed;
+  }
+
+  document.addEventListener("click", (e) => {
+    if (closeSelectMenus(e.target)) scheduleRender();
     if (e.target && e.target.classList && e.target.classList.contains("modal-back")) {
-      ui.bug = null; ui.booking = null; ui.authModal = false; ui.filterModal = false; ui.bbModal = false;
+      ui.bug = null; ui.booking = null; ui.authModal = false; ui.filterModal = false; ui.bbModal = false; ui.tutorApplyModal = false;
       renderModal();
       return;
     }
@@ -4295,17 +4436,16 @@
     if (el.id === "import-file" && el.files && el.files[0]) { readImport(el.files[0]); el.value = ""; }
   });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && ui.brandbook && ui.brandbook.subjMenuOpen) {
-      ui.brandbook.subjMenuOpen = false;
+    if (e.key === "Escape" && closeSelectMenus(null)) {
       scheduleRender();
     }
-    if (e.key === "Escape" && (ui.bug || ui.booking || ui.authModal || ui.filterModal)) {
+    if (e.key === "Escape" && (ui.bug || ui.booking || ui.authModal || ui.filterModal || ui.tutorApplyModal)) {
       e.preventDefault();
-      ui.bug = null; ui.booking = null; ui.authModal = false; ui.filterModal = false;
+      ui.bug = null; ui.booking = null; ui.authModal = false; ui.filterModal = false; ui.bbModal = false; ui.tutorApplyModal = false;
       renderModal();
       return;
     }
-    if (ui.bug || ui.booking || ui.authModal || ui.filterModal) return;
+    if (ui.bug || ui.booking || ui.authModal || ui.filterModal || ui.tutorApplyModal) return;
     if (e.target && e.target.id === "chat-input" && e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(ui.chat.draft); return; }
     if (ui.view !== "quiz" || !ui.quiz || ui.quiz.done || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.target && e.target.id === "self-text") return; // в поле развёрнутого ответа Enter — перенос строки

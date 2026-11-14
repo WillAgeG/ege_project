@@ -6,7 +6,7 @@
   const EGE = (root.EGE = root.EGE || {});
   const { esc, rich, plural, initials } = EGE.utils;
   const { icon, BRAND_MARK_HTML } = EGE.ui;
-  const { bidBtnLabelHTML, priceHeadlineHTML, priceDiffTagsHTML, sliderTicksHTML } = EGE.hh;
+  const { bidBtnLabelHTML, priceHeadlineHTML, priceDiffTagsHTML, sliderTicksHTML, hhSelectHTML } = EGE.hh;
 
   let _ctx = {};
 
@@ -639,6 +639,392 @@
     </section>`;
   }
 
+  const AI_SHOWCASE_DATA = {
+    bio: {
+      label: "Биология · №28",
+      topic: "Генетика и кроссинговер",
+      question: "При дигибридном скрещивании получены 4 фенотипические группы в соотношении 42% : 42% : 8% : 8%. Почему не 9:3:3:1?",
+      mistake: "Ответ ученика: «Произошло независимое наследование по 3-му закону Менделя с неполным доминированием».",
+      aiFix: "Признаки сцеплены в одной хромосоме (закон Моргана). Две большие группы по 42% — некроссоверные гаметы (84%), а две по 8% — результат кроссинговера (16%, расстояние между генами 16 морганид).",
+      before: 76,
+      after: 84,
+      delta: "+8 баллов к прогнозу",
+      cta: "Разобрать биологию в тренажёре"
+    },
+    chem: {
+      label: "Химия · №34",
+      topic: "Олеум, смеси и электролиз",
+      question: "Какую массу 20%-ного олеума нужно добавить к воде для получения раствора серной кислоты заданной молярности?",
+      mistake: "Ответ ученика: «Принял весь 20%-ный олеум за 20%-ный раствор H₂SO₄ в воде без пересчёта SO₃».",
+      aiFix: "20%-ный олеум — это 20% свободного SO₃ и 80% безводной H₂SO₄. При добавлении воды каждый моль SO₃ забирает моль H₂O и даёт ещё 1 моль H₂SO₄: n(H₂SO₄ из олеума) = n₀ + n(SO₃).",
+      before: 72,
+      after: 81,
+      delta: "+9 баллов к прогнозу",
+      cta: "Открыть задачи по химии"
+    },
+    rus: {
+      label: "Русский · №27",
+      topic: "Сочинение ЕГЭ по критериям ФИПИ",
+      question: "Комментарий к проблеме: два примера-иллюстрации даны, но авторская позиция подменена пересказом сюжета.",
+      mistake: "Черновик ученика: «В первом абзаце герой пошёл к реке, а во втором автор просто описывает природу…».",
+      aiFix: "Замени пересказ на анализ связи: объясни, *зачем* автор противопоставил поступки (контраст), а в К3 сформулируй чёткий тезис позиции автора — это сразу вернёт 3 первичных балла.",
+      before: 79,
+      after: 88,
+      delta: "+9 баллов к прогнозу",
+      cta: "Проверить сочинение с ИИ"
+    }
+  };
+
+  const LAND_REVIEWS = [
+    {
+      name: "Екатерина М.",
+      role: "Мама 11-классницы · Биология ЕГЭ",
+      oldPrice: 1800,
+      newPrice: 1050,
+      badge: "Нашли за 12 мин · Медвуз",
+      text: "Нужен был срочный разбор заданий №28 и №25. Предложили 1 050 ₽/ч вместо 1 800 ₽ на вечернее окно — репетитор подтвердила в тот же день. За 4 месяца сэкономили 24 000 ₽.",
+      pro: false
+    },
+    {
+      name: "Артём К.",
+      role: "11 класс · Python и КЕГЭ №24–27",
+      oldPrice: 1750,
+      newPrice: 1000,
+      badge: "Рост +22 балла · 64 → 86",
+      text: "Удобно, что на лендинге сразу потыкал ставку −100 ₽ и попал в свободный слот 16:00. После уроков добирал баллы в тренажёре и ИИ-разборе прямо в этом же кабинете.",
+      pro: false
+    },
+    {
+      name: "Дарья Л.",
+      role: "Поступление на бюджет · Химия 92",
+      oldPrice: 1600,
+      newPrice: 1700,
+      badge: "Профи выше рынка · Высокая квалификация",
+      text: "Специально выбрали ставку Профи по химии для сложной задачи №34 с олеумом и атомистикой. Деньги с баланса списались только после подтверждения — на экзамене 92 балла.",
+      pro: true
+    }
+  ];
+
+  const LAND_FAQ_ITEMS = [
+    {
+      q: "Когда реально списываются деньги с баланса 5 000 ₽ или 10 000 ₽?",
+      a: "Баланс лежит на вашем счёте. Когда вы нажимаете «Предложить» и выбираете час 10:00–20:00, сумма урока только бронируется на время ожидания. Если преподаватель отклонит ставку или вы отмените заявку — бронь сразу возвращается на баланс.",
+      hasFeesLink: true
+    },
+    {
+      q: "Что делать, если преподаватель не согласился на −100 ₽ или −200 ₽?",
+      a: "Он может предложить встречное время или свою цену, а вы — в один клик отправить заявку соседнему репетитору из выдачи на тот же час без повторного ввода формы.",
+      hasFeesLink: false
+    },
+    {
+      q: "Как вы проверяете анкеты с Доски Ykt, Telegram, WhatsApp и MAX?",
+      a: "Алгоритм убирает дубли по контактам и предмету, сверяет реальную нижнюю границу цены торга и требует подтверждения активности — преподаватель нажимает «Актуален сегодня», чтобы свежие окна были наверху каталога.",
+      hasFeesLink: false
+    },
+    {
+      q: "Почему у некоторых репетиторов ставка выше средней по рынку?",
+      a: "Такие карточки помечены фиолетовым бейджем Профи («Высокая квалификация»): это эксперты ЕГЭ, кандидаты наук и педагоги с учениками на 90+ баллов или олимпиадными разборами.",
+      hasFeesLink: false
+    },
+    {
+      q: "Можно ли готовиться к ЕГЭ бесплатно без покупки подписки на уроки?",
+      a: "Да. Тариф 0 ₽ навсегда открывает тренажёр ЕГЭ, конспекты, проверку сочинений с ИИ, план подготовки и поиск по базе анкет. Платный баланс нужен только для регулярных занятий с репетиторами.",
+      hasFeesLink: true
+    }
+  ];
+
+  function matchState() {
+    const ui = getUi();
+    return ui.landMatch || (ui.landMatch = { subject: "all", tier: "below", hour: "all", menuOpen: false });
+  }
+
+  function computeQuickMatchMeta() {
+    const TDATA = getTDATA();
+    const ms = matchState();
+    const list = (TDATA && TDATA.LIST) ? TDATA.LIST : [];
+    const days = TDATA ? TDATA.buildCalendarDays(7) : [];
+    let filtered = TDATA
+      ? TDATA.filterTutors({
+          subject: ms.subject || "all",
+          maxPrice: ms.tier === "budget" ? 1200 : 2000,
+          hour: ms.hour || "all",
+          sort: ms.tier === "pro" ? "rating_desc" : "price_asc"
+        }, days)
+      : [];
+    if (ms.tier === "pro") {
+      const pros = filtered.filter((t) => (t.price >= 1300) || (t.rating >= 4.9));
+      if (pros.length) filtered = pros;
+    } else if (ms.tier === "below") {
+      const belowList = filtered.filter((t) => !t.aboveRub);
+      if (belowList.length) filtered = belowList;
+    }
+    const minPrice = filtered.length ? Math.min(...filtered.map((t) => t.price)) : 900;
+    const maxMarket = filtered.length ? Math.max(...filtered.map((t) => t.marketPrice || Math.round(t.price * 1.45))) : 1650;
+    return { ms, filtered, minPrice, maxMarket, totalCount: TDATA && TDATA.CATALOG_TOTAL ? TDATA.CATALOG_TOTAL : 2480 };
+  }
+
+  function quickMatchSectionHTML() {
+    const TDATA = getTDATA();
+    if (!TDATA) return "";
+    const meta = computeQuickMatchMeta();
+    const { ms, filtered, minPrice, maxMarket, totalCount } = meta;
+    const subjOpts = [{ id: "all", label: "Все предметы и направления", meta: totalCount.toLocaleString("ru-RU") + "+ анкет" }]
+      .concat((TDATA.SUBJECTS || []).map((s) => ({ id: s.id, label: s.name, meta: "ЕГЭ · ОГЭ · ВУЗ" })));
+    const topSample = filtered[0];
+    const hourChips = [
+      ["all", "Любой час"],
+      ["10:00", "Утро · 10:00"],
+      ["14:00", "День · 14:00"],
+      ["18:00", "Вечер · 18:00"]
+    ];
+    const tierChips = [
+      ["below", "Ниже рынка −35..53%"],
+      ["budget", "До 1 200 ₽/ч"],
+      ["pro", "Профи выше рынка"]
+    ];
+    return `<section class="land-sec" id="land-match" aria-label="Быстрый подбор за 20 секунд">
+      <div class="land-sec-head">
+        <div>
+          <div class="eyebrow">Квиз-подбор за 20 секунд</div>
+          <h2 class="h2">Ответь на 3 пункта — сразу покажем лучшие анкеты</h2>
+        </div>
+        <span class="badge accent">${icon("spark")}<span>Мгновенный фильтр каталога</span></span>
+      </div>
+      <div class="land-match-grid">
+        <div class="card pad stack" style="gap:12px">
+          <div class="field">
+            <span class="label">1. Какой предмет или навык нужен?</span>
+            ${hhSelectHTML({
+              id: "land-match-select",
+              options: subjOpts,
+              value: ms.subject || "all",
+              open: !!ms.menuOpen,
+              toggleAction: "match-subj-toggle",
+              pickAction: "match-subj-pick",
+              ariaLabel: "Выбор предмета для быстрого подбора"
+            })}
+          </div>
+          <div class="field">
+            <span class="label">2. Целевая ставка за урок</span>
+            <div class="chip-rail">
+              ${tierChips.map(([id, lbl]) => `<button type="button" class="chip-btn${ms.tier === id ? " on" : ""}" data-a="match-tier" data-v="${id}">${id === "pro" ? `<span style="color:${ms.tier === id ? "inherit" : "var(--pro)"}">★</span> ` : ""}${lbl}</button>`).join("")}
+            </div>
+          </div>
+          <div class="field">
+            <span class="label">3. Удобное время занятий</span>
+            <div class="chip-rail">
+              ${hourChips.map(([id, lbl]) => `<button type="button" class="chip-btn${ms.hour === id ? " on" : ""}" data-a="match-hour" data-v="${id}">${lbl}</button>`).join("")}
+            </div>
+          </div>
+        </div>
+        <div class="land-match-result">
+          <div class="stack" style="gap:8px">
+            <div class="row between" style="gap:6px;flex-wrap:wrap">
+              <span class="badge accent">Готово к отклику</span>
+              <span class="small muted num">${filtered.length} ${plural(filtered.length, "анкета", "анкеты", "анкет")} сейчас</span>
+            </div>
+            <div class="hh-price-row">
+              ${ms.tier === "pro"
+                ? `<b class="hh-price-now lg num">от ${minPrice.toLocaleString("ru-RU")} ₽/ч</b><span class="diff-tag pro">Профи · 90+ баллов</span>`
+                : `${priceHeadlineHTML(maxMarket, minPrice, true)}`}
+            </div>
+            ${topSample
+              ? `<p class="small ink2">Например: <b>${esc(topSample.name)}</b> (${esc(topSample.subjectName)}, ★ ${topSample.rating.toFixed(1)}, ${esc(topSample.source || "Доска Ykt")}) — можно предложить от <b class="num">${topSample.minFair.toLocaleString("ru-RU")} ₽/ч</b>.</p>`
+              : `<p class="small ink2">По выбранным критериям покажем ближайшие свободные окна по всему каталогу.</p>`}
+          </div>
+          <button type="button" class="btn" style="width:100%;justify-content:center" data-a="match-apply">Показать ${filtered.length} ${plural(filtered.length, "анкету", "анкеты", "анкет")} в каталоге →</button>
+        </div>
+      </div>
+    </section>`;
+  }
+
+  function ratesAnalyticsHTML() {
+    const TDATA = getTDATA();
+    if (!TDATA || !TDATA.LIST) return "";
+    const targetIds = ["eng", "rus", "bio", "chem", "inf", "design"];
+    const cards = targetIds.map((sid) => {
+      const sb = (TDATA.SUBJECTS || []).find((x) => x.id === sid);
+      const tutors = TDATA.LIST.filter((t) => t.subject === sid);
+      if (!sb || !tutors.length) return "";
+      const minRate = Math.min(...tutors.map((t) => t.price));
+      const maxRate = Math.max(...tutors.map((t) => t.price));
+      const avgMarket = Math.round(tutors.reduce((s, t) => s + (t.marketPrice || Math.round(t.price * 1.45)), 0) / tutors.length / 50) * 50;
+      const savePct = avgMarket > minRate ? Math.round(((avgMarket - minRate) / avgMarket) * 100) : 35;
+      const barPct = Math.max(32, Math.min(88, Math.round((minRate / Math.max(1, avgMarket)) * 100)));
+      const hasPro = maxRate >= 1400;
+      return `<button type="button" class="rate-bench-card" data-a="hero-cat" data-subj="${sid}" data-exam="all">
+        <div class="row between" style="gap:6px;flex-wrap:wrap">
+          <b style="font-size:15px">${esc(sb.short)}</b>
+          ${hasPro ? `<span class="diff-tag pro">Профи до ${maxRate.toLocaleString("ru-RU")} ₽</span>` : `<span class="diff-tag save-cyan num">−${savePct}%</span>`}
+        </div>
+        <div class="hh-price-row">
+          <s class="hh-price-old num">${avgMarket.toLocaleString("ru-RU")} ₽</s>
+          <b class="hh-price-now num">от ${minRate.toLocaleString("ru-RU")} ₽/ч</b>
+        </div>
+        <div class="rate-bars">
+          <div class="rate-bar-row">
+            <span class="muted">Рынок</span>
+            <div class="rate-bar-track"><div class="rate-bar-fill" style="width:100%"></div></div>
+            <span class="muted num">${avgMarket.toLocaleString("ru-RU")} ₽</span>
+          </div>
+          <div class="rate-bar-row">
+            <span>У нас</span>
+            <div class="rate-bar-track"><div class="rate-bar-fill ours" style="width:${barPct}%"></div></div>
+            <b class="num" style="color:var(--accent)">${minRate.toLocaleString("ru-RU")} ₽</b>
+          </div>
+        </div>
+        <span class="small muted">Нажми, чтобы открыть анкеты →</span>
+      </button>`;
+    }).join("");
+    return `<section class="land-sec" id="land-rates" aria-label="Аналитика ставок по предметам">
+      <div class="land-sec-head">
+        <div>
+          <div class="eyebrow">Аналитика рынка · hh-срез ставок</div>
+          <h2 class="h2">Средние ставки по предметам: рынок против нашей витрины</h2>
+          <p class="small muted">Собрано по базе анкет: выбирай либо экономию ниже рынка, либо сертифицированных экспертов с тегом «Профи».</p>
+        </div>
+      </div>
+      <div class="land-rates-grid">${cards}</div>
+    </section>`;
+  }
+
+  function verifySectionHTML() {
+    const steps = [
+      ["01", "Сбор и дедупликация", "Объединяем дублирующие объявления преподавателя с Доски Ykt, Telegram, WhatsApp и MAX в одну карточку с реальной историей откликов."],
+      ["02", "Проверка контакта и торга", "Фильтруем неактуальные номера и заниженные «цены-приманки» — показываем честный коридор цены с шагом ±100 ₽."],
+      ["03", "Кнопка «Актуален сегодня»", "Преподаватели подтверждают свободные окна каждые 24 часа. Свежие анкеты получают приоритет и оранжевые уведомления об ответе."]
+    ];
+    return `<section class="land-sec" id="land-verify" aria-label="Как проверяются анкеты">
+      <div class="land-sec-head">
+        <div>
+          <div class="eyebrow">Качество базы · Ykt · Telegram · MAX</div>
+          <h2 class="h2">Как мы отсеиваем фейки и устаревшие анкеты</h2>
+        </div>
+        <span class="badge confirm">${icon("shield")}<span>Проверка актуальности</span></span>
+      </div>
+      <div class="land-verify-grid">
+        ${steps.map(([num, title, desc]) => `<div class="card pad stack" style="gap:8px">
+          <div class="row between"><span class="how-num">${num}</span><span class="diff-tag confirm">Проверено</span></div>
+          <b>${esc(title)}</b>
+          <p class="small ink2">${esc(desc)}</p>
+        </div>`).join("")}
+      </div>
+    </section>`;
+  }
+
+  function aiShowcaseSectionHTML(inside) {
+    const ui = getUi();
+    const sid = AI_SHOWCASE_DATA[ui.landAiSubj] ? ui.landAiSubj : "bio";
+    const item = AI_SHOWCASE_DATA[sid];
+    const subjButtons = Object.keys(AI_SHOWCASE_DATA).map((k) => {
+      const it = AI_SHOWCASE_DATA[k];
+      return `<button type="button" class="chip-btn${sid === k ? " on" : ""}" data-a="land-ai-subj" data-v="${k}">${esc(it.label)}</button>`;
+    }).join("");
+    return `<section class="land-sec" id="land-ai-study" aria-label="ИИ-разбор и трекер готовности">
+      <div class="land-sec-head">
+        <div>
+          <div class="eyebrow">Бесплатно в кабинете (0 ₽) · ИИ-репетитор</div>
+          <h2 class="h2">ИИ разбирает ошибки ЕГЭ за 5 секунд и считает прогноз баллов</h2>
+          <p class="small muted">Пока подбираешь репетитора или между уроками, тренируй реальные задания ФИПИ с моментальным разбором и трекером готовности.</p>
+        </div>
+        <div class="chip-rail">${subjButtons}</div>
+      </div>
+      <div class="land-ai-grid">
+        <div class="ai-err-box">
+          <div class="row between"><span class="badge">${esc(item.topic)}</span><span class="small muted">Задание КИМ</span></div>
+          <b>${esc(item.question)}</b>
+          <span class="small muted" style="padding:8px 10px;border-radius:10px;background:var(--surface);border:1px solid var(--line)">${esc(item.mistake)}</span>
+        </div>
+        <div class="ai-fix-box">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <span class="row" style="gap:6px"><span style="color:var(--pro)">${icon("spark")}</span><b>Разбор ИИ-помощника</b></span>
+            <span class="diff-tag pro num">${esc(item.delta)}</span>
+          </div>
+          <p class="small ink2" style="line-height:1.55">${esc(item.aiFix)}</p>
+          <div class="stack" style="gap:5px">
+            <div class="row between small"><span>Прогноз готовности к ЕГЭ</span><b class="num">${item.before} → ${item.after} / 100</b></div>
+            <div class="meter"><i style="width:${item.after}%"></i></div>
+          </div>
+          <div class="row" style="gap:8px;flex-wrap:wrap">
+            ${inside
+              ? `<button type="button" class="btn sm" data-a="go" data-v="tests">${esc(item.cta)} →</button>`
+              : `<button type="button" class="btn sm" data-a="auth-modal-open">Попробовать бесплатно (0 ₽) →</button>`}
+          </div>
+        </div>
+      </div>
+    </section>`;
+  }
+
+  function trustUnderPlansHTML() {
+    return `<div class="land-trust-strip" aria-label="Гарантии оплаты и баланса">
+      <div class="row" style="gap:12px;align-items:center;flex:1 1 320px;min-width:0">
+        <span class="land-trust-ico" aria-hidden="true">${icon("shield")}</span>
+        <div class="stack" style="gap:2px;min-width:0">
+          <b>Защита баланса · 0 ₽ лишних списаний до подтверждения</b>
+          <span class="small ink2">Деньги бронируются только на время ожидания ответа. Если репетитор не подошёл — бесплатная замена за 15 мин с сохранением остатка.</span>
+        </div>
+      </div>
+      <a href="/fees" class="btn ghost sm" data-a="go" data-v="fees">Правила оплаты и защиты →</a>
+    </div>`;
+  }
+
+  function reviewsSectionHTML() {
+    return `<section class="land-sec" id="land-reviews" aria-label="Отзывы и реальные кейсы">
+      <div class="land-sec-head">
+        <div>
+          <div class="eyebrow">Кейсы «Было → Стало» · Отзывы</div>
+          <h2 class="h2">Как ученики находят преподавателей и экономят до 53% бюджета</h2>
+        </div>
+      </div>
+      <div class="land-reviews-grid">
+        ${LAND_REVIEWS.map((r) => `<article class="review-card">
+          <div class="stack" style="gap:10px">
+            <div class="row between" style="gap:6px;flex-wrap:wrap">
+              <span class="diff-tag ${r.pro ? "pro" : "confirm"}">${esc(r.badge)}</span>
+            </div>
+            <p class="review-quote">«${esc(r.text)}»</p>
+          </div>
+          <div class="stack" style="gap:8px;padding-top:8px;border-top:1px dashed var(--line)">
+            <div class="hh-price-row">
+              ${r.pro
+                ? `<b class="num" style="font-size:15px">Ставка от ${r.newPrice.toLocaleString("ru-RU")} ₽/ч</b><span class="diff-tag pro">Профи</span>`
+                : `<s class="hh-price-old num">${r.oldPrice.toLocaleString("ru-RU")} ₽</s><b class="num" style="font-size:15px;color:var(--accent)">${r.newPrice.toLocaleString("ru-RU")} ₽/ч</b>`}
+            </div>
+            <div class="stack" style="gap:1px">
+              <b style="font-size:14px">${esc(r.name)}</b>
+              <span class="small muted">${esc(r.role)}</span>
+            </div>
+          </div>
+        </article>`).join("")}
+      </div>
+    </section>`;
+  }
+
+  function faqSectionHTML() {
+    const ui = getUi();
+    const openIdx = ui.landFaqOpen === undefined ? 0 : ui.landFaqOpen;
+    return `<section class="land-sec" id="land-faq" aria-label="Частые вопросы">
+      <div class="land-sec-head">
+        <div>
+          <div class="eyebrow">FAQ · Прозрачные правила</div>
+          <h2 class="h2">Частые вопросы перед первой заявкой</h2>
+        </div>
+      </div>
+      <div class="land-faq-list">
+        ${LAND_FAQ_ITEMS.map((item, idx) => {
+          const isOpen = openIdx === idx;
+          return `<div class="faq-item${isOpen ? " open" : ""}">
+            <button type="button" class="faq-btn" data-a="land-faq" data-i="${idx}" aria-expanded="${isOpen}">
+              <span>${esc(item.q)}</span>
+              <span class="faq-chev">${icon("chevDown")}</span>
+            </button>
+            ${isOpen ? `<div class="faq-ans">${esc(item.a)}${item.hasFeesLink ? ` <a href="/fees" data-a="go" data-v="fees" style="color:var(--accent);font-weight:600">Подробнее об оплате и правилах расчётов →</a>` : ""}</div>` : ""}
+          </div>`;
+        }).join("")}
+      </div>
+    </section>`;
+  }
+
   function landingPageHTML(opts) {
     opts = opts || {};
     const TDATA = getTDATA();
@@ -655,7 +1041,11 @@
       ["music", "Вокал и гитара"]
     ];
 
-    return `<div class="land-page">
+    const ui = getUi();
+    const minSamplePrice = (TDATA && TDATA.LIST && TDATA.LIST.length) ? Math.min(...TDATA.LIST.map((t) => t.price)) : 900;
+    const tutorApplied = ui.tutorApplyDone || null;
+
+    return `<div class="land-page" data-inside="${inside ? 1 : 0}">
       <header class="land-top">
         <div class="brand-lockup">
           ${BRAND_MARK_HTML}
@@ -665,12 +1055,13 @@
           </div>
         </div>
         <nav class="land-links" aria-label="Разделы лендинга">
-          <a href="/brandbook" data-a="go" data-v="brandbook">Брендбук</a>
-          <a href="#hero-motion-stage" data-a="land-scroll" data-target="hero-motion-stage">Подбор</a>
-          <a href="#land-savings" data-a="land-scroll" data-target="land-savings">Выгода</a>
-          <a href="#land-demo" data-a="land-scroll" data-target="land-demo">Бета-тест</a>
+          <a href="#land-match" data-a="land-scroll" data-target="land-match">Подбор</a>
+          <a href="#land-rates" data-a="land-scroll" data-target="land-rates">Ставки</a>
+          <a href="#land-ai-study" data-a="land-scroll" data-target="land-ai-study">ИИ-разбор</a>
           <a href="#land-market" data-a="land-scroll" data-target="land-market">Репетиторы</a>
           <a href="#land-plans" data-a="land-scroll" data-target="land-plans">Тарифы</a>
+          <a href="#land-faq" data-a="land-scroll" data-target="land-faq">FAQ</a>
+          <a href="/brandbook" data-a="go" data-v="brandbook">Брендбук</a>
         </nav>
         <div class="land-top-actions">
           <button type="button" class="icon-btn sm" data-a="theme-toggle" aria-label="Сменить тему" title="Сменить тему">${icon(dark ? "sun" : "moon")}</button>
@@ -721,6 +1112,8 @@
         </div>
       </div>
 
+      ${quickMatchSectionHTML()}
+      ${ratesAnalyticsHTML()}
       ${savingsSectionHTML()}
 
       <section class="land-sec" id="land-how">
@@ -738,9 +1131,13 @@
         </div>
       </section>
 
+      ${verifySectionHTML()}
       ${demoSectionHTML(inside)}
+      ${aiShowcaseSectionHTML(inside)}
       ${mktApi ? mktApi.marketSectionHTML({ landing: true }) : ""}
       ${mktApi ? mktApi.plansSectionHTML({ landing: true }) : ""}
+      ${trustUnderPlansHTML()}
+      ${reviewsSectionHTML()}
 
       <section class="land-sec" id="land-tutors">
         <div class="card pad-lg stack" style="gap:14px">
@@ -749,7 +1146,10 @@
               <div class="eyebrow">Для преподавателей</div>
               <h2 class="h2">Анкеты с Доски Ykt, Telegram, WhatsApp, MAX без наценок школ</h2>
             </div>
-            <a href="/fees" class="chip accent" data-a="go" data-v="fees">Условия оплаты и расчётов →</a>
+            <div class="row" style="gap:8px;flex-wrap:wrap">
+              <button type="button" class="btn sm${tutorApplied ? " is-confirmed" : ""}" data-a="tutor-apply-open">${tutorApplied ? "✓ Анкета отправлена (" + esc(tutorApplied.name) + ")" : "Разместить анкету за 1 минуту"}</button>
+              <a href="/fees" class="chip accent" data-a="go" data-v="fees">Условия оплаты →</a>
+            </div>
           </div>
           <div class="grid-3">
             <div class="stack" style="gap:4px"><b>Готовые заявки по времени и цене</b><p class="small ink2">Ученик выбирает час и ставку — сервис аккуратно передаёт предложение и уведомляет при ответе.</p></div>
@@ -759,6 +1159,8 @@
         </div>
       </section>
 
+      ${faqSectionHTML()}
+
       <footer class="row between small muted" style="flex-wrap:wrap;gap:10px;padding:8px 0 18px;border-top:1px solid var(--line)">
         <span>Вектор ЕГЭ · тесты, конспекты и маркетплейс репетиторов</span>
         <div class="row" style="gap:14px;flex-wrap:wrap">
@@ -767,6 +1169,14 @@
           <button type="button" class="link-btn small" data-a="bug-site">Сообщить о баге (${esc(_ctx.BUG_EMAIL || "willagegg@gmail.com")})</button>
         </div>
       </footer>
+
+      <div class="land-mobile-sticky" role="region" aria-label="Быстрый переход к подбору">
+        <div class="stack" style="gap:1px;min-width:0">
+          <b class="num" style="font-size:14px">От ${minSamplePrice.toLocaleString("ru-RU")} ₽/ч · ${catalogTotal}+ анкет</b>
+          <span class="small muted" style="font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Ставка ±100 ₽ · слоты 10:00–20:00</span>
+        </div>
+        <button type="button" class="btn sm" style="flex:none" data-a="land-scroll" data-target="land-market">Подобрать →</button>
+      </div>
     </div>`;
   }
 
@@ -781,6 +1191,7 @@
     stopMotionTimers,
     pulseMotionReset,
     patchSavingsDOM,
+    computeQuickMatchMeta,
     landingPageHTML,
     demoSectionHTML,
     marqueeSectionHTML,
