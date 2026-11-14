@@ -130,7 +130,8 @@
       const goldEmblem =
         '<span class="sakha-gold-emblem" aria-hidden="true">' +
         '<svg width="42" height="42" viewBox="0 0 64 64" fill="none">' +
-        '<circle cx="32" cy="32" r="29.5" fill="none" stroke="currentColor" stroke-width="2.2"/>' +
+        '<defs><linearGradient id="sakha-gold-g" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#f7dc9c"/><stop offset="48%" stop-color="#c59b5f"/><stop offset="100%" stop-color="#9e6d29"/></linearGradient></defs>' +
+        '<circle cx="32" cy="32" r="29.5" fill="none" stroke="url(#sakha-gold-g)" stroke-width="2.2"/>' +
         `<g transform="translate(6.4 6.4) scale(0.8)">${sakhaStarCoreSVG()}</g>` +
         "</svg>" +
         "</span>";

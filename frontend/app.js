@@ -4402,7 +4402,12 @@
       "accent-ink": "#ffffff", "accent-soft": "#ebf3ff", notif: "#f97316", "notif-soft": "#fff3eb",
       confirm: "#16a34a", "confirm-hover": "#15803d", "confirm-soft": "#dcfce7",
       pro: "#7c3aed", "pro-soft": "#f3e8ff", bad: "#ff2b4d", "bad-soft": "#ffe4e8", warn: "#b45309", "warn-soft": "#fef3c7",
-      gold: "#c59b5f", "gold-hover": "#b3884d", "gold-ink": "#8c6327", "gold-soft": "#fbf5ea"
+      gold: "#c59b5f", "gold-hover": "#b3884d", "gold-ink": "#8c6327", "gold-soft": "#fbf5ea",
+      "gold-btn-ink": "#4a310a",
+      "gold-grad": "linear-gradient(90deg, #9a6d28 0%, #c59b5f 40%, #e4be73 76%, #f4da9c 100%)",
+      "gold-glass": "linear-gradient(135deg, rgba(246, 212, 134, .30) 0%, rgba(197, 155, 95, .44) 52%, rgba(168, 116, 40, .30) 100%)",
+      "gold-glass-hover": "linear-gradient(135deg, rgba(250, 220, 146, .42) 0%, rgba(212, 166, 98, .54) 52%, rgba(180, 126, 46, .42) 100%)",
+      "gold-text-grad": "linear-gradient(115deg, #754c12 0%, #b58234 52%, #8a5e1d 100%)"
     },
     dark: {
       bg: "#000000", surface: "#16181d", "surface-2": "#22252e", ink: "#ffffff", "ink-2": "#d4d8e2",
@@ -4410,7 +4415,12 @@
       "accent-ink": "#ffffff", "accent-soft": "#102548", notif: "#fb923c", "notif-soft": "#2e1909",
       confirm: "#22c55e", "confirm-hover": "#16a34a", "confirm-soft": "#0c2b17",
       pro: "#a78bfa", "pro-soft": "#21153b", bad: "#ff4d5e", "bad-soft": "#3a171c",
-      gold: "#c59b5f", "gold-hover": "#d8b377", "gold-ink": "#e5c185", "gold-soft": "#261e12"
+      gold: "#c59b5f", "gold-hover": "#d8b377", "gold-ink": "#e5c185", "gold-soft": "#261e12",
+      "gold-btn-ink": "#fff3d6",
+      "gold-grad": "linear-gradient(90deg, rgba(168, 117, 42, .92) 0%, #c59b5f 36%, #ebca86 72%, rgba(248, 224, 160, .96) 100%)",
+      "gold-glass": "linear-gradient(135deg, rgba(245, 210, 128, .22) 0%, rgba(197, 155, 95, .34) 52%, rgba(154, 106, 36, .22) 100%)",
+      "gold-glass-hover": "linear-gradient(135deg, rgba(248, 218, 142, .32) 0%, rgba(214, 170, 102, .44) 52%, rgba(168, 118, 44, .32) 100%)",
+      "gold-text-grad": "linear-gradient(115deg, #fde4a8 0%, #e5b869 52%, #f4d38c 100%)"
     },
     sakha: {
       auroraCyan: "#0EA5E9", auroraGreen: "#10B981", ornamentGold: "#C59B5F",

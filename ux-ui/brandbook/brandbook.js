@@ -897,14 +897,14 @@
         </div>
 
         <div class="card pad stack" style="gap:10px">
-          <div class="row between"><b>06 · Золотой акцент Саха (#C59B5F) · «Вектор ЕГЭ · твоя ставка» и «Бета-тест»</b><span class="bb-spec-pill">.btn.gold / .savings-bar-fill.gold-fill</span></div>
+          <div class="row between"><b>06 · Полупрозрачный градиент Саха (#C59B5F) · «Вектор ЕГЭ · твоя ставка» и «Бета-тест»</b><span class="bb-spec-pill">.btn.gold / --gold-glass / --gold-grad</span></div>
           <div class="stack" style="gap:6px">
             <div class="row between small"><span class="savings-gold-label">${icon("spark")} <span>Вектор ЕГЭ · твоя ставка</span></span><b class="num savings-gold-txt">27 000 ₽/мес</b></div>
             <div class="savings-bar-track"><div class="savings-bar-fill gold-fill" style="width:78%"></div></div>
           </div>
           <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
             <button type="button" class="btn gold sm" data-a="go" data-v="landing">${icon("spark")}<span>Попробовать бета-тест</span></button>
-            <span class="chip gold">Саха золото #C59B5F · 7.33:1 AAA</span>
+            <span class="chip gold">Полупрозрачное золото · blur 12 px + градиент</span>
           </div>
         </div>
       </div>
@@ -967,8 +967,8 @@
 
     const wcagPairs = [
       ["Синий CTA", "#FFFFFF", "#0070FF", "4.68:1", "AA · UI", "aa"],
-      ["Золотой CTA (--gold)", "#141517", "#C59B5F", "7.33:1", "AAA · Попробовать бета-тест", "aaa"],
-      ["Золотой текст ставок", "#8C6327", "#FFFFFF", "4.92:1", "AA · Вектор ЕГЭ ставка", "aa"],
+      ["Золотой стекло-CTA (Hero / Card)", "#4A310A", "#E9CFA2", "8.65:1", "AAA · Полупрозрачный градиент", "aaa"],
+      ["Золотой градиент ставок", "#8C6327", "#FFFFFF", "4.92:1", "AA · Вектор ЕГЭ ставка", "aa"],
       ["Основной текст", "#141517", "#FFFFFF", "18.1:1", "AAA", "aaa"],
       ["Ночной OLED", "#FFFFFF", "#16181D", "17.7:1", "AAA", "aaa"],
       ["Подтверждено", "#FFFFFF", "#16A34A", "3.30:1", "AA Large · CTA bold", "aa"],

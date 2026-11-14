@@ -368,17 +368,19 @@ p { margin: 0; }
 }
 .btn.confirm:focus-visible { outline: 2px solid var(--confirm); outline-offset: 2px; box-shadow: 0 0 0 4px var(--confirm-soft); }
 .btn.gold {
-  background: linear-gradient(135deg, #dec08b 0%, var(--gold) 58%, #b3884d 100%);
-  border: 1.5px solid color-mix(in srgb, #fff1d4 70%, var(--gold));
-  color: #141517;
+  background: var(--gold-glass);
+  border: 1.5px solid color-mix(in srgb, var(--gold) 68%, rgba(255, 241, 212, .72));
+  color: var(--gold-btn-ink, #4a310a);
   font-weight: 700;
-  box-shadow: 0 10px 24px -10px rgba(197, 155, 95, .58);
+  backdrop-filter: blur(10px) saturate(1.22);
+  -webkit-backdrop-filter: blur(10px) saturate(1.22);
+  box-shadow: inset 0 1px 0 rgba(255, 248, 224, .42), 0 10px 24px -12px rgba(197, 155, 95, .48);
 }
 .btn.gold:hover:not(:disabled) {
-  background: linear-gradient(135deg, #e7cb98 0%, var(--gold-hover) 58%, #be9254 100%);
-  border-color: #fff4da;
+  background: var(--gold-glass-hover);
+  border-color: color-mix(in srgb, #fff4da 82%, var(--gold));
   transform: translateY(-2px);
-  box-shadow: 0 14px 28px -10px rgba(197, 155, 95, .72);
+  box-shadow: inset 0 1px 0 rgba(255, 248, 224, .56), 0 14px 28px -10px rgba(197, 155, 95, .64);
 }
 .btn.gold:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; box-shadow: 0 0 0 4px var(--gold-soft); }
 .btn.gold.is-confirmed {
@@ -542,9 +544,11 @@ p { margin: 0; }
   border: 1px solid color-mix(in srgb, #c59b5f 44%, var(--line));
 }
 .chip.gold {
-  background: var(--gold-soft);
-  color: var(--gold-ink);
-  border: 1px solid color-mix(in srgb, var(--gold) 48%, var(--line));
+  background: var(--gold-glass);
+  color: var(--gold-btn-ink, var(--gold-ink));
+  border: 1px solid color-mix(in srgb, var(--gold) 56%, var(--line));
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 .sakha-divider {
   display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0;
@@ -562,13 +566,13 @@ p { margin: 0; }
 }
 .sakha-divider.is-gold-logo .sakha-div-line {
   height: 1.5px;
-  background: linear-gradient(90deg, rgba(197, 155, 95, .08), #C59B5F 48%, rgba(197, 155, 95, .08));
+  background: linear-gradient(90deg, rgba(197, 155, 95, .06), #e8c77f 35%, #c59b5f 55%, rgba(197, 155, 95, .06));
 }
 .sakha-gold-emblem {
   display: inline-grid; place-items: center; flex: none;
   width: 46px; height: 46px; border-radius: 999px;
-  background: var(--bg);
-  color: #C59B5F;
+  background: radial-gradient(circle at 32% 28%, rgba(252, 226, 166, .28), rgba(197, 155, 95, .14) 64%, transparent), var(--bg);
+  color: #d6ab67;
   box-shadow: 0 0 0 4px var(--bg);
 }
 .sakha-gold-emblem svg { width: 42px; height: 42px; display: block; }

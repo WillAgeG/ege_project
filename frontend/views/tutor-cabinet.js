@@ -346,7 +346,7 @@
         </div>
         <div class="tile">
           <span class="tile-label">Чистый доход (95%)</span>
-          <span class="tile-value num" style="color:var(--gold-ink)">${totalPayout.toLocaleString("ru-RU")} ₽</span>
+          <span class="tile-value num savings-gold-txt">${totalPayout.toLocaleString("ru-RU")} ₽</span>
           <span class="tile-note"><button type="button" class="link-btn small" data-a="go" data-v="fees">Условия 5% →</button></span>
         </div>
       </div>
