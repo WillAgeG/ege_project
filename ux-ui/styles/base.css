@@ -371,6 +371,7 @@ p { margin: 0; }
   border-radius: 999px; padding: 2px 8px; flex: none;
 }
 .hh-select-chev { display: inline-flex; color: var(--muted); transition: transform .18s cubic-bezier(.22, 1, .36, 1), color .14s ease; flex: none; }
+.hh-select-chev svg, .hh-select-item svg { width: 16px; height: 16px; flex: none; display: block; }
 .hh-select.open .hh-select-chev { transform: rotate(180deg); color: var(--accent); }
 .hh-select-menu {
   position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 40;

@@ -447,19 +447,26 @@
   border: 1.5px dashed var(--line-strong); background: var(--surface-2);
   display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
 }
-.bb-btn-adaptive {
+.btn.bb-btn-adaptive {
   transition: background-color .28s ease, color .28s ease, border-color .28s ease, box-shadow .22s ease, transform .18s cubic-bezier(.22, 1, .36, 1);
 }
-.bb-btn-adaptive.is-undone {
+.btn.bb-btn-adaptive.is-undone {
   background: var(--warn-soft);
   color: var(--warn);
-  border-color: color-mix(in srgb, var(--warn) 48%, var(--line));
+  border-color: color-mix(in srgb, var(--warn) 52%, var(--line));
 }
-.bb-btn-adaptive.is-undone:hover {
-  background: color-mix(in srgb, var(--warn-soft) 72%, var(--warn) 18%);
+.btn.bb-btn-adaptive.is-undone:hover {
+  background: color-mix(in srgb, var(--warn-soft) 70%, var(--warn) 22%);
+  color: var(--warn);
+  border-color: var(--warn);
   transform: translateY(-2px);
+  box-shadow: 0 8px 18px -10px color-mix(in srgb, var(--warn) 42%, transparent);
 }
-.bb-btn-adaptive.is-undone:focus-visible {
+.btn.bb-btn-adaptive.is-undone:active {
+  transform: translateY(0) scale(.98);
+  box-shadow: none;
+}
+.btn.bb-btn-adaptive.is-undone:focus-visible {
   outline: 2px solid var(--warn);
   outline-offset: 2px;
   box-shadow: 0 0 0 4px var(--warn-soft);

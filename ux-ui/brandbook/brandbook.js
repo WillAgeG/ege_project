@@ -417,7 +417,7 @@
           <div class="row" style="gap:8px;flex-wrap:wrap">
             ${(() => {
               const undone = !!bb.cancelDemoUndone;
-              return `<button type="button" class="btn ${undone ? "soft bb-btn-adaptive is-undone" : "danger bb-btn-adaptive"} sm" data-a="bb-cancel-demo" aria-pressed="${undone}">${undone ? "Запись отменена · вернуть" : "Отменить запись"}</button>`;
+              return `<button type="button" class="btn ${undone ? "bb-btn-adaptive is-undone" : "danger bb-btn-adaptive"} sm" data-a="bb-cancel-demo" aria-pressed="${undone}">${undone ? "Запись отменена · вернуть" : "Отменить запись"}</button>`;
             })()}
             <button type="button" class="btn ghost sm" data-a="bb-chip">${bb.cancelDemoUndone ? "Закрыть" : "Оставить"}</button>
           </div>
