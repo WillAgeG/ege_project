@@ -437,9 +437,16 @@ h1{margin:0 0 12px;font-size:24px}h2{margin:20px 0 8px;font-size:17px}p,li{color
     async def static_assets(asset_path: str) -> FileResponse:
         clean = asset_path.strip("/")
         allowed_root = {"app.js", "bank-core.js"}
+        media_type = "application/javascript; charset=utf-8"
         if clean in allowed_root:
             target = (ROOT_DIR / clean).resolve()
-        elif (clean.startswith("subjects/") or clean.startswith("data/")) and clean.endswith(".js"):
+        elif clean.startswith("styles/") and clean.endswith(".css"):
+            target = (ROOT_DIR / clean).resolve()
+            allowed_dir = (ROOT_DIR / "styles").resolve()
+            if not target.is_relative_to(allowed_dir):
+                raise HTTPException(status_code=404, detail="Not found")
+            media_type = "text/css; charset=utf-8"
+        elif (clean.startswith("subjects/") or clean.startswith("data/") or clean.startswith("src/")) and clean.endswith(".js"):
             target = (ROOT_DIR / clean).resolve()
             allowed_dir = (ROOT_DIR / clean.split("/", 1)[0]).resolve()
             if not target.is_relative_to(allowed_dir):
@@ -451,7 +458,7 @@ h1{margin:0 0 12px;font-size:24px}h2{margin:20px 0 8px;font-size:17px}p,li{color
             raise HTTPException(status_code=404, detail="Not found")
         return FileResponse(
             target,
-            media_type="application/javascript; charset=utf-8",
+            media_type=media_type,
             headers={"Cache-Control": "no-cache"},
         )
 

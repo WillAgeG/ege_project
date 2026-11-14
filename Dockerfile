@@ -6,6 +6,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY index.html app.js bank-core.js ./
+COPY styles ./styles
+COPY src ./src
 COPY data ./data
 COPY subjects ./subjects
 COPY server ./server

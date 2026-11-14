@@ -74,6 +74,12 @@ def test_static_asset_allowlist(tmp_path: Path) -> None:
         for ok_path in (
             "/app.js",
             "/bank-core.js",
+            "/src/core/utils.js",
+            "/src/ui/icons.js",
+            "/src/ui/hh-components.js",
+            "/src/views/brandbook.js",
+            "/src/views/landing.js",
+            "/src/views/marketplace.js",
             "/data/plan.js",
             "/data/essay.js",
             "/subjects/biology.js",
@@ -83,6 +89,16 @@ def test_static_asset_allowlist(tmp_path: Path) -> None:
             resp = client.get(ok_path)
             assert resp.status_code == 200, ok_path
             assert "javascript" in resp.headers["content-type"]
+
+        for css_path in (
+            "/styles/base.css",
+            "/styles/study.css",
+            "/styles/marketplace.css",
+            "/styles/brandbook.css",
+        ):
+            resp = client.get(css_path)
+            assert resp.status_code == 200, css_path
+            assert "text/css" in resp.headers["content-type"]
 
         for blocked_path in (
             "/tools/bank.html",
@@ -94,6 +110,8 @@ def test_static_asset_allowlist(tmp_path: Path) -> None:
             "/requirements.txt",
             "/data/plan.txt",
             "/subjects/../.env",
+            "/styles/../.env",
+            "/src/../server/main.py",
         ):
             resp = client.get(blocked_path)
             assert resp.status_code == 404, blocked_path
