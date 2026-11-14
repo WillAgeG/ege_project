@@ -9,8 +9,39 @@
     { id: "bio", name: "Биология", short: "Биология" },
     { id: "chem", name: "Химия", short: "Химия" },
     { id: "math", name: "Математика", short: "Математика" },
-    { id: "inf", name: "Информатика", short: "Информатика" }
+    { id: "inf", name: "Информатика и Python", short: "Информатика" },
+    { id: "phys", name: "Физика и олимпиады", short: "Физика" },
+    { id: "hist", name: "История и общество", short: "История" },
+    { id: "design", name: "UX/UI и Моушен-дизайн", short: "Дизайн UX/UI" },
+    { id: "music", name: "Вокал, гитара и музыка", short: "Вокал / Гитара" }
   ];
+
+  var PREP_UNIVERSE = [
+    { label: "ЕГЭ на 85+", subject: "all", meta: "от 750 ₽/ч · −40% ниже рынка" },
+    { label: "ОГЭ без стресса", subject: "all", meta: "от 700 ₽/ч · −38% ниже рынка" },
+    { label: "Python и алгоритмы", subject: "inf", meta: "от 950 ₽/ч · вместо 1 700 ₽" },
+    { label: "UX/UI в Figma", subject: "design", meta: "от 900 ₽/ч · портфолио с нуля" },
+    { label: "Моушен-дизайн (AE)", subject: "design", meta: "от 950 ₽/ч · реальные кейсы" },
+    { label: "Разговорный английский", subject: "eng", meta: "от 800 ₽/ч · IELTS и работа" },
+    { label: "Медвуз: биология + химия", subject: "bio", meta: "от 850 ₽/ч · задачи 28 и 34" },
+    { label: "Высшая математика", subject: "math", meta: "от 850 ₽/ч · сессия и ЕГЭ" },
+    { label: "Физика и Физтех", subject: "phys", meta: "от 900 ₽/ч · олимпиады и ВУЗ" },
+    { label: "Вокал и гитара", subject: "music", meta: "от 750 ₽/ч · онлайн и студия" },
+    { label: "История и право", subject: "hist", meta: "от 750 ₽/ч · карты и эссе" },
+    { label: "Собеседование в IT", subject: "inf", meta: "от 1 100 ₽/ч · −45% ниже рынка" }
+  ];
+
+  var LIVE_DEALS = [
+    { topic: "ЕГЭ Биология", paid: 850, market: 1450, tag: "вместо 1 450 ₽ · −41%" },
+    { topic: "UX/UI и Figma", paid: 950, market: 1800, tag: "вместо 1 800 ₽ · −47%" },
+    { topic: "Английский B2 / ЕГЭ", paid: 900, market: 1600, tag: "вместо 1 600 ₽ · −44%" },
+    { topic: "Python и КЕГЭ", paid: 1000, market: 1750, tag: "вместо 1 750 ₽ · −43%" },
+    { topic: "Вокал и слух", paid: 750, market: 1300, tag: "вместо 1 300 ₽ · −42%" },
+    { topic: "Химия №34 (медвуз)", paid: 950, market: 1650, tag: "вместо 1 650 ₽ · −42%" },
+    { topic: "Математика профиль", paid: 900, market: 1550, tag: "вместо 1 550 ₽ · −42%" }
+  ];
+
+  var CATALOG_TOTAL = 2480;
 
   var HOURS = ["09:00", "10:00", "11:00", "12:00", "14:00", "15:00", "16:00", "18:00", "19:00", "20:00", "21:00"];
   var WEEKDAYS_SHORT = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
@@ -390,6 +421,110 @@
         6: ["09:00", "11:00", "16:00"],
         0: ["14:00", "18:00"]
       }
+    },
+    {
+      id: "tut-kovalev",
+      name: "Денис Ковалёв",
+      subject: "design",
+      subjectName: "UX/UI и Моушен-дизайн",
+      exams: ["Навыки", "Портфолио"],
+      price: 1200,
+      marketPrice: 2000,
+      minFair: 950,
+      formats: ["Онлайн"],
+      city: "Онлайн по РФ",
+      rating: 4.9,
+      reviews: 27,
+      exp: "6 лет · Senior Product & Motion Designer",
+      tag: "Figma, After Effects, анимация интерфейсов",
+      bumpedToday: true,
+      bumpText: "Поднял анкету 2 ч назад",
+      bio: "Учу UX/UI в Figma, прототипированию и моушен-дизайну с нуля до первых коммерческих заказов и сильного портфолио.",
+      slots: {
+        1: ["14:00", "18:00", "20:00"],
+        3: ["11:00", "16:00", "19:00"],
+        5: ["12:00", "18:00"],
+        6: ["10:00", "12:00", "15:00", "18:00"],
+        0: ["11:00", "16:00"]
+      }
+    },
+    {
+      id: "tut-zaytsev",
+      name: "Егор Зайцев",
+      subject: "phys",
+      subjectName: "Физика и олимпиады",
+      exams: ["ЕГЭ", "ОГЭ", "ВУЗ"],
+      price: 1150,
+      marketPrice: 1750,
+      minFair: 900,
+      formats: ["Онлайн", "Очно"],
+      city: "Онлайн / Очно",
+      rating: 4.9,
+      reviews: 33,
+      exp: "6 лет · МФТИ, готовлю к ЕГЭ 90+ и Физтеху",
+      tag: "Механика, электродинамика и часть 2",
+      bumpedToday: true,
+      bumpText: "Поднял анкету сегодня",
+      bio: "Убираем зубрёжку формул: выводим законы с нуля, решаем расчётные задачи №21–26 ЕГЭ и вузовский курс общей физики.",
+      slots: {
+        1: ["16:00", "19:00"],
+        2: ["10:00", "18:00"],
+        4: ["15:00", "19:00"],
+        6: ["10:00", "14:00", "18:00"],
+        0: ["11:00", "16:00"]
+      }
+    },
+    {
+      id: "tut-melnikova",
+      name: "Алина Мельникова",
+      subject: "music",
+      subjectName: "Вокал, гитара и музыка",
+      exams: ["Навыки", "Творческий экзамен"],
+      price: 950,
+      marketPrice: 1500,
+      minFair: 750,
+      formats: ["Онлайн", "Очно"],
+      city: "Онлайн / Очно",
+      rating: 4.8,
+      reviews: 22,
+      exp: "5 лет · современное пение и акустика",
+      tag: "Постановка голоса, дыхание и аккомпанемент",
+      bumpedToday: false,
+      bumpText: "Обновила слоты сегодня",
+      bio: "Помогаю зазвучать уверенно с первого месяца: дыхание, интонирование, разбор любимых песен на гитаре или фортепиано и подготовка в творческие вузы.",
+      slots: {
+        2: ["14:00", "19:00"],
+        3: ["12:00", "18:00"],
+        5: ["15:00", "19:00"],
+        6: ["11:00", "15:00", "18:00"],
+        0: ["12:00", "16:00"]
+      }
+    },
+    {
+      id: "tut-sorokina",
+      name: "Виктория Сорокина",
+      subject: "hist",
+      subjectName: "История и общество",
+      exams: ["ЕГЭ", "ОГЭ", "ДВИ"],
+      price: 1000,
+      marketPrice: 1550,
+      minFair: 780,
+      formats: ["Онлайн"],
+      city: "Онлайн по РФ",
+      rating: 4.9,
+      reviews: 28,
+      exp: "5 лет · средний балл 86, поступят на бюджет",
+      tag: "Карты, культура, №18–21 и аргументация",
+      bumpedToday: true,
+      bumpText: "Подняла анкету 1 ч назад",
+      bio: "Связываем даты в живые сюжеты без зубрёжки. Отрабатываем карты, культуру, причинно-следственные связи и вторую часть ЕГЭ/ДВИ.",
+      slots: {
+        1: ["15:00", "19:00"],
+        3: ["10:00", "16:00", "20:00"],
+        4: ["18:00", "20:00"],
+        6: ["10:00", "14:00", "18:00"],
+        0: ["10:00", "15:00"]
+      }
     }
   ];
 
@@ -419,6 +554,8 @@
     t.whatsapp = t.whatsapp || WA_PHONES[t.id] || ("791421001" + String(10 + idx));
     t.verified = t.verified !== false;
     t.source = t.source || "Доска Ykt";
+    t.marketPrice = t.marketPrice || Math.round((t.price * 1.38) / 50) * 50;
+    t.belowPct = Math.max(10, Math.round((1 - (t.minFair || t.price) / t.marketPrice) * 100));
     t.responseMin = t.bumpedToday ? 10 : 25;
     if (!t.availableFrom || !t.availableTo) {
       var allH = [];
@@ -579,6 +716,9 @@
 
   EGE.tutors = {
     SUBJECTS: SUBJECTS,
+    PREP_UNIVERSE: PREP_UNIVERSE,
+    LIVE_DEALS: LIVE_DEALS,
+    CATALOG_TOTAL: CATALOG_TOTAL,
     HOURS: HOURS,
     PLANS: PLANS,
     LIST: LIST,

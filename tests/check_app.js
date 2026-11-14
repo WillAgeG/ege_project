@@ -861,7 +861,9 @@
 
     const sp800 = globalThis.EGE.tutors.commissionSplit(800);
     assert(sp800.total === 800 && sp800.payout === 760 && sp800.fee === 40 && sp800.pct === 5, "expected 5% commission split (800 -> 760 + 40)");
-    assert(globalThis.EGE.tutors.LIST.every((t) => t.source === "Доска Ykt" && t.availableFrom && t.availableTo), "expected Доска Ykt source and availability window on all tutors");
+    assert(globalThis.EGE.tutors.SUBJECTS.length >= 10 && Array.isArray(globalThis.EGE.tutors.PREP_UNIVERSE) && Array.isArray(globalThis.EGE.tutors.LIVE_DEALS), "expected broadened 10+ subjects, marquee universe and live deals");
+    assert(globalThis.EGE.tutors.CATALOG_TOTAL === 2480 && globalThis.EGE.tutors.LIST.length >= 16, "expected 2480+ catalog positioning and 16+ tutors");
+    assert(globalThis.EGE.tutors.LIST.every((t) => t.source === "Доска Ykt" && t.availableFrom && t.availableTo && t.marketPrice > t.price && t.belowPct > 0), "expected Доска Ykt window and below-market metadata on all tutors");
 
     const landHtml = env5.elements.get("main").innerHTML;
     assert(landHtml.includes("Бесплатная") && landHtml.includes("Пробник") && landHtml.includes("Месяц под ключ"), "expected 3 tariff names on landing");
@@ -869,6 +871,22 @@
     assert(landHtml.includes("5 000 ₽") && landHtml.includes("10 000 ₽"), "expected 5k and 10k prices on landing");
     assert(landHtml.includes('data-a="mkt-day"') && landHtml.includes('data-a="mkt-hour"') && landHtml.includes("7 дн"), "expected single-line 7 дн badge and hour circles on landing");
     assert(landHtml.includes('id="land-demo"') && landHtml.includes("Доска Ykt") && landHtml.includes("5%"), "expected interactive beta demo, Доска Ykt and 5% fee on landing");
+    assert(landHtml.includes('id="hero-motion-stage"') && landHtml.includes('id="hero-motion-bid-btn"') && landHtml.includes("Предложить цену") && landHtml.includes("Денис Ковалёв") && landHtml.includes("marquee-band") && landHtml.includes('id="land-savings"'), "expected UX/UI motion stage, marquee, savings comparator and below-market messaging");
+
+    clickAction(env5, { a: "motion-bid-press" });
+    await flushMicrotasks(2);
+    const motionBidHtml = env5.elements.get("main").innerHTML;
+    assert(motionBidHtml.includes("motion-bid-btn is-pressed") && !motionBidHtml.includes("motion-drawer dim") && motionBidHtml.includes("−53%"), "expected pressing Предложить цену to trigger tactile press and unlock below-market bid drawer");
+    clickAction(env5, { a: "motion-bid-press" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("Ответ «Да!»"), "expected WhatsApp bot accepted state on second press");
+    clickAction(env5, { a: "motion-preset", v: "inf" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("Роман Лебедев"), "expected motion preset switch to Python/IT tutor");
+    clickAction(env5, { a: "save-freq", v: "3" });
+    await flushMicrotasks(2);
+    const saveHtml = env5.elements.get("main").innerHTML;
+    assert(saveHtml.includes("19\u00a0200 ₽/мес") || saveHtml.includes("19 200 ₽/мес"), "expected savings comparator to recalculate 3 lessons/week");
 
     clickAction(env5, { a: "demo-pick", i: "0" });
     await flushMicrotasks(2);

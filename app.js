@@ -915,7 +915,9 @@
     bug: null,
     booking: null,
     market: null,
-    demo: { tab: "quiz", sid: firstSubject.id, qIdx: 0, pick: null, revealed: false, topicIdx: 0, bidRate: 800, bidHour: "10:00" }
+    demo: { tab: "quiz", sid: firstSubject.id, qIdx: 0, pick: null, revealed: false, topicIdx: 0, bidRate: 800, bidHour: "10:00" },
+    motion: { playing: true, preset: "design", step: 0, slot: "10:00", offer: 950, clicking: false },
+    savings: { freq: 2, marketRate: 1600, offerRate: 950 }
   };
   const MARKET_LS_KEY = "vektor-ege:market";
   const TDATA = EGE.tutors || null;
@@ -1068,6 +1070,7 @@
       if (el) el.focus({ preventScroll: true });
     }
     if (scrollTopPending) { scrollTopPending = false; window.scrollTo(0, 0); }
+    syncHeroMotion();
   }
   const BUG_EMAIL = "willagegg@gmail.com";
   const VIEW_LABELS = { home: "Тесты", tests: "Тесты", study: "Учёба", subject: "Предмет", topic: "Тема", quiz: "Тест", plan: "План поступления", stats: "Показатели", tutor: "Справочник", essay: "Сочинение", market: "Репетиторы", landing: "О сервисе и тарифы", profile: "Настройки" };
@@ -1620,7 +1623,11 @@
         <div class="tutor-head">
           <div style="min-width:0">
             <h3 class="h3" style="font-size:17px">Репетитор · ${esc(t.subjectName)}</h3>
-            <div class="tutor-rate num" style="margin-top:4px">от ${t.price.toLocaleString("ru-RU")} ₽ за час</div>
+            <div class="row" style="gap:8px;align-items:baseline;flex-wrap:wrap;margin-top:4px">
+              <div class="tutor-rate num">от ${t.price.toLocaleString("ru-RU")} ₽/ч</div>
+              ${t.marketPrice ? `<span class="mkt-strike num">${t.marketPrice.toLocaleString("ru-RU")} ₽</span>` : ""}
+              ${t.belowPct ? `<span class="below-badge num">−${t.belowPct}% ниже рынка</span>` : ""}
+            </div>
           </div>
           <button type="button" class="fav-btn" data-a="mkt-fav" data-id="${esc(t.id)}" aria-pressed="${isFav}" aria-label="В избранное">${icon(isFav ? "heartFill" : "heart")}</button>
         </div>
@@ -1729,13 +1736,19 @@
     const selTimeDesc = (activeDayObj ? activeDayObj.shortLabel : "Все 7 дней") + " · " + (st.hour === "all" ? "любое время" : st.hour);
 
     return `<section class="land-sec" id="land-market" aria-label="Маркетплейс репетиторов">
-      <div class="hh-seg" role="group" aria-label="Тип экзамена">
-        ${[["all", "Все экзамены"], ["ЕГЭ", "ЕГЭ"], ["ОГЭ", "ОГЭ"]].map(([v, l]) => `<button type="button" data-a="mkt-exam" data-v="${v}" aria-pressed="${st.exam === v}">${l}</button>`).join("")}
+      <div class="land-sec-head">
+        <div>
+          <div class="eyebrow">Огромная база · ${TDATA.CATALOG_TOTAL ? TDATA.CATALOG_TOTAL.toLocaleString("ru-RU") + "+ анкет" : "подготовка к чему угодно"}</div>
+          <h2 class="h2">Ищи репетиторов ниже рынка для любой задачи</h2>
+        </div>
+      </div>
+      <div class="hh-seg" role="group" aria-label="Цель подготовки">
+        ${[["all", "Любая цель"], ["ЕГЭ", "ЕГЭ"], ["ОГЭ", "ОГЭ"], ["Навыки", "Навыки и ВУЗ"]].map(([v, l]) => `<button type="button" data-a="mkt-exam" data-v="${v}" aria-pressed="${st.exam === v}">${l}</button>`).join("")}
       </div>
 
       <div class="hh-search-box">
         <span class="hh-search-ico">${icon("search")}</span>
-        <input class="hh-search-input" id="mkt-q" type="search" autocomplete="off" spellcheck="false" value="${esc(st.q || "")}" placeholder="Предмет, тема, формат или имя репетитора">
+        <input class="hh-search-input" id="mkt-q" type="search" autocomplete="off" spellcheck="false" value="${esc(st.q || "")}" placeholder="ЕГЭ, Python, UX/UI, моушен-дизайн, вокал, физика или имя репетитора">
         ${st.q ? `<button type="button" class="search-clear" data-a="mkt-clear-q" aria-label="Очистить">${icon("x")}</button>` : ""}
       </div>
 
@@ -1925,23 +1938,419 @@
     </section>`;
   }
 
+  const MOTION_PRESETS = {
+    design: { id: "design", label: "UX/UI и Моушен", short: "Моушен-дизайн", tutorId: "tut-kovalev", fallbackName: "Денис Ковалёв", role: "Figma · After Effects · UX/UI портфолио", defaultSlot: "10:00", defaultOffer: 950, slots: ["10:00", "12:00", "15:00", "18:00"] },
+    eng: { id: "eng", label: "Английский · ЕГЭ", short: "Английский", tutorId: "tut-sokolova", fallbackName: "Анна Соколова", role: "ЕГЭ 90+ · ОГЭ · разговорная практика", defaultSlot: "10:00", defaultOffer: 850, slots: ["10:00", "12:00", "15:00", "17:00"] },
+    inf: { id: "inf", label: "Python и IT", short: "Python / КЕГЭ", tutorId: "tut-lebedev", fallbackName: "Роман Лебедев", role: "Python · алгоритмы · №24–27 ЕГЭ", defaultSlot: "16:00", defaultOffer: 950, slots: ["14:00", "16:00", "18:00", "20:00"] },
+    music: { id: "music", label: "Вокал и гитара", short: "Вокал и гитара", tutorId: "tut-melnikova", fallbackName: "Алина Мельникова", role: "Постановка голоса · акустика · онлайн", defaultSlot: "18:00", defaultOffer: 750, slots: ["12:00", "15:00", "18:00", "20:00"] }
+  };
+  const MOTION_ORDER = ["design", "eng", "inf", "music"];
+  const MOTION_STEP_LABELS = ["01 Выбор", "02 Время", "03 Кнопка", "04 Торг", "05 Ответ"];
+  let motionTimer = null;
+  let motionPulseTimer = null;
+
+  function heroMotionMeta() {
+    const m = ui.motion || (ui.motion = { playing: true, preset: "design", step: 0, slot: "10:00", offer: 950, clicking: false });
+    const preset = MOTION_PRESETS[m.preset] || MOTION_PRESETS.design;
+    const list = TDATA && TDATA.LIST ? TDATA.LIST : [];
+    const tutor = list.find((t) => t.id === preset.tutorId) || list[0] || {
+      id: preset.tutorId,
+      name: preset.fallbackName,
+      subject: preset.id,
+      subjectName: preset.label,
+      price: 1200,
+      marketPrice: 2000,
+      minFair: 900,
+      belowPct: 40,
+      windowLabel: "с 10:00 до 20:00",
+      whatsapp: "79142100100"
+    };
+    const market = tutor.marketPrice || Math.round(((tutor.price || 1200) * 1.45) / 50) * 50;
+    const tutorPrice = tutor.price || 1200;
+    const minOffer = Math.max(500, Math.round(((tutor.minFair || tutorPrice * 0.72) - 100) / 50) * 50);
+    const offer = Math.max(minOffer, Math.min(market, Number(m.offer) || preset.defaultOffer || tutorPrice));
+    const saveRub = Math.max(0, market - offer);
+    const offerBelowPct = market > offer ? Math.round(((market - offer) / market) * 100) : 0;
+    const split = TDATA && TDATA.commissionSplit
+      ? TDATA.commissionSplit(offer)
+      : { total: offer, fee: Math.round(offer * 0.05), payout: offer - Math.round(offer * 0.05), pct: 5 };
+    const slot = preset.slots.includes(m.slot) ? m.slot : preset.defaultSlot;
+    return { m, preset, tutor, market, tutorPrice, minOffer, offer, saveRub, offerBelowPct, split, slot };
+  }
+
+  function motionBotHTML(meta, step) {
+    if (step === 4) {
+      return `<div class="row between" style="gap:8px;flex-wrap:wrap">
+          <b style="color:var(--accent)">WhatsApp-бот · Ответ «Да!»</b>
+          <span class="badge accent">${esc(meta.slot)} · ${meta.offer.toLocaleString("ru-RU")} ₽/ч</span>
+        </div>
+        <span class="ink2">«Хочу ${esc(meta.preset.short)} в ${esc(meta.slot)} за ${meta.offer.toLocaleString("ru-RU")} ₽ вместо ${meta.market.toLocaleString("ru-RU")} ₽ на рынке!» → Подтверждено.</span>`;
+    }
+    return `<div class="row between" style="gap:8px;flex-wrap:wrap">
+        <b>Авто-бот WhatsApp готов</b>
+        <span class="muted">Сб · ${esc(meta.slot)}</span>
+      </div>
+      <span class="muted">Нажми «Предложить цену» или двигай ползунок — бот отправит ставку преподавателю.</span>`;
+  }
+
+  function heroMotionInnerHTML() {
+    const meta = heroMotionMeta();
+    const { m, preset, tutor, market, tutorPrice, minOffer, offer, saveRub, offerBelowPct, split, slot } = meta;
+    const step = Math.max(0, Math.min(4, Number(m.step) || 0));
+
+    const presetPills = MOTION_ORDER.map((id) => {
+      const p = MOTION_PRESETS[id];
+      const on = preset.id === id;
+      return `<button type="button" class="chip-btn${on ? " on" : ""}" data-a="motion-preset" data-v="${id}"${on ? ' data-mstep-target="0"' : ""}>${esc(p.label)}</button>`;
+    }).join("");
+
+    const stepBtns = MOTION_STEP_LABELS.map((lbl, idx) => {
+      const cls = "m-step-btn" + (step === idx ? " on" : (idx < step ? " done" : ""));
+      return `<button type="button" class="${cls}" data-a="motion-step" data-i="${idx}" aria-pressed="${step === idx}">${lbl}</button>`;
+    }).join("");
+
+    const slotChips = preset.slots.map((h) => {
+      const isSel = slot === h;
+      const isTarget = step === 1 && isSel;
+      return `<button type="button" class="chip-btn motion-slot-chip${isSel ? " on" : ""}${isTarget ? " is-targeted" : ""}" data-a="motion-slot" data-v="${esc(h)}"${isSel ? ' data-mstep-target="1"' : ""}>${esc(h)}</button>`;
+    }).join("");
+
+    return `<div class="motion-cursor${m.clicking ? " clicking" : ""}" id="hero-motion-cursor" aria-hidden="true" style="left:24%;top:64px">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none"><path d="M4.5 3.5L19.5 11.2L12.6 13.5L9.8 20.5L4.5 3.5Z" fill="#ffffff" stroke="#2f7cff" stroke-width="1.8" stroke-linejoin="round"/></svg>
+        <span class="cursor-ring"></span>
+      </div>
+      <div class="motion-chrome">
+        <div class="row" style="gap:7px;font-size:12px;font-weight:600;min-width:0">
+          <span class="live-dot"></span>
+          <span data-m="mode-lbl">${m.playing ? "Авто-моушен · живой сценарий торга" : "Ручной режим · нажимай и двигай сам"}</span>
+        </div>
+        <button type="button" class="chip-btn" data-a="motion-toggle" style="padding:4px 10px;font-size:11.5px">${m.playing ? "Пауза" : "Авто-моушен"}</button>
+      </div>
+      <div class="chip-rail" role="group" aria-label="Направления в моушен-демо">${presetPills}</div>
+      <div class="motion-steps" role="group" aria-label="Шаги сценария">${stepBtns}</div>
+      <div class="motion-card-body">
+        <div class="row between" style="align-items:flex-start;gap:10px;flex-wrap:wrap">
+          <div class="row" style="gap:10px;min-width:0">
+            <span class="tutor-avatar" aria-hidden="true">${esc(initials(tutor.name))}</span>
+            <div class="stack" style="gap:2px;min-width:0">
+              <div class="row" style="gap:6px;flex-wrap:wrap">
+                <b>${esc(tutor.name)}</b>
+                <span class="badge accent">${esc(preset.short)}</span>
+              </div>
+              <span class="small muted">${esc(preset.role)}</span>
+            </div>
+          </div>
+          <div class="stack" style="gap:3px;align-items:flex-end;text-align:right">
+            <div class="row" style="gap:6px;align-items:baseline">
+              <span class="mkt-strike">${market.toLocaleString("ru-RU")} ₽</span>
+              <b class="num" style="font-size:16px">${tutorPrice.toLocaleString("ru-RU")} ₽/ч</b>
+            </div>
+            <span class="below-badge" data-m="save-pill">ниже рынка до −${offerBelowPct}%</span>
+          </div>
+        </div>
+        <div class="row" style="gap:6px;flex-wrap:wrap">
+          <span class="small muted">Сб, окно ${esc(tutor.windowLabel || "с 10:00 до 20:00")}:</span>
+          ${slotChips}
+        </div>
+        <button type="button" class="btn motion-bid-btn${(m.clicking || step === 2) ? " is-pressed" : ""}" id="hero-motion-bid-btn" data-a="motion-bid-press" data-mstep-target="2">
+          ${icon("spark")}<span data-m="offer-btn-lbl">Предложить цену · ${offer.toLocaleString("ru-RU")} ₽/ч (−${offerBelowPct}% ниже рынка)</span>
+        </button>
+        <div class="motion-drawer${step < 3 ? " dim" : ""}" id="hero-motion-drawer">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <span class="small muted">Твоя ставка вместо ${market.toLocaleString("ru-RU")} ₽:</span>
+            <b class="num" style="color:var(--accent)" data-m="offer-val">${offer.toLocaleString("ru-RU")} ₽/ч (−${saveRub.toLocaleString("ru-RU")} ₽)</b>
+          </div>
+          <input id="hero-bid-range" type="range" min="${minOffer}" max="${market}" step="50" value="${offer}" data-mstep-target="3" aria-label="Предложить цену в час">
+          <div class="row between small muted" style="gap:8px;flex-wrap:wrap">
+            <span data-m="split-txt">Преподу: ${split.payout} ₽ · сервис 5% (${split.fee} ₽)</span>
+            <button type="button" class="link-btn small" data-a="motion-book-now">Открыть заявку →</button>
+          </div>
+        </div>
+        <div class="motion-bot-toast${step === 4 ? " accepted" : ""}" id="hero-motion-bot" data-mstep-target="4" data-m="bot-toast">
+          ${motionBotHTML(meta, step)}
+        </div>
+      </div>`;
+  }
+
+  function heroMotionStageHTML() {
+    const m = ui.motion || { playing: true };
+    return `<div class="motion-stage${m.playing ? "" : " paused"}" id="hero-motion-stage" aria-label="Интерактивный UX/UI и моушен-торг">
+      ${heroMotionInnerHTML()}
+    </div>`;
+  }
+
+  function positionMotionCursor(stage, step) {
+    if (!stage || typeof stage.querySelector !== "function" || typeof stage.getBoundingClientRect !== "function") return;
+    const cursor = stage.querySelector("#hero-motion-cursor");
+    if (!cursor || !cursor.style) return;
+    const fallbacks = [
+      ["20%", "78px"],
+      ["28%", "230px"],
+      ["52%", "290px"],
+      ["44%", "365px"],
+      ["64%", "442px"]
+    ];
+    const target = stage.querySelector('[data-mstep-target="' + step + '"]');
+    const sr = stage.getBoundingClientRect();
+    if (target && typeof target.getBoundingClientRect === "function" && sr && sr.width > 0 && sr.height > 0) {
+      const tr = target.getBoundingClientRect();
+      let x = tr.left - sr.left + tr.width * 0.54;
+      let y = tr.top - sr.top + tr.height * 0.56;
+      if (step === 3 && target.type === "range") {
+        const mn = Number(target.min) || 700;
+        const mx = Number(target.max) || 2000;
+        const val = Number(target.value) || 950;
+        const pct = Math.max(0.08, Math.min(0.92, (val - mn) / Math.max(1, mx - mn)));
+        x = tr.left - sr.left + tr.width * pct;
+      }
+      x = Math.max(12, Math.min(sr.width - 26, x));
+      y = Math.max(14, Math.min(sr.height - 26, y));
+      cursor.style.left = Math.round(x) + "px";
+      cursor.style.top = Math.round(y) + "px";
+    } else {
+      const fb = fallbacks[step] || fallbacks[0];
+      cursor.style.left = fb[0];
+      cursor.style.top = fb[1];
+    }
+  }
+
+  function patchHeroMotionDOM(opts) {
+    opts = opts || {};
+    const stage = typeof document.getElementById === "function" ? document.getElementById("hero-motion-stage") : null;
+    if (!stage || typeof stage.querySelector !== "function") {
+      if (!opts.noRender) scheduleRender();
+      return;
+    }
+    const meta = heroMotionMeta();
+    const step = Math.max(0, Math.min(4, Number(meta.m.step) || 0));
+    if (opts.liveOnly) {
+      const q = (s) => stage.querySelector(s);
+      if (stage.classList) stage.classList.toggle("paused", !meta.m.playing);
+      const modeLbl = q('[data-m="mode-lbl"]');
+      if (modeLbl) modeLbl.textContent = meta.m.playing ? "Авто-моушен · живой сценарий торга" : "Ручной режим · нажимай и двигай сам";
+      const togBtn = q('[data-a="motion-toggle"]');
+      if (togBtn) togBtn.textContent = meta.m.playing ? "Пауза" : "Авто-моушен";
+      const lbl = q('[data-m="offer-btn-lbl"]');
+      if (lbl) lbl.textContent = `Предложить цену · ${meta.offer.toLocaleString("ru-RU")} ₽/ч (−${meta.offerBelowPct}% ниже рынка)`;
+      const pill = q('[data-m="save-pill"]');
+      if (pill) pill.textContent = `ниже рынка до −${meta.offerBelowPct}%`;
+      const oval = q('[data-m="offer-val"]');
+      if (oval) oval.textContent = `${meta.offer.toLocaleString("ru-RU")} ₽/ч (−${meta.saveRub.toLocaleString("ru-RU")} ₽)`;
+      const stxt = q('[data-m="split-txt"]');
+      if (stxt) stxt.textContent = `Преподу: ${meta.split.payout} ₽ · сервис 5% (${meta.split.fee} ₽)`;
+      const drw = q("#hero-motion-drawer");
+      if (drw && drw.classList) drw.classList.toggle("dim", step < 3);
+      const bot = q("#hero-motion-bot");
+      if (bot) {
+        if (bot.classList) bot.classList.toggle("accepted", step === 4);
+        bot.innerHTML = motionBotHTML(meta, step);
+      }
+      if (typeof stage.querySelectorAll === "function") {
+        stage.querySelectorAll(".m-step-btn").forEach((b, idx) => {
+          if (b.classList) {
+            b.classList.toggle("on", idx === step);
+            b.classList.toggle("done", idx < step);
+          }
+          b.setAttribute("aria-pressed", String(idx === step));
+        });
+      }
+      positionMotionCursor(stage, step);
+      return;
+    }
+    if (stage.classList) stage.classList.toggle("paused", !meta.m.playing);
+    stage.innerHTML = heroMotionInnerHTML();
+    syncHeroMotion();
+  }
+
+  function stopMotionTimers() {
+    if (motionTimer && typeof clearTimeout === "function") { clearTimeout(motionTimer); motionTimer = null; }
+    if (motionPulseTimer && typeof clearTimeout === "function") { clearTimeout(motionPulseTimer); motionPulseTimer = null; }
+  }
+
+  function syncHeroMotion() {
+    const stage = typeof document.getElementById === "function" ? document.getElementById("hero-motion-stage") : null;
+    if (!stage || typeof stage.querySelector !== "function") {
+      stopMotionTimers();
+      return;
+    }
+    const m = ui.motion || { playing: true, step: 0 };
+    const place = () => positionMotionCursor(stage, Math.max(0, Math.min(4, Number(m.step) || 0)));
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(place);
+    else place();
+
+    const visible = typeof document.visibilityState === "undefined" || document.visibilityState !== "hidden";
+    if (!m.playing || !visible) {
+      stopMotionTimers();
+      return;
+    }
+    if (motionTimer || typeof setTimeout !== "function") return;
+    const delay = m.step === 4 ? 2600 : 1950;
+    motionTimer = setTimeout(() => {
+      motionTimer = null;
+      const curStage = typeof document.getElementById === "function" ? document.getElementById("hero-motion-stage") : null;
+      if (!curStage || !ui.motion || !ui.motion.playing) return;
+      const nextStep = (Number(ui.motion.step || 0) + 1) % 5;
+      if (nextStep === 0) {
+        const curIdx = MOTION_ORDER.indexOf(ui.motion.preset || "design");
+        const nextPresetId = MOTION_ORDER[(curIdx + 1) % MOTION_ORDER.length];
+        const np = MOTION_PRESETS[nextPresetId] || MOTION_PRESETS.design;
+        const nt = (TDATA && TDATA.LIST || []).find((t) => t.id === np.tutorId);
+        ui.motion.preset = nextPresetId;
+        ui.motion.slot = np.defaultSlot;
+        ui.motion.offer = nt ? nt.price : np.defaultOffer;
+      } else if (nextStep === 3) {
+        const np = MOTION_PRESETS[ui.motion.preset] || MOTION_PRESETS.design;
+        ui.motion.offer = np.defaultOffer;
+      }
+      ui.motion.step = nextStep;
+      ui.motion.clicking = nextStep === 2;
+      patchHeroMotionDOM();
+      if (nextStep === 2 && typeof setTimeout === "function") {
+        if (motionPulseTimer && typeof clearTimeout === "function") clearTimeout(motionPulseTimer);
+        motionPulseTimer = setTimeout(() => {
+          motionPulseTimer = null;
+          if (!ui.motion) return;
+          ui.motion.clicking = false;
+          const s2 = typeof document.getElementById === "function" ? document.getElementById("hero-motion-stage") : null;
+          if (s2 && typeof s2.querySelector === "function") {
+            const c = s2.querySelector("#hero-motion-cursor");
+            if (c && c.classList) c.classList.remove("clicking");
+          }
+        }, 520);
+      }
+    }, delay);
+  }
+
+  function marqueeSectionHTML() {
+    if (!TDATA || !TDATA.PREP_UNIVERSE || !TDATA.LIVE_DEALS) return "";
+    const uItems = TDATA.PREP_UNIVERSE.concat(TDATA.PREP_UNIVERSE);
+    const dItems = TDATA.LIVE_DEALS.concat(TDATA.LIVE_DEALS);
+    const row1 = uItems.map((it) => {
+      const goal = it.label.indexOf("ЕГЭ") >= 0 ? "ЕГЭ" : (it.label.indexOf("ОГЭ") >= 0 ? "ОГЭ" : "all");
+      return `<button type="button" class="marquee-pill" data-a="hero-cat" data-subj="${esc(it.subject)}" data-exam="${goal}"><b>${esc(it.label)}</b><span>${esc(it.meta)}</span></button>`;
+    }).join("");
+    const row2 = dItems.map((d) => {
+      return `<button type="button" class="marquee-pill" data-a="land-scroll" data-target="land-market"><b>${esc(d.topic)} · ${d.paid.toLocaleString("ru-RU")} ₽/ч</b><span>${esc(d.tag)}</span></button>`;
+    }).join("");
+    return `<section class="stack" style="gap:8px" aria-label="Направления подготовки и недавние ставки ниже рынка">
+      <div class="marquee-band">
+        <div class="marquee-row left">${row1}</div>
+        <div class="marquee-row right">${row2}</div>
+      </div>
+    </section>`;
+  }
+
+  function savingsStats() {
+    const s = ui.savings || (ui.savings = { freq: 2, marketRate: 1600, offerRate: 950 });
+    const freq = Math.max(1, Math.min(4, Number(s.freq) || 2));
+    const mktRate = Math.max(1000, Math.min(3500, Number(s.marketRate) || 1600));
+    const offRate = Math.max(600, Math.min(mktRate - 50, Number(s.offerRate) || 950));
+    const monthMkt = freq * 4 * mktRate;
+    const monthOff = freq * 4 * offRate;
+    const monthSave = Math.max(0, monthMkt - monthOff);
+    const yearSave = monthSave * 9;
+    const pct = Math.round((monthSave / Math.max(1, monthMkt)) * 100);
+    const barPct = Math.max(18, Math.min(96, Math.round((monthOff / Math.max(1, monthMkt)) * 100)));
+    const split = TDATA && TDATA.commissionSplit
+      ? TDATA.commissionSplit(offRate)
+      : { payout: Math.round(offRate * 0.95), fee: Math.round(offRate * 0.05), total: offRate, pct: 5 };
+    return { freq, mktRate, offRate, monthMkt, monthOff, monthSave, yearSave, pct, barPct, split };
+  }
+
+  function savingsSectionHTML() {
+    const st = savingsStats();
+    const freqBtns = [1, 2, 3, 4].map((n) => `<button type="button" class="chip-btn${st.freq === n ? " on" : ""}" data-a="save-freq" data-v="${n}">${n} ${plural(n, "урок", "урока", "уроков")}/нед</button>`).join("");
+    return `<section class="land-sec" id="land-savings" aria-label="Сравнение стоимости ниже рынка">
+      <div class="land-sec-head">
+        <div>
+          <div class="eyebrow">Ниже рынка · честная экономика</div>
+          <h2 class="h2">Почему занятия здесь обходятся дешевле на 35–53%</h2>
+          <p class="small muted">Онлайн-школы и агрегаторы закладывают наценку до 50%. Ты выбираешь анкету напрямую с Доски Ykt и предлагаешь свою ставку — комиссия сервиса всего 5%.</p>
+        </div>
+      </div>
+      <div class="savings-grid">
+        <div class="card pad stack" style="gap:14px">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <span class="small muted">Интенсивность занятий</span>
+            <div class="row" style="gap:6px;flex-wrap:wrap">${freqBtns}</div>
+          </div>
+          <div class="stack" style="gap:6px">
+            <div class="row between"><label class="small" for="save-mkt-range">Средняя цена на рынке / в школе</label><b class="num" data-s="mkt-val">${st.mktRate.toLocaleString("ru-RU")} ₽/ч</b></div>
+            <input id="save-mkt-range" type="range" min="1100" max="3000" step="50" value="${st.mktRate}">
+          </div>
+          <div class="stack" style="gap:6px">
+            <div class="row between"><label class="small" for="save-off-range">Твоя ставка через «Предложить цену»</label><b class="num" style="color:var(--accent)" data-s="off-val">${st.offRate.toLocaleString("ru-RU")} ₽/ч</b></div>
+            <input id="save-off-range" type="range" min="650" max="2200" step="50" value="${st.offRate}">
+          </div>
+          <div class="badge" style="justify-content:space-between;width:100%" data-s="split-txt">При ${st.offRate} ₽/ч репетитор получает ${st.split.payout} ₽ (5% = ${st.split.fee} ₽ сервис)</div>
+        </div>
+        <div class="card pad stack" style="gap:14px;justify-content:space-between">
+          <div class="stack" style="gap:10px">
+            <div class="stack" style="gap:4px">
+              <div class="row between small"><span class="muted">Рынок (${st.freq * 4} ур/мес)</span><b class="num" data-s="month-mkt">${st.monthMkt.toLocaleString("ru-RU")} ₽/мес</b></div>
+              <div class="savings-bar-track"><div class="savings-bar-fill muted-fill" style="width:100%"></div></div>
+            </div>
+            <div class="stack" style="gap:4px">
+              <div class="row between small"><span>Вектор ЕГЭ · твоя ставка</span><b class="num" style="color:var(--accent)" data-s="month-off">${st.monthOff.toLocaleString("ru-RU")} ₽/мес</b></div>
+              <div class="savings-bar-track"><div class="savings-bar-fill" data-s="off-bar" style="width:${st.barPct}%"></div></div>
+            </div>
+          </div>
+          <div class="card" style="padding:12px 14px;background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 42%,var(--line))">
+            <div class="small muted">Чистая выгода с твоей ставкой</div>
+            <div style="font-size:24px;font-weight:700;letter-spacing:-.02em;color:var(--accent)" data-s="month-save">−${st.monthSave.toLocaleString("ru-RU")} ₽/мес (−${st.pct}%)</div>
+            <div class="small ink2" data-s="year-save">За 9 месяцев подготовки экономишь ${st.yearSave.toLocaleString("ru-RU")} ₽</div>
+          </div>
+          <button type="button" class="btn soft" data-a="land-scroll" data-target="land-market">Найти репетитора ниже рынка →</button>
+        </div>
+      </div>
+    </section>`;
+  }
+
+  function patchSavingsDOM() {
+    const box = typeof document.getElementById === "function" ? document.getElementById("land-savings") : null;
+    if (!box || typeof box.querySelector !== "function") {
+      scheduleRender();
+      return;
+    }
+    const st = savingsStats();
+    const setT = (sel, val) => { const el = box.querySelector(sel); if (el) el.textContent = val; };
+    setT('[data-s="mkt-val"]', st.mktRate.toLocaleString("ru-RU") + " ₽/ч");
+    setT('[data-s="off-val"]', st.offRate.toLocaleString("ru-RU") + " ₽/ч");
+    setT('[data-s="split-txt"]', `При ${st.offRate} ₽/ч репетитор получает ${st.split.payout} ₽ (5% = ${st.split.fee} ₽ сервис)`);
+    setT('[data-s="month-mkt"]', st.monthMkt.toLocaleString("ru-RU") + " ₽/мес");
+    setT('[data-s="month-off"]', st.monthOff.toLocaleString("ru-RU") + " ₽/мес");
+    setT('[data-s="month-save"]', `−${st.monthSave.toLocaleString("ru-RU")} ₽/мес (−${st.pct}%)`);
+    setT('[data-s="year-save"]', `За 9 месяцев подготовки экономишь ${st.yearSave.toLocaleString("ru-RU")} ₽`);
+    const bar = box.querySelector('[data-s="off-bar"]');
+    if (bar && bar.style) bar.style.width = st.barPct + "%";
+    if (typeof box.querySelectorAll === "function") {
+      box.querySelectorAll('[data-a="save-freq"]').forEach((b) => {
+        if (b.classList) b.classList.toggle("on", Number(b.dataset.v) === st.freq);
+      });
+    }
+  }
+
+  function scrollToEl(targetId) {
+    if (!targetId || typeof document.getElementById !== "function") return;
+    const node = document.getElementById(targetId);
+    if (node && typeof node.scrollIntoView === "function") {
+      node.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
   function landingPageHTML(opts) {
     opts = opts || {};
     const inside = !!opts.inside;
     const dark = effectiveDark();
-    const featuredTutor = TDATA ? TDATA.LIST[0] : null;
-    const rightHero = featuredTutor
-      ? `<div class="stack" style="gap:12px">
-          ${tutorCardHTML(featuredTutor, { activeDow: 6, dayLabel: "Сб" })}
-          <div class="card" style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-            <div class="stack" style="gap:2px">
-              <b class="small">График недели и связь в WhatsApp</b>
-              <span class="small muted">Видно окно каждого репетитора с Доски Ykt и прямой переход в чат.</span>
-            </div>
-            <button type="button" class="btn soft sm" data-a="land-scroll" data-target="land-market">Все ${TDATA.LIST.length} анкет</button>
-          </div>
-        </div>`
-      : "";
+    const catalogTotal = TDATA && TDATA.CATALOG_TOTAL ? TDATA.CATALOG_TOTAL.toLocaleString("ru-RU") : "2 480";
+    const quickCats = [
+      ["design", "UX/UI и Моушен"],
+      ["inf", "Python и IT"],
+      ["eng", "Английский"],
+      ["bio", "Биология / Мед"],
+      ["math", "Математика"],
+      ["music", "Вокал и гитара"]
+    ];
 
     return `<div class="land-page">
       <header class="land-top">
@@ -1949,15 +2358,15 @@
           ${BRAND_MARK_HTML}
           <div class="brand-text">
             <div class="brand-name">Вектор ЕГЭ</div>
-            <div class="brand-sub">ЕГЭ · ОГЭ · Тесты и репетиторы</div>
+            <div class="brand-sub">Огромная база · ниже рынка</div>
           </div>
         </div>
         <nav class="land-links" aria-label="Разделы лендинга">
-          <a href="#land-how" data-a="land-scroll" data-target="land-how">Как работает</a>
+          <a href="#hero-motion-stage" data-a="land-scroll" data-target="hero-motion-stage">Моушен</a>
+          <a href="#land-savings" data-a="land-scroll" data-target="land-savings">Выгода</a>
           <a href="#land-demo" data-a="land-scroll" data-target="land-demo">Бета-тест</a>
           <a href="#land-market" data-a="land-scroll" data-target="land-market">Репетиторы</a>
           <a href="#land-plans" data-a="land-scroll" data-target="land-plans">Тарифы</a>
-          <a href="#land-tutors" data-a="land-scroll" data-target="land-tutors">Преподавателям</a>
         </nav>
         <div class="land-top-actions">
           <button type="button" class="icon-btn sm" data-a="theme-toggle" aria-label="Сменить тему" title="Сменить тему">${icon(dark ? "sun" : "moon")}</button>
@@ -1967,28 +2376,36 @@
         </div>
       </header>
 
-      <section class="land-hero">
-        <div class="land-hero-copy">
-          <div class="row" style="gap:6px;flex-wrap:wrap">
-            <span class="chip accent">ЕГЭ 2027 и ОГЭ</span>
-            <span class="chip leaf">Тесты + конспекты + репетиторы</span>
-            <span class="chip">Комиссия 5%</span>
+      <div class="hero-stage-wrap" id="hero-stage-wrap">
+        <span class="hero-orb a" aria-hidden="true"></span>
+        <span class="hero-orb b" aria-hidden="true"></span>
+        <section class="land-hero">
+          <div class="land-hero-copy">
+            <div class="row" style="gap:6px;flex-wrap:wrap">
+              <span class="chip accent">${catalogTotal}+ анкет с Доски Ykt</span>
+              <span class="chip">Ниже рынка на 35–53%</span>
+              <span class="chip">Комиссия 5%</span>
+            </div>
+            <h1 class="land-h1">Ищи репетиторов <span class="land-h1-grad">ниже рынка</span> для подготовки к чему угодно</h1>
+            <p class="land-lead">Огромная база анкет с Доски Ykt: ЕГЭ и ОГЭ, Python, UX/UI и моушен-дизайн, физика, вокал и подготовка в ВУЗ. Выбирай время, сам нажимай «Предложить цену» и бронируй через бота в WhatsApp без наценок онлайн-школ.</p>
+            <div class="land-hero-ctas">
+              <button type="button" class="btn" data-a="land-scroll" data-target="land-market">Найти ниже рынка</button>
+              <button type="button" class="btn soft" data-a="land-scroll" data-target="land-demo">Попробовать бета-тест</button>
+              ${inside ? `<button type="button" class="btn ghost" data-a="go" data-v="tests">Перейти к тестам</button>` : ""}
+            </div>
+            <div class="chip-rail" role="group" aria-label="Быстрый выбор направления">${quickCats.map(([sid, label]) => `<button type="button" class="chip-btn" data-a="hero-cat" data-subj="${sid}">${esc(label)}</button>`).join("")}</div>
+            <div class="land-stats">
+              <div class="land-stat"><b>${catalogTotal}+ анкет</b><span>ЕГЭ, ОГЭ, IT, UX/UI, музыка и ВУЗ</span></div>
+              <div class="land-stat"><b>−35…−53% цены</b><span>Прямой торг «Предложить цену»</span></div>
+              <div class="land-stat"><b>Комиссия 5%</b><span>Из 800 ₽ — 760 ₽ преподу, 40 ₽ сервису</span></div>
+            </div>
           </div>
-          <h1 class="land-h1">Готовься по тестам и конспектам и выбирай репетитора по своей цене</h1>
-          <p class="land-lead">Полные тесты ФИПИ и конспекты по биологии, русскому и химии + маркетплейс репетиторов с Доски Ykt: выбирай удобное время в окне преподавателя, предлагай свою ставку и плати через сервис с комиссией 5%.</p>
-          <div class="land-hero-ctas">
-            <button type="button" class="btn" data-a="land-scroll" data-target="land-demo">Попробовать бета-тест</button>
-            <button type="button" class="btn soft" data-a="land-scroll" data-target="land-market">Выбрать репетитора</button>
-            ${inside ? `<button type="button" class="btn ghost" data-a="go" data-v="tests">Перейти к тестам</button>` : ""}
-          </div>
-          <div class="land-stats">
-            <div class="land-stat"><b>Тесты и конспекты</b><span>Задания ФИПИ, шпаргалки и разбор ошибок внутри</span></div>
-            <div class="land-stat"><b>База с Доски Ykt</b><span>${TDATA ? TDATA.LIST.length : 12} анкет с окном «с… до…» и выбором любого часа</span></div>
-            <div class="land-stat"><b>Комиссия 5%</b><span>Из 800 ₽ преподаватель получает 760 ₽, 40 ₽ сервису</span></div>
-          </div>
-        </div>
-        ${rightHero}
-      </section>
+          ${heroMotionStageHTML()}
+        </section>
+      </div>
+
+      ${marqueeSectionHTML()}
+      ${savingsSectionHTML()}
 
       <section class="land-sec" id="land-how">
         <div class="land-sec-head">
@@ -4473,6 +4890,96 @@
         ? `Заявка отменена · ${bk.reserved.toLocaleString("ru-RU")} ₽ возвращены на баланс`
         : "Заявка отменена — можно выбрать другого репетитора");
       scheduleRender();
+    },
+    "motion-preset": (el) => {
+      const id = el.dataset.v;
+      const preset = MOTION_PRESETS[id];
+      if (!preset) return;
+      if (!ui.motion) ui.motion = { playing: true, preset: id, step: 0, slot: preset.defaultSlot, offer: preset.defaultOffer, clicking: false };
+      ui.motion.preset = id;
+      ui.motion.slot = preset.defaultSlot;
+      ui.motion.offer = preset.defaultOffer;
+      ui.motion.step = 2;
+      ui.motion.playing = false;
+      ui.motion.clicking = false;
+      patchHeroMotionDOM();
+    },
+    "motion-slot": (el) => {
+      if (!ui.motion || !el.dataset.v) return;
+      ui.motion.slot = el.dataset.v;
+      ui.motion.step = 2;
+      ui.motion.playing = false;
+      patchHeroMotionDOM();
+    },
+    "motion-step": (el) => {
+      if (!ui.motion) return;
+      const idx = Math.max(0, Math.min(4, Number(el.dataset.i) || 0));
+      ui.motion.step = idx;
+      ui.motion.playing = false;
+      ui.motion.clicking = idx === 2;
+      if (idx === 3) ui.motion.offer = heroMotionMeta().preset.defaultOffer;
+      patchHeroMotionDOM();
+    },
+    "motion-toggle": () => {
+      if (!ui.motion) return;
+      ui.motion.playing = !ui.motion.playing;
+      if (!ui.motion.playing) stopMotionTimers();
+      patchHeroMotionDOM();
+    },
+    "motion-bid-press": () => {
+      if (!ui.motion) ui.motion = { playing: false, preset: "design", step: 2, slot: "10:00", offer: 950, clicking: false };
+      const meta = heroMotionMeta();
+      ui.motion.playing = false;
+      stopMotionTimers();
+      ui.motion.clicking = true;
+      ui.motion.step = meta.m.step < 3 ? 3 : (meta.m.step === 3 ? 4 : 3);
+      if (ui.motion.step === 3) ui.motion.offer = meta.preset.defaultOffer;
+      patchHeroMotionDOM();
+      if (typeof setTimeout === "function") {
+        if (motionPulseTimer && typeof clearTimeout === "function") clearTimeout(motionPulseTimer);
+        motionPulseTimer = setTimeout(() => {
+          motionPulseTimer = null;
+          if (!ui.motion) return;
+          ui.motion.clicking = false;
+          const st = typeof document.getElementById === "function" ? document.getElementById("hero-motion-stage") : null;
+          if (st && typeof st.querySelector === "function") {
+            const c = st.querySelector("#hero-motion-cursor");
+            if (c && c.classList) c.classList.remove("clicking");
+            const b = st.querySelector("#hero-motion-bid-btn");
+            if (b && b.classList && ui.motion.step !== 2) b.classList.remove("is-pressed");
+          }
+        }, 450);
+      }
+    },
+    "motion-book-now": () => {
+      const meta = heroMotionMeta();
+      if (typeof ACTIONS["book-open"] === "function") {
+        ACTIONS["book-open"]({ dataset: { id: meta.tutor.id, hour: meta.slot } });
+        if (ui.booking) {
+          ui.booking.offerPrice = meta.offer;
+          renderModal();
+        }
+      }
+    },
+    "hero-cat": (el) => {
+      const st = mkt();
+      st.subject = el.dataset.subj || "all";
+      st.exam = el.dataset.exam || "all";
+      st.q = "";
+      st.onlyBumped = false;
+      st.maxPrice = 2000;
+      st.day = "all";
+      st.hour = "all";
+      saveMkt();
+      scheduleRender();
+      if (typeof setTimeout === "function") {
+        setTimeout(() => scrollToEl("land-market"), 40);
+      }
+    },
+    "save-freq": (el) => {
+      if (!ui.savings) ui.savings = { freq: 2, marketRate: 1600, offerRate: 950 };
+      ui.savings.freq = Math.max(1, Math.min(4, Number(el.dataset.v) || 2));
+      patchSavingsDOM();
     }
   };
   function authErrorText(e) {
@@ -4684,6 +5191,37 @@
       }
       return;
     }
+    if (el.id === "hero-bid-range") {
+      const meta = heroMotionMeta();
+      const raw = parseInt(el.value, 10);
+      if (Number.isFinite(raw)) {
+        ui.motion.playing = false;
+        stopMotionTimers();
+        ui.motion.offer = Math.max(meta.minOffer, Math.min(meta.market, raw));
+        if ((ui.motion.step || 0) < 3) ui.motion.step = 3;
+        patchHeroMotionDOM({ liveOnly: true });
+      }
+      return;
+    }
+    if (el.id === "save-mkt-range" || el.id === "save-off-range") {
+      if (!ui.savings) ui.savings = { freq: 2, marketRate: 1600, offerRate: 950 };
+      const raw = parseInt(el.value, 10);
+      if (Number.isFinite(raw)) {
+        if (el.id === "save-mkt-range") {
+          ui.savings.marketRate = Math.max(1000, Math.min(3500, raw));
+          if (ui.savings.offerRate >= ui.savings.marketRate) {
+            ui.savings.offerRate = Math.max(600, ui.savings.marketRate - 100);
+            const orng = typeof document.getElementById === "function" ? document.getElementById("save-off-range") : null;
+            if (orng) orng.value = String(ui.savings.offerRate);
+          }
+        } else {
+          ui.savings.offerRate = Math.max(600, Math.min(ui.savings.marketRate - 50, raw));
+          if (ui.savings.offerRate !== raw) el.value = String(ui.savings.offerRate);
+        }
+        patchSavingsDOM();
+      }
+      return;
+    }
     if (el.id === "bid-note") { if (ui.booking) ui.booking.note = el.value; return; }
   });
   document.addEventListener("change", (e) => {
@@ -4753,7 +5291,21 @@
   });
 
   window.addEventListener("hashchange", () => { readHash(); scheduleRender(true); });
-  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refreshBackendDocs(); });
+  document.addEventListener("pointermove", (e) => {
+    if (!e || typeof document.getElementById !== "function") return;
+    const wrap = document.getElementById("hero-stage-wrap");
+    if (!wrap || !wrap.getBoundingClientRect || !wrap.style || !wrap.style.setProperty) return;
+    const r = wrap.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    const mx = Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100));
+    const my = Math.max(0, Math.min(100, ((e.clientY - r.top) / r.height) * 100));
+    wrap.style.setProperty("--mx", mx.toFixed(1) + "%");
+    wrap.style.setProperty("--my", my.toFixed(1) + "%");
+  }, { passive: true });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") { refreshBackendDocs(); syncHeroMotion(); }
+    else stopMotionTimers();
+  });
 
   function readQueryError() {
     try {
