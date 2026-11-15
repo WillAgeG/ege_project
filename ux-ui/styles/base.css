@@ -420,7 +420,11 @@ p { margin: 0; }
   clip-path: none;
   padding-inline: 15px;
   gap: 7px;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
+.btn.sakha-pattern > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .btn.sakha-pattern svg { width: 18px; height: 18px; color: color-mix(in srgb, #b68947 78%, var(--accent)); flex: none; transition: transform .35s cubic-bezier(.22, 1, .36, 1), color .2s ease; }
 .btn.sakha-pattern.sm { padding: 0 11px; gap: 6px; border-radius: 10px; }
 .btn.sakha-pattern.sm svg { width: 15px; height: 15px; }
@@ -831,6 +835,11 @@ div.confirm { display: grid; gap: 10px; padding: 14px 16px; border-radius: var(-
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+html.reduced-motion *, html.reduced-motion *::before, html.reduced-motion *::after {
+  transition: none !important;
+  animation: none !important;
+  scroll-behavior: auto !important;
 }
 body[data-auth="1"] .side, body[data-auth="1"] .topbar, body[data-auth="1"] .tabbar { display: none; }
 body[data-auth="1"] .shell { display: block; }

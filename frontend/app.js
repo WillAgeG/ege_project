@@ -839,13 +839,14 @@
     bug: null,
     booking: null,
     balanceModal: null,
+    payoutModal: null,
     leadDraft: { subjects: ["chem"], subjMenuOpen: false, exam: "ЕГЭ", format: "Онлайн", targetPrice: 1000, scheduleNote: "", whatsapp: "", comment: "" },
     market: null,
     demo: { tab: "quiz", sid: firstSubject.id, qIdx: 0, pick: null, revealed: false, topicIdx: 0, bidRate: 1000, bidHour: "10:00" },
     motion: { playing: true, preset: "design", step: 0, slot: "10:00", offer: 1200, sent: false, clicking: false, hitTarget: "" },
     savings: { freq: 2, marketRate: 1350, offerRate: 1000 },
     bbModal: false,
-    brandbook: { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, vpWidth: 390, chipOn: true, sent: false, fav: true, switchVal: "online", multiSubjs: ["bio", "chem"], multiMenuOpen: false, pickedPlan: "month10k", quizOpt: 1, marketDemoAccepted: false, reducedMotion: false, balFunded: true, chartStyle: "sticks", chartDataset: "income", chartActiveIdx: 3, linePtIdx: 3, donutDataset: "channels", donutSliceIdx: 0, tableCols: 5, tableFilter: "all", tableSearch: "" }
+    brandbook: { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, vpWidth: 390, chipOn: true, sent: false, fav: true, switchVal: "online", multiSubjs: ["bio", "chem"], multiMenuOpen: false, pickedPlan: "month10k", quizOpt: 1, marketDemoAccepted: false, reducedMotion: false, balFunded: true, chartStyle: "sticks", chartDataset: "income", chartActiveIdx: 3, linePtIdx: 3, donutDataset: "channels", donutSliceIdx: 0, tableCols: 5, tableFilter: "all", tableSearch: "", maskPhone: "+7 (914) 210-05-11", maskTg: "@aytal_bio", maskMax: "aytal_ege", payMethod: "sbp", payState: "frozen", payInitialDone: false, tablePreset: "requests", confirmedRows: {}, essayOpenIdx: 0 }
   };
   const MARKET_LS_KEY = "vektor-ege:market";
   const TDATA = EGE.tutors || null;
@@ -985,6 +986,11 @@
     } catch (e) { /* игнор */ }
   }
   function render() {
+    try {
+      if (document.documentElement && document.documentElement.classList) {
+        document.documentElement.classList.toggle("reduced-motion", !!(ui.brandbook && ui.brandbook.reducedMotion));
+      }
+    } catch (e) { /* игнор */ }
     const sameView = lastRenderedView === ui.view;
     const savedScrollY = (!scrollTopPending && sameView && typeof window !== "undefined" && typeof window.scrollY === "number") ? window.scrollY : null;
     const authGate = store.backend && !store.user && !ui.guest;
@@ -1006,6 +1012,8 @@
     if (authGate) {
       const topBalSlot = $("#top-balance-slot");
       if (topBalSlot) { topBalSlot.hidden = true; topBalSlot.innerHTML = ""; }
+      const tutorDock = $("#tutor-balance-dock");
+      if (tutorDock) { tutorDock.hidden = true; tutorDock.innerHTML = ""; }
       html = store.ready
         ? (ui.view === "brandbook" ? viewBrandbook({ inside: false }) : ui.view === "fees" ? viewFees({ inside: false }) : authScreen())
         : `<div class="auth-wrap"><div class="auth-brand">${brandLockupHTML()}<p class="muted">Подключаюсь к серверу…</p></div></div>`;
@@ -1249,6 +1257,11 @@
       if (nc && savedCardTop) nc.scrollTop = savedCardTop;
     };
     if (ui.authModal) { root.innerHTML = authModalHTML(); restoreModalScroll(); return; }
+    if (ui.payoutModal && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.payoutModalHTML === "function") {
+      root.innerHTML = EGE.views.tutorCabinet.payoutModalHTML(ui.payoutModal);
+      restoreModalScroll();
+      return;
+    }
     if (ui.balanceModal) { root.innerHTML = balanceModalHTML(); restoreModalScroll(); return; }
     if (ui.filterModal) { root.innerHTML = filterModalHTML(); restoreModalScroll(); return; }
     if (ui.booking) { root.innerHTML = bookingModalHTML(); restoreModalScroll(); return; }
@@ -1408,14 +1421,29 @@
     }
     const topLogout = $("#top-logout");
     if (topLogout) topLogout.hidden = !(store.backend && store.user);
+    const tcMod = EGE.views.tutorCabinet;
     const topBalSlot = $("#top-balance-slot");
     if (topBalSlot) {
-      if (isTutor) {
+      if (isTutor && tcMod && typeof tcMod.mobileTopWidgetHTML === "function") {
+        topBalSlot.hidden = false;
+        topBalSlot.innerHTML = tcMod.mobileTopWidgetHTML();
+      } else if (isTutor) {
         topBalSlot.hidden = true;
         topBalSlot.innerHTML = "";
       } else {
         topBalSlot.hidden = false;
         topBalSlot.innerHTML = balanceTopWidgetHTML(true);
+      }
+    }
+    const tutorDock = $("#tutor-balance-dock");
+    if (tutorDock) {
+      const showDock = !!(isTutor && ui.view !== "landing" && tcMod && typeof tcMod.desktopDockHTML === "function");
+      if (showDock) {
+        tutorDock.hidden = false;
+        tutorDock.innerHTML = tcMod.desktopDockHTML();
+      } else {
+        tutorDock.hidden = true;
+        tutorDock.innerHTML = "";
       }
     }
     const mobileNav = isTutor
@@ -3493,6 +3521,25 @@
       };
       if (typeof this.gatewayHandler === "function") return this.gatewayHandler(intent);
       return intent;
+    },
+    createPayoutIntent(params) {
+      const amount = Math.round(Number(params && params.amount) || 0);
+      const intent = {
+        id: "out-" + Date.now(),
+        type: "payout",
+        provider: this.provider,
+        method: (params && params.method) === "card" ? "card" : "sbp",
+        bank: (params && params.bank) || "",
+        destination: (params && params.destination) || (params && (params.phone || params.card)) || "",
+        npdReceipt: !!(params && params.npdReceipt),
+        amount,
+        fee: 0,
+        currency: "RUB",
+        status: "succeeded",
+        createdAt: new Date().toISOString()
+      };
+      if (typeof this.gatewayHandler === "function") return this.gatewayHandler(intent);
+      return intent;
     }
   });
 
@@ -3817,6 +3864,47 @@
       renderModal();
       notifySide("Баланс пополнен", `+${amt.toLocaleString("ru-RU")} ₽ · на счёте ${st.balance.toLocaleString("ru-RU")} ₽`);
       scheduleRender();
+    },
+    "tc-payout-open": () => {
+      const tcMod = EGE.views.tutorCabinet;
+      const summary = tcMod && typeof tcMod.getWalletSummary === "function" ? tcMod.getWalletSummary() : null;
+      const sets = (summary && summary.settings) || {};
+      const defAmt = summary && summary.availableRub >= (summary.minPayout || 500)
+        ? Math.min(summary.availableRub, 3000)
+        : (summary ? summary.availableRub : 0);
+      ui.payoutModal = {
+        method: sets.method === "card" ? "card" : "sbp",
+        bank: sets.bank || "АЭБ (Алмазэргиэнбанк)",
+        phone: sets.phone || "+7 (914) 210-01-99",
+        card: sets.card || "2200 7004 8210 4419",
+        amount: defAmt,
+        npdReceipt: sets.npdReceipt !== undefined ? !!sets.npdReceipt : true,
+        error: ""
+      };
+      renderModal();
+    },
+    "tc-payout-close": () => { ui.payoutModal = null; renderModal(); },
+    "tc-payout-method": (el) => {
+      if (!ui.payoutModal) return;
+      ui.payoutModal.method = el.dataset && el.dataset.v === "card" ? "card" : "sbp";
+      ui.payoutModal.error = "";
+      renderModal();
+    },
+    "tc-payout-chip": (el) => {
+      if (!ui.payoutModal) return;
+      const tcMod = EGE.views.tutorCabinet;
+      const summary = tcMod && typeof tcMod.getWalletSummary === "function" ? tcMod.getWalletSummary() : null;
+      const maxAmt = summary ? summary.availableRub : 50000;
+      const v = Math.max(0, Math.round(Number(el.dataset && el.dataset.v) || 0));
+      ui.payoutModal.amount = maxAmt ? Math.min(maxAmt, v) : v;
+      ui.payoutModal.error = "";
+      renderModal();
+    },
+    "tc-payout-npd": () => {
+      if (!ui.payoutModal) return;
+      ui.payoutModal.npdReceipt = !ui.payoutModal.npdReceipt;
+      ui.payoutModal.error = "";
+      renderModal();
     },
     "filter-open": () => { ui.filterModal = true; renderModal(); },
     "filter-close": () => { ui.filterModal = false; renderModal(); },
@@ -4719,9 +4807,50 @@
     "bb-reduced-toggle": () => {
       const bb = bbState();
       bb.reducedMotion = !bb.reducedMotion;
+      try {
+        if (document.documentElement && document.documentElement.classList) {
+          document.documentElement.classList.toggle("reduced-motion", !!bb.reducedMotion);
+        }
+      } catch (e) { /* игнор */ }
       scheduleRender();
       toast(bb.reducedMotion ? "prefers-reduced-motion: ВКЛ" : "Анимации восстановлены");
-      notifySide("Доступность · Motion", bb.reducedMotion ? "Анимации отключены через .is-reduced" : "Плавные переходы и hover-эффекты активны");
+      notifySide("Доступность · Motion", bb.reducedMotion ? "Анимации отключены (html.reduced-motion)" : "Плавные переходы и hover-эффекты активны");
+    },
+    "bb-reduced-motion": () => ACTIONS["bb-reduced-toggle"](),
+    "bb-mask-sample": (el) => {
+      const bb = bbState();
+      const fmtP = EGE.kit && EGE.kit.formatPhoneMask;
+      const fmtTg = EGE.kit && EGE.kit.formatTelegramContact;
+      const rawP = (el.dataset && el.dataset.phone) || "+7 (914) 210-05-11";
+      const rawTg = (el.dataset && el.dataset.tg) || "@aytal_bio";
+      const rawMax = (el.dataset && el.dataset.max) || "aytal_ege";
+      bb.maskPhone = typeof fmtP === "function" ? (fmtP(rawP) || rawP) : rawP;
+      bb.maskTg = typeof fmtTg === "function" ? (fmtTg(rawTg) || rawTg) : rawTg;
+      bb.maskMax = rawMax;
+      scheduleRender();
+    },
+    "bb-pay-threshold": (el) => {
+      const bb = bbState();
+      bb.payInitialDone = !!(el.dataset && el.dataset.v === "repeat");
+      scheduleRender();
+    },
+    "bb-pay-method": (el) => {
+      const bb = bbState();
+      const m = (el.dataset && el.dataset.v) || "sbp";
+      bb.payMethod = ["sbp", "card", "tpay"].includes(m) ? m : "sbp";
+      scheduleRender();
+    },
+    "bb-pay-state": (el) => {
+      const bb = bbState();
+      const s = (el.dataset && el.dataset.v) || "frozen";
+      bb.payState = ["frozen", "captured", "refunded"].includes(s) ? s : "frozen";
+      scheduleRender();
+    },
+    "bb-essay-tab": (el) => {
+      const bb = bbState();
+      const idx = Number(el.dataset && (el.dataset.idx !== undefined ? el.dataset.idx : el.dataset.v));
+      bb.essayOpenIdx = Number.isInteger(idx) ? Math.max(0, Math.min(2, idx)) : 0;
+      scheduleRender();
     },
     "bb-bal-toggle": () => {
       const bb = bbState();
@@ -4773,6 +4902,29 @@
       bb.tableCols = [3, 5, 7].includes(c) ? c : 5;
       scheduleRender();
       toast("Колонок в таблице: " + bb.tableCols);
+    },
+    "bb-tbl-preset": (el) => {
+      const bb = bbState();
+      const p = (el.dataset && (el.dataset.preset || el.dataset.v)) || "requests";
+      bb.tablePreset = ["requests", "payouts", "exams"].includes(p) ? p : "requests";
+      bb.tableFilter = "all";
+      bb.tableSearch = "";
+      scheduleRender();
+      toast("Пресет таблицы: " + bb.tablePreset);
+    },
+    "bb-tbl-confirm": (el) => {
+      const bb = bbState();
+      const rowId = el.dataset && el.dataset.id;
+      if (!rowId) return;
+      if (!bb.confirmedRows || typeof bb.confirmedRows !== "object") bb.confirmedRows = {};
+      const on = !bb.confirmedRows[rowId];
+      if (on) bb.confirmedRows[rowId] = true;
+      else delete bb.confirmedRows[rowId];
+      scheduleRender();
+      notifySide(
+        on ? "Запись подтверждена ✓" : "Подтверждение сброшено",
+        on ? `Запись ${rowId} переведена в статус «Подтверждено ✓»` : `Запись ${rowId} возвращена в исходный статус`
+      );
     },
     "bb-tbl-filter": (el) => {
       const bb = bbState();
@@ -4856,7 +5008,10 @@
       heroSubmitted: false, heroBetaOn: false, heroSearchSubmitted: false, heroQ: "", cat: "all", catQ: "", faqOpen: 0,
       marketDemoAccepted: false, reducedMotion: false, balFunded: true,
       chartStyle: "sticks", chartDataset: "income", chartActiveIdx: 3,
-      linePtIdx: 3, donutDataset: "channels", donutSliceIdx: 0, tableCols: 5, tableFilter: "all", tableSearch: ""
+      linePtIdx: 3, donutDataset: "channels", donutSliceIdx: 0, tableCols: 5, tableFilter: "all", tableSearch: "",
+      maskPhone: "+7 (914) 210-05-11", maskTg: "@aytal_bio", maskMax: "aytal_ege",
+      payMethod: "sbp", payState: "frozen", payInitialDone: false,
+      tablePreset: "requests", confirmedRows: {}, essayOpenIdx: 0
     });
     if (bb.marketDemoAccepted === undefined) bb.marketDemoAccepted = false;
     if (bb.reducedMotion === undefined) bb.reducedMotion = false;
@@ -4870,7 +5025,51 @@
     if (!bb.tableCols) bb.tableCols = 5;
     if (!bb.tableFilter) bb.tableFilter = "all";
     if (bb.tableSearch === undefined) bb.tableSearch = "";
+    if (bb.maskPhone === undefined) bb.maskPhone = "+7 (914) 210-05-11";
+    if (bb.maskTg === undefined) bb.maskTg = "@aytal_bio";
+    if (bb.maskMax === undefined) bb.maskMax = "aytal_ege";
+    if (!bb.payMethod) bb.payMethod = "sbp";
+    if (!bb.payState) bb.payState = "frozen";
+    if (bb.payInitialDone === undefined) bb.payInitialDone = false;
+    if (!bb.tablePreset) bb.tablePreset = "requests";
+    if (!bb.confirmedRows || typeof bb.confirmedRows !== "object") bb.confirmedRows = {};
+    if (bb.essayOpenIdx === undefined) bb.essayOpenIdx = 0;
     return bb;
+  }
+  function patchMaskTrainerDOM() {
+    const bb = bbState();
+    const urlsEl = typeof document.getElementById === "function" ? document.getElementById("bb-mask-urls") : null;
+    const linksEl = typeof document.getElementById === "function" ? document.getElementById("bb-mask-links") : null;
+    if (!urlsEl && !linksEl) return false;
+    const fmtP = EGE.kit && EGE.kit.formatPhoneMask;
+    const fmtTg = EGE.kit && EGE.kit.formatTelegramContact;
+    const urlsFn = EGE.kit && EGE.kit.resolveMessengerUrls;
+    const linksFn = EGE.kit && EGE.kit.messengerLinksHTML;
+    const phoneRaw = String(bb.maskPhone != null ? bb.maskPhone : "+7 (914) 210-05-11");
+    const tgRaw = String(bb.maskTg != null ? bb.maskTg : "@aytal_bio");
+    const maxRaw = String(bb.maskMax != null ? bb.maskMax : "aytal_ege");
+    const phoneNorm = typeof fmtP === "function" && phoneRaw ? (fmtP(phoneRaw) || phoneRaw) : phoneRaw;
+    const tgNorm = typeof fmtTg === "function" && tgRaw ? (fmtTg(tgRaw) || tgRaw) : tgRaw;
+    const entity = {
+      id: "mask-demo",
+      name: "Айтал Б.",
+      whatsapp: phoneNorm || "+7 (914) 210-05-11",
+      telegram: tgNorm || tgRaw || "@aytal_bio",
+      maxHandle: maxRaw || "aytal_ege"
+    };
+    const msgText = "Здравствуйте! Проверяю живую маску контактов в Вектор ЕГЭ.";
+    const urls = typeof urlsFn === "function"
+      ? urlsFn(entity, msgText)
+      : { whatsapp: "https://wa.me/79142100511", telegram: "https://t.me/aytal_bio", max: "https://max.ru/aytal_ege" };
+    if (urlsEl) {
+      urlsEl.innerHTML = `<div class="bb-mask-url-row"><span class="small muted">WhatsApp</span><code>${esc(urls.whatsapp.split("?")[0])}</code></div>
+        <div class="bb-mask-url-row"><span class="small muted">Telegram</span><code>${esc(urls.telegram.split("?")[0])}</code></div>
+        <div class="bb-mask-url-row"><span class="small muted">MAX</span><code>${esc(urls.max.split("?")[0])}</code></div>`;
+    }
+    if (linksEl && typeof linksFn === "function") {
+      linksEl.innerHTML = linksFn({ entity, message: msgText, compact: true });
+    }
+    return true;
   }
   function applyBrandbookViewport(rawW) { return EGE.views.brandbook.applyBrandbookViewport(ui, rawW); }
   function authErrorText(e) {
@@ -5076,6 +5275,34 @@
       bb.heroSearchSubmitted = !bb.heroSearchSubmitted;
       scheduleRender();
       notifySide("Строка поиска под Hero", bb.heroSearchSubmitted ? "Строка поиска .land-search-bar -> статус .is-confirmed" : "Строка поиска сброшена");
+    },
+    "tc-payout": (form) => {
+      const tcMod = EGE.views.tutorCabinet;
+      if (!tcMod || typeof tcMod.submitPayout !== "function") return;
+      const pm = ui.payoutModal || (ui.payoutModal = {});
+      const els = (form && form.elements) || {};
+      const payload = {
+        method: pm.method || "sbp",
+        bank: els.bank ? els.bank.value : pm.bank,
+        phone: els.phone ? els.phone.value : pm.phone,
+        card: els.card ? els.card.value : pm.card,
+        amount: els.amount ? els.amount.value : pm.amount,
+        npdReceipt: els.npdReceipt ? !!els.npdReceipt.checked : pm.npdReceipt
+      };
+      const res = tcMod.submitPayout(pm, payload);
+      if (!res || !res.ok) {
+        pm.error = (res && res.error) || "Не удалось оформить вывод средств.";
+        renderModal();
+        return;
+      }
+      ui.payoutModal = null;
+      renderModal();
+      renderChrome();
+      const amtTxt = Number((res.payoutRow && res.payoutRow.amount) || 0).toLocaleString("ru-RU");
+      const destTxt = (res.payoutRow && res.payoutRow.methodLabel) || "СБП";
+      notifySide("Заявка на вывод оформлена", `${amtTxt} ₽ · ${destTxt}${res.payoutRow && res.payoutRow.npdReceipt ? " · чек НПД" : ""}`);
+      toast(`Выведено ${amtTxt} ₽`);
+      scheduleRender();
     }
   };
 
@@ -5112,7 +5339,7 @@
   document.addEventListener("click", (e) => {
     if (closeSelectMenus(e.target)) scheduleRender();
     if (e.target && e.target.classList && e.target.classList.contains("modal-back")) {
-      ui.bug = null; ui.booking = null; ui.authModal = false; ui.filterModal = false; ui.bbModal = false; ui.tutorApplyModal = false; ui.balanceModal = null;
+      ui.bug = null; ui.booking = null; ui.authModal = false; ui.filterModal = false; ui.bbModal = false; ui.tutorApplyModal = false; ui.balanceModal = null; ui.payoutModal = null;
       renderModal();
       return;
     }
@@ -5132,8 +5359,7 @@
     if (!f) return;
     e.preventDefault();
     if (f.dataset.f && f.dataset.f.indexOf("tc-") === 0 && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.handleSubmit === "function") {
-      EGE.views.tutorCabinet.handleSubmit(f);
-      return;
+      if (EGE.views.tutorCabinet.handleSubmit(f)) return;
     }
     const h = FORMS[f.dataset.f];
     if (h) h(f);
@@ -5142,6 +5368,40 @@
     const el = e.target;
     if (el && el.dataset && (el.dataset.tc || el.dataset.tcStudent) && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.handleInput === "function") {
       if (EGE.views.tutorCabinet.handleInput(el)) return;
+    }
+    if (el && el.dataset && el.dataset.tcPayout && ui.payoutModal) {
+      const k = el.dataset.tcPayout;
+      if (k === "phone" || k === "card") {
+        if (EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.handleInput === "function") {
+          EGE.views.tutorCabinet.handleInput(el);
+        }
+      }
+      if (k === "npdReceipt") ui.payoutModal.npdReceipt = !!el.checked;
+      else ui.payoutModal[k] = el.value;
+      ui.payoutModal.error = "";
+      if (k === "amount") {
+        const subBtn = typeof document.querySelector === "function" ? document.querySelector('[data-f="tc-payout"] button[type="submit"]') : null;
+        const amt = Math.max(0, Math.round(Number(el.value) || 0));
+        if (subBtn) subBtn.textContent = "Вывести " + amt.toLocaleString("ru-RU") + " ₽";
+      }
+      return;
+    }
+    if (el.id === "bb-mask-phone" || el.id === "bb-mask-tg" || el.id === "bb-mask-max") {
+      const bb = bbState();
+      if (el.id === "bb-mask-phone") {
+        const raw = String(el.value || "");
+        const digits = raw.replace(/\D+/g, "");
+        const fmtP = EGE.kit && EGE.kit.formatPhoneMask;
+        const nextVal = (typeof fmtP === "function" && digits.length >= 10) ? (fmtP(raw) || raw) : raw;
+        if (el.value !== nextVal) el.value = nextVal;
+        bb.maskPhone = nextVal;
+      } else if (el.id === "bb-mask-tg") {
+        bb.maskTg = String(el.value || "");
+      } else {
+        bb.maskMax = String(el.value || "");
+      }
+      if (!patchMaskTrainerDOM()) scheduleRender();
+      return;
     }
     if (el.id === "subj-q") { ui.subjQ = el.value; scheduleRender(); return; }
     if (el.id === "guide-q") { ui.guideQ = el.value; scheduleRender(); return; }
@@ -5294,6 +5554,31 @@
     if (el && el.dataset && (el.dataset.tc || el.dataset.tcStudent) && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.handleInput === "function") {
       if (EGE.views.tutorCabinet.handleInput(el)) return;
     }
+    if (el && el.dataset && el.dataset.tcPayout && ui.payoutModal) {
+      const k = el.dataset.tcPayout;
+      if (k === "npdReceipt") ui.payoutModal.npdReceipt = !!el.checked;
+      else ui.payoutModal[k] = el.value;
+      ui.payoutModal.error = "";
+      return;
+    }
+    if (el.id === "bb-mask-phone" || el.id === "bb-mask-tg" || el.id === "bb-mask-max") {
+      const bb = bbState();
+      const fmtP = EGE.kit && EGE.kit.formatPhoneMask;
+      const fmtTg = EGE.kit && EGE.kit.formatTelegramContact;
+      if (el.id === "bb-mask-phone") {
+        const nextVal = typeof fmtP === "function" && el.value ? (fmtP(el.value) || el.value) : el.value;
+        el.value = nextVal;
+        bb.maskPhone = nextVal;
+      } else if (el.id === "bb-mask-tg") {
+        const nextVal = typeof fmtTg === "function" && el.value ? (fmtTg(el.value) || el.value) : el.value;
+        el.value = nextVal;
+        bb.maskTg = nextVal;
+      } else {
+        bb.maskMax = String(el.value || "").trim();
+      }
+      if (!patchMaskTrainerDOM()) scheduleRender();
+      return;
+    }
     if (el.id === "bb-vp-slider") { applyBrandbookViewport(el.value); return; }
     if (el.id === "mkt-max-price") { mkt().maxPrice = Number(el.value) || 2000; saveMkt(); scheduleRender(); return; }
     if (el.id === "mkt-hour-range") {
@@ -5361,13 +5646,13 @@
     if (e.key === "Escape" && closeSelectMenus(null)) {
       scheduleRender();
     }
-    if (e.key === "Escape" && (ui.bug || ui.booking || ui.authModal || ui.filterModal || ui.tutorApplyModal || ui.balanceModal)) {
+    if (e.key === "Escape" && (ui.bug || ui.booking || ui.authModal || ui.filterModal || ui.bbModal || ui.tutorApplyModal || ui.balanceModal || ui.payoutModal)) {
       e.preventDefault();
-      ui.bug = null; ui.booking = null; ui.authModal = false; ui.filterModal = false; ui.bbModal = false; ui.tutorApplyModal = false; ui.balanceModal = null;
+      ui.bug = null; ui.booking = null; ui.authModal = false; ui.filterModal = false; ui.bbModal = false; ui.tutorApplyModal = false; ui.balanceModal = null; ui.payoutModal = null;
       renderModal();
       return;
     }
-    if (ui.bug || ui.booking || ui.authModal || ui.filterModal || ui.tutorApplyModal || ui.balanceModal) return;
+    if (ui.bug || ui.booking || ui.authModal || ui.filterModal || ui.bbModal || ui.tutorApplyModal || ui.balanceModal || ui.payoutModal) return;
     if (e.target && e.target.id === "chat-input" && e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(ui.chat.draft); return; }
     if (ui.view !== "quiz" || !ui.quiz || ui.quiz.done || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.target && e.target.id === "self-text") return; // в поле развёрнутого ответа Enter — перенос строки

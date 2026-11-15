@@ -11,12 +11,12 @@
 ### Публичные и внутренние экраны (`VIEWS` в [frontend/app.js](frontend/app.js))
 
 - **Лендинг** (`/landing`, `landing`) — герой-секция с баннером Ленских столбов (`/assets/lena-pillars.jpg`), интерактивный калькулятор ставки `±100 ₽`, витрина репетиторов, бегущая строка тарифов, FAQ, блок с якутскими узорами «Оһуор».
-- **Брендбук / UI Kit** (`/brandbook`, `brandbook`) — живая документация дизайн-системы, 40 анимируемых SVG-иконок, 6 видов графиков + линейные/круговые графики и фильтруемые таблицы, интерактивные селекты и паттерны кабинета.
-- **Оплата и комиссия** (`/fees`, `fees`) — правила пополнения баланса ученика, тарифов, сервисного сбора `5%` (не показывается на этапе подбора, только на `/fees` и при оплате), а в режиме преподавателя — раздел **«Выплаты»**.
+- **Брендбук / UI Kit** (`/brandbook`, `brandbook`) — живая документация дизайн-системы (`23` карточки каталога `EGE.kit.CATALOG_ITEMS`): 40 анимируемых SVG-иконок, 6 видов графиков + линейные/круговые графики, супер-адаптивные schema-driven таблицы (`EGE.charts.dataTableHTML` с `@container`-карточками), интерактивные селекты и паттерны кабинета, живой тренажёр масок контактов (`#bb-mask-trainer`), экраны эквайринга и выплат (`#bb-payments`), таймеры ЕГЭ-2027 с ИИ-разбором задания 27 (`#bb-ege-timers`) и доступность (`#bb-a11y`, карта `:focus-visible`, горячие клавиши и `reduced-motion`).
+- **Оплата и комиссия** (`/fees`, `fees`) — правила пополнения баланса ученика, тарифов, сервисного сбора `5%` (не показывается на этапе подбора, только на `/fees` и при оплате), а в режиме преподавателя — раздел **«Выплаты»** с KPI кошелька и адаптивной историей выводов (`#tc-payout-history`).
 - **Правовая информация** (`/privacy`) — статическая HTML-страница политики конфиденциальности, отдаваемая напрямую FastAPI.
 - **Учебный и маркетплейс-контуры**:
   - `Ученик` (`5` пунктов бокового меню + блок 3 предметов слева): `tests` (Тесты), `tutor` (Справочник), `market` (Репетиторы), `study` (Учёба), `stats` (Показатели), плюс `subject`, `topic`, `quiz`, `essay`, `plan`, `profile`. Виджет баланса закреплён внизу левого сайдбара на desktop и справа в топбаре (`28 px` кнопка `+`) на mobile; первое пополнение от `5 000 ₽`, последующие от `100 ₽`.
-  - `Преподаватель` (`7` пунктов бокового меню на desktop, `5` вкладок в мобильном таббаре, без блока предметов и студенческого баланса): `cabinet` (вкладки `requests` + кликабельный бейдж, `calendar`, `students`, `leads`, `profile`), `fees` (Выплаты) и `tutor` (Справочник). Поддерживает поднятие анкеты (кулдаун `4` часа, автопродвижение каждые `24` часа), мультиканальные контакты (`WhatsApp`, `Telegram` с телефоном или `@login`, `MAX`), город (`Якутск` / `Москва`, по умолчанию `UTC+9`) и загрузку/отключение фото («Без фото»).
+  - `Преподаватель` (`7` пунктов бокового меню на desktop, `5` вкладок в мобильном таббаре, без блока предметов и студенческого баланса): `cabinet` (вкладки `requests` + кликабельный бейдж, `calendar`, `students`, `leads`, `profile`), `fees` (Выплаты) и `tutor` (Справочник). Виджет баланса преподавателя закреплён **справа снизу** на desktop (`#tutor-balance-dock`) и **справа сверху** в топбаре на mobile (`#top-balance-slot`), с модалкой вывода средств (СБП по телефону + выбор банка или Карта РФ/Мир, опциональный чек НПД, от `500 ₽`, через `EGE.payments.createPayoutIntent`). Поддерживает поднятие анкеты (кулдаун `4` часа, автопродвижение каждые `24` часа), мультиканальные контакты (`WhatsApp`, `Telegram` с телефоном или `@login`, `MAX`), город (`Якутск` / `Москва`, по умолчанию `UTC+9`) и загрузку/отключение фото («Без фото»).
 
 ---
 
@@ -144,13 +144,13 @@ UI Kit полностью отделён от домена ЕГЭ и марке�
    - Вынесенный независимый модуль визуализации данных:
    - `CHART_STYLE_META` — 6 вариантов (`sticks`, `candles`, `range`, `stacked`, `dual`, `segmented`), активная колонка выделяется капсульной обводкой `.tc-bar-col.is-active`.
    - `chartDatasetBars(dsId)`, `smoothTrendPath(pts)` (кубическая кривая Безье для комбо-тренда `.tc-combo-line`).
-   - `stickChartHTML`, `lineChartHTML` (линейный + area SVG), `DONUT_DATASETS`, `donutChartHTML` (`stroke-linecap="butt"`, без лишних штрихов и с внешним кольцом-индикатором `.bb-donut-outer-ring`), `TABLE_ROWS`, `dataTableHTML` (универсальная таблица 3–5 колонок с поиском/фильтрацией и мессенджер-ссылками).
+   - `stickChartHTML`, `lineChartHTML` (линейный + area SVG), `DONUT_DATASETS`, `donutChartHTML` (`stroke-linecap="butt"`, без лишних штрихов и с внешним кольцом-индикатором `.bb-donut-outer-ring`), `TABLE_ROWS`, `TABLE_PRESETS` (`requests`, `payouts`, `exams`), `dataTableHTML(opts)` (универсальная schema-driven таблица: 3/5/7 колонок или кастомные `columns`/`rows`, поиск и фильтрация, `cardWrap: false`, подтверждение строк и автоматическая `@container`/`@media`-трансформация в мобильные карточки с `td[data-label]`).
 4. **[ux-ui/components/kit.js](ux-ui/components/kit.js) → `window.EGE.kit`**
-   - Реестр `CATALOG_CATEGORIES` / `CATALOG_ITEMS`, переиспользуемые лендинг-блоки (`heroBannerHTML`, `searchStripHTML`, `sentNoticeHTML`, `sakhaButtonsHTML`, `marqueePillsHTML`, `rateBenchCardHTML`, `trustStripHTML`, `reviewCardHTML`, `faqListHTML`, `blueBannerHTML`).
+   - Реестр `CATALOG_CATEGORIES` / `CATALOG_ITEMS` (`23` элемента), переиспользуемые лендинг-блоки (`heroBannerHTML`, `searchStripHTML`, `sentNoticeHTML`, `sakhaButtonsHTML`, `marqueePillsHTML`, `rateBenchCardHTML`, `trustStripHTML`, `reviewCardHTML`, `faqListHTML`, `blueBannerHTML`).
    - Единая каноническая логика контактов и мессенджеров (WA / TG / MAX): `normalizePhoneDigits`, `formatPhoneMask` (`+7 (XXX) XXX-XX-XX`), `formatTelegramContact` (телефон или `@login`), `entitySlug`, `whatsappUrl`, `telegramUrl`, `maxUrl`, `resolveMessengerUrls`, `messengerLinksHTML`.
-   - Ре-экспортирует `EGE.charts` хэлперы без дублирования кода.
+   - Ре-экспортирует `EGE.charts` хэлперы и `TABLE_PRESETS` без дублирования кода.
 5. **[ux-ui/brandbook/brandbook.js](ux-ui/brandbook/brandbook.js) → `window.EGE.views.brandbook`**
-   - Рендерит `/brandbook` (передаваемый опционально `{ inside: true }`) и обрабатывает интерактивные состояния (переключение типов графиков, датасетов, активного дня, режима таблицы 3/4/5 колонок и фильтра, мультиселекта, анимаций).
+   - Рендерит `/brandbook` (передаваемый опционально `{ inside: true }`), включая разделы `#bb-mask-trainer`, `#bb-payments`, `#bb-ege-timers` и `#bb-a11y`, и обрабатывает интерактивные состояния (типы графиков, датасеты, пресеты и подтверждение строк таблицы, тренажёр масок, эскроу/пороги оплаты, вкладки разбора сочинения, мультиселект, анимации и `reduced-motion`).
 
 ---
 
@@ -218,7 +218,7 @@ UI Kit полностью отделён от домена ЕГЭ и марке�
 5. UI Kit: `ux-ui/components/icons.js` (`EGE.ui`) → `hh-components.js` (`EGE.hh`) → `charts.js` (`EGE.charts`) → `kit.js` (`EGE.kit`) → `ux-ui/brandbook/brandbook.js` (`EGE.views.brandbook`)
 6. `data/tutors.js` → `EGE.tutors` (в runtime использует `EGE.kit` для масок и мессенджер-ссылок; обратная зависимость отсутствует)
 7. `views/landing.js` (`EGE.views.landing`), `views/marketplace.js` (`EGE.views.marketplace`), `views/tutor-cabinet.js` (`EGE.views.tutorCabinet`)
-8. `app.js` → инициализация состояния, связывание `configure(...)` всех вьюх, роутер, `EGE.payments` (`provider: "demo"`, `createTopupIntent`, `setGatewayHandler`).
+8. `app.js` → инициализация состояния, связывание `configure(...)` всех вьюх, роутер, `EGE.payments` (`provider: "demo"`, `createTopupIntent`, `createPayoutIntent`, `setGatewayHandler`).
 
 ---
 

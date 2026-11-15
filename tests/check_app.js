@@ -53,7 +53,7 @@
       };
     }
 
-    for (const id of ["main", "side-nav", "side-subjects-wrap", "side-subjects", "side-foot", "top-balance-slot", "tabbar", "toast", "tip", "modal-root", "bug-mailto"]) {
+    for (const id of ["main", "side-nav", "side-subjects-wrap", "side-subjects", "side-foot", "top-balance-slot", "tutor-balance-dock", "tabbar", "toast", "tip", "modal-root", "bug-mailto"]) {
       elements.set(id, makeEl(id));
     }
 
@@ -123,11 +123,29 @@
     if (typeof g.clearTimeout === "undefined") g.clearTimeout = () => {};
     if (typeof g.console === "undefined") g.console = { log: out, warn() {}, error: out };
 
+    const rootClasses = new Set();
     g.document = {
       visibilityState: "visible",
       activeElement: null,
       body: makeEl("body"),
-      documentElement: { dataset: {}, style: {} },
+      documentElement: {
+        dataset: {},
+        style: {},
+        classList: {
+          add(c) { rootClasses.add(c); },
+          remove(c) { rootClasses.delete(c); },
+          contains(c) { return rootClasses.has(c); },
+          toggle(c, force) {
+            if (force === undefined) {
+              if (rootClasses.has(c)) { rootClasses.delete(c); return false; }
+              rootClasses.add(c); return true;
+            }
+            if (force) rootClasses.add(c);
+            else rootClasses.delete(c);
+            return !!force;
+          }
+        }
+      },
       querySelector(sel) {
         if (sel && sel[0] === "#") return elements.get(sel.slice(1)) || null;
         return null;
@@ -152,6 +170,7 @@
       elements,
       lsMap,
       body: g.document.body,
+      documentElement: g.document.documentElement,
       location: g.location,
       emitDoc(ev, payload) { (docListeners[ev] || []).forEach((fn) => fn(payload)); }
     };
@@ -1242,9 +1261,9 @@
     const bbV2Html = env5.elements.get("main").innerHTML;
     const catTargetIds = globalThis.EGE.kit.CATALOG_ITEMS.map((it) => it.targetId);
     assert(
-      globalThis.EGE.kit.CATALOG_ITEMS.length === 19 &&
-      ["bb-market-app", "bb-cabinet", "bb-data-viz", "bb-layers", "bb-bounds", "bb-dodont", "bb-compare"].every((id) => catTargetIds.includes(id)),
-      "expected 19 catalog items covering all brandbook sections including /market, cabinet/balance, data-viz, layers, bounds, dodont, and compare"
+      globalThis.EGE.kit.CATALOG_ITEMS.length === 23 &&
+      ["bb-market-app", "bb-cabinet", "bb-data-viz", "bb-mask-trainer", "bb-payments", "bb-ege-timers", "bb-a11y", "bb-layers", "bb-bounds", "bb-dodont", "bb-compare"].every((id) => catTargetIds.includes(id)),
+      "expected 23 catalog items covering all brandbook sections including mask-trainer, payments, ege-timers, a11y, /market, cabinet/balance, data-viz, layers, bounds, dodont, and compare"
     );
     assert(
       !bbV2Html.includes("Unbounded") &&
@@ -1404,6 +1423,7 @@
     const studentTabHtml = env5.elements.get("tabbar").innerHTML;
     const studentMainHtml = env5.elements.get("main").innerHTML;
     assert(studentSideHtml.includes("Репетиторы") && studentSideHtml.includes("Справочник") && studentTabHtml.includes("Справочник"), "expected 5-tab nav with Справочник for student");
+    assert(env5.elements.get("tutor-balance-dock").hidden === true && env5.elements.get("tutor-balance-dock").innerHTML === "", "expected teacher floating balance dock hidden in student mode");
     assert(studentMainHtml.includes("Тесты ЕГЭ") && !studentMainHtml.slice(0, studentMainHtml.indexOf("grid-3")).includes('data-v="tutor"'), "expected Тесты ЕГЭ hub without duplicate top Справочник button in head");
     assert(!readFileText("frontend/index.html").includes('id="top-market"'), "expected top-market removed from mobile topbar");
 
@@ -1429,7 +1449,18 @@
     const tutorTabHtml = env5.elements.get("tabbar").innerHTML;
     assert(tutorMain1.includes("Личный кабинет преподавателя") && tutorMain1.includes("tc-req-card") && tutorMain1.includes('id="tc-first-pending"') && tutorMain1.includes("На руки 95%") && tutorMain1.includes("Поднять анкету (раз в 4 ч)"), "expected full Teacher Personal Cabinet view with 4h bump CTA and #tc-first-pending");
     assert(!tutorMain1.includes("tc-role-bar") && tutorMain1.includes("is-gold-logo") && !tutorMain1.includes('role="tablist"'), "expected tc-role-bar and desktop tablist removed, keeping only gold line with centered emblem");
-    assert(env5.elements.get("top-balance-slot").hidden === true && env5.elements.get("side-foot").innerHTML.includes('id="side-balance-slot" class="side-bal-slot" hidden') && !env5.elements.get("side-foot").innerHTML.includes(">Препод<") && env5.elements.get("side-foot").innerHTML.includes("Преподаватель"), "expected student balance hidden in both slots and full Преподаватель label in tutor mode");
+    assert(
+      env5.elements.get("top-balance-slot").hidden === false &&
+      env5.elements.get("top-balance-slot").innerHTML.includes("is-tutor") &&
+      env5.elements.get("top-balance-slot").innerHTML.includes('data-a="tc-payout-open"') &&
+      env5.elements.get("tutor-balance-dock").hidden === false &&
+      env5.elements.get("tutor-balance-dock").innerHTML.includes("tutor-bal-dock") &&
+      env5.elements.get("tutor-balance-dock").innerHTML.includes('data-a="tc-payout-open"') &&
+      env5.elements.get("side-foot").innerHTML.includes('id="side-balance-slot" class="side-bal-slot" hidden') &&
+      !env5.elements.get("side-foot").innerHTML.includes(">Препод<") &&
+      env5.elements.get("side-foot").innerHTML.includes("Преподаватель"),
+      "expected teacher balance shown in top-right mobile slot and bottom-right desktop dock, student sidebar balance hidden, and full Преподаватель label"
+    );
     assert(env5.elements.get("side-subjects-wrap").hidden === true && env5.elements.get("side-subjects").innerHTML === "", "expected student ПРЕДМЕТЫ list hidden in tutor mode sidebar");
     assert(!tutorSideHtml.includes("Каталог") && !tutorSideHtml.includes('data-v="market"'), "expected Каталог removed completely from teacher sidebar");
     for (const label of ["Заявки", "Календарь учеников", "Мои ученики", "Ученики ищут", "Профиль", "Выплаты", "Справочник"]) {
@@ -1617,15 +1648,93 @@
     clickAction(env5, { a: "mkt-reset" });
     await flushMicrotasks(2);
 
-    // Проверка /brandbook: наличие интерактивного мультивыбора (.hh-multi), виджета баланса, Тренд-кривой и Круговой диаграммы
+    // Проверка /brandbook: наличие интерактивного мультивыбора (.hh-multi), виджета баланса, Тренд-кривой и Круговой диаграммы + 4 новых раздела + универсальная таблица + вывод средств преподавателя
     clickAction(env5, { a: "go", v: "brandbook" });
     await flushMicrotasks(3);
     const bbHtml1 = env5.elements.get("main").innerHTML;
     assert(bbHtml1.includes("bb-demo-multi") && bbHtml1.includes("top-bal-wrap") && !bbHtml1.includes("Препод · ЕГЭ"), "expected Brandbook to showcase interactive hh-multi and balance pill with full Преподаватель label");
     assert(bbHtml1.includes('class="tc-combo-line"') && bbHtml1.includes('stroke-linecap="butt"') && bbHtml1.includes("bb-donut-outer-ring") && !bbHtml1.includes("5%:"), "expected smooth .tc-combo-line path, crisp stroke-linecap=butt donut slices with outer indicator ring, and no 5%: substring");
+    assert(
+      bbHtml1.includes('id="bb-mask-trainer"') &&
+      bbHtml1.includes('id="bb-payments"') &&
+      bbHtml1.includes('id="bb-ege-timers"') &&
+      bbHtml1.includes('id="bb-a11y"') &&
+      bbHtml1.includes("bb-table-shell") &&
+      bbHtml1.includes('data-label=') &&
+      bbHtml1.includes('data-a="bb-tbl-confirm"'),
+      "expected 4 new brandbook sections (#bb-mask-trainer, #bb-payments, #bb-ege-timers, #bb-a11y) and adaptive schema-driven table"
+    );
     assert(globalThis.EGE && globalThis.EGE.charts && Array.isArray(globalThis.EGE.charts.CHART_STYLE_META) && globalThis.EGE.charts.CHART_STYLE_META.length === 6, "expected EGE.charts module with 6 DataViz variants");
-    assert(typeof globalThis.EGE.charts.stickChartHTML === "function" && typeof globalThis.EGE.charts.lineChartHTML === "function" && typeof globalThis.EGE.charts.donutChartHTML === "function" && typeof globalThis.EGE.charts.dataTableHTML === "function", "expected EGE.charts DataViz + DataTable builders");
-    assert(globalThis.EGE.kit && globalThis.EGE.kit.stickChartHTML === globalThis.EGE.charts.stickChartHTML, "expected EGE.kit to re-export canonical EGE.charts helpers without duplication");
+    assert(typeof globalThis.EGE.charts.stickChartHTML === "function" && typeof globalThis.EGE.charts.lineChartHTML === "function" && typeof globalThis.EGE.charts.donutChartHTML === "function" && typeof globalThis.EGE.charts.dataTableHTML === "function" && globalThis.EGE.charts.TABLE_PRESETS && globalThis.EGE.charts.TABLE_PRESETS.payouts && globalThis.EGE.charts.TABLE_PRESETS.exams, "expected EGE.charts DataViz + TABLE_PRESETS + DataTable builders");
+    assert(globalThis.EGE.kit && globalThis.EGE.kit.stickChartHTML === globalThis.EGE.charts.stickChartHTML && globalThis.EGE.kit.TABLE_PRESETS === globalThis.EGE.charts.TABLE_PRESETS, "expected EGE.kit to re-export canonical EGE.charts helpers and TABLE_PRESETS without duplication");
+
+    // Универсальная schema-driven таблица: кастомная схема + cardWrap:false + подтверждение строки
+    const customTblHtml = globalThis.EGE.charts.dataTableHTML({
+      id: "custom-smoke-tbl",
+      cols: 3,
+      cardWrap: false,
+      showPresetSwitch: false,
+      showColsSwitch: false,
+      columns: [
+        { key: "item", label: "Параметр" },
+        { key: "val", label: "Значение", num: true },
+        { key: "status", label: "Статус", render: (r, h) => h.statusHTML(r) }
+      ],
+      rows: [
+        { id: "c-1", item: "Биология · Линия 28", val: "1 200 ₽", status: "pending", statusLabel: "Ждёт проверки" }
+      ],
+      confirmedIds: { "c-1": true },
+      confirmAction: "custom-confirm"
+    });
+    assert(
+      customTblHtml.includes("bb-table-shell") &&
+      customTblHtml.includes("bb-data-table cols-3 is-adaptive") &&
+      customTblHtml.includes('data-label="Параметр"') &&
+      customTblHtml.includes("Подтверждено ✓") &&
+      customTblHtml.includes('data-a="custom-confirm"') &&
+      !customTblHtml.includes("bb-data-table-card"),
+      "expected custom schema dataTableHTML with cardWrap=false, data-label attributes, custom confirmAction, and confirmed row state"
+    );
+
+    // Переключение пресетов таблицы и подтверждение строки в /brandbook
+    clickAction(env5, { a: "bb-tbl-preset", preset: "payouts", v: "payouts" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("88412-НПД") && env5.elements.get("main").innerHTML.includes("СБП · Т-Банк"), "expected bb-tbl-preset=payouts to switch table preset to payouts");
+    clickAction(env5, { a: "bb-tbl-preset", preset: "exams", v: "exams" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("Вариант № 12 · Генетика"), "expected bb-tbl-preset=exams to switch table preset to exams");
+    clickAction(env5, { a: "bb-tbl-preset", preset: "requests", v: "requests" });
+    await flushMicrotasks(2);
+    clickAction(env5, { a: "bb-tbl-confirm", id: "tbl-4" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes('data-a="bb-tbl-confirm" data-id="tbl-4">Сбросить</button>'), "expected bb-tbl-confirm on tbl-4 to confirm row and flip button to Сбросить");
+
+    // Живой тренажёр масок контактов (#bb-mask-trainer)
+    clickAction(env5, { a: "bb-mask-sample", phone: "89245553311", tg: "@sakha_tutor", max: "sakha_max" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("https://wa.me/79245553311") && env5.elements.get("main").innerHTML.includes("https://t.me/sakha_tutor") && env5.elements.get("main").innerHTML.includes("https://max.ru/sakha_max"), "expected bb-mask-sample to update wa.me, t.me and max.ru links");
+    env5.emitDoc("input", { target: { id: "bb-mask-phone", value: "89140001122", dataset: {} } });
+    env5.emitDoc("input", { target: { id: "bb-mask-tg", value: "@chem_ykt", dataset: {} } });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("https://wa.me/79140001122") && env5.elements.get("main").innerHTML.includes("https://t.me/chem_ykt"), "expected live input on #bb-mask-phone and #bb-mask-tg to reformat links immediately");
+
+    // Эквайринг (#bb-payments), ЕГЭ-2027 (#bb-ege-timers) и A11y (#bb-a11y)
+    clickAction(env5, { a: "bb-pay-threshold", v: "repeat" });
+    clickAction(env5, { a: "bb-pay-method", v: "tpay" });
+    clickAction(env5, { a: "bb-pay-state", v: "captured" });
+    await flushMicrotasks(2);
+    const bbPayHtml = env5.elements.get("main").innerHTML;
+    assert(bbPayHtml.includes("Повторное от 100 ₽") && bbPayHtml.includes("Проведено · 95% / 5%") && !bbPayHtml.includes("5%:"), "expected #bb-payments interactive threshold/method/state without 5%: substring");
+    clickAction(env5, { a: "bb-essay-tab", idx: "1", v: "1" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes('data-a="bb-essay-tab" data-idx="1" data-v="1" aria-pressed="true"'), "expected bb-essay-tab to switch AI essay breakdown tab");
+    clickAction(env5, { a: "bb-reduced-motion" });
+    await flushMicrotasks(2);
+    assert(env5.documentElement.classList.contains("reduced-motion") && env5.elements.get("main").innerHTML.includes("Reduced Motion: ВКЛ ✓"), "expected bb-reduced-motion to add html.reduced-motion class");
+    clickAction(env5, { a: "bb-reduced-motion" });
+    await flushMicrotasks(2);
+    assert(!env5.documentElement.classList.contains("reduced-motion"), "expected second bb-reduced-motion click to disable html.reduced-motion");
+
     clickAction(env5, { a: "bb-multi-toggle" });
     await flushMicrotasks(1);
     assert(env5.elements.get("main").innerHTML.includes('class="hh-select hh-multi open"') && env5.elements.get("main").innerHTML.includes('aria-multiselectable="true"'), "expected bb-multi-toggle to open Brandbook multi-select dropdown");
@@ -1633,9 +1742,53 @@
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes("Русский язык"), "expected bb-multi-pick to select additional subject in Brandbook");
 
+    // Преподаватель: баланс в правом нижнем доке + правом верхнем мобильном слоте + EGE.payments.createPayoutIntent + история выводов в /fees
+    clickAction(env5, { a: "role-set", role: "tutor" });
+    await flushMicrotasks(3);
+    const wBefore = globalThis.EGE.views.tutorCabinet.getWalletSummary();
+    const wBeforeLabel = wBefore.availableRub.toLocaleString("ru-RU") + " ₽";
+    assert(
+      wBefore.availableRub >= 5000 &&
+      hasNum(env5.elements.get("tutor-balance-dock").innerHTML, wBeforeLabel) &&
+      hasNum(env5.elements.get("top-balance-slot").innerHTML, wBeforeLabel),
+      `expected teacher available balance (${wBeforeLabel}) in desktop dock and topbar widget`
+    );
+    let payoutIntentPayload = null;
+    globalThis.EGE.payments.setGatewayHandler((intent) => {
+      if (intent && intent.type === "payout") payoutIntentPayload = intent;
+      return intent;
+    });
+    clickAction(env5, { a: "tc-payout-open" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("modal-root").innerHTML.includes('id="tc-payout-title"') && env5.elements.get("modal-root").innerHTML.includes('data-f="tc-payout"'), "expected tc-payout-open to open teacher withdrawal modal");
+    clickAction(env5, { a: "tc-payout-method", v: "card" });
+    await flushMicrotasks(1);
+    assert(env5.elements.get("modal-root").innerHTML.includes('id="tc-payout-card"'), "expected switching payout method to card to show Мир/РФ card input");
+    clickAction(env5, { a: "tc-payout-method", v: "sbp" });
+    clickAction(env5, { a: "tc-payout-npd" });
+    clickAction(env5, { a: "tc-payout-chip", v: "5000" });
+    await flushMicrotasks(1);
+    env5.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "tc-payout" } }) }, preventDefault() {} });
+    await flushMicrotasks(3);
+    globalThis.EGE.payments.setGatewayHandler(null);
+    assert(payoutIntentPayload && payoutIntentPayload.amount === 5000 && payoutIntentPayload.method === "sbp", "expected EGE.payments.createPayoutIntent gateway hook to receive 5000 RUB SBP payout payload");
+    const wAfter = globalThis.EGE.views.tutorCabinet.getWalletSummary();
+    const wAfterLabel = (wBefore.availableRub - 5000).toLocaleString("ru-RU") + " ₽";
+    assert(!env5.elements.get("modal-root").innerHTML.trim() && env5.elements.get("toast").innerHTML.includes("Заявка на вывод оформлена"), "expected payout modal to close and show confirmation notification");
+    assert(
+      wAfter.availableRub === wBefore.availableRub - 5000 &&
+      hasNum(env5.elements.get("tutor-balance-dock").innerHTML, wAfterLabel) &&
+      hasNum(env5.elements.get("top-balance-slot").innerHTML, wAfterLabel),
+      `expected teacher balance to deduct 5 000 ₽ immediately (${wBeforeLabel} -> ${wAfterLabel})`
+    );
+    clickAction(env5, { a: "go", v: "fees" });
+    await flushMicrotasks(3);
+    const tutorFeesHtml = env5.elements.get("main").innerHTML;
+    assert(tutorFeesHtml.includes("История выводов средств") && tutorFeesHtml.includes('id="tc-payout-history"') && hasNum(tutorFeesHtml, "5 000 ₽"), "expected new 5 000 ₽ withdrawal row rendered inside История выводов средств on /fees");
+
     clickAction(env5, { a: "role-set", role: "student" });
     await flushMicrotasks(4);
-    assert(env5.elements.get("main").innerHTML.includes("Тесты ЕГЭ"), "expected role-set back to student to return cleanly to Тесты ЕГЭ");
+    assert(env5.elements.get("main").innerHTML.includes("Тесты ЕГЭ") && env5.elements.get("tutor-balance-dock").hidden === true, "expected role-set back to student to return cleanly to Тесты ЕГЭ and hide teacher balance dock");
 
     out("APP_SMOKE_TESTS_OK");
   }

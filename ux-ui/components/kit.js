@@ -21,6 +21,7 @@
   const DONUT_DATASETS = CH.DONUT_DATASETS || {};
   const donutChartHTML = CH.donutChartHTML || (() => "");
   const TABLE_ROWS = CH.TABLE_ROWS || [];
+  const TABLE_PRESETS = CH.TABLE_PRESETS || {};
   const dataTableHTML = CH.dataTableHTML || (() => "");
 
   /* Реестр компонентов дизайн-системы для быстрого поиска, фильтрации и копирования в /brandbook. */
@@ -47,11 +48,15 @@
     { id: "study", targetId: "bb-study-states", cat: "app", title: "Тренажёр ЕГЭ, Skeleton, Empty и Danger", api: "EGE.views.study / .opt / .meter", css: ".opt.ok .meter .bb-skel-bar .empty .confirm", desc: "Варианты ответов, конспект .theory, шиммер 1.6 s и адаптивная отмена." },
     { id: "marketApp", targetId: "bb-market-app", cat: "app", title: "Каталог /market, Кабинет преподавателя и 5-tab .tabbar", api: "EGE.views.tutorCabinet / EGE.views.market", css: ".tutor-card .tc-req-card .diff-tag.pro .side .tabbar", desc: "Кабинет ученика и личный кабинет преподавателя, до 2 плашек квалификации и «Преподаватель» без сокращений." },
     { id: "cabinet", targetId: "bb-cabinet", cat: "app", title: "Кабинет преподавателя, расписание, 6 видов графиков с палочками и баланс", api: "EGE.views.tutorCabinet / EGE.charts.stickChartHTML() / balanceModalHTML()", css: ".sakha-divider.is-gold-logo .tc-cal-hours .tc-bar-chart .is-sticks .is-lollipop .is-capsule .is-dual .is-range .is-combo .tc-hh-meter .wallet-bar", desc: "Модалка пополнения (.wallet-bar, старт 5 000 ₽ / от 100 ₽), сетка слотов 10:00–20:00, лиды учеников, выплаты 95%, витрина графиков с палочками (тонкие, леденцы, капсулы, парные, диапазон, комбо-тренд), профиль .tc-hh-meter и трекер баллов." },
-    { id: "dataViz", targetId: "bb-data-viz", cat: "app", title: "Линейные графики, Круговая диаграмма и Таблица (3/5/7 колонок + фильтры)", api: "EGE.charts.{lineChartHTML, donutChartHTML, dataTableHTML}() / EGE.kit.messengerLinksHTML()", css: ".bb-line-chart .bb-donut-chart .bb-data-table .msg-channel-bar .btn-msg", desc: "SVG-график с линией и областью, интерактивная кольцевая диаграмма с легендой, таблица с переключением 3/5/7 колонок и кнопки мессенджеров WhatsApp · Telegram · MAX." },
+    { id: "dataViz", targetId: "bb-data-viz", cat: "app", title: "Линейные графики, Круговая диаграмма и Таблица (3/5/7 колонок + пресеты)", api: "EGE.charts.{lineChartHTML, donutChartHTML, dataTableHTML}({ preset, confirmedIds, cardWrap })", css: ".bb-line-chart .bb-donut-chart .bb-table-shell .bb-data-table.is-adaptive", desc: "SVG-график с линией и областью, кольцевая диаграмма, супер-адаптивная таблица (Заявки / Выплаты / Пробники, 3/5/7 колонок, кнопка Подтвердить и карточки @container) + WA · Telegram · MAX." },
+    { id: "maskTrainer", targetId: "bb-mask-trainer", cat: "app", title: "Живой тренажёр масок контактов (WA · Telegram · MAX)", api: "EGE.kit.{formatPhoneMask, formatTelegramContact, resolveMessengerUrls, messengerLinksHTML}()", css: ".tc-contact-grid .bb-mask-urls .btn-msg.is-wa.is-tg.is-max", desc: "Редактируемые поля +7 (XXX) XXX-XX-XX, @login и MAX с быстрыми примерами и живым расчётом ссылок wa.me / t.me / max.ru." },
+    { id: "payments", targetId: "bb-payments", cat: "app", title: "Эквайринг, эскроу-статусы и выплаты (EGE.payments)", api: "EGE.payments.{createTopupIntent, createPayoutIntent}()", css: ".bb-pay-grid .bb-pay-split .bb-pay-dock-preview .bb-tbl-st.is-refund", desc: "Пополнение от 5 000 ₽ / 100 ₽, эскроу frozen -> captured (95% / 5%) -> refunded (100%), вывод 95% на СБП / Мир и чек НПД." },
+    { id: "egeTimers", targetId: "bb-ege-timers", cat: "app", title: "Таймеры ЕГЭ-2027 и ИИ-проверка сочинения (Задание 27)", api: "EGE.exams / EGE.essay", css: ".bb-timer-grid .bb-timer-card .bb-essay-box .bb-essay-criteria", desc: "Обратный отсчёт до экзаменов 2027 (Химия, Русский, Биология), чекпоинт 1 февраля и разбор критериев К1–К10 (21 / 22 б.)." },
+    { id: "a11y", targetId: "bb-a11y", cat: "controls", title: "Фокус-кольца, горячие клавиши и Reduced Motion (A11y)", api: ":focus-visible / html.reduced-motion", css: ".bb-focus-map .bb-focus-demo kbd.bb-kbd", desc: "Карта колец фокуса (Primary, Золото Саха, Поле, Ошибка), шпаргалка клавиш Esc / Tab / ← → и отключение анимаций." },
     { id: "sliders", targetId: "bb-sliders", cat: "layout", title: "Слайдер часов 10:00–20:00 и калькулятор в 1 строку", api: "EGE.hh.sliderTicksHTML(cur, style) / .hh-step-readout.is-inline", css: ".hh-time-range .hh-slider-ticks .hh-step-readout.is-inline", desc: "3 варианта шкалы слотов, палка 10×24 px и строчный ввод «1 100 ₽/ч» без переноса." },
     { id: "layers", targetId: "bb-layers", cat: "layout", title: "Слои Z-index, статус отклика и Reduced Motion", api: "EGE.kit.sentNoticeHTML({ slot, offer })", css: ".hh-motion-status.sent .bb-pulse-dot .is-reduced", desc: "Статус под кнопкой, подъём −2 px, таблица слоёв (10→100) и отключение анимаций." },
     { id: "bounds", targetId: "bb-bounds", cat: "layout", title: "Границы 390 px, воздух 6 px и зазор 8 px", api: ".cal-days / .hh-price-stepper", css: ".bb-bp-stage .bb-phone-frame .bb-days-rail", desc: "Защита от обрезания рамок при hover, угол 84 px и мобильный фрейм." },
-    { id: "responsive", targetId: "bb-responsive", cat: "layout", title: "Стенд адаптивности (320 px — 1340 px)", api: "applyBrandbookViewport(width)", css: "@container (max-width: 560px) / @media (max-width: 680px)", desc: "Живой ползунок ширины экрана от Mini SE 320 px до Desktop." },
+    { id: "responsive", targetId: "bb-responsive", cat: "layout", title: "Стенд адаптивности (320 px — 1340 px)", api: "applyBrandbookViewport(width)", css: "@container (max-width: 880px) / @container (max-width: 640px)", desc: "Живой ползунок ширины экрана от Mini SE 320 px до Desktop." },
     { id: "kit", targetId: "bb-landing-kit", cat: "sections", title: "Блоки витрины (Лента, Золотая ставка, Ставки, Отзывы)", api: "EGE.kit.rateBenchCardHTML / reviewCardHTML / .savings-bar-fill.gold-fill", css: ".marquee-pill .savings-gold-txt .rate-bench-card .review-card", desc: "Общие компоненты EGE.kit и золотой акцент «Вектор ЕГЭ · твоя ставка»." },
     { id: "dodont", targetId: "bb-dodont", cat: "sections", title: "Do / Don't и Tone of Voice (формат текстов)", api: "tokens.json -> editorial", css: ".bb-do-card .bb-dont-card", desc: "Оранжевые уведомления, правило 5% (/fees и кабинет), формат ₽/ч и якутская орфография." },
     { id: "compare", targetId: "bb-compare", cat: "brand", title: "Сквозная проверка Light vs Dark OLED", api: "EGE.views.brandbook.brandbookPaneHTML()", css: ".bb-pane.is-light .bb-pane.is-dark", desc: "Одновременное сравнение свотчей, слайдера, степпера и карточки в двух темах." }
@@ -449,6 +454,7 @@
     stickChartHTML,
     lineChartHTML,
     donutChartHTML,
+    TABLE_PRESETS,
     dataTableHTML
   };
 })();

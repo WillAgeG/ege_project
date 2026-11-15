@@ -19,6 +19,9 @@
     faqListHTML,
     blueBannerHTML,
     messengerLinksHTML,
+    resolveMessengerUrls,
+    formatPhoneMask,
+    formatTelegramContact,
     CHART_STYLE_META,
     chartDatasetBars: kitChartDatasetBars,
     stickChartHTML: kitStickChartHTML,
@@ -51,7 +54,11 @@
     "bb-study-states": "app",
     "bb-market-app": "app",
     "bb-cabinet": "app",
+    "bb-mask-trainer": "app",
     "bb-data-viz": "app",
+    "bb-payments": "app",
+    "bb-ege-timers": "app",
+    "bb-a11y": "controls",
     "bb-sliders": "layout",
     "bb-layers": "layout",
     "bb-bounds": "layout",
@@ -68,50 +75,69 @@
     { id: "design", label: "UX/UI и Figma", meta: "Проектный трек" }
   ];
 
+  const BB_DEFAULTS = {
+    mode: "both",
+    hour: 14,
+    price: 1200,
+    day: "all",
+    sliderStyle: "ticks",
+    showBounds: true,
+    chipOn: true,
+    sent: false,
+    fav: true,
+    vpWidth: 390,
+    switchVal: "online",
+    subj: "bio",
+    subjMenuOpen: false,
+    multiSubjs: ["bio", "chem"],
+    multiMenuOpen: false,
+    pickedPlan: "month10k",
+    quizOpt: 1,
+    cancelDemoUndone: false,
+    previewToastDismissed: false,
+    sakhaSent: false,
+    sakhaKunOn: false,
+    sakhaStarOn: false,
+    heroSubmitted: false,
+    heroBetaOn: false,
+    heroSearchSubmitted: false,
+    heroQ: "",
+    marketDemoAccepted: false,
+    reducedMotion: false,
+    balFunded: true,
+    chartStyle: "sticks",
+    chartDataset: "income",
+    chartActiveIdx: 3,
+    linePtIdx: 3,
+    donutDataset: "channels",
+    donutSliceIdx: 0,
+    tableCols: 5,
+    tableFilter: "all",
+    tableSearch: "",
+    cat: "all",
+    catQ: "",
+    faqOpen: 0,
+    maskPhone: "+7 (914) 210-05-11",
+    maskTg: "@aytal_bio",
+    maskMax: "aytal_ege",
+    payMethod: "sbp",
+    payState: "frozen",
+    payInitialDone: false,
+    tablePreset: "requests",
+    confirmedRows: {},
+    essayOpenIdx: 0
+  };
+
   function ensureBrandbookState(ui) {
-    return ui.brandbook || (ui.brandbook = {
-      mode: "both",
-      hour: 14,
-      price: 1200,
-      day: "all",
-      sliderStyle: "ticks",
-      showBounds: true,
-      chipOn: true,
-      sent: false,
-      fav: true,
-      vpWidth: 390,
-      switchVal: "online",
-      subj: "bio",
-      subjMenuOpen: false,
-      multiSubjs: ["bio", "chem"],
-      multiMenuOpen: false,
-      pickedPlan: "month10k",
-      quizOpt: 1,
-      cancelDemoUndone: false,
-      previewToastDismissed: false,
-      sakhaSent: false,
-      sakhaKunOn: false,
-      sakhaStarOn: false,
-      heroSubmitted: false,
-      heroBetaOn: false,
-      heroSearchSubmitted: false,
-      heroQ: "",
-      marketDemoAccepted: false,
-      reducedMotion: false,
-      balFunded: true,
-      chartStyle: "sticks",
-      chartDataset: "income",
-      chartActiveIdx: 3,
-      linePtIdx: 3,
-      donutDataset: "channels",
-      donutSliceIdx: 0,
-      tableCols: 5,
-      tableFilter: "all",
-      tableSearch: "",
-      cat: "all",
-      catQ: "",
-      faqOpen: 0
-    });
+    const bb = ui.brandbook || (ui.brandbook = {});
+    for (const k in BB_DEFAULTS) {
+      if (bb[k] === undefined) {
+        const defVal = BB_DEFAULTS[k];
+        bb[k] = Array.isArray(defVal) ? defVal.slice() : (defVal && typeof defVal === "object" ? {} : defVal);
+      }
+    }
+    if (!bb.confirmedRows || typeof bb.confirmedRows !== "object") bb.confirmedRows = {};
+    return bb;
   }
 
   function filterCatalogItems(bb) {
@@ -1237,15 +1263,45 @@
       </div>
 
       <div class="bb-forms-grid" style="margin-top:14px">
-        <div class="card pad stack" style="gap:10px">
+        ${(() => {
+          const phoneVal = String(bb.maskPhone != null ? bb.maskPhone : "+7 (914) 210-05-11");
+          const tgRaw = String(bb.maskTg != null ? bb.maskTg : "@aytal_bio");
+          const maxRaw = String(bb.maskMax != null ? bb.maskMax : "aytal_ege");
+          const formattedPhone = typeof formatPhoneMask === "function" && phoneVal ? (formatPhoneMask(phoneVal) || phoneVal) : phoneVal;
+          const formattedTg = typeof formatTelegramContact === "function" && tgRaw ? (formatTelegramContact(tgRaw) || tgRaw) : tgRaw;
+          const entity = {
+            id: "mask-demo",
+            name: "Айтал Б.",
+            whatsapp: formattedPhone || "+7 (914) 210-05-11",
+            telegram: formattedTg || tgRaw || "@aytal_bio",
+            maxHandle: maxRaw || "aytal_ege"
+          };
+          const msgText = "Здравствуйте! Проверяю живую маску контактов в Вектор ЕГЭ.";
+          const urlsFn = resolveMessengerUrls || (EGE.kit && EGE.kit.resolveMessengerUrls);
+          const urls = typeof urlsFn === "function"
+            ? urlsFn(entity, msgText)
+            : { whatsapp: "https://wa.me/79142100511", telegram: "https://t.me/aytal_bio", max: "https://max.ru/aytal_ege" };
+          const maskSamples = [
+            { label: "Якутск @login", phone: "+7 (914) 210-05-11", tg: "@aytal_bio", max: "aytal_ege" },
+            { label: "Телефон в Telegram", phone: "+7 (914) 800-12-34", tg: "+7 (914) 800-12-34", max: "+7 (914) 800-12-34" },
+            { label: "Москва +7 (926)...", phone: "+7 (926) 345-67-89", tg: "@alena_chem_msk", max: "alena_msk" }
+          ];
+          const linksFn = messengerLinksHTML || (EGE.kit && EGE.kit.messengerLinksHTML);
+          return `<div class="card pad stack" id="bb-mask-trainer" style="gap:10px">
           <div class="row between" style="gap:8px;flex-wrap:wrap">
-            <b>08 · Мои ученики: маски +7 / @login и напоминание за 1 час</b>
+            <b>08 · Мои ученики: живой тренажёр масок +7 / @login</b>
             <span class="bb-spec-pill confirm">WA · TG · MAX</span>
+          </div>
+          <div class="row" style="gap:6px;flex-wrap:wrap" role="group" aria-label="Быстрые примеры контактов">
+            ${maskSamples.map((s) => {
+              const activeSample = phoneVal === s.phone && tgRaw === s.tg && maxRaw === s.max;
+              return `<button type="button" class="chip-btn${activeSample ? " on" : ""}" data-a="bb-mask-sample" data-phone="${esc(s.phone)}" data-tg="${esc(s.tg)}" data-max="${esc(s.max)}">${esc(s.label)}</button>`;
+            }).join("")}
           </div>
           <div class="tc-contact-grid">
             <div class="field">
               <label for="bb-mask-phone">WhatsApp / телефон (+7)</label>
-              <input class="input num" id="bb-mask-phone" type="tel" value="+7 (914) 210-05-11" readonly>
+              <input class="input num" id="bb-mask-phone" data-a="bb-mask-input" type="tel" value="${esc(phoneVal)}" placeholder="+7 (914) 210-05-11" autocomplete="off">
             </div>
             <div class="field">
               <label for="bb-mask-lead">За 1 ч до урока</label>
@@ -1253,18 +1309,27 @@
             </div>
             <div class="field">
               <label for="bb-mask-tg">Telegram (@login или телефон)</label>
-              <input class="input" id="bb-mask-tg" type="text" value="@aytal_bio" readonly>
+              <input class="input" id="bb-mask-tg" data-a="bb-mask-input" type="text" value="${esc(tgRaw)}" placeholder="@aytal_bio или +7..." autocomplete="off">
             </div>
             <div class="field">
-              <label for="bb-mask-max">MAX контакт</label>
-              <input class="input" id="bb-mask-max" type="text" value="+7 (914) 210-05-11" readonly>
+              <label for="bb-mask-max">MAX контакт (@handle / тел.)</label>
+              <input class="input" id="bb-mask-max" data-a="bb-mask-input" type="text" value="${esc(maxRaw)}" placeholder="aytal_ege" autocomplete="off">
             </div>
           </div>
+          <div class="bb-mask-urls" id="bb-mask-urls">
+            <div class="bb-mask-url-row"><span class="small muted">WhatsApp</span><code>${esc(urls.whatsapp.split("?")[0])}</code></div>
+            <div class="bb-mask-url-row"><span class="small muted">Telegram</span><code>${esc(urls.telegram.split("?")[0])}</code></div>
+            <div class="bb-mask-url-row"><span class="small muted">MAX</span><code>${esc(urls.max.split("?")[0])}</code></div>
+          </div>
+          <div id="bb-mask-links">
+            ${typeof linksFn === "function" ? linksFn({ entity, message: msgText, compact: true }) : ""}
+          </div>
           <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
-            <span class="small muted">Маска <code>+7 (914) 000-00-00</code> и авто-обработка <code>@login</code> через <code>EGE.kit.formatPhoneMask</code> / <code>formatTelegramContact</code>.</span>
+            <span class="small muted">Живой расчёт через <code>EGE.kit.resolveMessengerUrls()</code> и <code>messengerLinksHTML()</code>.</span>
             <button type="button" class="btn confirm sm" data-a="bb-demo-toast">${icon("bell")}<span>Автонапоминание в 09:00</span></button>
           </div>
-        </div>
+        </div>`;
+        })()}
 
         <div class="card pad stack" style="gap:10px">
           <div class="row between" style="gap:8px;flex-wrap:wrap">
@@ -1339,7 +1404,322 @@
       </div>
 
       <div style="margin-top:14px">
-        ${dataTableHTML ? dataTableHTML({ cols: tblCols, filter: tblFilter, query: tblQuery }) : ""}
+        ${dataTableHTML ? dataTableHTML({
+          preset: bb.tablePreset || "requests",
+          cols: tblCols,
+          filter: tblFilter,
+          query: tblQuery,
+          confirmedIds: bb.confirmedRows || {}
+        }) : ""}
+      </div>
+    </section>`;
+  }
+
+  /* 3 новых раздела брендбука: Эквайринг/выплаты, Таймеры ЕГЭ-2027 + ИИ-сочинение, Фокус/A11y. */
+  function paymentsSectionHTML(bb) {
+    const payMethod = bb.payMethod || "sbp";
+    const payState = bb.payState || "frozen";
+    const initialDone = !!bb.payInitialDone;
+    const minTopup = initialDone ? 100 : 5000;
+    const topupSample = initialDone ? 1200 : 5000;
+    const lessonAmount = 1200;
+    const tutorNet = Math.round(lessonAmount * 0.95);
+    const serviceFee = lessonAmount - tutorNet;
+
+    const stateMeta = {
+      frozen: {
+        cls: "is-pending",
+        badge: "Удержано на эскроу · 1 200 ₽",
+        desc: "Сумма заморожена на балансе ученика до завершения часового окна. При переносе или отмене ≥ 4 ч средства возвращаются мгновенно."
+      },
+      captured: {
+        cls: "is-confirmed",
+        badge: "Проведено · 95% / 5%",
+        desc: "Урок подтверждён: преподаватель получает 1 140 ₽ (95%), сервисный сбор 5% составляет 60 ₽ и уходит в платформу."
+      },
+      refunded: {
+        cls: "is-refund",
+        badge: "Отмена ≥ 4 ч · Возврат 100%",
+        desc: "Ученик отменил занятие заранее — 1 200 ₽ (100%) возвращаются на счёт без комиссий и штрафов."
+      }
+    }[payState] || {
+      cls: "is-pending",
+      badge: "Удержано на эскроу · 1 200 ₽",
+      desc: "Средства заблокированы до завершения занятия."
+    };
+
+    const methodLabels = [
+      ["sbp", "СБП (мгновенно)"],
+      ["card", "Карта Мир"],
+      ["tpay", "T-Pay / SberPay"]
+    ];
+
+    return `<section class="land-sec" id="bb-payments" aria-label="Экраны эквайринга, статусов оплаты и выплат преподавателям">
+      <div class="land-sec-head">
+        <div>
+          <div class="eyebrow">09 · Эквайринг · Эскроу · Выплаты (EGE.payments)</div>
+          <h2 class="h2">Пополнение баланса, статусы удержания 95% / 5% и вывод средств на СБП / Мир</h2>
+        </div>
+        <button type="button" class="bb-spec-pill" data-a="bb-copy-token" data-copy="EGE.payments.createTopupIntent">Копировать EGE.payments</button>
+      </div>
+
+      <div class="bb-pay-grid">
+        <div class="card pad stack" style="gap:12px">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <b>01 · Пополнение баланса и статусы эскроу</b>
+            <span class="bb-spec-pill">${initialDone ? "Повторное от 100 ₽" : "Старт от 5 000 ₽"}</span>
+          </div>
+
+          <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
+            <span class="small muted">Порог пополнения:</span>
+            <div class="hh-seg" role="group" aria-label="Режим порога пополнения">
+              <button type="button" data-a="bb-pay-threshold" data-v="initial" aria-pressed="${!initialDone}">Первый депозит ≥ 5 000 ₽</button>
+              <button type="button" data-a="bb-pay-threshold" data-v="repeat" aria-pressed="${initialDone}">Повторный ≥ 100 ₽</button>
+            </div>
+          </div>
+
+          <div class="row" style="gap:6px;flex-wrap:wrap" role="group" aria-label="Способ оплаты">
+            ${methodLabels.map(([mid, mlbl]) => `<button type="button" class="chip-btn${payMethod === mid ? " on" : ""}" data-a="bb-pay-method" data-v="${mid}">${esc(mlbl)}</button>`).join("")}
+          </div>
+
+          <div class="bb-pay-state-box">
+            <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
+              <span class="bb-tbl-st ${stateMeta.cls}">${esc(stateMeta.badge)}</span>
+              <div class="row" style="gap:5px;flex-wrap:wrap" role="group" aria-label="Состояние эскроу">
+                <button type="button" class="chip-btn${payState === "frozen" ? " on" : ""}" data-a="bb-pay-state" data-v="frozen">Frozen</button>
+                <button type="button" class="chip-btn${payState === "captured" ? " on" : ""}" data-a="bb-pay-state" data-v="captured">Captured (95% / 5%)</button>
+                <button type="button" class="chip-btn${payState === "refunded" ? " on" : ""}" data-a="bb-pay-state" data-v="refunded">Refunded (100%)</button>
+              </div>
+            </div>
+            <p class="small muted">${esc(stateMeta.desc)}</p>
+          </div>
+
+          <div class="bb-pay-split">
+            <div class="bb-pay-split-cell">
+              <span class="small muted">Ставка урока</span>
+              <b class="num">${lessonAmount.toLocaleString("ru-RU")} ₽</b>
+            </div>
+            <div class="bb-pay-split-cell">
+              <span class="small muted">На руки репетитору (95%)</span>
+              <b class="num" style="color:var(--confirm)">${tutorNet.toLocaleString("ru-RU")} ₽</b>
+            </div>
+            <div class="bb-pay-split-cell">
+              <span class="small muted">Комиссия 5%</span>
+              <b class="num">${serviceFee.toLocaleString("ru-RU")} ₽</b>
+            </div>
+          </div>
+
+          <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
+            <code class="small">EGE.payments.createTopupIntent({ amount: ${topupSample}, min: ${minTopup}, method: "${esc(payMethod)}" })</code>
+            <span class="bb-spec-pill confirm">сервисный сбор 5%</span>
+          </div>
+        </div>
+
+        <div class="card pad stack" style="gap:12px">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <b>02 · Выплаты преподавателю, чек НПД и закрепление баланса</b>
+            <span class="bb-spec-pill confirm">Мин. вывод 500 ₽</span>
+          </div>
+          <p class="small muted">Вывод средств на ${payMethod === "card" ? "Карту Мир" : "СБП"} от 500 ₽ без дополнительной комиссии — сервисный сбор 5% учитывается на этапе расчёта урока, а чек НПД формируется автоматически.</p>
+
+          <div class="bb-pay-dock-preview">
+            <div class="bb-pay-dock-card">
+              <span class="small muted">Desktop · Низ левого сайдбара</span>
+              <div class="row between" style="gap:8px;align-items:center">
+                <div class="stack" style="gap:2px">
+                  <span class="small muted">К выводу (95%)</span>
+                  <b class="num" style="font-size:18px;color:var(--confirm)">11 400 ₽</b>
+                </div>
+                <button type="button" class="btn confirm sm" data-a="bb-demo-toast">Вывести 95%</button>
+              </div>
+              <span class="small muted">Чек НПД · ${payMethod === "card" ? "Карта Мир ••4812" : "СБП +7 (914) 210-05-11"}</span>
+            </div>
+
+            <div class="bb-pay-dock-card">
+              <span class="small muted">Mobile · Справа в топбаре</span>
+              <div class="bb-pay-mobile-pill">
+                <span class="small num"><b>5 000 ₽</b></span>
+                <span class="bb-pay-plus-btn" aria-hidden="true">+</span>
+              </div>
+              <span class="small muted">Кнопка <code>+</code> 28 px без обрезания</span>
+            </div>
+          </div>
+
+          <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
+            <code class="small">EGE.payments.createPayoutIntent({ channel: "${payMethod === "card" ? "card" : "sbp"}", min: 500, receipt: "npd" })</code>
+            <span class="bb-spec-pill pro">95% / 5% · НПД</span>
+          </div>
+        </div>
+      </div>
+    </section>`;
+  }
+
+  function egeTimersSectionHTML(bb) {
+    const fallbackExams = [
+      { subject: "chem", name: "Химия", date: "2027-06-01" },
+      { subject: "rus", name: "Русский язык", date: "2027-06-04" },
+      { subject: "bio", name: "Биология", date: "2027-06-15" }
+    ];
+    const examsSource = (root.EGE && Array.isArray(root.EGE.exams) && root.EGE.exams.length)
+      ? root.EGE.exams
+      : fallbackExams;
+
+    const dateRu = {
+      "2027-06-01": "1 июня 2027",
+      "2027-06-04": "4 июня 2027",
+      "2027-06-15": "15 июня 2027"
+    };
+    const colorMap = { chem: "var(--chem)", rus: "var(--rus)", bio: "var(--bio)" };
+    const focusNote = {
+      chem: "Расчётные задачи 34 и ОВР блок",
+      rus: "Сочинение Задание 27 + орфоэпия",
+      bio: "Линии 27–28 · генетика и биосинтез"
+    };
+
+    const daysUntil = (iso) => {
+      const ts = Date.parse(String(iso || "") + "T09:00:00+09:00");
+      if (!Number.isFinite(ts)) return 198;
+      return Math.max(0, Math.ceil((ts - Date.now()) / 86400000));
+    };
+
+    const essayIdx = Number.isInteger(bb.essayOpenIdx) ? Math.max(0, Math.min(2, bb.essayOpenIdx)) : 0;
+    const essayTabs = [
+      {
+        label: "Фрагмент текста и позиция",
+        title: "Разбор сочинения ЕГЭ (Задание 27 · 21 / 22 б.)",
+        text: "«Истинное уважение к языку и природе Якутии начинается с ответственности перед памятью поколений: потеряв родное слово или хрупкую реку, человек теряет опору собственной культуры».",
+        note: "ИИ-рецензия: проблема сформулирована точно в первом абзаце, два примера-иллюстрации из текста связаны смысловой причинно-следственной связкой."
+      },
+      {
+        label: "Критерии К1–К10",
+        title: "Матрица баллов по критериям ФИПИ (21 / 22 б.)",
+        text: "Сильные стороны: речевая точность и чистая пунктуация (К6–К10 без потерь). Единственная точка роста до максимума 22/22 — уточнение логического перехода в 4-м абзаце.",
+        note: "Подсказка для ученика: добавь вводный мостик «Однако только знания фактов недостаточно...» перед выводом."
+      },
+      {
+        label: "Сравнение и шаг +1 балл",
+        title: "Доработка К5 и план на следующий пробник",
+        text: "Сдвиг по времени написания: 38 мин на чистовик. Для 22 / 22 б. рекомендуется перечитать связку между позицией автора и собственным аргументом.",
+        note: "Следующая проверка ИИ сохранит историю правок в /study и /stats."
+      }
+    ];
+    const activeEssay = essayTabs[essayIdx] || essayTabs[0];
+
+    const criteria = [
+      ["К1 Формулировка", "1 / 1", "confirm"],
+      ["К2 Комментарий", "3 / 3", "confirm"],
+      ["К3 Позиция автора", "1 / 1", "confirm"],
+      ["К4 Своя позиция", "1 / 1", "confirm"],
+      ["К5 Логика и связность", "1 / 2", "notif"],
+      ["К6–К10 Грамотность и речь", "14 / 14", "pro"]
+    ];
+
+    return `<section class="land-sec" id="bb-ege-timers" aria-label="Таймеры ЕГЭ-2027 и ИИ-проверка сочинения">
+      <div class="land-sec-head">
+        <div>
+          <div class="eyebrow">10 · ЕГЭ-2027 · Контрольные даты и Задание 27</div>
+          <h2 class="h2">Обратный отсчёт до экзаменов 2027, чекпоинт 1 февраля и разбор ИИ-сочинения</h2>
+        </div>
+        <span class="bb-spec-pill pro">21 / 22 б. · К1–К10</span>
+      </div>
+
+      <div class="bb-timer-grid">
+        ${examsSource.slice(0, 3).map((ex) => {
+          const sid = ex.subject || ex.id || "bio";
+          const dLeft = daysUntil(ex.date);
+          return `<div class="bb-timer-card" style="--subj-color:${colorMap[sid] || "var(--accent)"}">
+            <div class="row between" style="gap:8px">
+              <b>${esc(ex.name || sid)}</b>
+              <span class="bb-spec-pill num">${esc(dateRu[ex.date] || ex.date)}</span>
+            </div>
+            <div class="bb-timer-days num">${dLeft} дн.</div>
+            <span class="small muted">${esc(focusNote[sid] || "План подготовки и пробники ФИПИ")}</span>
+          </div>`;
+        }).join("")}
+      </div>
+
+      <div class="card pad row between" style="margin-top:12px;gap:10px;flex-wrap:wrap;align-items:center">
+        <div class="row" style="gap:10px;align-items:center;min-width:0">
+          <span class="bb-tbl-st is-info">Контрольная точка</span>
+          <b>Подача заявления на ЕГЭ до 1 февраля 2027</b>
+          <span class="small muted">Проверьте паспорт, СНИЛС и учётную запись Госуслуг заранее.</span>
+        </div>
+        <span class="bb-spec-pill num">Дедлайн: 01.02.2027</span>
+      </div>
+
+      <div class="bb-essay-box" style="margin-top:12px">
+        <div class="row between" style="gap:10px;flex-wrap:wrap;align-items:center">
+          <div>
+            <div class="eyebrow">Задание 27 · Русский язык · ИИ-проверка</div>
+            <h3 class="h3">${esc(activeEssay.title)}</h3>
+          </div>
+          <div class="hh-seg" role="group" aria-label="Вкладки разбора сочинения">
+            ${essayTabs.map((t, idx) => `<button type="button" data-a="bb-essay-tab" data-idx="${idx}" data-v="${idx}" aria-pressed="${essayIdx === idx}">${esc(t.label)}</button>`).join("")}
+          </div>
+        </div>
+        <div class="bb-essay-excerpt">${esc(activeEssay.text)}</div>
+        <p class="small muted">${esc(activeEssay.note)}</p>
+        <div class="bb-essay-criteria">
+          ${criteria.map(([kName, kScore, kTone]) => `<div class="bb-essay-crit">
+            <span class="small muted">${esc(kName)}</span>
+            <b class="num" style="color:var(--${kTone})">${esc(kScore)}</b>
+          </div>`).join("")}
+        </div>
+      </div>
+    </section>`;
+  }
+
+  function a11ySectionHTML(bb) {
+    const reduced = !!bb.reducedMotion;
+    const focusCases = [
+      { cls: "is-primary", title: "Primary CTA", token: "2px solid var(--accent)", body: `<button type="button" class="btn sm bb-focus-target" tabindex="-1">Выбрать репетитора</button>` },
+      { cls: "is-sakha", title: "Sakha Gold", token: "2px solid var(--gold)", body: `<button type="button" class="btn sm sakha-pattern bb-focus-target" tabindex="-1">${icon("sakhaKun")}<span>Сөп · 1 200 ₽</span></button>` },
+      { cls: "is-input", title: "Input Focus", token: "3px var(--accent-soft)", body: `<input class="input bb-focus-target" type="text" value="Биология · Якутск" readonly aria-label="Демо фокуса инпута">` },
+      { cls: "is-error", title: "Error State", token: "3px var(--bad-soft)", body: `<input class="input bb-focus-target" type="text" value="Ниже минимума 5 000 ₽" aria-invalid="true" readonly aria-label="Демо ошибки инпута">` }
+    ];
+    const hotkeys = [
+      ["Esc", "Закрыть модальное окно, селект или сбросить поиск"],
+      ["← / →", "Шаг слайдера времени (10:00–20:00) и переключение графика"],
+      ["Tab / Shift+Tab", "Последовательный переход по элементам с :focus-visible"],
+      ["Enter / Space", "Активировать кнопку, подтвердить строку таблицы или свитч"]
+    ];
+
+    return `<section class="land-sec" id="bb-a11y" aria-label="Доступность: фокус-кольца, горячие клавиши и Reduced Motion">
+      <div class="land-sec-head">
+        <div>
+          <div class="eyebrow">11 · Accessibility (A11y) · :focus-visible · Клавиатура</div>
+          <h2 class="h2">Карта фокус-колец, горячие клавиши &lt;kbd&gt; и режим Reduced Motion</h2>
+        </div>
+        <button type="button" class="chip-btn${reduced ? " on" : ""}" data-a="bb-reduced-motion" aria-pressed="${reduced}">${reduced ? "Reduced Motion: ВКЛ ✓" : "Reduced Motion: ВЫКЛ"}</button>
+      </div>
+
+      <div class="card pad stack" style="gap:12px">
+        <div class="row between" style="gap:8px;flex-wrap:wrap">
+          <b>01 · Карта фокус-состояний (:focus-visible)</b>
+          <span class="bb-spec-pill confirm">WCAG AA · outline-offset 2 px</span>
+        </div>
+        <div class="bb-focus-map">
+          ${focusCases.map((fc) => `<div class="bb-focus-demo ${fc.cls}">
+            <div class="row between" style="gap:6px">
+              <b>${esc(fc.title)}</b>
+              <code class="small">${esc(fc.token)}</code>
+            </div>
+            <div>${fc.body}</div>
+          </div>`).join("")}
+        </div>
+      </div>
+
+      <div class="card pad stack" style="gap:10px;margin-top:12px">
+        <div class="row between" style="gap:8px;flex-wrap:wrap">
+          <b>02 · Шпаргалка горячих клавиш и управление анимациями</b>
+          <span class="small muted">Поддержка <code>prefers-reduced-motion: reduce</code> и <code>html.reduced-motion</code></span>
+        </div>
+        <div class="bb-kbd-grid">
+          ${hotkeys.map(([keys, desc]) => `<div class="bb-kbd-row">
+            <span class="small">${esc(desc)}</span>
+            <kbd class="bb-kbd">${esc(keys)}</kbd>
+          </div>`).join("")}
+        </div>
       </div>
     </section>`;
   }
@@ -1575,7 +1955,11 @@
       ["bb-study-states", "Учёба и состояния"],
       ["bb-market-app", "/market и сайдбар"],
       ["bb-cabinet", "Кабинет и баланс"],
+      ["bb-mask-trainer", "Маски контактов"],
       ["bb-data-viz", "Линия, Круг, Таблица"],
+      ["bb-payments", "Эквайринг и выплаты"],
+      ["bb-ege-timers", "Таймеры ЕГЭ и ИИ"],
+      ["bb-a11y", "Фокус и A11y"],
       ["bb-sliders", "Ползунки"],
       ["bb-layers", "Слои Z-index и статус"],
       ["bb-bounds", "Границы 390 px"],
@@ -1597,7 +1981,9 @@
           <a href="#bb-market-app" data-a="land-scroll" data-target="bb-market-app">/market</a>
           <a href="#bb-cabinet" data-a="land-scroll" data-target="bb-cabinet">Кабинет</a>
           <a href="#bb-data-viz" data-a="land-scroll" data-target="bb-data-viz">Графики и таблица</a>
-          <a href="#bb-sliders" data-a="land-scroll" data-target="bb-sliders">Ползунки</a>
+          <a href="#bb-payments" data-a="land-scroll" data-target="bb-payments">Оплата</a>
+          <a href="#bb-ege-timers" data-a="land-scroll" data-target="bb-ege-timers">ЕГЭ-2027</a>
+          <a href="#bb-a11y" data-a="land-scroll" data-target="bb-a11y">A11y</a>
           <a href="#bb-dodont" data-a="land-scroll" data-target="bb-dodont">Правила</a>
         </nav>
         <div class="land-top-actions">
@@ -1827,9 +2213,15 @@
 
       ${showSec("bb-market-app") ? marketAndAppSectionHTML(bb) : ""}
 
-      ${showSec("bb-cabinet") ? cabinetAndBalanceSectionHTML(bb) : ""}
+      ${(showSec("bb-cabinet") || showSec("bb-mask-trainer")) ? cabinetAndBalanceSectionHTML(bb) : ""}
 
       ${showSec("bb-data-viz") ? dataVizSectionHTML(bb) : ""}
+
+      ${showSec("bb-payments") ? paymentsSectionHTML(bb) : ""}
+
+      ${showSec("bb-ege-timers") ? egeTimersSectionHTML(bb) : ""}
+
+      ${showSec("bb-a11y") ? a11ySectionHTML(bb) : ""}
 
       ${showSec("bb-sliders") ? `<section class="land-sec" id="bb-sliders">
         <div class="land-sec-head">

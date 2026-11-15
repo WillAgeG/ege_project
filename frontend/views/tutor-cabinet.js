@@ -147,6 +147,15 @@
     return typeof fn === "function" ? fn(raw) : String(raw || "");
   }
 
+  const MIN_PAYOUT_RUB = 500;
+  const PAYOUT_BANKS = ["Сбербанк", "Т-Банк", "Альфа-Банк", "ВТБ", "АЭБ (Алмазэргиэнбанк)"];
+
+  function formatCardMask(raw) {
+    const digits = String(raw || "").replace(/\D+/g, "").slice(0, 16);
+    if (!digits) return "";
+    return digits.replace(/(\d{4})(?=\d)/g, "$1 ").trim();
+  }
+
   function normalizeChannelList(arr) {
     const allowed = new Set(["wa", "tg", "max"]);
     const list = Array.isArray(arr) ? arr.filter((x) => allowed.has(x)) : [];
@@ -247,7 +256,28 @@
         "0": ["11:00", "15:00"]
       },
       requests: DEFAULT_REQUESTS.map((r) => Object.assign({}, r)),
-      students: DEFAULT_STUDENTS.map((s) => Object.assign({}, s))
+      students: DEFAULT_STUDENTS.map((s) => Object.assign({}, s)),
+      payoutSettings: {
+        method: "sbp",
+        bank: "АЭБ (Алмазэргиэнбанк)",
+        phone: "+7 (914) 210-01-99",
+        card: "2200 7004 8210 4419",
+        npdReceipt: true
+      },
+      payouts: [
+        {
+          id: "out-seed-1",
+          createdAtLabel: "10 нояб., 18:20",
+          amount: 4500,
+          method: "sbp",
+          methodLabel: "СБП · АЭБ (Алмазэргиэнбанк)",
+          destination: "+7 (914) 210-01-99",
+          npdReceipt: true,
+          fee: 0,
+          status: "succeeded",
+          statusLabel: "Исполнено ✓"
+        }
+      ]
     };
   }
 
@@ -299,6 +329,28 @@
             return merged;
           })
         : def.students;
+      const rawPs = saved.payoutSettings && typeof saved.payoutSettings === "object" ? saved.payoutSettings : {};
+      _cache.payoutSettings = {
+        method: rawPs.method === "card" ? "card" : "sbp",
+        bank: String(rawPs.bank || def.payoutSettings.bank),
+        phone: formatPhone(rawPs.phone) || def.payoutSettings.phone,
+        card: formatCardMask(rawPs.card) || def.payoutSettings.card,
+        npdReceipt: rawPs.npdReceipt !== undefined ? !!rawPs.npdReceipt : def.payoutSettings.npdReceipt
+      };
+      _cache.payouts = Array.isArray(saved.payouts)
+        ? saved.payouts.filter(Boolean).map((item, idx) => Object.assign({
+            id: "out-" + (idx + 1),
+            createdAtLabel: "Сегодня",
+            amount: 0,
+            method: "sbp",
+            methodLabel: "СБП",
+            destination: _cache.payoutSettings.phone,
+            npdReceipt: true,
+            fee: 0,
+            status: "succeeded",
+            statusLabel: "Исполнено ✓"
+          }, item))
+        : def.payouts.map((p) => Object.assign({}, p));
     } else {
       _cache = def;
     }
@@ -1240,6 +1292,393 @@
     </div>`;
   }
 
+  function getWalletSummary() {
+    const st = tState();
+    const TDATA = getTDATA();
+    const p = st.profile || {};
+    const rate = Number(p.price) || 1200;
+    const baseSplit = TDATA && typeof TDATA.commissionSplit === "function"
+      ? TDATA.commissionSplit(rate)
+      : { total: rate, fee: Math.round(rate * 0.05), payout: rate - Math.round(rate * 0.05), pct: 5 };
+    const allReqs = syncedRequests(st);
+    const acceptedList = allReqs.filter((r) => r.status === "accepted");
+    const studentsDoneLessons = (st.students || []).reduce((sum, s) => sum + (Number(s.lessonsDone) || 0), 0);
+    const earnedTotal = studentsDoneLessons * (Number(baseSplit && baseSplit.payout) || 0);
+    const escrowRub = acceptedList.reduce((sum, r) => {
+      const reqRate = Number(r.counterPrice || r.offerPrice) || rate;
+      const sp = TDATA && typeof TDATA.commissionSplit === "function"
+        ? TDATA.commissionSplit(reqRate)
+        : { payout: reqRate - Math.round(reqRate * 0.05) };
+      return sum + (Number(sp && sp.payout) || 0);
+    }, 0);
+    const payouts = Array.isArray(st.payouts) ? st.payouts : [];
+    const withdrawnTotal = payouts.reduce((sum, item) => {
+      if (!item) return sum;
+      const status = String(item.status || "succeeded");
+      if (status !== "succeeded" && status !== "processing") return sum;
+      return sum + Math.max(0, Number(item.amount) || 0);
+    }, 0);
+    const availableRub = Math.max(0, earnedTotal - withdrawnTotal);
+    return {
+      availableRub,
+      escrowRub,
+      earnedTotal,
+      withdrawnTotal,
+      minPayout: MIN_PAYOUT_RUB,
+      settings: st.payoutSettings || defaultState().payoutSettings,
+      payouts
+    };
+  }
+
+  function desktopDockHTML() {
+    const summary = getWalletSummary();
+    return `<div class="tutor-bal-dock" role="region" aria-label="Баланс преподавателя">
+      <span class="tutor-bal-ico" aria-hidden="true">${icon("wallet")}</span>
+      <div class="tutor-bal-meta">
+        <span class="tutor-bal-lbl">Баланс преподавателя</span>
+        <div class="tutor-bal-val">
+          <b class="num">${summary.availableRub.toLocaleString("ru-RU")} ₽</b>
+          <span class="tutor-bal-escrow num">в резерве ${summary.escrowRub.toLocaleString("ru-RU")} ₽</span>
+        </div>
+      </div>
+      <button type="button" class="btn sm confirm" data-a="tc-payout-open">Вывести</button>
+    </div>`;
+  }
+
+  function mobileTopWidgetHTML() {
+    const summary = getWalletSummary();
+    return `<div class="top-bal-wrap">
+      <button type="button" class="top-bal-pill is-funded is-tutor" data-a="tc-payout-open" title="Баланс и вывод средств">${icon("wallet")}<b class="num">${summary.availableRub.toLocaleString("ru-RU")} ₽</b></button>
+      <button type="button" class="top-bal-btn is-payout" data-a="tc-payout-open" aria-label="Вывести средства" title="Вывести средства">${icon("upload")}<span>Вывести</span></button>
+    </div>`;
+  }
+
+  function payoutModalHTML(modalUi) {
+    if (modalUi === null || modalUi === false) return "";
+    const summary = getWalletSummary();
+    const s = summary.settings || defaultState().payoutSettings;
+    const raw = modalUi && typeof modalUi === "object" ? modalUi : {};
+    const defaultAmount = summary.availableRub >= summary.minPayout
+      ? Math.min(summary.availableRub, 3000)
+      : summary.availableRub;
+    const hasCustomAmount = raw.amount !== undefined && raw.amount !== null && raw.amount !== "";
+    const amountNum = hasCustomAmount
+      ? Math.max(0, Math.round(Number(raw.amount) || 0))
+      : (raw.amount === "" ? 0 : defaultAmount);
+    const inputVal = raw.amount === "" ? "" : String(amountNum);
+    const method = (raw.method === "card" || (!raw.method && s.method === "card")) ? "card" : "sbp";
+    const bank = String(raw.bank || s.bank || PAYOUT_BANKS[4]);
+    const phone = formatPhone(raw.phone !== undefined ? raw.phone : s.phone) || String(raw.phone !== undefined ? raw.phone : (s.phone || ""));
+    const card = formatCardMask(raw.card !== undefined ? raw.card : s.card) || String(raw.card !== undefined ? raw.card : (s.card || ""));
+    const npdReceipt = raw.npdReceipt !== undefined ? !!raw.npdReceipt : !!s.npdReceipt;
+    const errorMsg = raw.error ? String(raw.error) : "";
+    const canSubmit = summary.availableRub >= summary.minPayout;
+    const bankList = PAYOUT_BANKS.includes(bank) ? PAYOUT_BANKS : [bank].concat(PAYOUT_BANKS);
+    const chips = [
+      { val: 1000, label: "1 000 ₽" },
+      { val: 3000, label: "3 000 ₽" },
+      { val: 5000, label: "5 000 ₽" },
+      { val: summary.availableRub, label: `Вся сумма (${summary.availableRub.toLocaleString("ru-RU")} ₽)` }
+    ];
+
+    return `<div class="modal-back">
+      <div class="modal-card stack" role="dialog" aria-modal="true" aria-labelledby="tc-payout-title" style="gap:14px;max-width:540px">
+        <div class="row between" style="gap:10px;align-items:flex-start">
+          <div>
+            <div class="eyebrow">Выплаты преподавателям</div>
+            <h2 class="h2" id="tc-payout-title">Вывод средств преподавателя</h2>
+          </div>
+          <button type="button" class="icon-btn" data-a="tc-payout-close" aria-label="Закрыть">${icon("x")}</button>
+        </div>
+
+        <div class="wallet-bar tc-payout-wallet">
+          <div class="stack" style="gap:3px;min-width:0">
+            <span class="small muted">Доступно к выводу</span>
+            <b class="num" style="font-size:22px;line-height:1.15">${summary.availableRub.toLocaleString("ru-RU")} ₽</b>
+            <span class="small muted">95% после 5% комиссии сервиса</span>
+          </div>
+          <span class="chip confirm num">В резерве: ${summary.escrowRub.toLocaleString("ru-RU")} ₽</span>
+        </div>
+
+        <div class="hh-seg" role="group" aria-label="Способ получения средств">
+          <button type="button" data-a="tc-payout-method" data-v="sbp" aria-pressed="${method === "sbp"}">СБП · 0 ₽ (мгновенно)</button>
+          <button type="button" data-a="tc-payout-method" data-v="card" aria-pressed="${method === "card"}">Карта РФ / Мир</button>
+        </div>
+
+        <form data-f="tc-payout" class="stack" style="gap:12px" novalidate>
+          ${method === "sbp"
+            ? `<div class="tc-payout-grid">
+                <div class="field">
+                  <label class="small muted" for="tc-payout-bank">Банк СБП</label>
+                  <select class="input" id="tc-payout-bank" name="bank" data-tc-payout="bank">
+                    ${bankList.map((b) => `<option value="${esc(b)}"${bank === b ? " selected" : ""}>${esc(b)}</option>`).join("")}
+                  </select>
+                </div>
+                <div class="field">
+                  <label class="small muted" for="tc-payout-phone">Телефон для СБП</label>
+                  <input class="input" id="tc-payout-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+7 (914) 210-01-99" value="${esc(phone)}" data-tc-payout="phone">
+                </div>
+              </div>`
+            : `<div class="field">
+                <label class="small muted" for="tc-payout-card">Номер карты РФ / Мир</label>
+                <input class="input num" id="tc-payout-card" name="card" type="text" inputmode="numeric" maxlength="19" placeholder="2200 7004 8210 4419" value="${esc(card)}" data-tc-payout="card">
+              </div>`}
+
+          <div class="stack" style="gap:8px">
+            <div class="row between" style="gap:8px;flex-wrap:wrap">
+              <label class="small muted" for="tc-payout-amount">Сумма вывода, ₽</label>
+              <span class="small muted num">Минимум ${summary.minPayout.toLocaleString("ru-RU")} ₽</span>
+            </div>
+            <div class="chip-rail swipe" role="group" aria-label="Быстрый выбор суммы">
+              ${chips.map((c) => `<button type="button" class="chip-btn${Number(amountNum) === c.val ? " on" : ""}" data-a="tc-payout-chip" data-v="${c.val}">${esc(c.label)}</button>`).join("")}
+            </div>
+            <input class="input num" id="tc-payout-amount" name="amount" type="number" min="${summary.minPayout}" max="${Math.max(summary.minPayout, summary.availableRub)}" step="100" value="${esc(inputVal)}" data-tc-payout="amount">
+          </div>
+
+          <label class="tc-payout-npd">
+            <div class="stack" style="gap:2px;min-width:0">
+              <b>Сформировать чек самозанятого (НПД · 4–6%)</b>
+              <span class="small muted">Автоматическая передача чека в «Мой налог» после зачисления</span>
+            </div>
+            <input type="checkbox" name="npdReceipt" data-a="tc-payout-npd" data-tc-payout="npdReceipt"${npdReceipt ? " checked" : ""}>
+          </label>
+
+          ${errorMsg ? `<div class="tc-payout-err" role="alert">${esc(errorMsg)}</div>` : ""}
+          ${!canSubmit && !errorMsg ? `<div class="small muted">Минимальный доступный остаток для вывода — ${summary.minPayout.toLocaleString("ru-RU")} ₽.</div>` : ""}
+
+          <div class="row between" style="gap:10px;flex-wrap:wrap">
+            <button type="button" class="btn ghost" data-a="tc-payout-close">Отмена</button>
+            <button type="submit" class="btn confirm"${canSubmit ? "" : " disabled"}>Вывести ${amountNum.toLocaleString("ru-RU")} ₽</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  }
+
+  function submitPayout(modalUi, payload) {
+    const st = tState();
+    const summary = getWalletSummary();
+    const src = Object.assign({}, summary.settings || {}, modalUi || {}, payload || {});
+    const method = src.method === "card" ? "card" : "sbp";
+    const bank = String(src.bank || (summary.settings && summary.settings.bank) || PAYOUT_BANKS[4]).trim() || PAYOUT_BANKS[4];
+    const phoneFormatted = formatPhone(src.phone || "");
+    const cardFormatted = formatCardMask(src.card || "");
+    const npdReceipt = src.npdReceipt !== undefined ? !!src.npdReceipt : true;
+
+    const fallbackAmount = summary.availableRub >= summary.minPayout
+      ? Math.min(summary.availableRub, 3000)
+      : summary.availableRub;
+    const rawAmount = src.amount === undefined
+      ? fallbackAmount
+      : (src.amount === "" || src.amount === null ? 0 : Number(src.amount));
+    const amount = Math.round(Number.isFinite(rawAmount) ? rawAmount : 0);
+
+    if (!Number.isFinite(amount) || amount < summary.minPayout) {
+      return { ok: false, error: `Минимальная сумма вывода — ${summary.minPayout.toLocaleString("ru-RU")} ₽.` };
+    }
+    if (amount > summary.availableRub) {
+      return {
+        ok: false,
+        error: summary.availableRub < summary.minPayout
+          ? `Доступно к выводу ${summary.availableRub.toLocaleString("ru-RU")} ₽ (минимум ${summary.minPayout.toLocaleString("ru-RU")} ₽).`
+          : `Доступно к выводу не более ${summary.availableRub.toLocaleString("ru-RU")} ₽.`
+      };
+    }
+
+    let destination = "";
+    let methodLabel = "";
+    if (method === "sbp") {
+      const phoneRaw = phoneFormatted || src.phone || "";
+      const phoneDigits = (EGE.kit && typeof EGE.kit.normalizePhoneDigits === "function")
+        ? EGE.kit.normalizePhoneDigits(phoneRaw)
+        : String(phoneRaw).replace(/\D+/g, "");
+      if (phoneDigits.length < 11) {
+        return { ok: false, error: "Укажите корректный телефон для СБП (+7 (XXX) XXX-XX-XX)." };
+      }
+      destination = phoneFormatted || formatPhone(phoneDigits);
+      methodLabel = `СБП · ${bank}`;
+    } else {
+      const cardDigits = String(cardFormatted || src.card || "").replace(/\D+/g, "");
+      if (cardDigits.length < 16) {
+        return { ok: false, error: "Введите 16-значный номер банковской карты РФ / Мир." };
+      }
+      destination = cardFormatted || formatCardMask(cardDigits);
+      methodLabel = `Карта ···· ${cardDigits.slice(-4)}`;
+    }
+
+    let intent = null;
+    if (EGE.payments && typeof EGE.payments.createPayoutIntent === "function") {
+      intent = EGE.payments.createPayoutIntent({
+        amount,
+        method,
+        bank,
+        phone: destination,
+        card: method === "card" ? destination : cardFormatted,
+        destination,
+        npdReceipt
+      });
+    } else {
+      intent = {
+        id: "pout-" + Date.now(),
+        amount,
+        fee: 0,
+        method,
+        destination,
+        status: "succeeded"
+      };
+    }
+
+    const now = new Date();
+    const months = ["янв.", "февр.", "мар.", "апр.", "мая", "июн.", "июл.", "авг.", "сент.", "окт.", "нояб.", "дек."];
+    const hh = String(now.getHours()).padStart(2, "0");
+    const mm = String(now.getMinutes()).padStart(2, "0");
+    const createdAtLabel = `${now.getDate()} ${months[now.getMonth()]}, ${hh}:${mm}`;
+    const payoutStatus = (intent && intent.status) || "succeeded";
+
+    const payoutRow = {
+      id: (intent && intent.id) || ("out-" + Date.now()),
+      createdAtLabel,
+      amount,
+      method,
+      methodLabel,
+      destination,
+      npdReceipt,
+      fee: Number(intent && intent.fee) || 0,
+      status: payoutStatus,
+      statusLabel: payoutStatus === "processing" ? "В обработке" : "Исполнено ✓"
+    };
+
+    const prevSettings = st.payoutSettings || defaultState().payoutSettings;
+    st.payoutSettings = {
+      method,
+      bank,
+      phone: method === "sbp" ? destination : (formatPhone(src.phone) || prevSettings.phone),
+      card: method === "card" ? destination : (formatCardMask(src.card) || prevSettings.card),
+      npdReceipt
+    };
+    if (!Array.isArray(st.payouts)) st.payouts = [];
+    st.payouts.unshift(payoutRow);
+    saveState();
+
+    return {
+      ok: true,
+      intent,
+      payoutRow,
+      wallet: getWalletSummary()
+    };
+  }
+
+  function renderPayoutWalletSection(wallet) {
+    const s = wallet.settings || defaultState().payoutSettings;
+    const reqLabel = s.method === "card"
+      ? `Карта ···· ${String(s.card || "").replace(/\D+/g, "").slice(-4) || "4419"}`
+      : `СБП · ${s.bank || "АЭБ (Алмазэргиэнбанк)"} (${s.phone || "+7 (914) 210-01-99"})`;
+    return `<section class="card stack" style="gap:12px" aria-label="Баланс и вывод средств">
+      <div class="tc-payout-wallet">
+        <div class="stack" style="gap:4px;min-width:0;flex:1 1 260px">
+          <div class="eyebrow">Кошелёк преподавателя</div>
+          <h2 class="h2">Баланс и вывод средств</h2>
+          <p class="small muted">Реквизиты по умолчанию: <b class="ink2">${esc(reqLabel)}</b> · ${s.npdReceipt ? "чек НПД (4–6%) вкл." : "без чека НПД"}</p>
+        </div>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <button type="button" class="btn confirm" data-a="tc-payout-open"${wallet.availableRub < wallet.minPayout ? " disabled" : ""}>${icon("wallet")}<span>Вывести средства</span></button>
+        </div>
+      </div>
+      <div class="tc-payout-kpis">
+        <div class="tc-payout-kpi">
+          <span class="small muted">Доступно к выводу</span>
+          <b class="num" style="color:var(--confirm)">${wallet.availableRub.toLocaleString("ru-RU")} ₽</b>
+        </div>
+        <div class="tc-payout-kpi">
+          <span class="small muted">В резерве до урока</span>
+          <b class="num">${wallet.escrowRub.toLocaleString("ru-RU")} ₽</b>
+        </div>
+        <div class="tc-payout-kpi">
+          <span class="small muted">Уже выведено</span>
+          <b class="num">${wallet.withdrawnTotal.toLocaleString("ru-RU")} ₽</b>
+        </div>
+      </div>
+    </section>`;
+  }
+
+  function renderPayoutHistorySection(wallet) {
+    const list = Array.isArray(wallet.payouts) ? wallet.payouts : [];
+    const dataTableFn = EGE.charts && typeof EGE.charts.dataTableHTML === "function" ? EGE.charts.dataTableHTML : null;
+    let bodyHtml = "";
+    if (!list.length) {
+      bodyHtml = `<div class="empty"><b>Выводов пока не было</b><span>Нажмите «Вывести средства», чтобы перевести доступный остаток на СБП или карту РФ.</span></div>`;
+    } else if (dataTableFn) {
+      bodyHtml = dataTableFn({
+        id: "tc-payout-history",
+        cardWrap: false,
+        showPresetSwitch: false,
+        showColsSwitch: false,
+        showSearch: false,
+        eyebrow: "",
+        title: "",
+        rows: list,
+        columns: [
+          { key: "createdAtLabel", label: "Дата", num: true, render: (row) => `<span class="num">${esc(row.createdAtLabel || "—")}</span>` },
+          { key: "methodLabel", label: "Способ", render: (row) => `<b>${esc(row.methodLabel || "СБП")}</b>` },
+          {
+            key: "destination",
+            label: "Реквизиты и чек",
+            render: (row) => `<div class="row" style="gap:6px;flex-wrap:wrap"><span class="num">${esc(row.destination || "—")}</span>${row.npdReceipt ? '<span class="chip good">Чек НПД</span>' : '<span class="chip">Без НПД</span>'}</div>`
+          },
+          { key: "amount", label: "Сумма", num: true, render: (row) => `<b class="num">${Number(row.amount || 0).toLocaleString("ru-RU")} ₽</b>` },
+          {
+            key: "status",
+            label: "Статус",
+            render: (row) => `<span class="bb-tbl-st ${row.status === "processing" ? "is-pending" : "is-confirmed"}">${esc(row.statusLabel || "Исполнено ✓")}</span>`
+          }
+        ]
+      });
+    } else {
+      bodyHtml = `<div class="bb-table-shell">
+        <div class="table-wrap">
+          <table class="tbl bb-data-table is-adaptive tc-payout-table">
+            <thead>
+              <tr>
+                <th>Дата</th>
+                <th>Способ</th>
+                <th>Реквизиты и чек</th>
+                <th>Сумма</th>
+                <th>Статус</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${list.map((row) => `<tr>
+                <td data-label="Дата" class="num">${esc(row.createdAtLabel || "—")}</td>
+                <td data-label="Способ"><b>${esc(row.methodLabel || "СБП")}</b></td>
+                <td data-label="Реквизиты и чек">
+                  <div class="row" style="gap:6px;flex-wrap:wrap">
+                    <span class="num">${esc(row.destination || "—")}</span>
+                    ${row.npdReceipt ? '<span class="chip good">Чек НПД</span>' : '<span class="chip">Без НПД</span>'}
+                  </div>
+                </td>
+                <td data-label="Сумма"><b class="num">${Number(row.amount || 0).toLocaleString("ru-RU")} ₽</b></td>
+                <td data-label="Статус"><span class="bb-tbl-st is-confirmed">${esc(row.statusLabel || "Исполнено ✓")}</span></td>
+              </tr>`).join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+    }
+    return `<section class="card stack" style="gap:12px" aria-label="История выводов средств">
+      <div class="row between" style="gap:10px;flex-wrap:wrap">
+        <div>
+          <div class="eyebrow">Операции по счёту</div>
+          <h2 class="h2">История выводов средств</h2>
+        </div>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <span class="chip num">${list.length} ${plural(list.length, "выплата", "выплаты", "выплат")}</span>
+          <button type="button" class="btn soft sm" data-a="tc-payout-open">${icon("upload")}<span>Новый вывод</span></button>
+        </div>
+      </div>
+      ${bodyHtml}
+    </section>`;
+  }
+
   function viewPayouts() {
     ensureCountdownTimer();
     const TDATA = getTDATA();
@@ -1260,6 +1699,7 @@
     const netIncomeTotal = (studentsDoneLessons * baseSplit.payout) + totalReqPayout;
     const monthEarned = Math.max(netIncomeTotal, (acceptedList.length + 4) * 4 * baseSplit.payout);
     const mRem = manualBumpRemainingMs(st);
+    const wallet = getWalletSummary();
 
     return `
       <div class="head">
@@ -1303,6 +1743,8 @@
         </div>
       </div>
 
+      ${renderPayoutWalletSection(wallet)}
+
       ${renderPayoutStatsBlocks(st, TDATA, allReqs, acceptedList, netIncomeTotal)}
 
       <section class="card stack" style="gap:12px" aria-label="Условия выплат и сервисный сбор 5%">
@@ -1315,7 +1757,9 @@
         </div>
         <div class="bid-fee-row">${feeSplitHTML(p.price, TDATA)}</div>
         <p class="small muted">Средства ученика замораживаются до урока и переводятся преподавателю сразу после проведения занятия (95% на руки, 5% — сервис и поддержка расписания).</p>
-      </section>`;
+      </section>
+
+      ${renderPayoutHistorySection(wallet)}`;
   }
 
   function renderStudentsTab(st) {
@@ -2193,6 +2637,19 @@
       saveState();
       return true;
     }
+    if (el.dataset.tcPayout === "card" || el.id === "tc-payout-card") {
+      const masked = formatCardMask(el.value);
+      if (el.value !== masked) el.value = masked;
+      return false;
+    }
+    if (el.dataset.tcPayout === "phone" || el.id === "tc-payout-phone") {
+      const digits = String(el.value || "").replace(/\D+/g, "");
+      if (digits.length >= 10) {
+        const maskedPhone = formatPhone(el.value);
+        if (maskedPhone && el.value !== maskedPhone) el.value = maskedPhone;
+      }
+      return false;
+    }
     if (!el.dataset.tc) return false;
     const key = el.dataset.tc;
     const p = st.profile;
@@ -2390,6 +2847,12 @@
     closeMenus,
     viewCabinet,
     viewPayouts,
+    getWalletSummary,
+    desktopDockHTML,
+    mobileTopWidgetHTML,
+    payoutModalHTML,
+    submitPayout,
+    formatCardMask,
     handleAction,
     handleInput,
     handleFileInput,
