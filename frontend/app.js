@@ -838,12 +838,14 @@
     studySubj: "all",
     bug: null,
     booking: null,
+    balanceModal: null,
+    leadDraft: { subjects: ["chem"], subjMenuOpen: false, exam: "ЕГЭ", format: "Онлайн", targetPrice: 1000, scheduleNote: "", whatsapp: "", comment: "" },
     market: null,
     demo: { tab: "quiz", sid: firstSubject.id, qIdx: 0, pick: null, revealed: false, topicIdx: 0, bidRate: 1000, bidHour: "10:00" },
     motion: { playing: true, preset: "design", step: 0, slot: "10:00", offer: 1200, sent: false, clicking: false, hitTarget: "" },
     savings: { freq: 2, marketRate: 1350, offerRate: 1000 },
     bbModal: false,
-    brandbook: { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, vpWidth: 390, chipOn: true, sent: false, fav: true, switchVal: "online", pickedPlan: "month10k", quizOpt: 1, marketDemoAccepted: false, reducedMotion: false }
+    brandbook: { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, vpWidth: 390, chipOn: true, sent: false, fav: true, switchVal: "online", multiSubjs: ["bio", "chem"], multiMenuOpen: false, pickedPlan: "month10k", quizOpt: 1, marketDemoAccepted: false, reducedMotion: false }
   };
   const MARKET_LS_KEY = "vektor-ege:market";
   const TDATA = EGE.tutors || null;
@@ -991,7 +993,10 @@
             </div>
           </div>`
         : "";
-      main.innerHTML = `<div class="page">${resumeBar}${html}</div>`;
+      const desktopBalBar = (ui.role !== "tutor" && !["landing", "brandbook", "fees"].includes(ui.view))
+        ? `<div class="desktop-top-bar">${balanceTopWidgetHTML(false)}</div>`
+        : "";
+      main.innerHTML = `<div class="page">${desktopBalBar}${resumeBar}${html}</div>`;
     }
     $("#tip").hidden = true;
     if (!authGate) drawCharts();
@@ -1081,6 +1086,74 @@
   function activeFilterCount(st) { return EGE.views.marketplace.activeFilterCount(st); }
   function bookingModalHTML() { return EGE.views.marketplace.bookingModalHTML(); }
   function filterModalHTML() { return EGE.views.marketplace.filterModalHTML(); }
+  function balanceTopWidgetHTML(compact) {
+    const st = mkt();
+    const funded = (Number(st.balance) || 0) >= 5000;
+    return `<div class="top-bal-wrap" aria-label="Баланс ученика">
+      <button type="button" class="top-bal-pill${funded ? " is-funded" : ""}" data-a="bal-open" title="Баланс и тарифы">
+        ${icon("wallet")}
+        ${compact ? "" : `<span class="top-bal-lbl muted">Баланс:</span>`}
+        <b class="num">${st.balance.toLocaleString("ru-RU")} ₽</b>
+      </button>
+      <button type="button" class="top-bal-btn" data-a="bal-open">${icon("plus")}<span>Пополнить</span></button>
+    </div>`;
+  }
+  function balanceModalHTML() {
+    const bm = ui.balanceModal;
+    if (!bm) return "";
+    const st = mkt();
+    const minOk = (Number(st.balance) || 0) >= 5000;
+    const plans = (TDATA && TDATA.PLANS) || [];
+    const customVal = bm.customAmount != null ? String(bm.customAmount) : "5000";
+    return `<div class="modal-back" role="dialog" aria-modal="true" aria-labelledby="bal-modal-title">
+      <div class="modal-card">
+        <div class="modal-head">
+          <div class="row" style="gap:8px">${icon("wallet")}<b id="bal-modal-title">Баланс и пополнение</b></div>
+          <button type="button" class="icon-btn sm" data-a="bal-close" aria-label="Закрыть">${icon("x")}</button>
+        </div>
+        <div class="wallet-bar">
+          <div class="stack" style="gap:2px">
+            <span class="small muted">Текущий баланс ученика</span>
+            <span class="wallet-num num">${st.balance.toLocaleString("ru-RU")} ₽</span>
+          </div>
+          <span class="chip ${minOk ? "confirm" : "gold"}">${minOk ? "✓ Порог 5 000 ₽ открыт" : "Нужно от 5 000 ₽"}</span>
+        </div>
+        ${bm.reason ? `<div class="notice warn"><b>Требуется минимум 5 000 ₽ на балансе</b><span class="small">${esc(bm.reason)}</span></div>` : `<p class="small ink2">Минимум <b>5 000 ₽</b> на счёте открывает запись на бесплатный пробный урок (0 ₽) и предложения цены. Средства не списываются до подтверждения преподавателя.</p>`}
+        <div class="stack" style="gap:8px">
+          <span class="label">Тарифы и быстрая оплата</span>
+          <div class="bal-plan-grid">
+            ${plans.map((p) => {
+              const picked = st.planId === p.id;
+              return `<div class="card pad stack" style="gap:8px;box-shadow:none${p.super ? ";border-color:var(--accent)" : ""}">
+                <div class="row between" style="gap:4px">
+                  <b class="small">${esc(p.name)}</b>
+                  <span class="chip ${p.super ? "accent" : (p.balance ? "gold" : "")}" style="font-size:11px">${esc(p.badge)}</span>
+                </div>
+                <b class="num" style="font-size:19px">${esc(p.priceLabel)}</b>
+                <span class="small muted">${esc(p.tagline)}</span>
+                ${p.balance > 0
+                  ? `<button type="button" class="btn ${p.super || p.featured ? "" : "soft"} sm" data-a="bal-topup-preset" data-amount="${p.balance}" data-plan="${esc(p.id)}">Пополнить +${p.balance.toLocaleString("ru-RU")} ₽</button>`
+                  : `<button type="button" class="btn soft sm" data-a="mkt-plan" data-id="free"${picked ? ' aria-current="true"' : ""}>${picked ? "Выбран" : "Базовый 0 ₽"}</button>`}
+              </div>`;
+            }).join("")}
+          </div>
+        </div>
+        <form class="stack" style="gap:10px" data-f="bal-custom">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <label for="bal-custom-amount" class="label">Любая другая сумма (₽)</label>
+            <div class="row" style="gap:6px;flex-wrap:wrap">
+              ${[2000, 5000, 10000, 15000].map((v) => `<button type="button" class="chip-btn" data-a="bal-chip" data-v="${v}">${v.toLocaleString("ru-RU")} ₽</button>`).join("")}
+            </div>
+          </div>
+          <div class="row" style="gap:8px;flex-wrap:wrap">
+            <input class="input num" id="bal-custom-amount" name="amount" type="number" min="100" max="200000" step="100" inputmode="numeric" value="${esc(customVal)}" placeholder="Например, 7500" style="flex:1 1 160px">
+            <button type="submit" class="btn">${icon("wallet")}<span>Пополнить счёт</span></button>
+          </div>
+          ${bm.error ? `<div class="small" style="color:var(--bad);font-weight:600">${esc(bm.error)}</div>` : ""}
+        </form>
+      </div>
+    </div>`;
+  }
   function authModalHTML() {
     if (!ui.authModal) return "";
     return `<div class="modal-back" role="dialog" aria-modal="true" aria-label="Вход в аккаунт">
@@ -1146,6 +1219,7 @@
       if (nc && savedCardTop) nc.scrollTop = savedCardTop;
     };
     if (ui.authModal) { root.innerHTML = authModalHTML(); restoreModalScroll(); return; }
+    if (ui.balanceModal) { root.innerHTML = balanceModalHTML(); restoreModalScroll(); return; }
     if (ui.filterModal) { root.innerHTML = filterModalHTML(); restoreModalScroll(); return; }
     if (ui.booking) { root.innerHTML = bookingModalHTML(); restoreModalScroll(); return; }
     if (ui.tutorApplyModal) { root.innerHTML = tutorApplyModalHTML(); restoreModalScroll(); return; }
@@ -1246,9 +1320,9 @@
     const nm = (store.user ? (prof.name || store.user.displayName || store.user.username) : "") || prof.name || (me && me.name) || (store.mode === "local" ? (store.backend ? "Гость" : "Этот браузер") : "");
     const dark = effectiveDark();
     const themeLabel = dark ? "Светлая тема" : "Тёмная тема";
-    $("#side-foot").innerHTML = `<div class="hh-seg" role="group" aria-label="Роль на платформе" style="margin-bottom:2px">
+    $("#side-foot").innerHTML = `<div class="hh-seg equal side-role-seg" role="group" aria-label="Роль на платформе" style="margin-bottom:2px">
         <button type="button" data-a="role-set" data-role="student" aria-pressed="${!isTutor}">Ученик</button>
-        <button type="button" data-a="role-set" data-role="tutor" aria-pressed="${isTutor}">Препод</button>
+        <button type="button" data-a="role-set" data-role="tutor" aria-pressed="${isTutor}">Преподаватель</button>
       </div>
       <div class="side-user">
         <div class="me">${avatarHTML(me && me.avatarUrl, nm, false)}<div style="min-width:0"><div class="me-name">${esc(nm)}</div><span class="sync" hidden><i></i><span></span></span></div></div>
@@ -1292,6 +1366,16 @@
     }
     const topLogout = $("#top-logout");
     if (topLogout) topLogout.hidden = !(store.backend && store.user);
+    const topBal = $("#top-balance-slot");
+    if (topBal) {
+      if (isTutor) {
+        topBal.hidden = true;
+        topBal.innerHTML = "";
+      } else {
+        topBal.hidden = false;
+        topBal.innerHTML = balanceTopWidgetHTML(true);
+      }
+    }
     $("#tabbar").innerHTML = nav.map(([v, l, ic, cur, badge]) =>
       `<button type="button" class="tab-btn" data-a="go" data-v="${v}"${cur ? ' aria-current="page"' : ""}>${icon(ic)}<span>${esc(l)}</span>${badge ? `<i class="tab-badge">${badge}</i>` : ""}</button>`
     ).join("");
@@ -1428,7 +1512,7 @@
       ${a.error ? `<div class="notice">${esc(a.error)}</div>` : ""}
       <div class="auth-actions-row">
         <button class="btn" type="submit"${a.busy ? " disabled" : ""}>${a.busy ? "Подожди…" : reg ? "Создать аккаунт" : "Войти"}</button>
-        ${!reg ? `<button type="button" class="btn soft" data-a="auth-guest">${isTutor ? "Кабинет препода (демо)" : "Демо-вход ученика"}</button>` : ""}
+        ${!reg ? `<button type="button" class="btn soft" data-a="auth-guest">${isTutor ? "Кабинет преподавателя (демо)" : "Демо-вход ученика"}</button>` : ""}
       </div>
       <div class="auth-foot-row">
         <span class="small muted">${reg ? "Уже есть аккаунт?" : "Впервые на платформе?"}</span>
@@ -3610,6 +3694,7 @@
         st.balance = Math.max(0, plan.balance - reserved);
       }
       saveMkt();
+      if (ui.balanceModal) { ui.balanceModal = null; renderModal(); }
       if (plan.id === "free" && !store.user && !ui.guest) {
         ui.authModal = true;
         ui.auth.error = "";
@@ -3617,6 +3702,44 @@
         return;
       }
       toast(plan.balance ? `Подключён тариф «${plan.name}»: баланс ${st.balance.toLocaleString("ru-RU")} ₽` : "Выбран бесплатный тариф");
+      scheduleRender();
+    },
+    "bal-open": (el) => {
+      const reason = el && el.dataset && el.dataset.reason === "trial"
+        ? "Пополните счёт минимум на 5 000 ₽ — после этого можно бесплатно записаться на пробный урок (0 ₽)."
+        : "";
+      const pendingBooking = ui.booking ? Object.assign({}, ui.booking, { mode: "trial", offerPrice: 0 }) : null;
+      if (pendingBooking) ui.booking = null;
+      ui.balanceModal = { customAmount: 5000, error: "", reason, pendingBooking };
+      renderModal();
+    },
+    "bal-close": () => {
+      const pending = ui.balanceModal && ui.balanceModal.pendingBooking;
+      ui.balanceModal = null;
+      if (pending && (Number(mkt().balance) || 0) >= 5000) ui.booking = pending;
+      renderModal();
+    },
+    "bal-chip": (el) => {
+      if (!ui.balanceModal) return;
+      ui.balanceModal.customAmount = Math.max(100, Math.min(200000, Number(el.dataset.v) || 5000));
+      ui.balanceModal.error = "";
+      renderModal();
+    },
+    "bal-topup-preset": (el) => {
+      const st = mkt();
+      const amt = Math.max(100, Math.min(200000, Math.round(Number(el.dataset.amount) || 5000)));
+      st.balance = (Number(st.balance) || 0) + amt;
+      if (el.dataset.plan) st.planId = el.dataset.plan;
+      else if (st.balance >= 10000) st.planId = "month10k";
+      else if (st.balance >= 5000 && st.planId === "free") st.planId = "trial5k";
+      saveMkt();
+      const pending = ui.balanceModal && ui.balanceModal.pendingBooking;
+      ui.balanceModal = null;
+      if (pending && st.balance >= 5000) {
+        ui.booking = Object.assign({}, pending, { offerPrice: pending.mode === "trial" ? 0 : (pending.offerPrice || 1000) });
+      }
+      renderModal();
+      notifySide("Баланс пополнен", `+${amt.toLocaleString("ru-RU")} ₽ · на счёте ${st.balance.toLocaleString("ru-RU")} ₽`);
       scheduleRender();
     },
     "filter-open": () => { ui.filterModal = true; renderModal(); },
@@ -3708,8 +3831,97 @@
       const exam = st.exam !== "all" && tutor.exams.includes(st.exam) ? st.exam : tutor.exams[0];
       const format = st.format !== "all" && tutor.formats.includes(st.format) ? st.format : tutor.formats[0];
       const offerPrice = Math.max(500, tutor.minFair || (tutor.price - 200));
-      ui.booking = { tutorId: tutor.id, exam, format, dayIso: pickDay.iso, hour, offerPrice, note: "" };
+      ui.booking = { tutorId: tutor.id, mode: "paid", exam, format, dayIso: pickDay.iso, hour, offerPrice, note: "" };
       renderModal();
+    },
+    "trial-open": (el) => {
+      if (!TDATA) return;
+      const tutor = TDATA.LIST.find((x) => x.id === el.dataset.id);
+      if (!tutor) return;
+      const st = mkt();
+      const days = TDATA.buildCalendarDays(7);
+      const pickDay = (st.day !== "all" ? days.find((d) => d.iso === st.day) : null)
+        || days.find((d) => TDATA.tutorSlotsForDay(tutor, d.dow).length > 0)
+        || days[0];
+      const daySlots = TDATA.tutorSlotsForDay(tutor, pickDay.dow);
+      const wantedHour = el.dataset.hour || (st.hour !== "all" ? st.hour : "");
+      const hour = isValidHHMM(wantedHour) ? wantedHour : (daySlots[0] || "10:00");
+      const exam = st.exam !== "all" && tutor.exams.includes(st.exam) ? st.exam : tutor.exams[0];
+      const format = st.format !== "all" && tutor.formats.includes(st.format) ? st.format : tutor.formats[0];
+      const draft = { tutorId: tutor.id, mode: "trial", exam, format, dayIso: pickDay.iso, hour, offerPrice: 0, note: "" };
+      if ((Number(st.balance) || 0) < 5000) {
+        ui.balanceModal = {
+          customAmount: 5000,
+          error: "",
+          reason: "Для записи на бесплатный пробный урок (0 ₽) пополните баланс минимум на 5 000 ₽. Средства останутся на вашем счёте.",
+          pendingBooking: draft
+        };
+        renderModal();
+        return;
+      }
+      ui.booking = draft;
+      renderModal();
+    },
+    "book-mode": (el) => {
+      if (!ui.booking || !TDATA) return;
+      const mode = el.dataset.v === "trial" ? "trial" : "paid";
+      const st = mkt();
+      if (mode === "trial" && (Number(st.balance) || 0) < 5000) {
+        const pending = Object.assign({}, ui.booking, { mode: "trial", offerPrice: 0 });
+        ui.booking = null;
+        ui.balanceModal = {
+          customAmount: 5000,
+          error: "",
+          reason: "Пополните баланс минимум на 5 000 ₽ — после этого откроется бесплатный пробный урок (0 ₽).",
+          pendingBooking: pending
+        };
+        renderModal();
+        return;
+      }
+      const tutor = TDATA.LIST.find((x) => x.id === ui.booking.tutorId);
+      ui.booking.mode = mode;
+      ui.booking.offerPrice = mode === "trial" ? 0 : Math.max(500, (tutor && (tutor.minFair || tutor.price - 200)) || 1000);
+      renderModal();
+    },
+    "go-student-lead": () => {
+      if (ui.view !== "study") go("study");
+      ui.studyTab = "week";
+      scheduleRender(true);
+      if (typeof setTimeout === "function") setTimeout(() => scrollToEl("study-lead-card"), 40);
+    },
+    "lead-subj-toggle": () => {
+      if (!ui.leadDraft) ui.leadDraft = { subjects: ["chem"], subjMenuOpen: false, exam: "ЕГЭ", format: "Онлайн", targetPrice: 1000, whatsapp: "", comment: "" };
+      ui.leadDraft.subjMenuOpen = !ui.leadDraft.subjMenuOpen;
+      scheduleRender();
+    },
+    "lead-subj-pick": (el) => {
+      if (!ui.leadDraft) ui.leadDraft = { subjects: ["chem"], subjMenuOpen: false, exam: "ЕГЭ", format: "Онлайн", targetPrice: 1000, whatsapp: "", comment: "" };
+      const id = String(el.dataset.v || "").trim();
+      if (!id) return;
+      const list = Array.isArray(ui.leadDraft.subjects) ? ui.leadDraft.subjects.slice() : ["chem"];
+      const idx = list.indexOf(id);
+      if (idx >= 0) {
+        if (list.length <= 1) { toast("Должен остаться хотя бы один предмет"); return; }
+        list.splice(idx, 1);
+      } else {
+        list.push(id);
+      }
+      ui.leadDraft.subjects = list;
+      scheduleRender();
+    },
+    "lead-exam": (el) => {
+      if (!ui.leadDraft) ui.leadDraft = { subjects: ["chem"], subjMenuOpen: false, exam: "ЕГЭ", format: "Онлайн", targetPrice: 1000, whatsapp: "", comment: "" };
+      if (el.dataset.v) { ui.leadDraft.exam = el.dataset.v; scheduleRender(); }
+    },
+    "lead-format": (el) => {
+      if (!ui.leadDraft) ui.leadDraft = { subjects: ["chem"], subjMenuOpen: false, exam: "ЕГЭ", format: "Онлайн", targetPrice: 1000, whatsapp: "", comment: "" };
+      if (el.dataset.v) { ui.leadDraft.format = el.dataset.v; scheduleRender(); }
+    },
+    "lead-remove": (el) => {
+      if (!TDATA || typeof TDATA.removeStudentLead !== "function" || !el.dataset.id) return;
+      TDATA.removeStudentLead(el.dataset.id);
+      toast("Запрос снят с каталога преподавателей");
+      scheduleRender();
     },
     "book-close": () => { ui.booking = null; renderModal(); },
     "book-exam": (el) => { if (ui.booking && el.dataset.v) { ui.booking.exam = el.dataset.v; renderModal(); } },
@@ -3766,15 +3978,30 @@
       const b = ui.booking;
       const tutor = TDATA.LIST.find((x) => x.id === b.tutorId);
       if (!tutor) return;
+      const st = mkt();
+      const isTrial = b.mode === "trial";
+      if (isTrial && (Number(st.balance) || 0) < 5000) {
+        const pending = Object.assign({}, b, { mode: "trial", offerPrice: 0 });
+        ui.booking = null;
+        ui.balanceModal = {
+          customAmount: 5000,
+          error: "",
+          reason: "Пополните баланс минимум на 5 000 ₽ для записи на бесплатный пробный урок (0 ₽).",
+          pendingBooking: pending
+        };
+        renderModal();
+        return;
+      }
       const days = TDATA.buildCalendarDays(7);
       const dayObj = days.find((d) => d.iso === b.dayIso) || days[0];
       const daySlots = TDATA.tutorSlotsForDay(tutor, dayObj.dow);
       const hour = isValidHHMM(b.hour) ? b.hour : (daySlots[0] || "10:00");
-      const offerPrice = Math.max(500, Math.min(5000, Math.round(Number(b.offerPrice) || tutor.price)));
-      const feeSplit = typeof TDATA.commissionSplit === "function" ? TDATA.commissionSplit(offerPrice) : { total: offerPrice, fee: Math.round(offerPrice * 0.05), payout: offerPrice - Math.round(offerPrice * 0.05), pct: 5 };
-      const st = mkt();
+      const offerPrice = isTrial ? 0 : Math.max(500, Math.min(5000, Math.round(Number(b.offerPrice) || tutor.price)));
+      const feeSplit = isTrial
+        ? { total: 0, fee: 0, payout: 0, pct: 0 }
+        : (typeof TDATA.commissionSplit === "function" ? TDATA.commissionSplit(offerPrice) : { total: offerPrice, fee: Math.round(offerPrice * 0.05), payout: offerPrice - Math.round(offerPrice * 0.05), pct: 5 });
       let reserved = 0;
-      if (st.balance >= offerPrice) {
+      if (!isTrial && st.balance >= offerPrice) {
         reserved = offerPrice;
         st.balance -= reserved;
       }
@@ -3786,9 +4013,11 @@
         exam: b.exam || tutor.exams[0],
         format: b.format || tutor.formats[0],
         dayIso: dayObj.iso,
+        dow: dayObj.dow,
         dayLabel: dayObj.shortLabel,
         hour,
         offerPrice,
+        isTrial,
         fee: feeSplit.fee,
         payout: feeSplit.payout,
         tutorPrice: tutor.price,
@@ -3801,10 +4030,12 @@
       saveMkt();
       renderModal();
       notifySide(
-        "Предложение передано преподавателю",
-        reserved
-          ? `Ставка ${offerPrice.toLocaleString("ru-RU")} ₽/ч (${dayObj.shortLabel}, ${hour}) · зарезервировано ${reserved.toLocaleString("ru-RU")} ₽ · уведомим о подтверждении`
-          : `Ставка ${offerPrice.toLocaleString("ru-RU")} ₽/ч (${dayObj.shortLabel}, ${hour}) отправлена — уведомим о подтверждении`
+        isTrial ? "Заявка на пробный урок (0 ₽) отправлена" : "Предложение передано преподавателю",
+        isTrial
+          ? `${tutor.name} · ${dayObj.shortLabel}, ${hour} · с баланса списано 0 ₽`
+          : (reserved
+              ? `Ставка ${offerPrice.toLocaleString("ru-RU")} ₽/ч (${dayObj.shortLabel}, ${hour}) · зарезервировано ${reserved.toLocaleString("ru-RU")} ₽ · уведомим о подтверждении`
+              : `Ставка ${offerPrice.toLocaleString("ru-RU")} ₽/ч (${dayObj.shortLabel}, ${hour}) отправлена — уведомим о подтверждении`)
       );
       scheduleRender();
     },
@@ -4212,6 +4443,26 @@
       bb.subjMenuOpen = false;
       scheduleRender();
     },
+    "bb-multi-toggle": () => {
+      const bb = bbState();
+      bb.multiMenuOpen = !bb.multiMenuOpen;
+      scheduleRender();
+    },
+    "bb-multi-pick": (el) => {
+      const bb = bbState();
+      const id = String(el.dataset.v || "").trim();
+      if (!id) return;
+      const list = Array.isArray(bb.multiSubjs) ? bb.multiSubjs.slice() : ["bio", "chem"];
+      const idx = list.indexOf(id);
+      if (idx >= 0) {
+        if (list.length <= 1) { toast("Должен остаться хотя бы 1 предмет"); return; }
+        list.splice(idx, 1);
+      } else {
+        list.push(id);
+      }
+      bb.multiSubjs = list;
+      scheduleRender();
+    },
     "bb-preview-toast-close": () => {
       const box = typeof document.querySelector === "function" ? document.querySelector('[data-swipe-toast="preview"]') : null;
       if (box && box.classList) {
@@ -4591,6 +4842,59 @@
       scheduleRender();
       notifySide("Анкета принята на проверку", `${name} · ${subjName} · ${rate.toLocaleString("ru-RU")} ₽/ч — появится в каталоге сегодня`);
     },
+    "bal-custom": (form) => {
+      const bm = ui.balanceModal || (ui.balanceModal = { customAmount: 5000, error: "", reason: "", pendingBooking: null });
+      const rawEl = (form && form.elements && form.elements.amount) || $("#bal-custom-amount");
+      const raw = rawEl ? Number(rawEl.value) : Number(bm.customAmount);
+      if (!Number.isFinite(raw) || raw < 100) {
+        bm.error = "Введите сумму пополнения от 100 ₽.";
+        renderModal();
+        return;
+      }
+      const amt = Math.min(200000, Math.round(raw));
+      const st = mkt();
+      st.balance = (Number(st.balance) || 0) + amt;
+      if (st.balance >= 10000) st.planId = "month10k";
+      else if (st.balance >= 5000 && st.planId === "free") st.planId = "trial5k";
+      saveMkt();
+      const pending = bm.pendingBooking;
+      ui.balanceModal = null;
+      if (pending && st.balance >= 5000) {
+        ui.booking = Object.assign({}, pending, { offerPrice: pending.mode === "trial" ? 0 : (pending.offerPrice || 1000) });
+      }
+      renderModal();
+      notifySide("Баланс пополнен", `+${amt.toLocaleString("ru-RU")} ₽ · на счёте ${st.balance.toLocaleString("ru-RU")} ₽`);
+      scheduleRender();
+    },
+    "student-lead": (form) => {
+      if (!TDATA || typeof TDATA.addStudentLead !== "function") return;
+      const ld = ui.leadDraft || (ui.leadDraft = { subjects: ["chem"], subjMenuOpen: false, exam: "ЕГЭ", format: "Онлайн", targetPrice: 1000, whatsapp: "", comment: "" });
+      const priceEl = (form && form.elements && form.elements.targetPrice) || $("#lead-price");
+      const waEl = (form && form.elements && form.elements.whatsapp) || $("#lead-wa");
+      const cEl = (form && form.elements && form.elements.comment) || $("#lead-comment");
+      const targetPrice = Math.max(500, Math.min(5000, Math.round(Number(priceEl ? priceEl.value : ld.targetPrice) || 1000)));
+      const whatsapp = String((waEl ? waEl.value : ld.whatsapp) || "").trim();
+      const comment = String((cEl ? cEl.value : ld.comment) || "").trim();
+      const subjects = Array.isArray(ld.subjects) && ld.subjects.length ? ld.subjects.slice() : ["chem"];
+      const studentName = (store.user && store.user.name) || "Ученик (мой профиль)";
+      const lead = TDATA.addStudentLead({
+        subjects,
+        exam: ld.exam || "ЕГЭ",
+        format: ld.format || "Онлайн",
+        targetPrice,
+        whatsapp: whatsapp || "79142100500",
+        comment: comment || `Ищу преподавателя: ${(typeof TDATA.subjectNamesForIds === "function" ? TDATA.subjectNamesForIds(subjects).join(", ") : subjects.join(", "))}`,
+        studentName,
+        mine: true
+      });
+      ld.targetPrice = targetPrice;
+      ld.whatsapp = whatsapp;
+      ld.comment = "";
+      ld.subjMenuOpen = false;
+      const subjLbl = typeof TDATA.subjectNamesForIds === "function" ? TDATA.subjectNamesForIds(lead.subjects).join(" · ") : lead.subjects.join(", ");
+      notifySide("Запрос отправлен преподавателям", `${subjLbl} · до ${targetPrice.toLocaleString("ru-RU")} ₽/ч — преподаватели уже видят вас во вкладке «Ученики ищут»`);
+      scheduleRender();
+    },
     "hero-quick-go": (form) => {
       const qEl = (form && form.elements && form.elements.q) || $("#hero-banner-q");
       const val = String((qEl && qEl.value) || ui.heroQuickQ || "").trim();
@@ -4631,6 +4935,17 @@
       ui.brandbook.subjMenuOpen = false;
       changed = true;
     }
+    if (ui.brandbook && ui.brandbook.multiMenuOpen && (!target || typeof target.closest !== "function" || !target.closest("#bb-demo-multi"))) {
+      ui.brandbook.multiMenuOpen = false;
+      changed = true;
+    }
+    if (ui.leadDraft && ui.leadDraft.subjMenuOpen && (!target || typeof target.closest !== "function" || !target.closest("#lead-subjects"))) {
+      ui.leadDraft.subjMenuOpen = false;
+      changed = true;
+    }
+    if (EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.closeMenus === "function") {
+      if (EGE.views.tutorCabinet.closeMenus(target)) changed = true;
+    }
     if (ui.landMatch && ui.landMatch.menuOpen && (!target || typeof target.closest !== "function" || !target.closest("#land-match-select"))) {
       ui.landMatch.menuOpen = false;
       changed = true;
@@ -4645,7 +4960,7 @@
   document.addEventListener("click", (e) => {
     if (closeSelectMenus(e.target)) scheduleRender();
     if (e.target && e.target.classList && e.target.classList.contains("modal-back")) {
-      ui.bug = null; ui.booking = null; ui.authModal = false; ui.filterModal = false; ui.bbModal = false; ui.tutorApplyModal = false;
+      ui.bug = null; ui.booking = null; ui.authModal = false; ui.filterModal = false; ui.bbModal = false; ui.tutorApplyModal = false; ui.balanceModal = null;
       renderModal();
       return;
     }
@@ -4710,6 +5025,10 @@
       saveMkt();
       return;
     }
+    if (el.id === "bal-custom-amount") { if (ui.balanceModal) { ui.balanceModal.customAmount = el.value; ui.balanceModal.error = ""; } return; }
+    if (el.id === "lead-price") { if (ui.leadDraft) ui.leadDraft.targetPrice = Number(el.value) || 1000; return; }
+    if (el.id === "lead-wa") { if (ui.leadDraft) ui.leadDraft.whatsapp = el.value; return; }
+    if (el.id === "lead-comment") { if (ui.leadDraft) ui.leadDraft.comment = el.value; return; }
     if (el.id === "bid-price") {
       if (ui.booking) {
         const raw = parseInt(el.value, 10);
@@ -4825,6 +5144,10 @@
       }
       return;
     }
+    if (el.id === "bal-custom-amount") { if (ui.balanceModal) { ui.balanceModal.customAmount = el.value; ui.balanceModal.error = ""; } return; }
+    if (el.id === "lead-price") { if (ui.leadDraft) ui.leadDraft.targetPrice = Number(el.value) || 1000; return; }
+    if (el.id === "lead-wa") { if (ui.leadDraft) ui.leadDraft.whatsapp = el.value; return; }
+    if (el.id === "lead-comment") { if (ui.leadDraft) ui.leadDraft.comment = el.value; return; }
     if (el.id === "bid-price") {
       if (ui.booking) {
         const raw = parseInt(el.value, 10);
@@ -4865,13 +5188,13 @@
     if (e.key === "Escape" && closeSelectMenus(null)) {
       scheduleRender();
     }
-    if (e.key === "Escape" && (ui.bug || ui.booking || ui.authModal || ui.filterModal || ui.tutorApplyModal)) {
+    if (e.key === "Escape" && (ui.bug || ui.booking || ui.authModal || ui.filterModal || ui.tutorApplyModal || ui.balanceModal)) {
       e.preventDefault();
-      ui.bug = null; ui.booking = null; ui.authModal = false; ui.filterModal = false; ui.bbModal = false; ui.tutorApplyModal = false;
+      ui.bug = null; ui.booking = null; ui.authModal = false; ui.filterModal = false; ui.bbModal = false; ui.tutorApplyModal = false; ui.balanceModal = null;
       renderModal();
       return;
     }
-    if (ui.bug || ui.booking || ui.authModal || ui.filterModal || ui.tutorApplyModal) return;
+    if (ui.bug || ui.booking || ui.authModal || ui.filterModal || ui.tutorApplyModal || ui.balanceModal) return;
     if (e.target && e.target.id === "chat-input" && e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(ui.chat.draft); return; }
     if (ui.view !== "quiz" || !ui.quiz || ui.quiz.done || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.target && e.target.id === "self-text") return; // в поле развёрнутого ответа Enter — перенос строки

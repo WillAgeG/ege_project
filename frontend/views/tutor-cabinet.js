@@ -11,7 +11,7 @@
   const EGE = (root.EGE = root.EGE || {});
   const { esc, plural, initials } = EGE.utils || { esc: (s) => String(s || ""), plural: (n, a) => a, initials: () => "П" };
   const { icon, sakhaPatternSVG, sakhaOhyorHTML } = EGE.ui || { icon: () => "", sakhaPatternSVG: () => "", sakhaOhyorHTML: () => "" };
-  const { priceHeadlineHTML, priceDiffTagsHTML, feeSplitHTML, hhSelectHTML } = EGE.hh || { priceHeadlineHTML: () => "", priceDiffTagsHTML: () => "", feeSplitHTML: () => "", hhSelectHTML: null };
+  const { priceHeadlineHTML, priceDiffTagsHTML, feeSplitHTML, hhSelectHTML, hhMultiSelectHTML } = EGE.hh || { priceHeadlineHTML: () => "", priceDiffTagsHTML: () => "", feeSplitHTML: () => "", hhSelectHTML: null, hhMultiSelectHTML: null };
 
   const TC_LS_KEY = "vektor-ege:tutor-cabinet";
   const DAY_MS = 24 * 60 * 60 * 1000;
@@ -158,10 +158,14 @@
       profilePreview: false,
       published: false,
       subjMenuOpen: false,
+      leadsSubj: "all",
+      leadsMineOnly: false,
       profile: {
         name: profName || "Анна Соколова",
         headline: "Эксперт ЕГЭ и ОГЭ · Подготовка к медвузу",
         subject: "bio",
+        subjects: ["bio"],
+        customBadges: ["Эксперт жюри ВсОШ", ""],
         exams: ["ЕГЭ", "ОГЭ"],
         formats: ["Онлайн"],
         city: "Якутск · Онлайн по РФ",
@@ -201,6 +205,15 @@
     if (saved && typeof saved === "object") {
       _cache = Object.assign({}, def, saved);
       _cache.profile = Object.assign({}, def.profile, saved.profile || {});
+      if (!Array.isArray(_cache.profile.subjects) || !_cache.profile.subjects.length) {
+        _cache.profile.subjects = [_cache.profile.subject || "bio"];
+      }
+      _cache.profile.subject = _cache.profile.subjects[0] || "bio";
+      if (!Array.isArray(_cache.profile.customBadges)) {
+        _cache.profile.customBadges = def.profile.customBadges.slice();
+      }
+      while (_cache.profile.customBadges.length < 2) _cache.profile.customBadges.push("");
+      _cache.profile.customBadges = _cache.profile.customBadges.slice(0, 2);
       if (!Array.isArray(_cache.profile.exams) || !_cache.profile.exams.length) _cache.profile.exams = def.profile.exams.slice();
       if (!Array.isArray(_cache.profile.formats) || !_cache.profile.formats.length) _cache.profile.formats = def.profile.formats.slice();
       if (!Array.isArray(_cache.profile.skills)) _cache.profile.skills = def.profile.skills.slice();
@@ -295,9 +308,13 @@
   function buildMarketTutorPayload(st) {
     const TDATA = getTDATA();
     const p = st.profile;
-    const subjObj = TDATA && TDATA.SUBJECTS
-      ? TDATA.SUBJECTS.find((s) => s.id === p.subject)
-      : null;
+    const subjIds = Array.isArray(p.subjects) && p.subjects.length ? p.subjects.slice() : [p.subject || "bio"];
+    const subjNames = (TDATA && typeof TDATA.subjectNamesForIds === "function")
+      ? TDATA.subjectNamesForIds(subjIds)
+      : subjIds.map((id) => {
+          const hit = (TDATA && TDATA.SUBJECTS || []).find((s) => s.id === id);
+          return hit ? hit.name : "";
+        }).filter(Boolean);
     const cleanSlots = {};
     Object.keys(st.slots || {}).forEach((k) => {
       if (Array.isArray(st.slots[k]) && st.slots[k].length) cleanSlots[Number(k)] = st.slots[k].slice();
@@ -305,11 +322,16 @@
     const years = Math.max(1, Number(p.expYears) || 1);
     const avg = Math.max(50, Math.min(100, Number(p.avgScore) || 84));
     const isPro = p.price >= 1400;
+    const customBadges = Array.isArray(p.customBadges)
+      ? p.customBadges.map((b) => String(b || "").trim().slice(0, 36)).filter(Boolean).slice(0, 2)
+      : [];
     return {
       id: "tc-my-profile",
       name: p.name || "Преподаватель",
-      subject: p.subject || "bio",
-      subjectName: subjObj ? subjObj.name : "Биология",
+      subject: subjIds[0] || "bio",
+      subjects: subjIds,
+      subjectName: subjNames.length ? subjNames.join(" · ") : "Биология",
+      customBadges,
       exams: Array.isArray(p.exams) && p.exams.length ? p.exams.slice() : ["ЕГЭ"],
       formats: Array.isArray(p.formats) && p.formats.length ? p.formats.slice() : ["Онлайн"],
       city: p.city || "Онлайн по РФ",
@@ -540,19 +562,30 @@
             <input class="input" id="tc-name" name="name" data-tc="name" value="${esc(p.name)}" maxlength="48">
           </div>
           <div class="field">
-            <span class="label">Основной предмет</span>
+            <span class="label">Предметы (мультивыбор)</span>
             <input type="hidden" name="subject" value="${esc(p.subject)}">
-            ${typeof hhSelectHTML === "function"
-              ? hhSelectHTML({
+            ${typeof hhMultiSelectHTML === "function"
+              ? hhMultiSelectHTML({
                   id: "tc-subject",
                   options: subjects.map((sb) => ({ id: sb.id, label: sb.name })),
-                  value: p.subject,
+                  values: Array.isArray(p.subjects) && p.subjects.length ? p.subjects : [p.subject || "bio"],
+                  placeholder: "Выберите предметы",
                   open: !!st.subjMenuOpen,
                   toggleAction: "tc-subj-toggle",
                   pickAction: "tc-subj-pick",
-                  ariaLabel: "Основной предмет"
+                  ariaLabel: "Предметы преподавания"
                 })
-              : `<select class="select" id="tc-subject" data-tc="subject">${subjects.map((sb) => `<option value="${esc(sb.id)}"${sb.id === p.subject ? " selected" : ""}>${esc(sb.name)}</option>`).join("")}</select>`}
+              : (typeof hhSelectHTML === "function"
+                ? hhSelectHTML({
+                    id: "tc-subject",
+                    options: subjects.map((sb) => ({ id: sb.id, label: sb.name })),
+                    value: p.subject,
+                    open: !!st.subjMenuOpen,
+                    toggleAction: "tc-subj-toggle",
+                    pickAction: "tc-subj-pick",
+                    ariaLabel: "Предметы преподавания"
+                  })
+                : `<select class="select" id="tc-subject" data-tc="subject">${subjects.map((sb) => `<option value="${esc(sb.id)}"${sb.id === p.subject ? " selected" : ""}>${esc(sb.name)}</option>`).join("")}</select>`)}
           </div>
           <div class="field">
             <span class="label">Стандартная ставка (₽/ч)</span>
@@ -627,19 +660,30 @@
 
         <div class="tc-two-col">
           <div class="field">
-            <span class="label">Основной предмет</span>
+            <span class="label">Предметы преподавания (мультивыбор)</span>
             <input type="hidden" name="subject" value="${esc(p.subject)}">
-            ${typeof hhSelectHTML === "function"
-              ? hhSelectHTML({
-                  id: "tc-subject",
-                  options: subjects.map((sb) => ({ id: sb.id, label: sb.name })),
-                  value: p.subject,
+            ${typeof hhMultiSelectHTML === "function"
+              ? hhMultiSelectHTML({
+                  id: "tc-subjects",
+                  options: subjects.map((sb) => ({ id: sb.id, label: sb.name, short: sb.short })),
+                  values: Array.isArray(p.subjects) && p.subjects.length ? p.subjects : [p.subject || "bio"],
+                  placeholder: "Выберите предметы",
                   open: !!st.subjMenuOpen,
                   toggleAction: "tc-subj-toggle",
                   pickAction: "tc-subj-pick",
-                  ariaLabel: "Основной предмет"
+                  ariaLabel: "Предметы преподавания"
                 })
-              : `<select class="select" id="tc-subject" data-tc="subject">${subjects.map((sb) => `<option value="${esc(sb.id)}"${sb.id === p.subject ? " selected" : ""}>${esc(sb.name)}</option>`).join("")}</select>`}
+              : (typeof hhSelectHTML === "function"
+                ? hhSelectHTML({
+                    id: "tc-subjects",
+                    options: subjects.map((sb) => ({ id: sb.id, label: sb.name })),
+                    value: p.subject,
+                    open: !!st.subjMenuOpen,
+                    toggleAction: "tc-subj-toggle",
+                    pickAction: "tc-subj-pick",
+                    ariaLabel: "Предметы преподавания"
+                  })
+                : `<select class="select" id="tc-subjects" data-tc="subject">${subjects.map((sb) => `<option value="${esc(sb.id)}"${sb.id === p.subject ? " selected" : ""}>${esc(sb.name)}</option>`).join("")}</select>`)}
           </div>
           <div class="field">
             <label for="tc-hh-city">Город / часовой пояс</label>
@@ -705,6 +749,21 @@
           </div>
         </div>
 
+        <div class="field">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <span class="label">Плашки квалификации на карточке (до 2 текстов)</span>
+            <span class="small muted">Показываются фиолетовыми бейджами <code>.diff-tag.pro</code> в /market</span>
+          </div>
+          <div class="tc-two-col">
+            <input class="input" id="tc-badge-1" name="badge0" data-tc="badge0" maxlength="36" placeholder="Например: К.т.н. · эксперт жюри ВсОШ" value="${esc((p.customBadges && p.customBadges[0]) || "")}">
+            <input class="input" id="tc-badge-2" name="badge1" data-tc="badge1" maxlength="36" placeholder="Например: Эксперт ЕГЭ · 90+ баллов" value="${esc((p.customBadges && p.customBadges[1]) || "")}">
+          </div>
+          <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:4px">
+            ${["Эксперт жюри ВсОШ", "100-балльник ЕГЭ", "Подготовка в медвуз", "Победитель олимпиад"].map((preset) => `<button type="button" class="tc-tag" data-a="tc-badge-preset" data-v="${esc(preset)}">+ ${esc(preset)}</button>`).join("")}
+            <button type="button" class="btn ghost sm" data-a="tc-badge-clear">Очистить плашки</button>
+          </div>
+        </div>
+
         <div class="eyebrow" style="margin-top:4px">3. Ставка, торг ±100 ₽ и описание методики</div>
         <div class="tc-two-col">
           <div class="field">
@@ -755,8 +814,8 @@
     const activeDay = weekDays.find((d) => String(d.dow) === String(st.activeDow)) || weekDays[5] || weekDays[0];
     const dowStr = String(activeDay.dow);
     const dayOpenSlots = Array.isArray(st.slots[dowStr]) ? st.slots[dowStr] : [];
-    const activeLessons = allReqs.filter((r) => r.status !== "declined" && (String(r.dow || dayDowFromLabel(r.dayLabel)) === dowStr));
-    const weekCount = allReqs.filter((r) => r.status === "accepted" || r.status === "pending").length;
+    const activeLessons = allReqs.filter((r) => r.status === "accepted" && (String(r.dow || dayDowFromLabel(r.dayLabel)) === dowStr));
+    const weekCount = allReqs.filter((r) => r.status === "accepted").length;
 
     return `<div class="stack" style="gap:14px">
       <div class="card stack" style="gap:12px">
@@ -770,6 +829,7 @@
             <button type="button" class="btn ghost sm" data-a="tc-copy-day">Скопировать день</button>
           </div>
         </div>
+        <div class="notice info"><span class="small">В календаре отображаются <b>только подтверждённые и записанные</b> ученики. Неподтверждённые отклики находятся во вкладке <button type="button" class="link-btn small" data-a="tc-tab" data-tab="requests">Заявки</button>.</span></div>
 
         <div class="hh-seg equal" role="group" aria-label="Неделя календаря">
           <button type="button" data-a="tc-cal-week" data-w="0" aria-pressed="${weekOffset === 0}"><span>Эта неделя</span></button>
@@ -780,7 +840,7 @@
           ${weekDays.map((d) => {
             const k = String(d.dow);
             const openCnt = Array.isArray(st.slots[k]) ? st.slots[k].length : 0;
-            const bookedCnt = allReqs.filter((r) => r.status !== "declined" && String(r.dow || dayDowFromLabel(r.dayLabel)) === k).length;
+            const bookedCnt = allReqs.filter((r) => r.status === "accepted" && String(r.dow || dayDowFromLabel(r.dayLabel)) === k).length;
             const sel = k === dowStr;
             return `<button type="button" class="day-cir${sel ? " on" : ""}" data-a="tc-day" data-dow="${k}">
               <span class="day-wd">${esc(d.wd)} · ${esc(d.num)}</span>
@@ -1042,6 +1102,72 @@
     </div>`;
   }
 
+  function renderLeadsTab(st, TDATA) {
+    const leadsAll = TDATA && typeof TDATA.getStudentLeads === "function" ? TDATA.getStudentLeads() : [];
+    const tutorSubjs = Array.isArray(st.profile.subjects) && st.profile.subjects.length ? st.profile.subjects : [st.profile.subject || "bio"];
+    const tutorSubjSet = new Set(tutorSubjs);
+    const subjFilter = st.leadsSubj || "all";
+    const mineOnly = !!st.leadsMineOnly;
+    const filtered = leadsAll.filter((lead) => {
+      const sArr = Array.isArray(lead.subjects) ? lead.subjects : [];
+      if (mineOnly && !sArr.some((id) => tutorSubjSet.has(id))) return false;
+      if (subjFilter !== "all" && !sArr.includes(subjFilter)) return false;
+      return true;
+    });
+    const subjList = (TDATA && TDATA.SUBJECTS) ? TDATA.SUBJECTS : [];
+    const tutorSubjLabels = TDATA && typeof TDATA.subjectNamesForIds === "function" ? TDATA.subjectNamesForIds(tutorSubjs).join(", ") : "вашим предметам";
+
+    return `<div class="stack" style="gap:14px">
+      <div class="card stack" style="gap:10px">
+        <div class="row between" style="gap:8px;flex-wrap:wrap">
+          <div>
+            <div class="eyebrow">Встречный поток из кабинета ученика</div>
+            <h2 class="h2">Каталог учеников, которые ищут преподавателя (${filtered.length})</h2>
+          </div>
+          <button type="button" class="chip-btn${mineOnly ? " on" : ""}" data-a="tc-leads-mine">${mineOnly ? "✓ " : ""}По моим предметам (${esc(tutorSubjLabels)})</button>
+        </div>
+        <div class="chip-rail swipe" role="group" aria-label="Фильтр заявок учеников по предметам">
+          <button type="button" class="chip-btn${subjFilter === "all" ? " on" : ""}" data-a="tc-leads-subj" data-v="all">Все предметы (${leadsAll.length})</button>
+          ${subjList.map((sb) => `<button type="button" class="chip-btn${subjFilter === sb.id ? " on" : ""}" data-a="tc-leads-subj" data-v="${esc(sb.id)}">${esc(sb.short)}</button>`).join("")}
+        </div>
+      </div>
+
+      ${filtered.length ? `<div class="stack" style="gap:10px">${filtered.map((lead) => {
+        const subjIds = Array.isArray(lead.subjects) ? lead.subjects : [];
+        const subjNames = TDATA && typeof TDATA.subjectNamesForIds === "function" ? TDATA.subjectNamesForIds(subjIds) : subjIds;
+        const rate = Number(lead.targetPrice) || st.profile.price;
+        const sp = TDATA && typeof TDATA.commissionSplit === "function" ? TDATA.commissionSplit(rate) : { payout: Math.round(rate * 0.95) };
+        const waHref = TDATA && typeof TDATA.studentLeadWhatsappUrl === "function"
+          ? TDATA.studentLeadWhatsappUrl(lead, `Здравствуйте, ${lead.studentName}! Я преподаватель ${st.profile.name} (${tutorSubjLabels}). Готов(а) провести урок по вашей заявке (${rate} ₽/ч).`)
+          : "";
+        return `<article class="tc-req-card ${lead.responded ? "is-accepted" : "is-pending"}">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <div class="row" style="gap:8px;flex-wrap:wrap">
+              <b>${esc(lead.studentName)}</b>
+              <span class="chip">${esc(lead.exam)} · ${esc(lead.format)}</span>
+              ${subjNames.map((nm, idx) => `<span class="chip ${tutorSubjSet.has(subjIds[idx]) ? "accent" : ""}">${esc(nm)}</span>`).join("")}
+              ${lead.mine ? '<span class="chip gold">Свежая из кабинета ученика</span>' : ""}
+              ${lead.responded ? '<span class="chip confirm">✓ Вы написали ученику</span>' : ""}
+            </div>
+            <span class="small muted">${esc(lead.createdAt || "Сегодня")} · ${esc(lead.scheduleNote || "Гибкий график")}</span>
+          </div>
+          <div class="tc-req-quote">${esc(lead.comment)}</div>
+          <div class="row between" style="gap:10px;flex-wrap:wrap;align-items:center">
+            <div class="row" style="gap:8px;flex-wrap:wrap">
+              <span class="small muted">Бюджет ученика:</span>
+              <b class="num">${rate.toLocaleString("ru-RU")} ₽/ч</b>
+              <span class="small muted">(на руки 95%: <b class="num savings-gold-txt">${sp.payout.toLocaleString("ru-RU")} ₽</b>)</span>
+            </div>
+            <div class="row" style="gap:8px;flex-wrap:wrap">
+              ${waHref ? `<a class="btn confirm sm" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>Написать ученику</span></a>` : ""}
+              <button type="button" class="btn ${lead.responded ? "soft" : ""} sm" data-a="tc-lead-offer" data-id="${esc(lead.id)}">${lead.responded ? "✓ Отклик отправлен" : "Откликнуться со ставкой"}</button>
+            </div>
+          </div>
+        </article>`;
+      }).join("")}</div>` : `<div class="empty"><b>По выбранному предмету заявок учеников пока нет</b><span>Отключите фильтр или дождитесь новых запросов из кабинета ученика.</span></div>`}
+    </div>`;
+  }
+
   function viewCabinet() {
     ensureCountdownTimer();
     const TDATA = getTDATA();
@@ -1050,6 +1176,7 @@
     const allReqs = syncedRequests();
     const pendingList = allReqs.filter((r) => r.status === "pending");
     const acceptedList = allReqs.filter((r) => r.status === "accepted");
+    const leadsList = TDATA && typeof TDATA.getStudentLeads === "function" ? TDATA.getStudentLeads() : [];
     const totalPayout = acceptedList.reduce((acc, r) => {
       const rate = Number(r.counterPrice || r.offerPrice) || p.price;
       const sp = TDATA && typeof TDATA.commissionSplit === "function" ? TDATA.commissionSplit(rate) : { payout: Math.round(rate * 0.95) };
@@ -1057,11 +1184,12 @@
     }, 0);
     const baseSplit = TDATA && typeof TDATA.commissionSplit === "function" ? TDATA.commissionSplit(p.price) : { total: p.price, fee: Math.round(p.price * 0.05), payout: Math.round(p.price * 0.95), pct: 5 };
     const comp = profileCompleteness(p, st.slots);
-    const activeTab = ["requests", "profile", "calendar", "stats", "students"].includes(st.tab) ? st.tab : "requests";
-    const bookedCalendarCount = allReqs.filter((r) => r.status !== "declined").length;
+    const activeTab = ["requests", "leads", "profile", "calendar", "stats", "students"].includes(st.tab) ? st.tab : "requests";
+    const bookedCalendarCount = acceptedList.length;
 
     let bodyHTML = "";
-    if (activeTab === "profile") bodyHTML = renderProfileHHTab(st, TDATA, baseSplit);
+    if (activeTab === "leads") bodyHTML = renderLeadsTab(st, TDATA);
+    else if (activeTab === "profile") bodyHTML = renderProfileHHTab(st, TDATA, baseSplit);
     else if (activeTab === "calendar") bodyHTML = renderCalendarTab(st, TDATA, allReqs);
     else if (activeTab === "stats") bodyHTML = renderStatsTab(st, TDATA, allReqs, acceptedList, totalPayout);
     else if (activeTab === "students") bodyHTML = renderStudentsTab(st);
@@ -1127,6 +1255,7 @@
 
       <div class="chip-rail swipe" role="tablist" aria-label="Разделы кабинета преподавателя">
         <button type="button" role="tab" aria-selected="${activeTab === "requests"}" class="chip-btn${activeTab === "requests" ? " on" : ""}" data-a="tc-tab" data-tab="requests">Заявки (${allReqs.length})</button>
+        <button type="button" role="tab" aria-selected="${activeTab === "leads"}" class="chip-btn${activeTab === "leads" ? " on" : ""}" data-a="tc-tab" data-tab="leads">Ученики ищут (${leadsList.length})</button>
         <button type="button" role="tab" aria-selected="${activeTab === "profile"}" class="chip-btn${activeTab === "profile" ? " on" : ""}" data-a="tc-tab" data-tab="profile">Профиль hh · ${comp.pct}%</button>
         <button type="button" role="tab" aria-selected="${activeTab === "calendar"}" class="chip-btn${activeTab === "calendar" ? " on" : ""}" data-a="tc-tab" data-tab="calendar">Календарь учеников (${bookedCalendarCount})</button>
         <button type="button" role="tab" aria-selected="${activeTab === "stats"}" class="chip-btn${activeTab === "stats" ? " on" : ""}" data-a="tc-tab" data-tab="stats">Статистика и 24ч</button>
@@ -1154,7 +1283,7 @@
     const id = d.id || "";
 
     if (act === "tc-tab") {
-      st.tab = ["requests", "profile", "calendar", "stats", "students"].includes(d.tab) ? d.tab : "requests";
+      st.tab = ["requests", "leads", "profile", "calendar", "stats", "students"].includes(d.tab) ? d.tab : "requests";
       saveState();
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       return true;
@@ -1361,7 +1490,7 @@
 
     if (act === "tc-copy-day") {
       const activeDayObj = DAY_LIST.find((x) => x.dow === st.activeDow) || DAY_LIST[5];
-      const lessons = syncedRequests().filter((r) => r.status !== "declined" && String(r.dow || dayDowFromLabel(r.dayLabel)) === activeDayObj.dow);
+      const lessons = syncedRequests().filter((r) => r.status === "accepted" && String(r.dow || dayDowFromLabel(r.dayLabel)) === activeDayObj.dow);
       const summary = lessons.length
         ? lessons.map((r) => `${r.hour} — ${r.studentName} (${r.offerPrice} ₽/ч)`).join("\n")
         : "На выбранный день уроки ещё не назначены.";
@@ -1393,11 +1522,66 @@
     }
 
     if (act === "tc-subj-pick") {
-      st.profile.subject = String(d.v || "bio");
-      st.subjMenuOpen = false;
+      const pickedId = String(d.v || "bio");
+      const curList = Array.isArray(st.profile.subjects) && st.profile.subjects.length ? st.profile.subjects : [st.profile.subject || "bio"];
+      if (curList.includes(pickedId) && curList.length <= 1) {
+        if (typeof _ctx.toast === "function") _ctx.toast("Должен остаться хотя бы один предмет");
+        return true;
+      }
+      st.profile.subjects = toggleArrayVal(curList, pickedId, true);
+      st.profile.subject = st.profile.subjects[0] || "bio";
       syncPublishedTutor(st);
       saveState();
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-badge-preset") {
+      const txt = String(d.v || "").trim().slice(0, 36);
+      if (txt) {
+        const arr = Array.isArray(st.profile.customBadges) ? st.profile.customBadges.slice(0, 2) : ["", ""];
+        while (arr.length < 2) arr.push("");
+        if (!arr.includes(txt)) {
+          const emptyIdx = arr.findIndex((x) => !String(x || "").trim());
+          arr[emptyIdx >= 0 ? emptyIdx : 1] = txt;
+          st.profile.customBadges = arr;
+          syncPublishedTutor(st);
+          saveState();
+          if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+        }
+      }
+      return true;
+    }
+
+    if (act === "tc-badge-clear") {
+      st.profile.customBadges = ["", ""];
+      syncPublishedTutor(st);
+      saveState();
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-leads-mine") {
+      st.leadsMineOnly = !st.leadsMineOnly;
+      saveState();
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-leads-subj") {
+      st.leadsSubj = String(d.v || "all");
+      saveState();
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-lead-offer") {
+      const TDATA = getTDATA();
+      const hit = TDATA && typeof TDATA.markStudentLeadResponded === "function" ? TDATA.markStudentLeadResponded(id) : null;
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      if (typeof _ctx.notifySide === "function") {
+        _ctx.notifySide("Отклик отправлен ученику", hit ? `${hit.studentName} получил(а) ваше предложение по ставке ${st.profile.price.toLocaleString("ru-RU")} ₽/ч` : "Запрос ученика отмечен как отвеченный");
+      }
       return true;
     }
 
@@ -1459,7 +1643,13 @@
     else if (key === "avgScore") p.avgScore = Math.max(40, Math.min(100, Number(el.value) || 80));
     else if (key === "highScorers") p.highScorers = Math.max(0, Math.min(500, Number(el.value) || 0));
     else if (key === "trialFree") p.trialFree = !!el.checked;
-    else if (key === "subject") p.subject = String(el.value || "bio");
+    else if (key === "badge0" || key === "badge1") {
+      if (!Array.isArray(p.customBadges)) p.customBadges = ["", ""];
+      p.customBadges[key === "badge0" ? 0 : 1] = String(el.value || "").slice(0, 36);
+    } else if (key === "subject") {
+      p.subject = String(el.value || "bio");
+      if (!Array.isArray(p.subjects) || !p.subjects.includes(p.subject)) p.subjects = [p.subject];
+    }
     else if (key === "bio") p.bio = String(el.value || "").slice(0, 320);
     syncPublishedTutor(st);
     saveState();
@@ -1527,7 +1717,16 @@
     if (els.avgScore) p.avgScore = Math.max(40, Math.min(100, Number(els.avgScore.value) || p.avgScore));
     if (els.highScorers) p.highScorers = Math.max(0, Math.min(500, Number(els.highScorers.value) || 0));
     if (els.trialFree) p.trialFree = !!els.trialFree.checked;
-    if (els.subject) p.subject = String(els.subject.value || "bio");
+    if (els.badge0 || els.badge1) {
+      if (!Array.isArray(p.customBadges)) p.customBadges = ["", ""];
+      if (els.badge0) p.customBadges[0] = String(els.badge0.value || "").trim().slice(0, 36);
+      if (els.badge1) p.customBadges[1] = String(els.badge1.value || "").trim().slice(0, 36);
+    }
+    if (els.subject) {
+      const subVal = String(els.subject.value || "bio");
+      p.subject = subVal;
+      if (!Array.isArray(p.subjects) || !p.subjects.length) p.subjects = [subVal];
+    }
     if (els.bio) p.bio = String(els.bio.value || "").trim().slice(0, 320);
     st.published = true;
     syncPublishedTutor(st);
@@ -1539,10 +1738,20 @@
     return true;
   }
 
+  function closeMenus(target) {
+    const st = tState();
+    if (st.subjMenuOpen && (!target || typeof target.closest !== "function" || (!target.closest("#tc-subjects") && !target.closest("#tc-subject")))) {
+      st.subjMenuOpen = false;
+      return true;
+    }
+    return false;
+  }
+
   EGE.views = EGE.views || {};
   EGE.views.tutorCabinet = {
     configure,
     pendingCount,
+    closeMenus,
     viewCabinet,
     handleAction,
     handleInput,

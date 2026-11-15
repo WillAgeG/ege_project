@@ -60,6 +60,9 @@
     const aboveMarket = Math.max(0, offerPrice - marketPrice);
     const pctOff = marketPrice > offerPrice ? Math.round(((marketPrice - offerPrice) / marketPrice) * 100) : 0;
     const pctAbove = marketPrice > 0 && aboveMarket > 0 ? Math.round((aboveMarket / marketPrice) * 100) : 0;
+    const customBadges = Array.isArray(opts.customBadges)
+      ? opts.customBadges.map((s) => String(s || "").trim()).filter(Boolean).slice(0, 2)
+      : [];
     const tags = [];
     if (showAsk) tags.push(`<span class="diff-tag rate num">Анкета ${tutorPrice.toLocaleString("ru-RU")} ₽</span>`);
     if (diffTutor > 0) tags.push(`<span class="diff-tag save-hot num">на ${diffTutor.toLocaleString("ru-RU")} ₽ ниже анкеты</span>`);
@@ -69,10 +72,13 @@
       if (pctOff > 0) tags.push(`<span class="diff-tag save-cyan num">−${pctOff}%</span>`);
     } else if (aboveMarket > 0) {
       tags.push(`<span class="diff-tag pro num">на +${aboveMarket.toLocaleString("ru-RU")} ₽ выше рынка (+${pctAbove}%)</span>`);
-      tags.push(`<span class="diff-tag pro">${esc(opts.qualBadge || "Высокая квалификация")}</span>`);
-    } else {
+      if (!customBadges.length) tags.push(`<span class="diff-tag pro">${esc(opts.qualBadge || "Высокая квалификация")}</span>`);
+    } else if (!customBadges.length) {
       tags.push(`<span class="diff-tag rate">По средней цене рынка</span>`);
     }
+    customBadges.forEach((badge) => {
+      tags.push(`<span class="diff-tag pro">${esc(badge)}</span>`);
+    });
     return tags.join("");
   }
 
@@ -136,6 +142,54 @@
     </div>`;
   }
 
+  function hhMultiSelectHTML(opts) {
+    opts = opts || {};
+    const options = Array.isArray(opts.options) ? opts.options : [];
+    const values = Array.isArray(opts.values) ? opts.values.map(String) : [];
+    const selectedSet = new Set(values);
+    const selectedOpts = options.filter((o) => selectedSet.has(String(o.id)));
+    const open = !!opts.open;
+    const maxPreview = Math.max(1, Number(opts.maxPreview) || 2);
+    const placeholder = opts.placeholder || "Выберите варианты";
+    const leadIcon = opts.leadIcon && EGE.ui && typeof EGE.ui.icon === "function" ? EGE.ui.icon(opts.leadIcon) : "";
+    const checkIcon = EGE.ui && typeof EGE.ui.icon === "function" ? EGE.ui.icon("check") : "";
+    const chevIcon = EGE.ui && typeof EGE.ui.icon === "function" ? EGE.ui.icon("chevDown") : "";
+    const valHTML = selectedOpts.length
+      ? selectedOpts.slice(0, maxPreview).map((o) => `<span class="hh-multi-pill">${esc(o.short || o.label)}</span>`).join("") +
+        (selectedOpts.length > maxPreview ? `<span class="hh-select-meta num">+${selectedOpts.length - maxPreview}</span>` : "")
+      : `<span class="muted">${esc(placeholder)}</span>`;
+    const chipsHTML = opts.showChips !== false && selectedOpts.length
+      ? `<div class="hh-multi-chips">${selectedOpts.map((o) => `<button type="button" class="hh-multi-chip" data-a="${esc(opts.pickAction || "")}" data-v="${esc(o.id)}" title="Убрать ${esc(o.label)}">${esc(o.label)} ×</button>`).join("")}</div>`
+      : "";
+    return `<div class="hh-select hh-multi${open ? " open" : ""}"${opts.id ? ` id="${esc(opts.id)}"` : ""}>
+      <button type="button" class="hh-select-btn hh-multi-btn" data-a="${esc(opts.toggleAction || "")}" aria-haspopup="listbox" aria-expanded="${open}"${opts.ariaLabel ? ` aria-label="${esc(opts.ariaLabel)}"` : ""}>
+        <span class="hh-multi-val">
+          ${leadIcon ? `<span class="hh-select-lead">${leadIcon}</span>` : ""}
+          ${valHTML}
+        </span>
+        <span class="hh-multi-right">
+          ${selectedOpts.length ? `<span class="hh-select-meta num">${selectedOpts.length}</span>` : ""}
+          <span class="hh-select-chev">${chevIcon}</span>
+        </span>
+      </button>
+      ${open ? `<div class="hh-select-menu" role="listbox" aria-multiselectable="true"${opts.ariaLabel ? ` aria-label="${esc(opts.ariaLabel)}"` : ""}>
+        ${options.map((o) => {
+          const isOn = selectedSet.has(String(o.id));
+          return `<button type="button" class="hh-select-item${isOn ? " on" : ""}" role="option" aria-selected="${isOn}" data-a="${esc(opts.pickAction || "")}" data-v="${esc(o.id)}">
+            <span class="hh-multi-item-left">
+              <span class="hh-multi-check${isOn ? " on" : ""}" aria-hidden="true">${isOn ? checkIcon : ""}</span>
+              <span class="hh-select-item-main">
+                <span>${esc(o.label)}</span>
+                ${o.meta ? `<span class="hh-select-item-sub">${esc(o.meta)}</span>` : ""}
+              </span>
+            </span>
+          </button>`;
+        }).join("")}
+      </div>` : ""}
+      ${chipsHTML}
+    </div>`;
+  }
+
   EGE.hh = {
     isValidHHMM,
     feeSplitHTML,
@@ -146,6 +200,7 @@
     sliderTicksHTML,
     BB_DAYS,
     bbDayObj,
-    hhSelectHTML
+    hhSelectHTML,
+    hhMultiSelectHTML
   };
 })();

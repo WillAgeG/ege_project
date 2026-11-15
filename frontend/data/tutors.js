@@ -583,6 +583,12 @@
   function normalizeTutor(t, idx) {
     t.whatsapp = t.whatsapp || WA_PHONES[t.id] || ("791421001" + String(10 + (idx || 0)));
     t.verified = t.verified !== false;
+    t.trialFree = t.trialFree !== false;
+    t.subjects = Array.isArray(t.subjects) && t.subjects.length ? t.subjects.slice() : [t.subject || "bio"];
+    t.subject = t.subjects[0] || t.subject || "bio";
+    t.customBadges = Array.isArray(t.customBadges)
+      ? t.customBadges.map(function (b) { return String(b || "").trim().slice(0, 36); }).filter(Boolean).slice(0, 2)
+      : [];
     t.source = t.source || SOURCE_CHANNELS[(idx || 0) % SOURCE_CHANNELS.length];
     t.marketPrice = t.marketPrice || Math.round((t.price * 1.28) / 50) * 50;
     t.belowRub = Math.max(0, t.marketPrice - t.price);
@@ -606,9 +612,15 @@
 
   function upsertCustomTutor(raw) {
     if (!raw || !raw.id) return null;
-    var subjObj = SUBJECTS.find(function (s) { return s.id === raw.subject; }) || SUBJECTS[0];
+    var subjList = Array.isArray(raw.subjects) && raw.subjects.length ? raw.subjects.slice() : [raw.subject || "bio"];
+    var subjNames = subjList.map(function (id) {
+      var found = SUBJECTS.find(function (s) { return s.id === id; });
+      return found ? found.name : "";
+    }).filter(Boolean);
     var clean = Object.assign({
-      subjectName: subjObj ? subjObj.name : "Подготовка",
+      subject: subjList[0],
+      subjects: subjList,
+      subjectName: subjNames.length ? subjNames.join(" · ") : "Подготовка",
       exams: ["ЕГЭ"],
       formats: ["Онлайн"],
       city: "Онлайн по РФ",
@@ -680,14 +692,17 @@
 
   function tutorMatchesBase(tutor, filters) {
     if (filters.exam && filters.exam !== "all" && tutor.exams.indexOf(filters.exam) < 0) return false;
-    if (filters.subject && filters.subject !== "all" && tutor.subject !== filters.subject) return false;
+    if (filters.subject && filters.subject !== "all") {
+      var matchesSubj = tutor.subject === filters.subject || (Array.isArray(tutor.subjects) && tutor.subjects.indexOf(filters.subject) >= 0);
+      if (!matchesSubj) return false;
+    }
     if (filters.format && filters.format !== "all" && tutor.formats.indexOf(filters.format) < 0) return false;
     if (filters.maxPrice && filters.maxPrice < 2000 && tutor.price > filters.maxPrice) return false;
     if (filters.onlyBumped && !tutor.bumpedToday) return false;
     if (filters.q) {
       var q = String(filters.q).trim().toLowerCase();
       if (q) {
-        var hay = [tutor.name, tutor.subjectName, tutor.tag, tutor.bio, tutor.city, (tutor.exams || []).join(" ")].join(" ").toLowerCase();
+        var hay = [tutor.name, tutor.subjectName, tutor.tag, tutor.bio, tutor.city, (tutor.exams || []).join(" "), (tutor.customBadges || []).join(" ")].join(" ").toLowerCase();
         if (hay.indexOf(q) < 0) return false;
       }
     }
@@ -783,6 +798,148 @@
     return "https://wa.me/" + phone + "?text=" + encodeURIComponent(text);
   }
 
+  var LEADS_LS_KEY = "vektor-ege:student-leads";
+  var DEFAULT_STUDENT_LEADS = [
+    {
+      id: "lead-damir",
+      studentName: "Дамир Т.",
+      subjects: ["chem", "bio"],
+      exam: "ЕГЭ",
+      format: "Онлайн",
+      targetPrice: 1000,
+      scheduleNote: "Пн / Ср · 17:00–19:00",
+      comment: "Ищу преподавателя по химии (№34 и органика) и биологии для поступления в медвуз.",
+      whatsapp: "79142100501",
+      createdAt: "2 часа назад",
+      responded: false
+    },
+    {
+      id: "lead-saiyyna",
+      studentName: "Сайыына М.",
+      subjects: ["rus", "eng"],
+      exam: "ЕГЭ",
+      format: "Онлайн",
+      targetPrice: 950,
+      scheduleNote: "Вт / Пт · 16:00–18:00",
+      comment: "Нужна сильная подготовка к сочинению ЕГЭ и устной части английского.",
+      whatsapp: "79142100502",
+      createdAt: "4 часа назад",
+      responded: false
+    },
+    {
+      id: "lead-artem",
+      studentName: "Артём Л.",
+      subjects: ["math", "phys"],
+      exam: "ЕГЭ",
+      format: "Очно",
+      targetPrice: 1100,
+      scheduleNote: "Сб / Вс · 12:00–16:00",
+      comment: "Вторая часть профильной математики и физика, желательно Якутск или онлайн.",
+      whatsapp: "79142100503",
+      createdAt: "Вчера",
+      responded: false
+    },
+    {
+      id: "lead-ksenia",
+      studentName: "Ксения П.",
+      subjects: ["chem"],
+      exam: "ОГЭ",
+      format: "Онлайн",
+      targetPrice: 850,
+      scheduleNote: "Чт / Сб · 15:00",
+      comment: "Ищу преподавателя по химии на ОГЭ — закрыть пробелы с нуля до пятёрки.",
+      whatsapp: "79142100504",
+      createdAt: "Вчера",
+      responded: false
+    }
+  ];
+  var _leadsCache = null;
+
+  function saveLeadsList(list) {
+    _leadsCache = list;
+    try { localStorage.setItem(LEADS_LS_KEY, JSON.stringify(list)); } catch (e) { /* игнор */ }
+  }
+
+  function getStudentLeads() {
+    if (_leadsCache) return _leadsCache;
+    try {
+      var raw = localStorage.getItem(LEADS_LS_KEY);
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          _leadsCache = parsed;
+          return _leadsCache;
+        }
+      }
+    } catch (e) { /* игнор */ }
+    _leadsCache = DEFAULT_STUDENT_LEADS.map(function (item) {
+      return Object.assign({}, item, { subjects: item.subjects.slice() });
+    });
+    return _leadsCache;
+  }
+
+  function subjectNamesForIds(ids) {
+    var arr = Array.isArray(ids) ? ids : [];
+    return arr.map(function (id) {
+      var found = SUBJECTS.find(function (s) { return s.id === id; });
+      return found ? found.name : "";
+    }).filter(Boolean);
+  }
+
+  function addStudentLead(raw) {
+    raw = raw || {};
+    var subjs = Array.isArray(raw.subjects) ? raw.subjects.filter(Boolean) : [];
+    if (!subjs.length) subjs = ["chem"];
+    var list = getStudentLeads().slice();
+    var lead = {
+      id: "lead-" + Date.now() + "-" + Math.random().toString(36).slice(2, 5),
+      studentName: String(raw.studentName || "Ученик (профиль)").trim().slice(0, 40) || "Ученик",
+      subjects: subjs,
+      exam: String(raw.exam || "ЕГЭ").trim(),
+      format: String(raw.format || "Онлайн").trim(),
+      targetPrice: Math.max(500, Math.min(5000, Math.round(Number(raw.targetPrice) || 1000))),
+      scheduleNote: String(raw.scheduleNote || "10:00–20:00 по согласованию").trim().slice(0, 80),
+      comment: String(raw.comment || "").trim().slice(0, 180) || ("Ищу преподавателя: " + subjectNamesForIds(subjs).join(", ")),
+      whatsapp: String(raw.whatsapp || "79142100500").trim().slice(0, 48) || "79142100500",
+      createdAt: "Только что",
+      mine: true,
+      responded: false
+    };
+    list.unshift(lead);
+    saveLeadsList(list);
+    return lead;
+  }
+
+  function removeStudentLead(id) {
+    var list = getStudentLeads().filter(function (x) { return x.id !== id; });
+    saveLeadsList(list);
+    return list;
+  }
+
+  function markStudentLeadResponded(id) {
+    var list = getStudentLeads().slice();
+    var hit = list.find(function (x) { return x.id === id; });
+    if (hit) hit.responded = true;
+    saveLeadsList(list);
+    return hit || null;
+  }
+
+  function resetStudentLeads() {
+    _leadsCache = DEFAULT_STUDENT_LEADS.map(function (item) {
+      return Object.assign({}, item, { subjects: item.subjects.slice() });
+    });
+    saveLeadsList(_leadsCache);
+    return _leadsCache;
+  }
+
+  function studentLeadWhatsappUrl(lead, message) {
+    var phone = String((lead && lead.whatsapp) || "79142100500").replace(/\D+/g, "");
+    if (!phone) return "";
+    var subjs = subjectNamesForIds(lead && lead.subjects).join(", ") || "подготовке";
+    var text = message || ("Здравствуйте, " + ((lead && lead.studentName) || "") + "! Вижу вашу заявку («" + subjs + "») на Вектор ЕГЭ — готов(а) провести занятие.");
+    return "https://wa.me/" + phone + "?text=" + encodeURIComponent(text);
+  }
+
   EGE.tutors = {
     SUBJECTS: SUBJECTS,
     PREP_UNIVERSE: PREP_UNIVERSE,
@@ -803,6 +960,13 @@
     countForHour: countForHour,
     offerSignal: offerSignal,
     botPreviewText: botPreviewText,
-    whatsappUrl: whatsappUrl
+    whatsappUrl: whatsappUrl,
+    subjectNamesForIds: subjectNamesForIds,
+    getStudentLeads: getStudentLeads,
+    addStudentLead: addStudentLead,
+    removeStudentLead: removeStudentLead,
+    markStudentLeadResponded: markStudentLeadResponded,
+    resetStudentLeads: resetStudentLeads,
+    studentLeadWhatsappUrl: studentLeadWhatsappUrl
   };
 })();

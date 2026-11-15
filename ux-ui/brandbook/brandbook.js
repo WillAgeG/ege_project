@@ -29,7 +29,8 @@
     sliderTicksHTML,
     BB_DAYS,
     bbDayObj,
-    hhSelectHTML
+    hhSelectHTML,
+    hhMultiSelectHTML
   } = EGE.hh;
 
   const BB_SECTION_CATS = {
@@ -74,6 +75,8 @@
       switchVal: "online",
       subj: "bio",
       subjMenuOpen: false,
+      multiSubjs: ["bio", "chem"],
+      multiMenuOpen: false,
       pickedPlan: "month10k",
       quizOpt: 1,
       cancelDemoUndone: false,
@@ -385,6 +388,33 @@
               <span class="hint">Тематический список в цветах Светлой/Тёмной темы без системного тёмного меню браузера.</span>
             </div>
             <div class="field">
+              <span class="label">Мультивыбор предметов (.hh-multi)</span>
+              ${typeof hhMultiSelectHTML === "function"
+                ? hhMultiSelectHTML({
+                    id: "bb-demo-multi",
+                    options: BB_SUBJECTS,
+                    values: Array.isArray(bb.multiSubjs) ? bb.multiSubjs : ["bio", "chem"],
+                    placeholder: "Выберите предметы",
+                    open: !!bb.multiMenuOpen,
+                    toggleAction: "bb-multi-toggle",
+                    pickAction: "bb-multi-pick",
+                    ariaLabel: "Мультивыбор предметов"
+                  })
+                : ""}
+              <span class="hint">Синхронный checklist-выпадающий список с отметками и чипами удаления «×» в темах Светлой/Тёмной OLED. Используется в профиле преподавателя и запросах ученика «Ищу преподавателя».</span>
+            </div>
+            <div class="field">
+              <span class="label">Верхняя панель баланса ученика (.top-bal-wrap)</span>
+              <div class="row between" style="padding:10px 12px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line);gap:8px;flex-wrap:wrap">
+                <span class="small muted">Справа вверху у ученика</span>
+                <div class="top-bal-wrap">
+                  <span class="top-bal-pill is-funded">${icon("wallet")}<span class="num">5 000 ₽</span></span>
+                  <span class="top-bal-btn">${icon("plus")}<span>Пополнить</span></span>
+                </div>
+              </div>
+              <span class="hint">Порог от <b>5 000 ₽</b> открывает запись на бесплатный пробный урок (0 ₽) и ставки. Модалка включает тарифы 0 / 5 000 / 10 000 ₽ и любую произвольную сумму.</span>
+            </div>
+            <div class="field">
               <span class="label">Вход и выбор роли по умолчанию (.hh-seg.equal · authCard)</span>
               <div class="hh-seg equal" role="group" aria-label="Демо выбора роли при входе">
                 <button type="button" data-a="bb-app-role" data-role="student" aria-pressed="${(bb.appRole || "student") !== "tutor"}">${icon("book")}<span>Как ученик</span></button>
@@ -694,7 +724,7 @@
       <div class="bb-nav-arch">
         <div class="stack" style="gap:10px">
           <aside class="bb-side-mock" aria-label="Архитектура боковой панели кабинета (.side)">
-            ${brandLockupHTML({ tag: tutorSide ? "Препод · ЕГЭ" : "ЕГЭ 2027", sub: "Десктопный .side · 256 px" })}
+            ${brandLockupHTML({ tag: tutorSide ? "Преподаватель · ЕГЭ" : "ЕГЭ 2027", sub: "Десктопный .side · 256 px" })}
             ${tabItems.map((it) => `<div class="bb-side-item${it.active ? " on" : ""}"><span>${icon(it.ico)} ${it.label}</span>${it.badge ? `<span class="chip notif">${it.badge}</span>` : `<span class="chip ${it.label === "Справочник" ? "gold" : ""}">${it.label === "Справочник" ? "5-tab" : "·"}</span>`}</div>`).join("")}
             <div class="small muted" style="padding-top:6px;border-top:1px solid var(--line)">На ≤ 960 px сайдбар сворачивается в 5-вкладочный <code>.tabbar</code> со «Справочником» — без дубля кнопки в шапке.</div>
           </aside>
@@ -710,7 +740,7 @@
                 <h3 class="h3" style="font-size:17px">Репетитор · Биология и химия</h3>
                 <div class="hh-price-row" style="margin-top:4px">${priceHeadlineHTML(2000, bb.price, false)}</div>
                 <div class="hh-diff-strip" style="margin-top:6px">
-                  ${priceDiffTagsHTML({ tutorPrice: 1200, marketPrice: 2000, offerPrice: bb.price, qualBadge: "Мед. олимпиады · 94+" })}
+                  ${priceDiffTagsHTML({ tutorPrice: 1200, marketPrice: 2000, offerPrice: bb.price, customBadges: ["К.т.н. · эксперт жюри ВсОШ", "Медвуз · 94+ б."] })}
                 </div>
               </div>
               <button type="button" class="fav-btn" data-a="bb-fav" aria-pressed="${bb.fav !== false}" aria-label="В избранное">${icon(bb.fav !== false ? "heartFill" : "heart")}</button>

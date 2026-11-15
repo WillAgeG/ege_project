@@ -6,7 +6,12 @@
   const EGE = (root.EGE = root.EGE || {});
   const { esc, plural, initials } = EGE.utils;
   const { icon } = EGE.ui;
-  const { isValidHHMM, bidBtnLabelHTML, sakhaBidInnerHTML, priceHeadlineHTML, priceDiffTagsHTML, sliderTicksHTML, hhSelectHTML } = EGE.hh;
+  const { isValidHHMM, bidBtnLabelHTML, sakhaBidInnerHTML, priceHeadlineHTML, priceDiffTagsHTML, sliderTicksHTML, hhSelectHTML, hhMultiSelectHTML } = EGE.hh;
+  const MIN_ACTION_BALANCE = 5000;
+
+  function hasMinBalance(st) {
+    return (Number(st && st.balance) || 0) >= MIN_ACTION_BALANCE;
+  }
 
   let _ctx = {};
 
@@ -88,6 +93,9 @@
     const belowRub = t.belowRub != null ? t.belowRub : Math.max(0, (t.marketPrice || t.price) - t.price);
     const aboveRub = t.aboveRub != null ? t.aboveRub : Math.max(0, t.price - (t.marketPrice || t.price));
     const qualLine = t.qualBadge || "Высокая квалификация";
+    const customBadges = Array.isArray(t.customBadges)
+      ? t.customBadges.map((b) => String(b || "").trim()).filter(Boolean).slice(0, 2)
+      : [];
     return `<article class="card tutor-card">
       <div class="stack" style="gap:10px">
         <div class="tutor-head">
@@ -101,7 +109,10 @@
             <div class="hh-diff-strip" style="margin-top:6px">
               ${belowRub > 0 ? `<span class="diff-tag save-cool num">на ${belowRub.toLocaleString("ru-RU")} ₽ ниже рынка</span>` : ""}
               ${t.belowPct ? `<span class="diff-tag save-cyan num">−${t.belowPct}%</span>` : ""}
-              ${aboveRub > 0 ? `<span class="diff-tag pro num">на +${aboveRub.toLocaleString("ru-RU")} ₽ выше рынка</span><span class="diff-tag pro">${esc(qualLine)}</span>` : ""}
+              ${aboveRub > 0 ? `<span class="diff-tag pro num">на +${aboveRub.toLocaleString("ru-RU")} ₽ выше рынка</span>` : ""}
+              ${customBadges.length
+                ? customBadges.map((b) => `<span class="diff-tag pro">${esc(b)}</span>`).join("")
+                : (aboveRub > 0 ? `<span class="diff-tag pro">${esc(qualLine)}</span>` : "")}
             </div>
           </div>
           <button type="button" class="fav-btn" data-a="mkt-fav" data-id="${esc(t.id)}" aria-pressed="${isFav}" aria-label="В избранное">${icon(isFav ? "heartFill" : "heart")}</button>
@@ -128,8 +139,9 @@
           ${daySlots.map((h) => `<button type="button" class="slot-mini${st.hour === h ? " picked" : ""}" data-a="book-open" data-id="${esc(t.id)}" data-hour="${esc(h)}">${esc(h)}</button>`).join("")}
         </div>` : ""}
       </div>
-      <div class="tutor-actions single">
+      <div class="tutor-actions">
         <button type="button" class="btn sakha-pattern" data-a="book-open" data-id="${esc(t.id)}" data-hour="${esc(pickHour)}">${sakhaBidInnerHTML(false, t.price)}</button>
+        <button type="button" class="btn soft" data-a="trial-open" data-id="${esc(t.id)}" data-hour="${esc(pickHour)}">${icon("spark")}<span>Пробный · 0 ₽</span></button>
       </div>
     </article>`;
   }
@@ -140,17 +152,19 @@
     return `<div class="reqs-strip">${st.bookings.map((bk) => {
       const accepted = bk.status === "accepted";
       const tutor = TDATA.LIST.find((x) => x.id === bk.tutorId);
+      const isTrial = !!bk.isTrial || Number(bk.offerPrice) === 0;
       const waHref = accepted
-        ? TDATA.whatsappUrl(tutor || { name: bk.tutorName, subjectName: bk.subjectName, whatsapp: "79142100101" }, `Здравствуйте, ${bk.tutorName}! Напоминаю про занятие (${bk.subjectName}, ${bk.dayLabel} в ${bk.hour}, ставка ${bk.offerPrice} ₽/ч).`)
+        ? TDATA.whatsappUrl(tutor || { name: bk.tutorName, subjectName: bk.subjectName, whatsapp: "79142100101" }, `Здравствуйте, ${bk.tutorName}! Напоминаю про занятие (${bk.subjectName}, ${bk.dayLabel} в ${bk.hour}, ${isTrial ? "пробный урок 0 ₽" : "ставка " + bk.offerPrice + " ₽/ч"}).`)
         : "";
       return `<div class="req-item">
         <div class="stack" style="gap:3px;min-width:0">
           <div class="row" style="gap:8px;flex-wrap:wrap">
             <b>${esc(bk.tutorName)}</b>
             <span class="chip">${esc(bk.exam)} · ${esc(bk.subjectName)}</span>
+            ${isTrial ? '<span class="chip gold">Пробный · 0 ₽</span>' : ""}
             <span class="chip ${accepted ? "accent" : "notif"}">${accepted ? "Преподаватель подтвердил" : "На рассмотрении · уведомим"}</span>
           </div>
-          <div class="small ink2">${esc(bk.dayLabel)} в ${esc(bk.hour)} (${esc(bk.format)}) · твоя ставка <b class="num">${bk.offerPrice} ₽/ч</b> <span class="muted">(вместо ${bk.tutorPrice} ₽)</span></div>
+          <div class="small ink2">${esc(bk.dayLabel)} в ${esc(bk.hour)} (${esc(bk.format)}) · ${isTrial ? '<b class="num">Пробный урок (0 ₽)</b>' : `твоя ставка <b class="num">${bk.offerPrice} ₽/ч</b> <span class="muted">(вместо ${bk.tutorPrice} ₽)</span>`}</div>
         </div>
         <div class="row" style="gap:8px;flex-wrap:wrap">
           ${accepted ? `<a class="btn confirm sm" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>Написать</span></a>` : ""}
@@ -188,20 +202,24 @@
     const curHourNum = Math.max(10, Math.min(20, parseInt(String(curHour).split(":")[0], 10) || 10));
     const curHourPct = Math.round(((curHourNum - 10) / 10) * 100);
     const sig = TDATA.offerSignal(tutor.price, b.offerPrice);
-    const preview = TDATA.botPreviewText({
-      exam: b.exam,
-      subjectName: tutor.subjectName,
-      format: b.format,
-      dayLabel: dayObj.fullLabel,
-      hour: curHour,
-      offerPrice: b.offerPrice,
-      tutorPrice: tutor.price
-    });
     const st = getMkt();
+    const isTrial = !!b.isTrial;
+    const minOk = hasMinBalance(st);
     const n5 = b.offerPrice > 0 ? Math.floor(5000 / b.offerPrice) : 0;
     const n10 = b.offerPrice > 0 ? Math.floor(10000 / b.offerPrice) : 0;
     const winTxt = tutor.windowLabel || ("с " + tutor.availableFrom + " до " + tutor.availableTo);
     const inWin = typeof TDATA.tutorInWindow === "function" ? TDATA.tutorInWindow(tutor, curHour) : true;
+    const preview = isTrial
+      ? `Запрос на бесплатный пробный урок (0 ₽) · ${b.exam}, ${tutor.subjectName}, ${b.format.toLowerCase()}, ${dayObj.fullLabel} в ${curHour}. Баланс подтверждён.`
+      : TDATA.botPreviewText({
+          exam: b.exam,
+          subjectName: tutor.subjectName,
+          format: b.format,
+          dayLabel: dayObj.fullLabel,
+          hour: curHour,
+          offerPrice: b.offerPrice,
+          tutorPrice: tutor.price
+        });
     const timeOptions = [];
     for (let h = 10; h <= 20; h++) {
       timeOptions.push({ id: `${String(h).padStart(2, "0")}:00`, label: `${String(h).padStart(2, "0")}:00` });
@@ -221,6 +239,15 @@
           <span>${esc(tutor.subjectName)} · ${esc(tutor.source)} · окно <b>${esc(winTxt)}</b></span>
           <span>Баланс: <b class="num">${st.balance.toLocaleString("ru-RU")} ₽</b></span>
         </div>
+        <div class="hh-seg equal" role="group" aria-label="Формат первого урока">
+          <button type="button" data-a="book-mode" data-v="paid" aria-pressed="${!isTrial}"><span>Обычный урок (своя ставка)</span></button>
+          <button type="button" data-a="book-mode" data-v="trial" aria-pressed="${isTrial}">${icon("spark")}<span>Пробный урок · 0 ₽</span></button>
+        </div>
+        ${isTrial && !minOk ? `<div class="notice warn">
+          <b>Нужно пополнение от 5 000 ₽</b>
+          <span class="small">Чтобы запросить бесплатный пробный урок (0 ₽), на балансе должно быть минимум 5 000 ₽ — деньги не спишутся.</span>
+          <div><button type="button" class="btn sm" data-a="bal-open" data-reason="trial">${icon("wallet")}<span>Пополнить баланс от 5 000 ₽</span></button></div>
+        </div>` : ""}
         <div class="fields">
           <div class="field">
             <label>Экзамен</label>
@@ -268,19 +295,21 @@
           </div>
         </div>
         <div class="field">
-          <label for="bid-price">Твоя цена за занятие (₽/ч)</label>
-          <div class="hh-price-row" id="bid-price-row" style="margin-bottom:4px">
-            ${priceHeadlineHTML(tutor.marketPrice, b.offerPrice, false)}
-          </div>
-          <div class="hh-diff-strip" id="bid-diff-strip" style="margin-bottom:4px">
-            ${priceDiffTagsHTML({ tutorPrice: tutor.price, marketPrice: tutor.marketPrice || tutor.price, offerPrice: b.offerPrice, qualBadge: tutor.qualBadge })}
-          </div>
-          <div class="hh-price-stepper">
-            <button type="button" class="hh-step-btn" data-a="bid-step" data-step="-100">−100 ₽</button>
-            <input class="input bid-input num" id="bid-price" type="number" min="500" max="5000" step="50" inputmode="numeric" value="${b.offerPrice}">
-            <button type="button" class="hh-step-btn" data-a="bid-step" data-step="100">+100 ₽</button>
-          </div>
-          <div id="bid-signal" class="small"><span class="chip ${sig.tone}">${esc(sig.label)}</span></div>
+          <label for="bid-price">${isTrial ? "Стоимость пробного урока" : "Твоя цена за занятие (₽/ч)"}</label>
+          ${isTrial
+            ? `<div class="hh-notice-card" style="padding:12px 14px"><b class="num">0 ₽ — бесплатный пробный урок</b><span class="small ink2">При подтверждении преподавателем с баланса <b>${st.balance.toLocaleString("ru-RU")} ₽</b> средства не списываются.</span></div>`
+            : `<div class="hh-price-row" id="bid-price-row" style="margin-bottom:4px">
+                ${priceHeadlineHTML(tutor.marketPrice, b.offerPrice, false)}
+              </div>
+              <div class="hh-diff-strip" id="bid-diff-strip" style="margin-bottom:4px">
+                ${priceDiffTagsHTML({ tutorPrice: tutor.price, marketPrice: tutor.marketPrice || tutor.price, offerPrice: b.offerPrice, qualBadge: tutor.qualBadge, customBadges: tutor.customBadges })}
+              </div>
+              <div class="hh-price-stepper">
+                <button type="button" class="hh-step-btn" data-a="bid-step" data-step="-100">−100 ₽</button>
+                <input class="input bid-input num" id="bid-price" type="number" min="500" max="5000" step="50" inputmode="numeric" value="${b.offerPrice}">
+                <button type="button" class="hh-step-btn" data-a="bid-step" data-step="100">+100 ₽</button>
+              </div>
+              <div id="bid-signal" class="small"><span class="chip ${sig.tone}">${esc(sig.label)}</span></div>`}
         </div>
         <div class="field">
           <label for="bid-note">Пожелания по подготовке (необязательно)</label>
@@ -289,11 +318,11 @@
         <div class="bot-preview">
           <b class="small">Детали заявки (уведомим о подтверждении):</b>
           <span id="bot-preview-txt">${esc(preview)}</span>
-          <span class="small muted" id="bid-plan-counts">На «Пробник» (5 000 ₽) хватит на <b>${n5} ур.</b> · на «Месяц» (10 000 ₽) на <b>${n10} ур.</b></span>
+          ${isTrial ? "" : `<span class="small muted" id="bid-plan-counts">На «Пробник» (5 000 ₽) хватит на <b>${n5} ур.</b> · на «Месяц» (10 000 ₽) на <b>${n10} ур.</b></span>`}
         </div>
         <div class="row between" style="flex-wrap:wrap;gap:8px;align-items:center">
           <div class="row" style="flex-wrap:wrap;gap:8px">
-            <button type="button" class="btn sakha-pattern" id="bid-submit-btn" data-a="book-submit">${sakhaBidInnerHTML(false, b.offerPrice, { attr: 'data-bid-lbl="1"' })}</button>
+            <button type="button" class="btn sakha-pattern" id="bid-submit-btn" data-a="book-submit">${isTrial ? `<span>Сөп · Попросить пробный 0 ₽</span>` : sakhaBidInnerHTML(false, b.offerPrice, { attr: 'data-bid-lbl="1"' })}</button>
             <button type="button" class="btn ghost" data-a="book-close">Отмена</button>
           </div>
           <button type="button" class="link-btn small muted" data-a="go-fees">Условия оплаты и сбор системы →</button>
@@ -363,13 +392,17 @@
     }
     const diffEl = document.getElementById("bid-diff-strip");
     if (diffEl) {
-      diffEl.innerHTML = priceDiffTagsHTML({ tutorPrice: tutor.price, marketPrice: tutor.marketPrice || tutor.price, offerPrice: b.offerPrice, qualBadge: tutor.qualBadge });
+      diffEl.innerHTML = priceDiffTagsHTML({ tutorPrice: tutor.price, marketPrice: tutor.marketPrice || tutor.price, offerPrice: b.offerPrice, qualBadge: tutor.qualBadge, customBadges: tutor.customBadges });
     }
     const subBtn = document.getElementById("bid-submit-btn");
     if (subBtn) {
-      const subLbl = subBtn.querySelector && (subBtn.querySelector("[data-bid-lbl]") || subBtn.querySelector("span"));
-      if (subLbl) subLbl.textContent = bidBtnLabelHTML(false, b.offerPrice);
-      else subBtn.innerHTML = sakhaBidInnerHTML(false, b.offerPrice, { attr: 'data-bid-lbl="1"' });
+      if (b.isTrial) {
+        subBtn.innerHTML = `<span>Сөп · Попросить пробный 0 ₽</span>`;
+      } else {
+        const subLbl = subBtn.querySelector && (subBtn.querySelector("[data-bid-lbl]") || subBtn.querySelector("span"));
+        if (subLbl) subLbl.textContent = bidBtnLabelHTML(false, b.offerPrice);
+        else subBtn.innerHTML = sakhaBidInnerHTML(false, b.offerPrice, { attr: 'data-bid-lbl="1"' });
+      }
     }
     const sigEl = document.getElementById("bid-signal");
     if (sigEl) {
@@ -386,15 +419,17 @@
     }
     const prevEl = document.getElementById("bot-preview-txt");
     if (prevEl) {
-      prevEl.textContent = TDATA.botPreviewText({
-        exam: b.exam,
-        subjectName: tutor.subjectName,
-        format: b.format,
-        dayLabel: dayObj.fullLabel,
-        hour: b.hour,
-        offerPrice: b.offerPrice,
-        tutorPrice: tutor.price
-      });
+      prevEl.textContent = b.isTrial
+        ? `Запрос на бесплатный пробный урок (0 ₽) · ${b.exam}, ${tutor.subjectName}, ${b.format.toLowerCase()}, ${dayObj.fullLabel} в ${b.hour}. Баланс подтверждён.`
+        : TDATA.botPreviewText({
+            exam: b.exam,
+            subjectName: tutor.subjectName,
+            format: b.format,
+            dayLabel: dayObj.fullLabel,
+            hour: b.hour,
+            offerPrice: b.offerPrice,
+            tutorPrice: tutor.price
+          });
     }
   }
 
@@ -555,14 +590,14 @@
       <div class="wallet-bar">
         <div class="stack" style="gap:2px">
           <span class="small muted">Тариф: <b style="color:var(--ink)">${esc(activePlan.name)}</b></span>
-          <div class="row" style="gap:10px;align-items:baseline">
+          <div class="row" style="gap:10px;align-items:baseline;flex-wrap:wrap">
             <span class="wallet-num num">${st.balance.toLocaleString("ru-RU")} ₽</span>
-            <span class="small muted">${st.balance ? "доступно на уроки с любым репетитором" : "пополни баланс 5 000 или 10 000 ₽ для записи с гарантией"}</span>
+            <span class="small muted">${hasMinBalance(st) ? "доступны пробный урок 0 ₽ и отклики" : "минимум 5 000 ₽ на балансе для пробного урока и записи"}</span>
           </div>
         </div>
         <div class="row" style="gap:8px;flex-wrap:wrap">
-          <button type="button" class="btn ${st.planId === "trial5k" ? "" : "soft"} sm" data-a="mkt-plan" data-id="trial5k">Баланс 5 000 ₽</button>
-          <button type="button" class="btn ${st.planId === "month10k" ? "" : "soft"} sm" data-a="mkt-plan" data-id="month10k">Баланс 10 000 ₽</button>
+          <button type="button" class="btn ${hasMinBalance(st) ? "soft" : ""} sm" data-a="bal-open">${icon("wallet")}<span>Пополнить баланс</span></button>
+          <button type="button" class="btn soft sm" data-a="go-student-lead">${icon("plus")}<span>Ищу преподавателя</span></button>
         </div>
       </div>
 
@@ -605,27 +640,146 @@
       ${plansSectionHTML()}`;
   }
 
-  /** Вкладка «Учёба»: график по неделям, переписка с репетиторами в WhatsApp и план ЕГЭ. */
+  function studentLeadCardHTML(TDATA, ui) {
+    const ld = ui.leadDraft || (ui.leadDraft = {
+      subjects: ["chem"],
+      subjMenuOpen: false,
+      exam: "ЕГЭ",
+      format: "Онлайн",
+      targetPrice: 1000,
+      scheduleNote: "",
+      whatsapp: "",
+      comment: ""
+    });
+    const leads = typeof TDATA.getStudentLeads === "function" ? TDATA.getStudentLeads() : [];
+    const myLeads = leads.filter((l) => l.mine);
+    const subjOptions = (TDATA.SUBJECTS || []).map((sb) => ({ id: sb.id, label: sb.name, short: sb.short }));
+    const subjValues = Array.isArray(ld.subjects) && ld.subjects.length ? ld.subjects : ["chem"];
+
+    const myLeadsHTML = myLeads.length
+      ? `<div class="stack" style="gap:8px;margin-top:4px">
+          <div class="small muted">Ваши открытые запросы в каталоге преподавателей (${myLeads.length}):</div>
+          ${myLeads.map((item) => {
+            const subjLabels = typeof TDATA.subjectNamesForIds === "function"
+              ? TDATA.subjectNamesForIds(item.subjects)
+              : item.subjects;
+            return `<div class="req-item">
+              <div class="stack" style="gap:4px;min-width:0;flex:1 1 220px">
+                <div class="row" style="gap:6px;flex-wrap:wrap">
+                  <b>${esc(item.exam)} · ${esc(item.format)}</b>
+                  ${subjLabels.map((lbl) => `<span class="chip accent">${esc(lbl)}</span>`).join("")}
+                  <span class="chip ${item.responded ? "confirm" : "gold"}">${item.responded ? "Преподаватель откликнулся" : "Опубликовано для преподавателей"}</span>
+                </div>
+                <div class="small ink2">${esc(item.comment)} · бюджет до <b class="num">${Number(item.targetPrice).toLocaleString("ru-RU")} ₽/ч</b></div>
+              </div>
+              <button type="button" class="btn ghost sm" data-a="lead-remove" data-id="${esc(item.id)}">Снять</button>
+            </div>`;
+          }).join("")}
+        </div>`
+      : "";
+
+    return `<section class="card pad-lg stack" id="study-lead-card" style="gap:14px">
+      <div class="row between" style="gap:10px;flex-wrap:wrap">
+        <div>
+          <div class="eyebrow">Обратный отклик преподавателей</div>
+          <h2 class="h2">Ищу преподавателя по предметам</h2>
+          <p class="small muted">Опубликуйте запрос с мультивыбором предметов (например, Химия и Биология) — она сразу появится в каталоге преподавателей, чтобы репетиторы написали вам сами.</p>
+        </div>
+        <span class="chip accent">Попасть в каталог для преподавателей</span>
+      </div>
+      <form class="stack" style="gap:12px" data-f="student-lead">
+        <div class="field">
+          <span class="label">Предметы (можно выбрать несколько)</span>
+          ${typeof hhMultiSelectHTML === "function"
+            ? hhMultiSelectHTML({
+                id: "lead-subjects",
+                options: subjOptions,
+                values: subjValues,
+                placeholder: "Выберите нужные предметы",
+                open: !!ld.subjMenuOpen,
+                toggleAction: "lead-subj-toggle",
+                pickAction: "lead-subj-pick",
+                ariaLabel: "Предметы поиска преподавателя"
+              })
+            : ""}
+        </div>
+        <div class="fields">
+          <div class="field">
+            <span class="label">Экзамен</span>
+            <div class="switch" role="group" aria-label="Экзамен заявки">
+              ${["ЕГЭ", "ОГЭ", "ДВИ / Олимпиады"].map((ex) => `<button type="button" data-a="lead-exam" data-v="${esc(ex)}" aria-pressed="${(ld.exam || "ЕГЭ") === ex}">${esc(ex)}</button>`).join("")}
+            </div>
+          </div>
+          <div class="field">
+            <span class="label">Формат</span>
+            <div class="switch" role="group" aria-label="Формат заявки">
+              ${["Онлайн", "Очно"].map((fm) => `<button type="button" data-a="lead-format" data-v="${esc(fm)}" aria-pressed="${(ld.format || "Онлайн") === fm}">${esc(fm)}</button>`).join("")}
+            </div>
+          </div>
+        </div>
+        <div class="fields">
+          <div class="field">
+            <label for="lead-price">Желаемая ставка (₽/ч)</label>
+            <input class="input num" id="lead-price" name="targetPrice" type="number" min="500" max="5000" step="50" value="${Number(ld.targetPrice) || 1000}">
+          </div>
+          <div class="field">
+            <label for="lead-wa">Контакт для связи (WhatsApp / телефон)</label>
+            <input class="input num" id="lead-wa" name="whatsapp" type="text" maxlength="40" placeholder="79142100500" value="${esc(ld.whatsapp || "")}">
+          </div>
+        </div>
+        <div class="field">
+          <label for="lead-comment">Что важно в подготовке (время, цель баллов, тема)</label>
+          <input class="input" id="lead-comment" name="comment" maxlength="160" placeholder="Например: ищу преподавателя по химии и биологии, цель 85+, удобно Пн/Ср в 17:00" value="${esc(ld.comment || "")}">
+        </div>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <button type="submit" class="btn">${icon("spark")}<span>Опубликовать заявку для преподавателей</span></button>
+        </div>
+      </form>
+      ${myLeadsHTML}
+    </section>`;
+  }
+
+  /** Вкладка «Учёба»: только записанные репетиторы, переписка WhatsApp, поиск преподавателя и план ЕГЭ. */
   function viewStudy() {
     const TDATA = getTDATA();
     if (!TDATA) return "";
     const ui = getUi();
     const st = getMkt();
     const tab = ui.studyTab || "week";
-    const totalTutors = TDATA.LIST.length;
     const weekOffset = ui.studyWeekOffset ? 1 : 0;
     const weekDays = TDATA.buildWeekDays(weekOffset);
     const subjFilter = ui.studySubj || "all";
 
+    const bookedList = [];
+    const seenTutors = new Set();
+    st.bookings.forEach((bk) => {
+      if (seenTutors.has(bk.tutorId)) return;
+      seenTutors.add(bk.tutorId);
+      const t = TDATA.LIST.find((x) => x.id === bk.tutorId) || {
+        id: bk.tutorId,
+        name: bk.tutorName,
+        subject: "bio",
+        subjects: ["bio"],
+        subjectName: bk.subjectName || "Подготовка",
+        price: bk.tutorPrice || bk.offerPrice || 1000,
+        verified: true,
+        whatsapp: "79142100101"
+      };
+      bookedList.push({ tutor: t, booking: bk });
+    });
+
     const header = `<div class="head">
         <div class="row between" style="flex-wrap:wrap;gap:10px">
-          <div><div class="eyebrow">Учёба</div><h1 class="h1">График и репетиторы</h1></div>
-          <button type="button" class="btn soft sm" data-a="go" data-v="market">Подобрать ещё</button>
+          <div><div class="eyebrow">Учёба</div><h1 class="h1">Мои преподаватели и расписание</h1></div>
+          <div class="row" style="gap:8px;flex-wrap:wrap">
+            <button type="button" class="btn soft sm" data-a="go" data-v="market">Подобрать ещё</button>
+            <button type="button" class="btn ghost sm" data-a="bal-open">${icon("wallet")}<span>${st.balance.toLocaleString("ru-RU")} ₽</span></button>
+          </div>
         </div>
       </div>
       <div class="chip-rail">
-        <button type="button" class="chip-btn${tab === "week" ? " on" : ""}" data-a="study-tab" data-tab="week">График недели</button>
-        <button type="button" class="chip-btn${tab === "chats" ? " on" : ""}" data-a="study-tab" data-tab="chats">Чаты WhatsApp (${totalTutors})</button>
+        <button type="button" class="chip-btn${tab === "week" ? " on" : ""}" data-a="study-tab" data-tab="week">График (${st.bookings.length})</button>
+        <button type="button" class="chip-btn${tab === "chats" ? " on" : ""}" data-a="study-tab" data-tab="chats">Чаты WhatsApp (${bookedList.length})</button>
         <button type="button" class="chip-btn${tab === "plan" ? " on" : ""}" data-a="study-tab" data-tab="plan">План ЕГЭ</button>
       </div>`;
 
@@ -634,17 +788,26 @@
     }
 
     if (tab === "chats") {
-      const bookedIds = new Set(st.bookings.map((b) => b.tutorId));
-      const sorted = TDATA.LIST.slice().sort((a, b) => (bookedIds.has(b.id) ? 1 : 0) - (bookedIds.has(a.id) ? 1 : 0));
-      const rows = sorted.map((t) => {
-        const bk = st.bookings.find((x) => x.tutorId === t.id);
-        const slot = bk ? `${bk.dayLabel}, ${bk.hour}` : (TDATA.tutorSlotsForDay(t, "all")[0] || "10:00");
-        const waHref = TDATA.whatsappUrl(t, bk
-          ? `Здравствуйте, ${t.name}! Пишу по поводу занятия ${bk.dayLabel} в ${bk.hour} (${bk.subjectName}, ставка ${bk.offerPrice} ₽/ч).`
-          : `Здравствуйте, ${t.name}! Хочу уточнить свободное время на этой неделе (${t.subjectName}).`);
-        const statusTxt = bk
-          ? (bk.status === "accepted" ? "Подтверждён · WhatsApp" : `Отклик ${bk.offerPrice} ₽/ч`)
-          : `Ответ ~${t.responseMin} мин`;
+      if (!bookedList.length) {
+        return `${header}
+          <div class="empty">
+            <b>Пока нет преподавателей, к которым вы записаны</b>
+            <span>Выберите преподавателя во вкладке «Репетиторы» — после записи здесь появятся прямые чаты WhatsApp.</span>
+            <button type="button" class="btn sm" data-a="go" data-v="market">Перейти в «Репетиторы»</button>
+          </div>
+          ${studentLeadCardHTML(TDATA, ui)}`;
+      }
+      const sorted = bookedList.slice().sort((a, b) => (b.booking.status === "accepted" ? 1 : 0) - (a.booking.status === "accepted" ? 1 : 0));
+      const rows = sorted.map(({ tutor: t, booking: bk }) => {
+        const isTrial = !!bk.isTrial || Number(bk.offerPrice) === 0;
+        const slot = `${bk.dayLabel}, ${bk.hour}`;
+        const waHref = TDATA.whatsappUrl(
+          t,
+          `Здравствуйте, ${t.name}! Пишу по поводу занятия ${bk.dayLabel} в ${bk.hour} (${bk.subjectName}, ${isTrial ? "пробный урок 0 ₽" : "ставка " + bk.offerPrice + " ₽/ч"}).`
+        );
+        const statusTxt = bk.status === "accepted"
+          ? "Подтверждён · WhatsApp"
+          : (isTrial ? "Запрос на пробный 0 ₽" : `Отклик ${bk.offerPrice} ₽/ч`);
         return `<a class="hh-chat-row" href="${esc(waHref)}" target="_blank" rel="noopener">
           <span class="tutor-avatar" aria-hidden="true">${esc(initials(t.name))}</span>
           <div style="min-width:0">
@@ -652,8 +815,8 @@
               <b style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.name)}</b>
               ${t.verified ? `<span class="verified-badge">${icon("check")}</span>` : ""}
             </div>
-            <div class="small muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.subjectName)} · от ${t.price} ₽/ч</div>
-            <div class="small" style="color:${bk ? "var(--leaf)" : "var(--muted)"}">${esc(statusTxt)}</div>
+            <div class="small muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(bk.subjectName || t.subjectName)} · ${isTrial ? "пробный 0 ₽" : `от ${t.price} ₽/ч`}</div>
+            <div class="small" style="color:${bk.status === "accepted" ? "var(--leaf)" : "var(--accent)"}">${esc(statusTxt)}</div>
           </div>
           <div class="stack" style="gap:4px;justify-items:end">
             <span class="small muted num">${esc(slot)}</span>
@@ -663,9 +826,8 @@
       }).join("");
       return `${header}
         <div class="hh-notice-card">
-          <b>Быстрая связь с преподавателями в WhatsApp</b>
-          <span class="small ink2">Нажмите на любого преподавателя, чтобы открыть готовое сообщение с вашим предметом, временем и ставкой.</span>
-          <div><button type="button" class="btn sm" data-a="go" data-v="market">Выбрать время и предложить цену</button></div>
+          <b>Чаты только с вашими преподавателями</b>
+          <span class="small ink2">Здесь собраны преподаватели, к которым вы записались. Нажмите для перехода в WhatsApp с готовым текстом.</span>
         </div>
         <div class="hh-chat-list">${rows}</div>`;
     }
@@ -673,70 +835,85 @@
     const weekRange = `${weekDays[0].num} ${weekDays[0].month} — ${weekDays[6].num} ${weekDays[6].month}`;
     const noticeCard = `<div class="hh-notice-card">
       <div class="row between" style="gap:8px;flex-wrap:wrap">
-        <b>${st.bookings.length ? `У вас ${st.bookings.length} ${plural(st.bookings.length, "занятие", "занятия", "занятий")} в работе` : "График открытых окон на неделю"}</b>
+        <b>${st.bookings.length ? `Ваших записей к преподавателям: ${st.bookings.length}` : "В разделе «Учёба» только ваши преподаватели"}</b>
         <span class="chip accent num">Баланс: ${st.balance.toLocaleString("ru-RU")} ₽</span>
       </div>
-      <span class="small ink2">Видно, какие учителя ждут вас в каждый день недели. С каждым можно сразу записаться по своей цене или написать в WhatsApp.</span>
+      <span class="small ink2">${st.bookings.length ? "Здесь показаны только преподаватели, к которым у вас есть заявка или подтверждённый урок." : "После записи в «Репетиторах» здесь появятся ваше расписание, статус подтверждения и быстрый чат в WhatsApp."}</span>
       <div class="row" style="gap:8px;flex-wrap:wrap">
-        <button type="button" class="btn sm" data-a="go" data-v="market">Найти репетитора</button>
-        <button type="button" class="btn soft sm" data-a="study-tab" data-tab="chats">${icon("msg")}<span>Все чаты WhatsApp</span></button>
+        <button type="button" class="btn sm" data-a="go" data-v="market">Подобрать репетитора</button>
+        ${!hasMinBalance(st) ? `<button type="button" class="btn soft sm" data-a="bal-open">${icon("wallet")}<span>Пополнить от 5 000 ₽</span></button>` : ""}
       </div>
     </div>`;
 
-    const weekPicker = `<div class="hh-seg" role="group" aria-label="Выбор недели">
-      <button type="button" data-a="study-week" data-w="0" aria-pressed="${weekOffset === 0}">Эта неделя</button>
-      <button type="button" data-a="study-week" data-w="1" aria-pressed="${weekOffset === 1}">Следующая неделя</button>
-    </div>
-    <div class="chip-rail swipe" role="group" aria-label="Фильтр по предмету">
-      <button type="button" class="chip-btn${subjFilter === "all" ? " on" : ""}" data-a="study-subj" data-v="all">Все предметы</button>
-      ${TDATA.SUBJECTS.map((sb) => `<button type="button" class="chip-btn${subjFilter === sb.id ? " on" : ""}" data-a="study-subj" data-v="${sb.id}">${esc(sb.short)}</button>`).join("")}
-    </div>`;
-
-    const weekCards = weekDays.map((d) => {
-      const avail = TDATA.LIST.filter((t) => (subjFilter === "all" || t.subject === subjFilter) && TDATA.tutorSlotsForDay(t, d.dow).length > 0);
-      const dayBookings = st.bookings.filter((bk) => bk.dayIso === d.iso);
-      const rows = avail.slice(0, 4).map((t) => {
-        const slots = TDATA.tutorSlotsForDay(t, d.dow);
-        const booked = dayBookings.find((b) => b.tutorId === t.id) || st.bookings.find((b) => b.tutorId === t.id);
-        const waHref = TDATA.whatsappUrl(t, `Здравствуйте, ${t.name}! Пишу по графику на ${d.fullLabel} (${slots[0] || "10:00"}), предмет — ${t.subjectName}.`);
-        return `<div class="week-slot-row">
-          <div class="stack" style="gap:2px;min-width:0;flex:1 1 200px">
-            <div class="row" style="gap:6px;flex-wrap:wrap">
-              <b>${esc(t.name)}</b>
-              ${t.verified ? `<span class="verified-badge">${icon("check")}</span>` : ""}
-              <span class="chip">${esc(t.subjectName)}</span>
-              ${booked ? `<span class="chip accent">${booked.status === "accepted" ? "Подтверждён" : "Ваша заявка"}</span>` : ""}
-            </div>
-            <div class="small muted">Окна: ${slots.join(", ")} · от ${t.price} ₽/ч</div>
+    const enrolledSection = !st.bookings.length
+      ? `<div class="empty">
+          <b>Вы пока не записаны ни к одному преподавателю</b>
+          <span>Откройте «Репетиторы», пополните счёт от 5 000 ₽ и отправьте заявку или запрос на бесплатный пробный урок.</span>
+          <button type="button" class="btn sm" data-a="go" data-v="market">Выбрать преподавателя</button>
+        </div>`
+      : (() => {
+          const filteredBookings = st.bookings.filter((bk) => {
+            if (subjFilter === "all") return true;
+            const tutor = TDATA.LIST.find((t) => t.id === bk.tutorId);
+            if (!tutor) return true;
+            return tutor.subject === subjFilter || (Array.isArray(tutor.subjects) && tutor.subjects.includes(subjFilter));
+          });
+          const weekPicker = `<div class="hh-seg" role="group" aria-label="Выбор недели">
+            <button type="button" data-a="study-week" data-w="0" aria-pressed="${weekOffset === 0}">Эта неделя</button>
+            <button type="button" data-a="study-week" data-w="1" aria-pressed="${weekOffset === 1}">Следующая неделя</button>
           </div>
-          <div class="row" style="gap:6px;flex-wrap:wrap">
-            <a class="btn confirm sm" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>WhatsApp</span></a>
-            <button type="button" class="btn sm" data-a="book-open" data-id="${esc(t.id)}" data-hour="${esc(slots[0] || "10:00")}">Записаться</button>
+          <div class="chip-rail swipe" role="group" aria-label="Фильтр по предмету">
+            <button type="button" class="chip-btn${subjFilter === "all" ? " on" : ""}" data-a="study-subj" data-v="all">Все предметы</button>
+            ${TDATA.SUBJECTS.map((sb) => `<button type="button" class="chip-btn${subjFilter === sb.id ? " on" : ""}" data-a="study-subj" data-v="${sb.id}">${esc(sb.short)}</button>`).join("")}
+          </div>`;
+          const weekCards = weekDays.map((d) => {
+            const dayBookings = filteredBookings.filter((bk) => bk.dayIso === d.iso || (bk.dow != null && Number(bk.dow) === d.dow));
+            if (!dayBookings.length) return "";
+            const rows = dayBookings.map((bk) => {
+              const tutor = TDATA.LIST.find((x) => x.id === bk.tutorId) || { name: bk.tutorName, subjectName: bk.subjectName, whatsapp: "79142100101", verified: true };
+              const isTrial = !!bk.isTrial || Number(bk.offerPrice) === 0;
+              const waHref = TDATA.whatsappUrl(tutor, `Здравствуйте, ${bk.tutorName}! Пишу по уроку на ${d.fullLabel} (${bk.hour}), предмет — ${bk.subjectName}.`);
+              return `<div class="week-slot-row">
+                <div class="stack" style="gap:2px;min-width:0;flex:1 1 200px">
+                  <div class="row" style="gap:6px;flex-wrap:wrap">
+                    <b>${esc(bk.tutorName)}</b>
+                    ${tutor.verified !== false ? `<span class="verified-badge">${icon("check")}</span>` : ""}
+                    <span class="chip">${esc(bk.subjectName)}</span>
+                    <span class="chip ${bk.status === "accepted" ? "confirm" : "notif"}">${bk.status === "accepted" ? "Подтверждён" : "На рассмотрении"}</span>
+                  </div>
+                  <div class="small muted num">${esc(bk.hour)} · ${esc(bk.format)} · ${isTrial ? "Пробный 0 ₽" : `${Number(bk.offerPrice).toLocaleString("ru-RU")} ₽/ч`}</div>
+                </div>
+                <div class="row" style="gap:6px;flex-wrap:wrap">
+                  <a class="btn confirm sm" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>WhatsApp</span></a>
+                </div>
+              </div>`;
+            }).join("");
+            return `<article class="week-day-card active-day">
+              <div class="row between" style="gap:8px;flex-wrap:wrap">
+                <b>${esc(d.fullLabel)}</b>
+                <span class="chip accent">${dayBookings.length} ${plural(dayBookings.length, "занятие", "занятия", "занятий")}</span>
+              </div>
+              ${rows}
+            </article>`;
+          }).filter(Boolean).join("");
+          return `<div class="stack" style="gap:10px">
+            <div class="row between"><h2 class="h2">Календарь ваших уроков: ${esc(weekRange)}</h2></div>
+            ${weekPicker}
           </div>
-        </div>`;
-      }).join("");
-      return `<article class="week-day-card${dayBookings.length ? " active-day" : ""}">
-        <div class="row between" style="gap:8px;flex-wrap:wrap">
-          <b>${esc(d.fullLabel)}</b>
-          <span class="chip">${avail.length} ${plural(avail.length, "учитель ждёт", "учителя ждут", "учителей ждут")}</span>
-        </div>
-        ${rows || '<div class="small muted">По выбранному предмету на этот день свободных окон нет.</div>'}
-      </article>`;
-    }).join("");
+          ${weekCards ? `<div class="week-days-grid">${weekCards}</div>` : `<div class="empty"><b>По выбранному предмету записей пока нет</b><span>Переключите фильтр на «Все предметы» или добавьте занятие.</span></div>`}`;
+        })();
 
     return `${header}
       ${noticeCard}
       ${bookingsStripHTML(st)}
-      <div class="stack" style="gap:10px">
-        <div class="row between"><h2 class="h2">Календарь: ${esc(weekRange)}</h2></div>
-        ${weekPicker}
-      </div>
-      <div class="week-days-grid">${weekCards}</div>`;
+      ${enrolledSection}
+      ${studentLeadCardHTML(TDATA, ui)}`;
   }
 
   EGE.views = EGE.views || {};
   EGE.views.marketplace = {
     configure,
+    hasMinBalance,
     bookingModalHTML,
     activeFilterCount,
     filterModalHTML,
