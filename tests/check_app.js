@@ -1039,7 +1039,13 @@
     const bbHtml = env5.elements.get("main").innerHTML;
     assert(bbHtml.includes('id="brandbook-page"') && bbHtml.includes('data-bb-pane="light"') && bbHtml.includes('data-bb-pane="dark"') && bbHtml.includes("Синий фон") && bbHtml.includes("hh-price-old") && bbHtml.includes("Inter") && bbHtml.includes("#F97316") && bbHtml.includes('id="bb-buttons"') && bbHtml.includes('id="bb-bounds"') && bbHtml.includes("bb-phone-frame"), "expected brandbook with white/dark/blue surfaces, orange notifications #F97316, full button/heart/icon catalog, spacing boundaries and mobile 390px frame");
     assert(bbHtml.includes('id="bb-logo"') && bbHtml.includes('data-surface="light"') && bbHtml.includes('data-surface="dark"') && bbHtml.includes('data-surface="blue"') && bbHtml.includes('class="brand-wordmark"') && !bbHtml.includes("M5.5 15Q15") && bbHtml.includes('id="bb-forms"') && bbHtml.includes('id="bb-cards-sys"') && bbHtml.includes('id="bb-study-states"') && bbHtml.includes('id="bb-dodont"') && bbHtml.includes("bb-input-error") && bbHtml.includes("plan-card featured super") && bbHtml.includes("bb-skel-bar") && bbHtml.includes('data-a="bb-copy-token"'), "expected extended brandbook sections: 3-surface circular Sakha logo + custom vector wordmark, forms/errors, tariffs/modals/toasts, study/skeleton/empty/danger states, Do/Dont, and copyable tokens");
-    assert(bbHtml.includes('id="bb-sliders"') && bbHtml.includes('id="bb-hour-range-clean"') && bbHtml.includes('id="bb-hour-range-ticks"') && bbHtml.includes('id="bb-hour-range-ruler"') && bbHtml.includes('id="bb-layers"') && bbHtml.includes('id="bb-cabinet"') && bbHtml.includes('id="bb-responsive"') && bbHtml.includes('id="bb-vp-slider"') && bbHtml.includes("bb-blueprint-grid") && bbHtml.includes('data-a="bb-day" data-v="sat"') && !bbHtml.includes('id="bb-motion"') && !bbHtml.includes("Нажми «Предложить» для перехода") && !bbHtml.includes("5%:") && bbHtml.includes("sakha-divider is-gold-logo") && bbHtml.includes("is-no-photo") && bbHtml.includes("hh-step-readout is-inline") && bbHtml.includes("tc-autobump-card") && bbHtml.includes("tc-wa-cfg"), "expected 3 brandbook sliders, cabinet/balance showcase, gold divider, inline stepper, layers without bb-motion, responsive lab, clean CTA card without clipped hint or commission string");
+    assert(bbHtml.includes('id="bb-sliders"') && bbHtml.includes('id="bb-hour-range-clean"') && bbHtml.includes('id="bb-hour-range-ticks"') && bbHtml.includes('id="bb-hour-range-ruler"') && bbHtml.includes('id="bb-layers"') && bbHtml.includes('id="bb-cabinet"') && bbHtml.includes('data-target="bb-cabinet"') && bbHtml.includes('id="bb-responsive"') && bbHtml.includes('id="bb-vp-slider"') && bbHtml.includes("bb-blueprint-grid") && bbHtml.includes('data-a="bb-day" data-v="sat"') && !bbHtml.includes('id="bb-motion"') && !bbHtml.includes("Нажми «Предложить» для перехода") && !bbHtml.includes("5%:") && bbHtml.includes("sakha-divider is-gold-logo") && bbHtml.includes("is-no-photo") && bbHtml.includes("hh-step-readout is-inline") && bbHtml.includes("tc-autobump-card") && bbHtml.includes("tc-wa-cfg") && bbHtml.includes("bb-bal-toggle") && bbHtml.includes("wallet-bar") && bbHtml.includes("tc-cal-hours") && bbHtml.includes("tc-bar-chart") && bbHtml.includes("tc-hh-meter") && bbHtml.includes("tc-score-track") && bbHtml.includes("Справочник") && !globalThis.EGE.kit.aiErrorBoxesHTML, "expected 3 brandbook sliders, interactive cabinet/balance/schedule/chart/score showcase, 5-tab phone nav, nav link to bb-cabinet, and removed aiErrorBoxesHTML");
+    clickAction(env5, { a: "bb-bal-toggle" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("0 ₽ · до старта") && env5.elements.get("main").innerHTML.includes("Нужен старт 5 000 ₽"), "expected bb-bal-toggle to switch brandbook balance preview to 0 ₽ blocked state");
+    clickAction(env5, { a: "bb-bal-toggle" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("5 000 ₽ · активен") && env5.elements.get("main").innerHTML.includes("Пробный урок 0 ₽"), "expected second bb-bal-toggle to restore funded 5 000 ₽ active state");
     clickAction(env5, { a: "bb-copy-token", copy: "#0070FF · --accent" });
     await flushMicrotasks(2);
     assert(env5.elements.get("toast").textContent.includes("#0070FF"), "expected token copy toast in brandbook");
@@ -1110,7 +1116,7 @@
     clickAction(env5, { a: "go", v: "fees" });
     await flushMicrotasks(4);
     const feesHtml = env5.elements.get("main").innerHTML;
-    assert(feesHtml.includes('id="fees-page"') && feesHtml.includes("5%") && hasNum(feesHtml, "760 ₽") && feesHtml.includes("40 ₽"), "expected dedicated /fees page showing 5% system fee and 760/40 split");
+    assert(feesHtml.includes('id="fees-page"') && feesHtml.includes("5%") && hasNum(feesHtml, "760 ₽") && feesHtml.includes("40 ₽") && !feesHtml.includes("Открыть Брендбук"), "expected dedicated /fees page showing 5% system fee and 760/40 split without internal brandbook button");
     clickAction(env5, { a: "fees-rate", rate: "2000" });
     await flushMicrotasks(2);
     const feesUpdated = env5.elements.get("main").innerHTML;
@@ -1218,7 +1224,7 @@
     clickAction(env5, { a: "bb-app-role", role: "tutor" });
     await flushMicrotasks(2);
     const bbTutorAppHtml = env5.elements.get("main").innerHTML;
-    assert(bbTutorAppHtml.includes("tc-req-card") && bbTutorAppHtml.includes("Актуален сегодня") && bbTutorAppHtml.includes("на руки 95%") && bbTutorAppHtml.includes("Календарь учеников") && bbTutorAppHtml.includes("Ученики ищут") && bbTutorAppHtml.includes("side-badge-jump"), "expected bb-app-role=tutor in brandbook to display Tutor Cabinet card, 7-item teacher sidebar with jump badge, and 95% payout");
+    assert(bbTutorAppHtml.includes("tc-req-card") && bbTutorAppHtml.includes("Поднять анкету (раз в 4 ч)") && bbTutorAppHtml.includes("на руки 95%") && bbTutorAppHtml.includes("Календарь учеников") && bbTutorAppHtml.includes("Ученики ищут") && bbTutorAppHtml.includes("side-badge-jump"), "expected bb-app-role=tutor in brandbook to display Tutor Cabinet card with 4h bump button, 7-item teacher sidebar with jump badge, and 95% payout");
     clickAction(env5, { a: "bb-app-role", role: "student" });
     await flushMicrotasks(2);
 

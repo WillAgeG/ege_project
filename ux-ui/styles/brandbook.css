@@ -290,8 +290,8 @@
 }
 .bb-phone-body { padding: 12px; display: grid; gap: 10px; min-width: 0; background: var(--bg); }
 .bb-phone-tabs {
-  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px;
-  padding: 6px 6px 8px; background: var(--surface); border-top: 1px solid var(--line);
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px;
+  padding: 6px 4px 8px; background: var(--surface); border-top: 1px solid var(--line);
 }
 .bb-phone-tab {
   position: relative; display: grid; justify-items: center; gap: 2px;

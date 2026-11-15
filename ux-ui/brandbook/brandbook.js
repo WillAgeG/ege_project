@@ -15,7 +15,6 @@
     marqueePillsHTML,
     rateBenchCardHTML,
     trustStripHTML,
-    aiErrorBoxesHTML,
     reviewCardHTML,
     faqListHTML,
     blueBannerHTML
@@ -91,6 +90,7 @@
       heroQ: "",
       marketDemoAccepted: false,
       reducedMotion: false,
+      balFunded: true,
       cat: "all",
       catQ: "",
       faqOpen: 0
@@ -272,6 +272,26 @@
           <button type="button" class="btn sakha-pattern${bb.sent ? " is-confirmed" : ""}" data-a="bb-bid">${sakhaBidInnerHTML(bb.sent, bb.price)}</button>
         </div>
       </article>
+
+      ${sakhaOhyorHTML("Вектор ЕГЭ · Саха", { goldLogo: true })}
+
+      <div class="stack" style="gap:8px;padding-top:4px">
+        <div class="hh-price-stepper compact">
+          <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-100">−100 ₽</button>
+          <label class="hh-step-readout is-inline">
+            <input class="demo-rate-input num" type="number" min="500" max="3000" step="100" value="${Number(bb.price) || 1200}" readonly aria-label="Ставка">
+            <span class="hh-step-unit">₽/ч</span>
+          </label>
+          <button type="button" class="hh-step-btn" data-a="bb-step" data-step="100">+100 ₽</button>
+        </div>
+        <div class="tc-autobump-card" style="padding:10px 12px">
+          <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
+            <span class="chip gold">${icon("spark")}<span>Авто-24 ч</span></span>
+            <b class="num savings-gold-txt">23:59:18</b>
+            <button type="button" class="btn soft sm" data-a="bb-demo-toast">Поднята · 4 ч</button>
+          </div>
+        </div>
+      </div>
     </div>`;
   }
 
@@ -405,15 +425,18 @@
               <span class="hint">Синхронный checklist-выпадающий список с отметками и крестиком «×» прямо внутри выбранных тегов поля (без дублирования чипов снизу). Используется в профиле преподавателя и запросах ученика «Ищу преподавателя».</span>
             </div>
             <div class="field">
-              <span class="label">Постоянная панель баланса ученика (#side-balance-slot / #top-balance-slot)</span>
-              <div class="row between" style="padding:10px 12px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line);gap:8px;flex-wrap:wrap">
-                <span class="small muted">На десктопе — внизу слева в меню; на телефоне — вверху справа</span>
-                <div class="top-bal-wrap">
-                  <span class="top-bal-pill is-funded">${icon("wallet")}<span class="num">5 000 ₽</span></span>
-                  <span class="top-bal-btn">${icon("plus")}<span>Пополнить</span></span>
+              <span class="label">Город и часовой пояс (Профиль преподавателя)</span>
+              <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
+                <div class="hh-seg equal" style="flex:1 1 155px" role="group" aria-label="Демо города преподавателя">
+                  <button type="button" class="on" data-a="bb-demo-toast">Якутск</button>
+                  <button type="button" data-a="bb-demo-toast">Москва</button>
                 </div>
+                <select class="select" style="flex:1 1 170px" aria-label="Демо часового пояса">
+                  <option selected>Якутск (UTC+9)</option>
+                  <option>Москва (UTC+3)</option>
+                </select>
               </div>
-              <span class="hint">Первый платёж или подписка от <b>5 000 ₽</b> открывает запись на бесплатный пробный урок (0 ₽) и отклики; дальнейшие пополнения доступны от <b>100 ₽</b> (любая сумма).</span>
+              <span class="hint">По умолчанию для анкеты и расписания — <b>Якутск (UTC+9)</b>; в фильтре городов доступны только Якутск и Москва.</span>
             </div>
             <div class="field">
               <span class="label">Вход и выбор роли по умолчанию (.hh-seg.equal · authCard)</span>
@@ -709,7 +732,7 @@
             <span class="small muted">(на руки 95%: <b class="num">${Math.round(bb.price * 0.95).toLocaleString("ru-RU")} ₽</b>)</span>
           </div>
           <div class="row" style="gap:8px;flex-wrap:wrap">
-            <button type="button" class="btn gold sm" data-a="bb-demo-toast">${icon("spark")} Сөп · Актуален сегодня</button>
+            <button type="button" class="btn gold sm" data-a="bb-demo-toast">${icon("spark")} Поднять анкету (раз в 4 ч)</button>
             <button type="button" class="btn ${accepted ? "confirm" : ""} sm" data-a="bb-market-req-toggle">${accepted ? "✓ Подтверждено" : "✓ Подтвердить"}</button>
           </div>
         </div>
@@ -879,41 +902,65 @@
 
       <div class="bb-forms-grid">
         <div class="card pad stack" style="gap:12px">
-          <div class="row between" style="gap:8px;flex-wrap:wrap">
-            <b>01 · Баланс ученика (Сайдбар ↓ + Топбар ↑)</b>
-            <span class="bb-spec-pill">min 5 000 ₽ → потом от 100 ₽</span>
+          <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
+            <b>01 · Баланс ученика + Модалка пополнения (.wallet-bar)</b>
+            <button type="button" class="btn sm ${bb.balFunded !== false ? "confirm" : "gold"}" data-a="bb-bal-toggle" aria-pressed="${bb.balFunded !== false}">
+              ${bb.balFunded !== false ? "5 000 ₽ · активен" : "0 ₽ · до старта"}
+            </button>
           </div>
           <div class="stack" style="gap:8px">
-            <span class="small muted">На десктопе: внизу слева внутри <code>#side-balance-slot</code> (прямо над переключением «Ученик / Преподаватель»); у преподавателя скрыт.</span>
-            <div class="side-bal-slot" style="max-width:260px">
-              <div class="top-bal-wrap" aria-label="Баланс в сайдбаре десктопа">
-                <button type="button" class="top-bal-pill is-funded" data-a="bb-demo-toast">
-                  ${icon("wallet")}
-                  <b class="num">5 000 ₽</b>
-                </button>
-                <button type="button" class="top-bal-btn" data-a="bb-demo-toast">${icon("plus")}<span>Пополнить</span></button>
-              </div>
-            </div>
-            <span class="small muted">На мобилке (≤ 600 px): компактный баланс в правом верхнем углу топбара (<code>#top-balance-slot</code>) с круглой кнопкой 28×28 px «+».</span>
-            <div class="topbar bb-mob-topbal-demo" style="position:static;border:1px solid var(--line);border-radius:14px;padding:8px 10px">
-              <span class="brand-name-txt" style="font-size:13.5px">Вектор ЕГЭ</span>
-              <div class="top-bal-slot">
-                <div class="top-bal-wrap" style="gap:4px">
-                  <button type="button" class="top-bal-pill is-funded" style="min-height:28px;padding:0 8px;font-size:11.5px;gap:4px" data-a="bb-demo-toast">
+            <span class="small muted">На десктопе: внизу слева в <code>#side-balance-slot</code>; на мобилке (≤ 600 px) — вверху справа с кнопкой 28×28 px «+».</span>
+            <div class="row" style="gap:10px;flex-wrap:wrap;align-items:center">
+              <div class="side-bal-slot" style="flex:1 1 220px;max-width:260px">
+                <div class="top-bal-wrap" aria-label="Баланс в сайдбаре десктопа">
+                  <button type="button" class="top-bal-pill${bb.balFunded !== false ? " is-funded" : ""}" data-a="bb-bal-toggle">
                     ${icon("wallet")}
-                    <b class="num">5 000 ₽</b>
+                    <b class="num">${bb.balFunded !== false ? "5 000 ₽" : "0 ₽"}</b>
                   </button>
-                  <button type="button" class="top-bal-btn" style="width:28px;min-height:28px;padding:0;justify-content:center" aria-label="Пополнить баланс" data-a="bb-demo-toast">${icon("plus")}</button>
+                  <button type="button" class="top-bal-btn" data-a="bb-bal-toggle">${icon("plus")}<span>Пополнить</span></button>
+                </div>
+              </div>
+              <div class="bb-mob-topbal-demo" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex:1 1 190px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:7px 10px">
+                <span class="brand-name-txt" style="font-size:13px">Вектор ЕГЭ</span>
+                <div class="top-bal-slot">
+                  <div class="top-bal-wrap" style="gap:4px">
+                    <button type="button" class="top-bal-pill${bb.balFunded !== false ? " is-funded" : ""}" style="min-height:28px;padding:0 8px;font-size:11.5px;gap:4px" data-a="bb-bal-toggle">
+                      ${icon("wallet")}
+                      <b class="num">${bb.balFunded !== false ? "5 000 ₽" : "0 ₽"}</b>
+                    </button>
+                    <button type="button" class="top-bal-btn" style="width:28px;min-height:28px;padding:0;justify-content:center" aria-label="Пополнить баланс" data-a="bb-bal-toggle">${icon("plus")}</button>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="stack" style="gap:6px;padding-top:6px;border-top:1px solid var(--line)">
-            <div class="row between" style="gap:8px;flex-wrap:wrap">
-              <b>02 · Строчный степпер калькулятора (.hh-step-readout.is-inline)</b>
-              <span class="bb-spec-pill">1 строка · input + ₽/ч</span>
+          <div class="card soft pad stack" style="gap:10px;box-shadow:none">
+            <div class="wallet-bar">
+              <div class="stack" style="gap:2px">
+                <span class="small muted">Баланс ученика в модалке</span>
+                <span class="wallet-num num">${bb.balFunded !== false ? "5 000 ₽" : "0 ₽"}</span>
+              </div>
+              <span class="chip ${bb.balFunded !== false ? "confirm" : "gold"}">${bb.balFunded !== false ? "✓ Порог 5 000 ₽ открыт" : "Минимум 5 000 ₽"}</span>
             </div>
+            <div class="chip-rail">
+              ${(bb.balFunded !== false ? ["100 ₽", "500 ₽", "1 000 ₽", "5 000 ₽"] : ["5 000 ₽ · Старт", "10 000 ₽", "15 000 ₽"]).map((amt, i) =>
+                `<button type="button" class="chip-btn${i === 0 ? " on" : ""}" data-a="bb-demo-toast">${amt}</button>`
+              ).join("")}
+            </div>
+            <span class="small muted">${bb.balFunded !== false
+              ? "Подписка <b>5 000 ₽</b> активна: следующие пополнения от <b>100 ₽</b> (любая сумма), бесплатный пробный урок <b>0 ₽</b> открыт."
+              : "Без старта от <b>5 000 ₽</b> запись на бесплатный пробный урок (0 ₽) и отклики закрыты. Нажмите «0 ₽ · до старта» выше для проверки."
+            }</span>
+          </div>
+        </div>
+
+        <div class="card pad stack" style="gap:12px">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <b>02 · Степпер (.is-inline), Аватар «Без фото» и Авто-24ч</b>
+            <span class="bb-spec-pill confirm">Анкеты и Профиль</span>
+          </div>
+          <div class="stack" style="gap:6px">
             <div class="hh-price-stepper compact demo-rate-stepper">
               <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-100">−100 ₽</button>
               <label class="hh-step-readout is-inline" for="bb-inline-rate">
@@ -922,15 +969,9 @@
               </label>
               <button type="button" class="hh-step-btn" data-a="bb-step" data-step="100">+100 ₽</button>
             </div>
-            <span class="small muted">Цифра и «₽/ч» всегда стоят на одной горизонтальной линии через <code>inline-flex</code> — единица не падает на вторую строку.</span>
+            <span class="small muted">Число и «₽/ч» всегда в одну строку через <code>inline-flex</code>.</span>
           </div>
-        </div>
 
-        <div class="card pad stack" style="gap:12px">
-          <div class="row between" style="gap:8px;flex-wrap:wrap">
-            <b>03 · Аватар «Без фото», до 2 плашек и Город / UTC</b>
-            <span class="bb-spec-pill confirm">Анкеты и Профиль</span>
-          </div>
           <div class="tc-photo-row">
             <span class="tutor-avatar lg is-no-photo"><span>Без фото</span></span>
             <div class="stack" style="gap:5px;min-width:0;flex:1">
@@ -939,7 +980,7 @@
                 <span class="diff-tag pro">Эксперт жюри</span>
                 <span class="diff-tag pro">СВФУ · олимпиады</span>
               </div>
-              <span class="small muted">Якутск (UTC+9) · доступны фильтры городов: Якутск и Москва</span>
+              <span class="small muted">Якутск (UTC+9) · до 2 квалификационных плашек</span>
             </div>
           </div>
 
@@ -956,7 +997,151 @@
               <button type="button" class="btn soft sm" disabled>✓ Поднята · через 03:59:42</button>
             </div>
           </div>
+        </div>
+      </div>
 
+      <div class="bb-forms-grid" style="margin-top:14px">
+        <div class="card pad stack" style="gap:10px">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <b>03 · Расписание преподавателя 10:00–20:00 (.tc-cal-hours)</b>
+            <span class="bb-spec-pill">4 состояния слота</span>
+          </div>
+          <div class="tc-cal-hours">
+            <div class="tc-cal-slot is-open">
+              <div class="row" style="gap:10px;min-width:0">
+                <span class="tc-cal-time">10:00</span>
+                <span class="small ink2">Окно открыто — видно ученикам в <code>/market</code></span>
+              </div>
+              <button type="button" class="btn ghost sm" data-a="bb-demo-toast">Закрыть час</button>
+            </div>
+            <div class="tc-cal-slot is-booked">
+              <div class="row" style="gap:10px;min-width:0;flex:1 1 200px">
+                <span class="tc-cal-time">12:00</span>
+                <div class="row" style="gap:6px;flex-wrap:wrap">
+                  <b>Артём Иванов</b>
+                  <span class="chip confirm">✓ Подтверждён</span>
+                  <span class="chip num">1 100 ₽/ч</span>
+                </div>
+              </div>
+              <button type="button" class="btn soft sm" data-a="bb-demo-toast">${icon("msg")}<span>Чат</span></button>
+            </div>
+            <div class="tc-cal-slot is-pending">
+              <div class="row" style="gap:10px;min-width:0;flex:1 1 200px">
+                <span class="tc-cal-time">15:00</span>
+                <div class="row" style="gap:6px;flex-wrap:wrap">
+                  <b>Лида Никитина</b>
+                  <span class="chip notif">Ждёт ответа</span>
+                  <span class="chip num">1 200 ₽/ч</span>
+                </div>
+              </div>
+              <button type="button" class="btn confirm sm" data-a="bb-demo-toast">Подтвердить</button>
+            </div>
+            <div class="tc-cal-slot">
+              <div class="row" style="gap:10px;min-width:0">
+                <span class="tc-cal-time">20:00</span>
+                <span class="small muted">Час закрыт для записи</span>
+              </div>
+              <button type="button" class="btn ghost sm" data-a="bb-demo-toast">Открыть час</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card pad stack" style="gap:12px">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <b>04 · «Ученики ищут» &amp; Карточка «Учёба» (Пробный 0 ₽)</b>
+            <span class="bb-spec-pill confirm">Двусторонний поток</span>
+          </div>
+          <article class="tc-req-card is-pending" style="padding:12px">
+            <div class="row between" style="gap:6px;flex-wrap:wrap">
+              <div class="row" style="gap:6px;flex-wrap:wrap">
+                <b>Милена Прокопьева</b>
+                <span class="chip">ЕГЭ · Онлайн</span>
+                <span class="chip accent">Биология</span>
+                <span class="chip accent">Химия</span>
+              </div>
+              <span class="chip gold">Лид ученика</span>
+            </div>
+            <div class="tc-req-quote">Нужна системная подготовка к медуниверситету по биологии и органической химии, старт с мая.</div>
+            <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
+              <span class="small muted">Бюджет: <b class="num" style="color:var(--ink)">1 100 ₽/ч</b> (на руки 95% · <b class="num savings-gold-txt">1 045 ₽</b>)</span>
+              <button type="button" class="btn sm" data-a="bb-demo-toast">Предложить урок</button>
+            </div>
+          </article>
+
+          <div class="card soft pad stack" style="gap:8px;box-shadow:none">
+            <div class="row between" style="gap:8px;flex-wrap:wrap">
+              <div>
+                <div class="small muted">Вкладка «Учёба» · записанный репетитор</div>
+                <b>Анна Соколова · Сб 10:00 · Биология</b>
+              </div>
+              <span class="chip confirm">✓ Подтверждён</span>
+            </div>
+            <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
+              <span class="small muted">Доступ к пробному 0 ₽ привязан к старту 5 000 ₽</span>
+              <button type="button" class="btn ${bb.balFunded !== false ? "gold" : "soft"} sm" data-a="${bb.balFunded !== false ? "bb-demo-toast" : "bb-bal-toggle"}">
+                ${bb.balFunded !== false ? "Пробный урок 0 ₽" : "Нужен старт 5 000 ₽ →"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bb-forms-grid" style="margin-top:14px">
+        <div class="card pad stack" style="gap:10px">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <b>05 · Выплаты 95%, доход 7 дней (.tc-bar-chart) и Профиль</b>
+            <span class="bb-spec-pill num">34 200 ₽/мес</span>
+          </div>
+          <div class="row" style="gap:8px;flex-wrap:wrap">
+            <span class="chip confirm">Чистая выплата: 95%</span>
+            <span class="chip num">1 140 ₽ за урок</span>
+            <span class="chip">30 уроков/мес</span>
+          </div>
+          <div class="tc-bar-chart" role="img" aria-label="Диаграмма дохода по дням недели">
+            ${[
+              { wd: "Пн", rev: 4200, pct: 52, gold: false },
+              { wd: "Вт", rev: 5600, pct: 70, gold: false },
+              { wd: "Ср", rev: 3400, pct: 44, gold: false },
+              { wd: "Чт", rev: 7900, pct: 100, gold: true },
+              { wd: "Пт", rev: 5100, pct: 64, gold: false },
+              { wd: "Сб", rev: 6800, pct: 86, gold: true },
+              { wd: "Вс", rev: 4500, pct: 56, gold: false }
+            ].map((b) => `<div class="tc-bar-col">
+              <span class="tc-bar-val num">${(b.rev / 1000).toFixed(1)}к</span>
+              <div class="tc-bar-track"><div class="tc-bar-fill${b.gold ? " is-gold" : ""}" style="height:${b.pct}%"></div></div>
+              <span class="tc-bar-lbl">${b.wd}</span>
+            </div>`).join("")}
+          </div>
+          <div class="stack" style="gap:4px">
+            <div class="row between small"><span>Заполненность профиля (<code>.tc-hh-meter</code>)</span><b class="num savings-gold-txt">100%</b></div>
+            <div class="tc-hh-meter"><i style="width:100%"></i></div>
+          </div>
+        </div>
+
+        <div class="card pad stack" style="gap:10px">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <b>06 · Карточка ученика (.tc-student-card) и WhatsApp</b>
+            <span class="bb-spec-pill confirm">.tc-score-track</span>
+          </div>
+          <article class="tc-student-card">
+            <div class="row between" style="gap:8px;flex-wrap:wrap">
+              <div class="row" style="gap:10px">
+                <span class="tutor-avatar" aria-hidden="true">АЕ</span>
+                <div class="stack" style="gap:2px">
+                  <b>Алёна Егорова</b>
+                  <span class="small muted">ЕГЭ Биология · 8 уроков проведено</span>
+                </div>
+              </div>
+              <div class="row" style="gap:6px;flex-wrap:wrap">
+                <span class="chip confirm num">+26 б.</span>
+                <span class="chip gold">Авто WhatsApp · За 24 ч</span>
+              </div>
+            </div>
+            <div class="stack" style="gap:4px">
+              <div class="row between small"><span>Прогноз ЕГЭ по пробникам</span><b class="num">58 → 84 / 100</b></div>
+              <div class="tc-score-track"><div class="tc-score-fill" style="width:84%"></div></div>
+            </div>
+          </article>
           <div class="tc-wa-cfg">
             <div class="row between" style="gap:6px;flex-wrap:wrap">
               <b class="small">Напоминание ученику в WhatsApp (.tc-wa-cfg)</b>
@@ -1211,6 +1396,7 @@
           <a href="#bb-hero-banner" data-a="land-scroll" data-target="bb-hero-banner">Hero Ленские</a>
           <a href="#bb-yakutia" data-a="land-scroll" data-target="bb-yakutia">Узоры Саха</a>
           <a href="#bb-market-app" data-a="land-scroll" data-target="bb-market-app">/market</a>
+          <a href="#bb-cabinet" data-a="land-scroll" data-target="bb-cabinet">Кабинет</a>
           <a href="#bb-sliders" data-a="land-scroll" data-target="bb-sliders">Ползунки</a>
           <a href="#bb-dodont" data-a="land-scroll" data-target="bb-dodont">Правила</a>
         </nav>
@@ -1616,9 +1802,10 @@
             <span class="small muted">Живой макет «Как на мобилке · <span data-bb="phone-w">${Math.min(410, vpW)}</span> px» · нажимай дни Сб / Вс / Пн</span>
             <div class="bb-phone-frame" style="max-width:${Math.min(410, vpW)}px" aria-label="Предпросмотр мобильной версии ${Math.min(410, vpW)} px">
               <div class="bb-phone-status">
-                <span class="num">09:41 · Вектор ЕГЭ · <span data-bb="day-label">${curDay.full}</span></span>
-                <span class="row" style="gap:6px;align-items:center">
-                  <span class="chip notif" style="font-size:11px;padding:2px 7px"><span class="bb-pulse-dot"></span>3 ответа</span>
+                <span class="num" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">09:41 · Вектор ЕГЭ · <span data-bb="day-label">${curDay.full}</span></span>
+                <span class="top-bal-wrap" style="gap:4px">
+                  <span class="top-bal-pill${bb.balFunded !== false ? " is-funded" : ""}" style="min-height:26px;padding:0 7px;font-size:11px;gap:4px">${icon("wallet")}<span class="num">${bb.balFunded !== false ? "5 000 ₽" : "0 ₽"}</span></span>
+                  <span class="top-bal-btn" style="width:28px;min-height:28px;padding:0;justify-content:center" aria-hidden="true">${icon("plus")}</span>
                 </span>
               </div>
               <div class="bb-phone-body">
@@ -1663,6 +1850,7 @@
               </div>
               <div class="bb-phone-tabs" aria-hidden="true">
                 <div class="bb-phone-tab">${icon("list")}<span>Тесты</span></div>
+                <div class="bb-phone-tab">${icon("book")}<span>Справочник</span></div>
                 <div class="bb-phone-tab on">${icon("users")}<span>Репетиторы</span></div>
                 <div class="bb-phone-tab">${icon("cal")}<span>Учёба</span><span class="bb-notif-badge">3</span></div>
                 <div class="bb-phone-tab">${icon("chart")}<span>Показатели</span></div>
@@ -1853,7 +2041,6 @@
 
         <div class="row" style="gap:10px;flex-wrap:wrap">
           <button type="button" class="btn" data-a="go" data-v="${inside ? "market" : "landing"}">${inside ? "Выбрать репетитора" : "Перейти к подбору репетиторов"}</button>
-          <button type="button" class="btn soft" data-a="go" data-v="brandbook">Открыть Брендбук</button>
         </div>
       </section>
     </div>`;

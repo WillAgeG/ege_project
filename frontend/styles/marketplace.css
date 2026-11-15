@@ -21,22 +21,22 @@ body[data-auth="1"] .auth-wrap { margin: 8vh auto; padding: 0 16px; }
   min-width: 0; max-width: 100%;
 }
 .land-top + .land-hero-banner { margin-top: -16px; }
-.land-top .brand-lockup { flex: 0 1 auto; min-width: 0; overflow: hidden; }
+.land-top .brand-lockup { flex: none; min-width: 0; }
 .land-top .brand-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .land-links {
-  display: flex; align-items: center; justify-content: center; gap: 12px;
+  display: flex; align-items: center; justify-content: center; gap: 4px;
   flex: 1 1 auto; min-width: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
   padding: 2px 4px;
 }
 .land-links::-webkit-scrollbar { display: none; }
 .land-links a {
-  text-decoration: none; color: var(--ink-2); font-weight: 500; font-size: 13.5px;
+  text-decoration: none; color: var(--ink-2); font-weight: 500; font-size: 13px;
   white-space: nowrap; flex: none; padding: 4px 6px; border-radius: 8px;
   transition: color .14s ease, background-color .14s ease;
 }
 .land-links a:hover { color: var(--accent); background: var(--accent-soft); }
 .land-top-actions { display: flex; align-items: center; gap: 8px; flex: none; }
-@media (max-width: 1180px) { .land-top .brand-sub { display: none; } .land-links { gap: 4px; } .land-links a { font-size: 12.5px; padding: 4px 6px; } }
+@media (max-width: 1280px) { .land-top .brand-sub { display: none; } .land-links { gap: 2px; } .land-links a { font-size: 12.5px; padding: 4px 5px; } }
 @media (max-width: 760px) {
   .land-links { display: none; }
   .land-top .brand-lockup { flex: 1 1 auto; min-width: 0; }

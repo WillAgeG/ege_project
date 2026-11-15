@@ -36,7 +36,7 @@
     { id: "overlays", targetId: "bb-cards-sys", cat: "controls", title: "Тарифы, баланс топ-бара, оранжевый тост и модалки", api: "EGE.kit.sentNoticeHTML() / notifySide() / .top-bal-wrap", css: ".plan-card.super .top-bal-pill .toast.is-side .modal-card", desc: "Иерархия 0 / 5 000 / 10 000 ₽ / любая сумма, баланс в шапке, свайп-тост и диалоги." },
     { id: "study", targetId: "bb-study-states", cat: "app", title: "Тренажёр ЕГЭ, Skeleton, Empty и Danger", api: "EGE.views.study / .opt / .meter", css: ".opt.ok .meter .bb-skel-bar .empty .confirm", desc: "Варианты ответов, конспект .theory, шиммер 1.6 s и адаптивная отмена." },
     { id: "marketApp", targetId: "bb-market-app", cat: "app", title: "Каталог /market, Кабинет преподавателя и 5-tab .tabbar", api: "EGE.views.tutorCabinet / EGE.views.market", css: ".tutor-card .tc-req-card .diff-tag.pro .side .tabbar", desc: "Кабинет ученика и личный кабинет преподавателя, до 2 плашек квалификации и «Преподаватель» без сокращений." },
-    { id: "cabinet", targetId: "bb-cabinet", cat: "app", title: "Кабинет преподавателя, золотая линия-лого, 24ч/4ч и баланс", api: "EGE.views.tutorCabinet / sakhaOhyorHTML({ goldLogo: true })", css: ".sakha-divider.is-gold-logo .tc-autobump-card .side-badge-jump .top-bal-wrap", desc: "7-пунктовый сайдбар с прыжком по бейджу [2], «Без фото», автоподнятие 24 ч / 4 ч, WhatsApp и 28 px «+» баланса." },
+    { id: "cabinet", targetId: "bb-cabinet", cat: "app", title: "Кабинет преподавателя, расписание, выплаты и баланс", api: "EGE.views.tutorCabinet / balanceModalHTML() / .tc-bar-chart", css: ".sakha-divider.is-gold-logo .tc-cal-hours .tc-bar-chart .tc-hh-meter .wallet-bar", desc: "Модалка пополнения (.wallet-bar, старт 5 000 ₽ / от 100 ₽), сетка слотов 10:00–20:00, лиды учеников, выплаты 95%, график 7 дней, профиль .tc-hh-meter и трекер баллов." },
     { id: "sliders", targetId: "bb-sliders", cat: "layout", title: "Слайдер часов 10:00–20:00 и калькулятор в 1 строку", api: "EGE.hh.sliderTicksHTML(cur, style) / .hh-step-readout.is-inline", css: ".hh-time-range .hh-slider-ticks .hh-step-readout.is-inline", desc: "3 варианта шкалы слотов, палка 10×24 px и строчный ввод «1 100 ₽/ч» без переноса." },
     { id: "layers", targetId: "bb-layers", cat: "layout", title: "Слои Z-index, статус отклика и Reduced Motion", api: "EGE.kit.sentNoticeHTML({ slot, offer })", css: ".hh-motion-status.sent .bb-pulse-dot .is-reduced", desc: "Статус под кнопкой, подъём −2 px, таблица слоёв (10→100) и отключение анимаций." },
     { id: "bounds", targetId: "bb-bounds", cat: "layout", title: "Границы 390 px, воздух 6 px и зазор 8 px", api: ".cal-days / .hh-price-stepper", css: ".bb-bp-stage .bb-phone-frame .bb-days-rail", desc: "Защита от обрезания рамок при hover, угол 84 px и мобильный фрейм." },
@@ -224,41 +224,6 @@
     </div>`;
   }
 
-  function aiErrorBoxesHTML(item, opts) {
-    item = item || {};
-    opts = opts || {};
-    const inside = !!opts.inside;
-    const hideCta = !!opts.hideCta;
-    const before = item.before != null ? item.before : 62;
-    const after = item.after != null ? item.after : 86;
-    return `<div class="land-ai-grid">
-      <div class="ai-err-box">
-        <div class="row between" style="gap:6px;flex-wrap:wrap">
-          <span class="chip">${esc(item.topic || "Задание №28 · Генетика")}</span>
-          <span class="small muted">Задание КИМ</span>
-        </div>
-        <b>${esc(item.question || "Частая ошибка ученика")}</b>
-        <span class="small muted" style="padding:8px 10px;border-radius:10px;background:var(--surface);border:1px solid var(--line)">${esc(item.mistake || "")}</span>
-      </div>
-      <div class="ai-fix-box">
-        <div class="row between" style="gap:8px;flex-wrap:wrap">
-          <span class="row" style="gap:6px"><span class="ai-spark-ico" aria-hidden="true">${icon("spark")}</span><b>Разбор ИИ-помощника</b></span>
-          <span class="diff-tag pro num">${esc(item.delta || "+12 баллов к прогнозу")}</span>
-        </div>
-        <p class="small ink2" style="line-height:1.55;margin:0">${esc(item.aiFix || "")}</p>
-        <div class="stack" style="gap:5px">
-          <div class="row between small"><span>Прогноз готовности к ЕГЭ</span><b class="num">${before} → ${after} / 100</b></div>
-          <div class="meter"><i style="width:${after}%"></i></div>
-        </div>
-        ${hideCta ? "" : `<div class="row" style="gap:8px;flex-wrap:wrap">
-          ${inside
-            ? `<button type="button" class="btn sm" data-a="go" data-v="tests">${esc(item.cta || "Открыть задания")} →</button>`
-            : `<button type="button" class="btn sm" data-a="auth-modal-open">Попробовать бесплатно (0 ₽) →</button>`}
-        </div>`}
-      </div>
-    </div>`;
-  }
-
   function reviewCardHTML(r) {
     r = r || {};
     const newPrice = Number(r.newPrice) || 950;
@@ -363,7 +328,6 @@
     marqueePillsHTML,
     rateBenchCardHTML,
     trustStripHTML,
-    aiErrorBoxesHTML,
     reviewCardHTML,
     faqListHTML,
     blueBannerHTML
