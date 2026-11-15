@@ -330,7 +330,7 @@
       });
       const mRem = manualBumpRemainingMs(st);
       document.querySelectorAll("[data-tc-manual-countdown]").forEach((node) => {
-        node.textContent = mRem > 0 ? `Через ${formatCountdown(mRem)}` : "Доступно сейчас";
+        node.textContent = mRem > 0 ? formatCountdown(mRem) : "00:00:00";
       });
     }, 1000);
   }
@@ -480,7 +480,7 @@
     return syncedRequests().filter((r) => r.status === "pending").length;
   }
 
-  function renderRequestCard(req, st) {
+  function renderRequestCard(req, st, isFirstPending) {
     const TDATA = getTDATA();
     const bidRate = Number(req.counterPrice || req.offerPrice) || st.profile.price;
     const tutorRate = Number(req.tutorPrice) || st.profile.price;
@@ -500,7 +500,7 @@
           ? `<span class="chip bad">Отклонено</span>`
           : `<span class="chip notif">Ожидает ответа · ${esc(req.createdLabel || "новое")}</span>`;
 
-    return `<article class="tc-req-card${isPending ? " is-pending" : isAccepted ? " is-accepted" : ""}">
+    return `<article class="tc-req-card${isPending ? " is-pending" : isAccepted ? " is-accepted" : ""}"${isFirstPending ? ' id="tc-first-pending"' : ""}>
       <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:flex-start">
         <div class="row" style="gap:10px;min-width:0">
           <span class="tutor-avatar" aria-hidden="true">${esc(initials(req.studentName))}</span>
@@ -603,7 +603,14 @@
         </div>
 
         ${visibleReqs.length
-          ? visibleReqs.map((req) => renderRequestCard(req, st)).join("")
+          ? (() => {
+              let markedFirstPending = false;
+              return visibleReqs.map((req) => {
+                const isFirstPending = req.status === "pending" && !markedFirstPending;
+                if (isFirstPending) markedFirstPending = true;
+                return renderRequestCard(req, st, isFirstPending);
+              }).join("");
+            })()
           : `<div class="empty"><b>По этому фильтру заявок нет</b><span class="small muted">Переключите фильтр или проверьте расписание открытых окон справа.</span><button type="button" class="btn soft sm" data-a="tc-reset-demo">Показать пример заявок</button></div>`}
       </section>
 
@@ -693,7 +700,7 @@
             <h2 class="h2">Заполненность профиля: <span class="num savings-gold-txt">${comp.pct}%</span></h2>
           </div>
           <div class="row" style="gap:8px;flex-wrap:wrap">
-            ${st.published ? `<span class="chip confirm">✓ Опубликован в /market</span>` : `<span class="chip notif">Черновик кабинета</span>`}
+            ${st.published ? `<span class="chip confirm">✓ Опубликована для учеников</span>` : `<span class="chip notif">Черновик кабинета</span>`}
             <button type="button" class="btn soft sm" data-a="tc-preview-toggle">${st.profilePreview ? "Скрыть предпросмотр" : "Как видит ученик"}</button>
           </div>
         </div>
@@ -701,7 +708,7 @@
         <div class="small muted">${comp.missing.length ? "До 100% рейтинга: " + esc(comp.missing.slice(0, 2).join(", ")) + "." : "Отлично! Профиль заполнен на 100% и получает приоритет в поиске."}</div>
       </div>
 
-      ${previewCard ? `<div class="stack" style="gap:8px"><div class="eyebrow">Живой вид вашей карточки в каталоге /market</div>${previewCard}</div>` : ""}
+      ${previewCard ? `<div class="stack" style="gap:8px"><div class="eyebrow">Живой вид вашей карточки для учеников</div>${previewCard}</div>` : ""}
 
       <form class="card stack" style="gap:14px" data-f="tc-profile">
         <div class="row between" style="gap:8px;flex-wrap:wrap">
@@ -713,7 +720,7 @@
           ${avHTML}
           <div class="stack" style="gap:6px;flex:1 1 200px;min-width:0">
             <b>${p.photo ? "Фото загружено в анкету" : "Сейчас отображается «Без фото»"}</b>
-            <span class="small muted">Загрузите своё фото — оно обновится в каталоге /market и предпросмотре, либо выберите «Без фото».</span>
+            <span class="small muted">Загрузите своё фото — оно обновится в анкете и предпросмотре, либо выберите «Без фото».</span>
             <div class="row" style="gap:8px;flex-wrap:wrap">
               <label class="btn soft sm" for="tc-photo-file" style="cursor:pointer">${icon("upload")}<span>Загрузить фото</span></label>
               <input type="file" id="tc-photo-file" accept="image/*" data-tc-photo="1" class="sr">
@@ -841,7 +848,7 @@
         <div class="field">
           <div class="row between" style="gap:8px;flex-wrap:wrap">
             <span class="label">Плашки квалификации на карточке (до 2 текстов)</span>
-            <span class="small muted">Показываются фиолетовыми бейджами <code>.diff-tag.pro</code> в /market</span>
+            <span class="small muted">Показываются фиолетовыми бейджами <code>.diff-tag.pro</code> в вашей анкете</span>
           </div>
           <div class="tc-two-col">
             <input class="input" id="tc-badge-1" name="badge0" data-tc="badge0" maxlength="36" placeholder="Например: К.т.н. · эксперт жюри ВсОШ" value="${esc((p.customBadges && p.customBadges[0]) || "")}">
@@ -887,8 +894,7 @@
         </div>
 
         <div class="row" style="gap:8px;flex-wrap:wrap">
-          <button type="submit" class="btn">${icon("check")}<span>Сохранить и опубликовать в /market</span></button>
-          ${st.published ? `<button type="button" class="btn soft" data-a="go" data-v="market">Посмотреть свою анкету в каталоге →</button>` : ""}
+          <button type="submit" class="btn">${icon("check")}<span>Сохранить и опубликовать</span></button>
         </div>
       </form>
     </div>`;
@@ -1368,30 +1374,28 @@
     const leadsAll = TDATA && typeof TDATA.getStudentLeads === "function" ? TDATA.getStudentLeads() : [];
     const tutorSubjs = Array.isArray(st.profile.subjects) && st.profile.subjects.length ? st.profile.subjects : [st.profile.subject || "bio"];
     const tutorSubjSet = new Set(tutorSubjs);
-    const subjFilter = st.leadsSubj || "all";
     const mineOnly = !!st.leadsMineOnly;
-    const filtered = leadsAll.filter((lead) => {
-      const sArr = Array.isArray(lead.subjects) ? lead.subjects : [];
-      if (mineOnly && !sArr.some((id) => tutorSubjSet.has(id))) return false;
-      if (subjFilter !== "all" && !sArr.includes(subjFilter)) return false;
-      return true;
-    });
-    const subjList = (TDATA && TDATA.SUBJECTS) ? TDATA.SUBJECTS : [];
+    const filtered = mineOnly
+      ? leadsAll.filter((lead) => {
+          const sArr = Array.isArray(lead.subjects) ? lead.subjects : [];
+          return sArr.some((id) => tutorSubjSet.has(id));
+        })
+      : leadsAll;
     const tutorSubjLabels = TDATA && typeof TDATA.subjectNamesForIds === "function" ? TDATA.subjectNamesForIds(tutorSubjs).join(", ") : "вашим предметам";
 
     return `<div class="stack" style="gap:14px">
       <div class="card stack" style="gap:10px">
-        <div class="row between" style="gap:8px;flex-wrap:wrap">
+        <div class="row between" style="gap:10px;flex-wrap:wrap;align-items:center">
           <div>
             <div class="eyebrow">Встречный поток из кабинета ученика</div>
-            <h2 class="h2">Каталог учеников, которые ищут преподавателя (${filtered.length})</h2>
+            <h2 class="h2">Заявки учеников, которые ищут преподавателя (${filtered.length})</h2>
           </div>
-          <button type="button" class="chip-btn${mineOnly ? " on" : ""}" data-a="tc-leads-mine">${mineOnly ? "✓ " : ""}По моим предметам (${esc(tutorSubjLabels)})</button>
+          <div class="hh-seg" role="group" aria-label="Фильтр заявок учеников">
+            <button type="button" data-a="tc-leads-mode" data-v="all" aria-pressed="${!mineOnly}">Все заявки (${leadsAll.length})</button>
+            <button type="button" data-a="tc-leads-mode" data-v="mine" aria-pressed="${mineOnly}">По моим предметам</button>
+          </div>
         </div>
-        <div class="chip-rail swipe" role="group" aria-label="Фильтр заявок учеников по предметам">
-          <button type="button" class="chip-btn${subjFilter === "all" ? " on" : ""}" data-a="tc-leads-subj" data-v="all">Все предметы (${leadsAll.length})</button>
-          ${subjList.map((sb) => `<button type="button" class="chip-btn${subjFilter === sb.id ? " on" : ""}" data-a="tc-leads-subj" data-v="${esc(sb.id)}">${esc(sb.short)}</button>`).join("")}
-        </div>
+        <div class="small muted">Ваши предметы из «Профиля»: <b>${esc(tutorSubjLabels)}</b>. Фильтр по предметам находится в левом меню вашей анкеты, без дублирования на экране.</div>
       </div>
 
       ${filtered.length ? `<div class="stack" style="gap:10px">${filtered.map((lead) => {
@@ -1480,24 +1484,15 @@
         <p class="lead">Управляйте заявками ±100 ₽, собирайте профиль и фото, ведите календарь записанных учеников и отправляйте автоуведомления в WhatsApp.</p>
       </div>
 
-      <div class="tc-role-bar" role="region" aria-label="Режим профиля">
-        <div class="row" style="gap:8px;flex-wrap:wrap">
-          <span class="chip gold">${icon("users")}<span>Режим: Преподаватель</span></span>
-          <span class="small ink2">${st.published ? "Ваша анкета опубликована в каталоге /market." : "Заполните профиль и опубликуйте его на витрину /market."}</span>
-        </div>
-        <div class="row" style="gap:8px;flex-wrap:wrap">
-          <button type="button" class="btn soft sm" data-a="role-set" data-role="student">Перейти как ученик</button>
-          <button type="button" class="btn ghost sm" data-a="go" data-v="market">Каталог /market</button>
-        </div>
-      </div>
-
-      ${sakhaOhyorHTML("Саха сирэ · Торг ±100 ₽ · Выплата 95%")}
+      ${sakhaOhyorHTML("Вектор ЕГЭ · Саха", { goldLogo: true })}
 
       <div class="tiles">
         <div class="tile">
           <span class="tile-label">Новые заявки</span>
-          <span class="tile-value num" style="color:${pendingList.length ? "var(--notif)" : "var(--ink)"}">${pendingList.length}</span>
-          <span class="tile-note">${pendingList.length ? "ждут вашего ответа" : "все разобраны"}</span>
+          <span class="tile-value num">
+            <button type="button" class="tc-kpi-jump num" data-a="tc-jump-pending" style="color:${pendingList.length ? "var(--notif)" : "var(--ink)"}" title="Нажмите, чтобы перейти к ожидающим заявкам">${pendingList.length}</button>
+          </span>
+          <span class="tile-note">${pendingList.length ? `<button type="button" class="link-btn small" data-a="tc-jump-pending">ждут вашего ответа →</button>` : "все разобраны"}</span>
         </div>
         <div class="tile">
           <span class="tile-label">Подтверждено</span>
@@ -1516,12 +1511,9 @@
         </div>
       </div>
 
-      <div class="chip-rail swipe" role="tablist" aria-label="Разделы кабинета преподавателя">
-        <button type="button" role="tab" aria-selected="${activeTab === "requests"}" class="chip-btn${activeTab === "requests" ? " on" : ""}" data-a="tc-tab" data-tab="requests">Заявки (${allReqs.length})</button>
-        <button type="button" role="tab" aria-selected="${activeTab === "leads"}" class="chip-btn${activeTab === "leads" ? " on" : ""}" data-a="tc-tab" data-tab="leads">Ученики ищут (${leadsList.length})</button>
-        <button type="button" role="tab" aria-selected="${activeTab === "profile"}" class="chip-btn${activeTab === "profile" ? " on" : ""}" data-a="tc-tab" data-tab="profile">Профиль · ${comp.pct}%</button>
-        <button type="button" role="tab" aria-selected="${activeTab === "calendar"}" class="chip-btn${activeTab === "calendar" ? " on" : ""}" data-a="tc-tab" data-tab="calendar">Календарь учеников (${bookedCalendarCount})</button>
-        <button type="button" role="tab" aria-selected="${activeTab === "students"}" class="chip-btn${activeTab === "students" ? " on" : ""}" data-a="tc-tab" data-tab="students">Мои ученики (${st.students.length})</button>
+      <div class="chip-rail swipe tc-mobile-tabs" role="navigation" aria-label="Дополнительные разделы преподавателя">
+        <button type="button" class="chip-btn${activeTab === "leads" ? " on" : ""}" data-a="tc-tab" data-tab="leads">Ученики ищут (${leadsList.length})</button>
+        <button type="button" class="chip-btn" data-a="go" data-v="tutor">Справочник</button>
       </div>
 
       ${bodyHTML}`;
@@ -1556,9 +1548,28 @@
     const id = d.id || "";
 
     if (act === "tc-tab") {
-      st.tab = ["requests", "leads", "profile", "calendar", "students"].includes(d.tab) ? d.tab : "requests";
+      const nextTab = ["requests", "leads", "profile", "calendar", "students"].includes(d.tab) ? d.tab : "requests";
+      st.tab = nextTab;
       saveState();
-      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      if (typeof _ctx.go === "function") _ctx.go("tutor-" + nextTab);
+      else if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-jump-pending") {
+      st.tab = "requests";
+      if (st.filter === "accepted") st.filter = "all";
+      saveState();
+      if (typeof _ctx.go === "function") _ctx.go("tutor-requests");
+      else if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender(true);
+      if (typeof setTimeout === "function" && typeof document !== "undefined" && typeof document.getElementById === "function") {
+        setTimeout(() => {
+          const elFirst = document.getElementById("tc-first-pending");
+          if (elFirst && typeof elFirst.scrollIntoView === "function") {
+            elFirst.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        }, 40);
+      }
       return true;
     }
 
@@ -1934,6 +1945,14 @@
       return true;
     }
 
+    if (act === "tc-leads-mode") {
+      st.leadsMineOnly = d.v === "mine";
+      st.leadsSubj = "all";
+      saveState();
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return true;
+    }
+
     if (act === "tc-leads-subj") {
       st.leadsSubj = String(d.v || "all");
       saveState();
@@ -2168,7 +2187,7 @@
     saveState();
     if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
     if (typeof _ctx.notifySide === "function") {
-      _ctx.notifySide("Анкета опубликована в /market", `${p.name} · ${p.price.toLocaleString("ru-RU")} ₽/ч (торг от ${p.minFair.toLocaleString("ru-RU")} ₽/ч)`);
+      _ctx.notifySide("Анкета сохранена и опубликована", `${p.name} · ${p.price.toLocaleString("ru-RU")} ₽/ч (торг от ${p.minFair.toLocaleString("ru-RU")} ₽/ч)`);
     }
     return true;
   }

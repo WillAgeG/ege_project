@@ -404,9 +404,9 @@
               <span class="hint">Синхронный checklist-выпадающий список с отметками и крестиком «×» прямо внутри выбранных тегов поля (без дублирования чипов снизу). Используется в профиле преподавателя и запросах ученика «Ищу преподавателя».</span>
             </div>
             <div class="field">
-              <span class="label">Постоянная нижняя правая панель баланса (.bal-float-dock · .top-bal-wrap)</span>
+              <span class="label">Постоянная панель баланса ученика (#side-balance-slot / #top-balance-slot)</span>
               <div class="row between" style="padding:10px 12px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line);gap:8px;flex-wrap:wrap">
-                <span class="small muted">Всегда закреплена внизу справа у ученика</span>
+                <span class="small muted">На десктопе — внизу слева в меню; на телефоне — вверху справа</span>
                 <div class="top-bal-wrap">
                   <span class="top-bal-pill is-funded">${icon("wallet")}<span class="num">5 000 ₽</span></span>
                   <span class="top-bal-btn">${icon("plus")}<span>Пополнить</span></span>

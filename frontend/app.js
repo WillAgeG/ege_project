@@ -890,15 +890,21 @@
   function draft(key, fallback) { return Object.prototype.hasOwnProperty.call(ui.drafts, key) ? ui.drafts[key] : fallback; }
   function clearDrafts(prefix, keep) { for (const k of Object.keys(ui.drafts)) if (k.indexOf(prefix) === 0 && !(keep || []).includes(k)) delete ui.drafts[k]; }
 
+  const TUTOR_TAB_VIEWS = {
+    "tutor-requests": "requests",
+    "tutor-calendar": "calendar",
+    "tutor-students": "students",
+    "tutor-leads": "leads",
+    "tutor-profile": "profile"
+  };
+
   function go(v, opts) {
     opts = opts || {};
-    if (v === "tutor-profile") {
-      if (EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.setTab === "function") EGE.views.tutorCabinet.setTab("profile");
+    if (TUTOR_TAB_VIEWS[v]) {
+      if (EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.setTab === "function") EGE.views.tutorCabinet.setTab(TUTOR_TAB_VIEWS[v]);
       v = "cabinet";
     } else if (v === "cabinet" && opts.fromNav) {
-      if (EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.getTab === "function" && EGE.views.tutorCabinet.getTab() === "profile") {
-        EGE.views.tutorCabinet.setTab("requests");
-      }
+      if (EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.setTab === "function") EGE.views.tutorCabinet.setTab("requests");
     }
     if (ui.view === "quiz" && v !== "quiz") {
       abortAI();
@@ -936,8 +942,8 @@
       if (TOPICS[h]) { ui.view = "topic"; ui.topicId = h; ui.sid = TOPICS[h].sid; return; }
       if (SUBJ[h]) { ui.view = "subject"; ui.sid = h; return; }
       if (h === "essay" && EGE.essay && SUBJ.rus) { ui.view = "essay"; ui.sid = "rus"; return; }
-      if (h === "tutor-profile") {
-        if (EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.setTab === "function") EGE.views.tutorCabinet.setTab("profile");
+      if (TUTOR_TAB_VIEWS[h]) {
+        if (EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.setTab === "function") EGE.views.tutorCabinet.setTab(TUTOR_TAB_VIEWS[h]);
         ui.view = "cabinet";
         return;
       }
@@ -954,8 +960,8 @@
   }
   function writeHash() {
     const tcTab = ui.view === "cabinet" && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.getTab === "function" ? EGE.views.tutorCabinet.getTab() : "";
-    const tok = (ui.view === "cabinet" && tcTab === "profile")
-      ? "tutor-profile"
+    const tok = ui.view === "cabinet"
+      ? ("tutor-" + (tcTab || "requests"))
       : (ui.view === "topic" ? ui.topicId : ui.view === "subject" ? ui.sid : ui.view === "quiz" ? null : ui.view);
     if (!tok) return;
     try { history.replaceState(null, "", "#" + tok); } catch (e) { /* адрес не меняется в просмотрщике */ }
@@ -998,8 +1004,8 @@
     try { if (aid && typeof active.selectionStart === "number") { selS = active.selectionStart; selE = active.selectionEnd; } } catch (e) { /* не текстовое поле */ }
     let html;
     if (authGate) {
-      const balDock = $("#bal-float-dock");
-      if (balDock) { balDock.hidden = true; balDock.innerHTML = ""; }
+      const topBalSlot = $("#top-balance-slot");
+      if (topBalSlot) { topBalSlot.hidden = true; topBalSlot.innerHTML = ""; }
       html = store.ready
         ? (ui.view === "brandbook" ? viewBrandbook({ inside: false }) : ui.view === "fees" ? viewFees({ inside: false }) : authScreen())
         : `<div class="auth-wrap"><div class="auth-brand">${brandLockupHTML()}<p class="muted">Подключаюсь к серверу…</p></div></div>`;
@@ -1115,7 +1121,7 @@
         ${compact ? "" : `<span class="top-bal-lbl muted">Баланс:</span>`}
         <b class="num">${st.balance.toLocaleString("ru-RU")} ₽</b>
       </button>
-      <button type="button" class="top-bal-btn" data-a="bal-open">${icon("plus")}<span>Пополнить</span></button>
+      <button type="button" class="top-bal-btn" data-a="bal-open" aria-label="Пополнить баланс" title="Пополнить баланс">${icon("plus")}<span>Пополнить</span></button>
     </div>`;
   }
   function balanceModalHTML() {
@@ -1320,26 +1326,33 @@
     const tcTab = EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.getTab === "function"
       ? EGE.views.tutorCabinet.getTab()
       : "requests";
-    const inTutorProfile = ui.view === "cabinet" && tcTab === "profile";
-    const nav = isTutor
+    const sideNav = isTutor
       ? [
-          ["cabinet", "Кабинет", "users", ui.view === "cabinet" && !inTutorProfile, tcPending],
-          ["tutor-profile", "Профиль", "sliders", inTutorProfile, 0],
-          ["market", "Каталог", "search", inMarket, 0],
-          ["tutor", "Справочник", "book", ui.view === "tutor", 0],
-          ["fees", "Выплаты", "wallet", ui.view === "fees", 0]
+          ["tutor-requests", "Заявки", "chat", ui.view === "cabinet" && tcTab === "requests", tcPending, "tc-jump-pending"],
+          ["tutor-calendar", "Календарь учеников", "cal", ui.view === "cabinet" && tcTab === "calendar", 0, ""],
+          ["tutor-students", "Мои ученики", "users", ui.view === "cabinet" && tcTab === "students", 0, ""],
+          ["tutor-leads", "Ученики ищут", "search", ui.view === "cabinet" && tcTab === "leads", 0, ""],
+          ["tutor-profile", "Профиль", "sliders", ui.view === "cabinet" && tcTab === "profile", 0, ""],
+          ["fees", "Выплаты", "wallet", ui.view === "fees", 0, ""],
+          ["tutor", "Справочник", "book", ui.view === "tutor", 0, ""]
         ]
       : [
-          ["tests", "Тесты", "list", inTests, 0],
-          ["tutor", "Справочник", "book", ui.view === "tutor", 0],
-          ["market", "Репетиторы", "search", inMarket, 0],
-          ["study", "Учёба", "cal", inStudy, bkCount],
-          ["stats", "Показатели", "chart", ui.view === "stats", 0]
+          ["tests", "Тесты", "list", inTests, 0, ""],
+          ["tutor", "Справочник", "book", ui.view === "tutor", 0, ""],
+          ["market", "Репетиторы", "search", inMarket, 0, ""],
+          ["study", "Учёба", "cal", inStudy, bkCount, ""],
+          ["stats", "Показатели", "chart", ui.view === "stats", 0, ""]
         ];
-    $("#side-nav").innerHTML = nav.map(([v, l, ic, cur, badge]) =>
-      `<button type="button" class="nav-btn" data-a="go" data-v="${v}"${cur ? ' aria-current="page"' : ""}>${icon(ic)}<span style="flex:1">${l}</span>${badge ? `<span class="chip ${isTutor ? "notif" : "accent"} num">${badge}</span>` : ""}</button>`
-    ).join("");
-    $("#side-subjects").innerHTML = SUBJECTS.map((s) => {
+    $("#side-nav").innerHTML = sideNav.map(([v, l, ic, cur, badge, badgeAct]) => {
+      const btn = `<button type="button" class="nav-btn" data-a="go" data-v="${v}"${cur ? ' aria-current="page"' : ""}>${icon(ic)}<span style="flex:1">${l}</span>${badge && !badgeAct ? `<span class="chip ${isTutor ? "notif" : "accent"} num">${badge}</span>` : ""}</button>`;
+      if (badge && badgeAct) {
+        return `<div class="nav-row${cur ? " is-cur" : ""}">${btn}<button type="button" class="chip ${isTutor ? "notif" : "accent"} num side-badge-jump" data-a="${badgeAct}" title="Перейти к ожидающим заявкам (${badge})" aria-label="Открыть ожидающие заявки (${badge})">${badge}</button></div>`;
+      }
+      return btn;
+    }).join("");
+    const subjWrap = $("#side-subjects-wrap");
+    if (subjWrap) subjWrap.hidden = isTutor;
+    $("#side-subjects").innerHTML = isTutor ? "" : SUBJECTS.map((s) => {
       const cur = ["subject", "topic", "quiz", "essay"].includes(ui.view) && ui.sid === s.id && s.content;
       const right = s.content ? (store.ready ? subjectStats(s.id).pct + "%" : "") : "скоро";
       return `<button type="button" class="subj-btn" ${s.content ? `data-a="go" data-v="subject" data-sid="${s.id}"` : "disabled"}${cur ? ' aria-current="page"' : ""}><i class="dot" style="background:var(--c-${s.id})"></i><span>${esc(s.name)}</span><span class="small muted num">${right}</span></button>`;
@@ -1348,7 +1361,8 @@
     const nm = (store.user ? (prof.name || store.user.displayName || store.user.username) : "") || prof.name || (me && me.name) || (store.mode === "local" ? (store.backend ? "Гость" : "Этот браузер") : "");
     const dark = effectiveDark();
     const themeLabel = dark ? "Светлая тема" : "Тёмная тема";
-    $("#side-foot").innerHTML = `<div class="hh-seg side-role-seg" role="group" aria-label="Роль на платформе" style="margin-bottom:2px">
+    $("#side-foot").innerHTML = `<div id="side-balance-slot" class="side-bal-slot"${isTutor ? " hidden" : ""}>${isTutor ? "" : balanceTopWidgetHTML(true)}</div>
+      <div class="hh-seg side-role-seg" role="group" aria-label="Роль на платформе" style="margin-bottom:2px">
         <button type="button" data-a="role-set" data-role="student" aria-pressed="${!isTutor}">Ученик</button>
         <button type="button" data-a="role-set" data-role="tutor" aria-pressed="${isTutor}">Преподаватель</button>
       </div>
@@ -1394,17 +1408,26 @@
     }
     const topLogout = $("#top-logout");
     if (topLogout) topLogout.hidden = !(store.backend && store.user);
-    const balDock = $("#bal-float-dock");
-    if (balDock) {
+    const topBalSlot = $("#top-balance-slot");
+    if (topBalSlot) {
       if (isTutor) {
-        balDock.hidden = true;
-        balDock.innerHTML = "";
+        topBalSlot.hidden = true;
+        topBalSlot.innerHTML = "";
       } else {
-        balDock.hidden = false;
-        balDock.innerHTML = balanceTopWidgetHTML(false);
+        topBalSlot.hidden = false;
+        topBalSlot.innerHTML = balanceTopWidgetHTML(true);
       }
     }
-    $("#tabbar").innerHTML = nav.map(([v, l, ic, cur, badge]) =>
+    const mobileNav = isTutor
+      ? [
+          ["tutor-requests", "Заявки", "chat", ui.view === "cabinet" && (tcTab === "requests" || tcTab === "leads"), tcPending],
+          ["tutor-calendar", "Календарь", "cal", ui.view === "cabinet" && tcTab === "calendar", 0],
+          ["tutor-students", "Ученики", "users", ui.view === "cabinet" && tcTab === "students", 0],
+          ["tutor-profile", "Профиль", "sliders", ui.view === "cabinet" && tcTab === "profile", 0],
+          ["fees", "Выплаты", "wallet", ui.view === "fees", 0]
+        ]
+      : sideNav;
+    $("#tabbar").innerHTML = mobileNav.map(([v, l, ic, cur, badge]) =>
       `<button type="button" class="tab-btn" data-a="go" data-v="${v}"${cur ? ' aria-current="page"' : ""}>${icon(ic)}<span>${esc(l)}</span>${badge ? `<i class="tab-badge">${badge}</i>` : ""}</button>`
     ).join("");
     renderSync();
@@ -3664,6 +3687,9 @@
     "role-set": (el) => {
       const next = el.dataset.role === "tutor" ? "tutor" : "student";
       setRolePref(next);
+      if (next === "tutor" && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.setTab === "function") {
+        EGE.views.tutorCabinet.setTab("requests");
+      }
       ui.view = next === "tutor" ? "cabinet" : "tests";
       writeHash();
       scheduleRender(true);

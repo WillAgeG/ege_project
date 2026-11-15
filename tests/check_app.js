@@ -53,7 +53,7 @@
       };
     }
 
-    for (const id of ["main", "side-nav", "side-subjects", "side-foot", "tabbar", "bal-float-dock", "toast", "tip", "modal-root", "bug-mailto"]) {
+    for (const id of ["main", "side-nav", "side-subjects-wrap", "side-subjects", "side-foot", "top-balance-slot", "tabbar", "toast", "tip", "modal-root", "bug-mailto"]) {
       elements.set(id, makeEl(id));
     }
 
@@ -649,16 +649,17 @@
     await flushMicrotasks(6);
     assert(!globalThis.document.documentElement.dataset.theme, "expected auto theme to clear data-theme");
 
-    // Нижняя шестерёнка + «Выйти» в сайдбаре, 5 вкладок (Тесты, Справочник, Репетиторы, Учёба, Показатели) без дубля вверху
+    // Нижняя шестерёнка + «Выйти» в сайдбаре, баланс снизу слева (десктоп) и сверху справа (мобилка), 5 вкладок (Тесты, Справочник, Репетиторы, Учёба, Показатели)
     const sideNavHtml = env4.elements.get("side-nav").innerHTML;
     const sideFootHtml = env4.elements.get("side-foot").innerHTML;
+    const topBalHtml = env4.elements.get("top-balance-slot").innerHTML;
     const tabHtml = env4.elements.get("tabbar").innerHTML;
-    const balDockHtml = env4.elements.get("bal-float-dock").innerHTML;
     assert(!sideNavHtml.includes('data-v="profile"'), "expected Settings removed from top sidebar nav");
     assert(sideFootHtml.includes('data-v="profile"') && sideFootHtml.includes('data-a="auth-logout"') && sideFootHtml.includes("Выйти"), "expected Settings gear and Logout button in sidebar footer");
     assert(sideFootHtml.includes("Преподаватель") && !sideFootHtml.includes(">Препод<") && !sideFootHtml.includes("hh-seg equal side-role-seg"), "expected full label Преподаватель without Препод abbreviation or equal grid clipping");
-    assert(balDockHtml.includes("top-bal-pill") && balDockHtml.includes("Пополнить") && !env4.elements.get("bal-float-dock").hidden, "expected persistent student bottom-right balance dock visible");
-    assert(!env4.elements.get("main").innerHTML.includes("desktop-top-bar"), "expected duplicate desktop-top-bar removed in favor of persistent bottom-right dock");
+    assert(sideFootHtml.includes('id="side-balance-slot"') && sideFootHtml.includes("top-bal-pill") && sideFootHtml.includes("Пополнить"), "expected persistent student bottom-left balance slot inside #side-foot");
+    assert(topBalHtml.includes("top-bal-pill") && topBalHtml.includes("Пополнить") && !env4.elements.get("top-balance-slot").hidden, "expected persistent student top-right balance slot in mobile .topbar");
+    assert(!env4.elements.get("main").innerHTML.includes("desktop-top-bar"), "expected duplicate desktop-top-bar removed");
     for (const label of ["Тесты", "Справочник", "Репетиторы", "Учёба", "Показатели"]) {
       assert(sideNavHtml.includes(label) && tabHtml.includes(label), `expected ${label} in sidebar and bottom tabbar`);
     }
@@ -691,16 +692,16 @@
     env4.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "bal-custom" }, elements: { amount: { value: "6500" } } }) }, preventDefault() {} });
     await flushMicrotasks(3);
     const afterTopupModal = env4.elements.get("modal-root").innerHTML;
-    assert(afterTopupModal.includes("Пробный урок · 0 ₽") && hasNum(env4.elements.get("bal-float-dock").innerHTML, "6 500"), "expected custom top-up to reach 6500 ₽ and resume trial booking modal");
+    assert(afterTopupModal.includes("Пробный урок · 0 ₽") && hasNum(env4.elements.get("side-foot").innerHTML, "6 500") && hasNum(env4.elements.get("top-balance-slot").innerHTML, "6 500"), "expected custom top-up to reach 6500 ₽ and sync both bottom-left & top-right student balance");
     clickAction(env4, { a: "book-submit" });
     await flushMicrotasks(3);
-    assert(hasNum(env4.elements.get("bal-float-dock").innerHTML, "6 500"), "expected free trial 0 ₽ booking not to deduct balance");
+    assert(hasNum(env4.elements.get("side-foot").innerHTML, "6 500") && hasNum(env4.elements.get("top-balance-slot").innerHTML, "6 500"), "expected free trial 0 ₽ booking not to deduct balance");
     clickAction(env4, { a: "bal-open" });
     await flushMicrotasks(2);
     assert(env4.elements.get("modal-root").innerHTML.includes("от 100 ₽"), "expected subsequent top-ups from 100 ₽ once initial 5000 ₽ is paid");
     env4.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "bal-custom" }, elements: { amount: { value: "100" } } }) }, preventDefault() {} });
     await flushMicrotasks(3);
-    assert(hasNum(env4.elements.get("bal-float-dock").innerHTML, "6 600"), "expected subsequent 100 ₽ custom top-up to succeed cleanly");
+    assert(hasNum(env4.elements.get("side-foot").innerHTML, "6 600") && hasNum(env4.elements.get("top-balance-slot").innerHTML, "6 600"), "expected subsequent 100 ₽ custom top-up to succeed cleanly in both balance slots");
 
     clickAction(env4, { a: "go", v: "study" });
     await flushMicrotasks(4);
@@ -1353,10 +1354,23 @@
     const tutorMain1 = env5.elements.get("main").innerHTML;
     const tutorSideHtml = env5.elements.get("side-nav").innerHTML;
     const tutorTabHtml = env5.elements.get("tabbar").innerHTML;
-    assert(tutorMain1.includes("Личный кабинет преподавателя") && tutorMain1.includes("tc-req-card") && tutorMain1.includes("На руки 95%") && tutorMain1.includes("Поднять анкету (раз в 4 ч)"), "expected full Teacher Personal Cabinet view with 4h bump CTA");
-    assert(env5.elements.get("bal-float-dock").hidden === true && !env5.elements.get("side-foot").innerHTML.includes(">Препод<") && env5.elements.get("side-foot").innerHTML.includes("Преподаватель"), "expected student balance hidden and full Преподаватель label in tutor mode");
-    assert(tutorSideHtml.includes('data-v="tutor-profile"') && tutorSideHtml.includes("Профиль"), "expected Профиль promoted directly into left sidebar nav for tutor");
-    assert(tutorTabHtml.includes("Кабинет") && tutorTabHtml.includes("Профиль") && tutorTabHtml.includes("Справочник") && tutorTabHtml.includes("Выплаты"), "expected tutor 5-tab bottom bar including Профиль, Справочник and Выплаты");
+    assert(tutorMain1.includes("Личный кабинет преподавателя") && tutorMain1.includes("tc-req-card") && tutorMain1.includes('id="tc-first-pending"') && tutorMain1.includes("На руки 95%") && tutorMain1.includes("Поднять анкету (раз в 4 ч)"), "expected full Teacher Personal Cabinet view with 4h bump CTA and #tc-first-pending");
+    assert(!tutorMain1.includes("tc-role-bar") && tutorMain1.includes("is-gold-logo") && !tutorMain1.includes('role="tablist"'), "expected tc-role-bar and desktop tablist removed, keeping only gold line with centered emblem");
+    assert(env5.elements.get("top-balance-slot").hidden === true && env5.elements.get("side-foot").innerHTML.includes('id="side-balance-slot" class="side-bal-slot" hidden') && !env5.elements.get("side-foot").innerHTML.includes(">Препод<") && env5.elements.get("side-foot").innerHTML.includes("Преподаватель"), "expected student balance hidden in both slots and full Преподаватель label in tutor mode");
+    assert(env5.elements.get("side-subjects-wrap").hidden === true && env5.elements.get("side-subjects").innerHTML === "", "expected student ПРЕДМЕТЫ list hidden in tutor mode sidebar");
+    assert(!tutorSideHtml.includes("Каталог") && !tutorSideHtml.includes('data-v="market"'), "expected Каталог removed completely from teacher sidebar");
+    for (const label of ["Заявки", "Календарь учеников", "Мои ученики", "Ученики ищут", "Профиль", "Выплаты", "Справочник"]) {
+      assert(tutorSideHtml.includes(label), `expected teacher sidebar nav item: ${label}`);
+    }
+    assert(tutorSideHtml.includes('data-a="tc-jump-pending"') && tutorSideHtml.includes("side-badge-jump"), "expected clickable pending badge (2) next to Заявки in left sidebar");
+    assert(tutorTabHtml.includes("Заявки") && tutorTabHtml.includes("Календарь") && tutorTabHtml.includes("Ученики") && tutorTabHtml.includes("Профиль") && tutorTabHtml.includes("Выплаты"), "expected tutor 5-tab bottom bar (Заявки, Календарь, Ученики, Профиль, Выплаты)");
+
+    // Клик по цифре 2 (tc-jump-pending) с другой страницы автоматически возвращает на Заявки
+    clickAction(env5, { a: "go", v: "fees" });
+    await flushMicrotasks(2);
+    clickAction(env5, { a: "tc-jump-pending" });
+    await flushMicrotasks(3);
+    assert(env5.elements.get("main").innerHTML.includes('id="tc-first-pending"') && env5.elements.get("side-nav").innerHTML.includes('data-v="tutor-requests" aria-current="page"'), "expected clicking pending count badge (2) to auto-jump straight to Заявки");
 
     clickAction(env5, { a: "tc-bump" });
     await flushMicrotasks(2);
@@ -1402,14 +1416,14 @@
     await flushMicrotasks(2);
     clickAction(env5, { a: "tc-preview-toggle" });
     await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("Живой вид вашей карточки") && env5.elements.get("main").innerHTML.includes("Без фото") && env5.elements.get("main").innerHTML.includes("Москва (UTC+3)"), "expected live /market tutor card preview with Без фото and Москва (UTC+3)");
+    assert(env5.elements.get("main").innerHTML.includes("Живой вид вашей карточки для учеников") && env5.elements.get("main").innerHTML.includes("Без фото") && env5.elements.get("main").innerHTML.includes("Москва (UTC+3)"), "expected live tutor card preview with Без фото and Москва (UTC+3)");
     env5.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "tc-profile" }, elements: { name: { value: "Анна Соколова" }, headline: { value: "Эксперт ЕГЭ · СФУ" }, subject: { value: "bio" }, badge0: { value: "Эксперт жюри ВсОШ" }, badge1: { value: "К.б.н. · автор задач" }, customSkills: { value: "ФИПИ 2027, №28 Генетика" } } }) }, preventDefault() {} });
     await flushMicrotasks(2);
     const publishedTutor = globalThis.EGE.tutors.LIST.find((t) => t.id === "tc-my-profile");
-    assert(env5.elements.get("main").innerHTML.includes("Опубликован в /market") && publishedTutor && publishedTutor.name === "Анна Соколова" && publishedTutor.city === "Москва" && publishedTutor.timezone === "UTC+3" && publishedTutor.subjects.includes("chem") && Array.isArray(publishedTutor.customBadges) && publishedTutor.customBadges.length === 2, "expected submitted profile to publish city/UTC, multi-subject & up to 2 custom badges live into EGE.tutors.LIST");
+    assert(env5.elements.get("main").innerHTML.includes("Опубликована для учеников") && publishedTutor && publishedTutor.name === "Анна Соколова" && publishedTutor.city === "Москва" && publishedTutor.timezone === "UTC+3" && publishedTutor.subjects.includes("chem") && Array.isArray(publishedTutor.customBadges) && publishedTutor.customBadges.length === 2, "expected submitted profile to publish city/UTC, multi-subject & up to 2 custom badges live into EGE.tutors.LIST");
 
     // Календарь записанных учеников (ТОЛЬКО подтверждённые ученики) + ручная запись ученика в слот
-    clickAction(env5, { a: "tc-tab", tab: "calendar" });
+    clickAction(env5, { a: "go", v: "tutor-calendar" });
     await flushMicrotasks(2);
     const tcCalHtml = env5.elements.get("main").innerHTML;
     assert(tcCalHtml.includes("Календарь записанных учеников") && tcCalHtml.includes("Алина С.") && !tcCalHtml.includes("Тимур К."), "expected calendar to show ONLY confirmed/accepted students (Алина С.) and exclude pending (Тимур К.)");
@@ -1419,11 +1433,11 @@
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes("Максим Р.") && env5.elements.get("main").innerHTML.includes("Генетика №28"), "expected manually booked student to appear in hourly calendar");
 
-    // Вкладка преподавателя «Ученики ищут» (каталог студенческих запросов + прямой отклик)
-    clickAction(env5, { a: "tc-tab", tab: "leads" });
+    // Вкладка преподавателя «Ученики ищут» (заявки учеников без дубля 11 предметных чипов + отклик)
+    clickAction(env5, { a: "go", v: "tutor-leads" });
     await flushMicrotasks(2);
     const tcLeadsHtml = env5.elements.get("main").innerHTML;
-    assert(tcLeadsHtml.includes("Каталог учеников, которые ищут преподавателя") && tcLeadsHtml.includes("Химия"), "expected student requests catalog inside teacher cabinet Ученики ищут tab");
+    assert(tcLeadsHtml.includes("Заявки учеников, которые ищут преподавателя") && !tcLeadsHtml.includes('data-a="tc-leads-subj"') && tcLeadsHtml.includes('data-a="tc-leads-mode"') && tcLeadsHtml.includes("Химия"), "expected clean student requests tab in Ученики ищут without duplicate subject chip bar");
     const mLeadOffer = /data-a="tc-lead-offer" data-id="([^"]+)"/.exec(tcLeadsHtml);
     assert(Boolean(mLeadOffer), "expected tc-lead-offer response CTA button on student lead card");
     clickAction(env5, { a: "tc-lead-offer", id: mLeadOffer[1] });
@@ -1431,7 +1445,7 @@
     assert(env5.elements.get("main").innerHTML.includes("✓ Отклик отправлен"), "expected teacher response to mark student lead as responded");
 
     // Мои ученики (трекер баллов ЕГЭ + напоминание о скором уроке в WhatsApp + настройка автоуведомлений)
-    clickAction(env5, { a: "tc-tab", tab: "students" });
+    clickAction(env5, { a: "go", v: "tutor-students" });
     await flushMicrotasks(2);
     const tcStudentsHtml = env5.elements.get("main").innerHTML;
     assert(
