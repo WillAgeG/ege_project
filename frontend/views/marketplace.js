@@ -945,6 +945,27 @@
       ${studentLeadCardHTML(TDATA, ui)}`;
   }
 
+  function publishStudentBid(booking, tutor) {
+    if (!booking || !EGE.realtime || typeof EGE.realtime.publish !== "function") return null;
+    const isTrial = !!booking.isTrial || Number(booking.offerPrice) === 0;
+    const rate = Number(booking.offerPrice || 0);
+    const tName = (tutor && tutor.name) || booking.tutorName || "Репетитор";
+    const tSlug = String((tutor && (tutor.slug || tutor.id)) || booking.tutorId || "tutor");
+    return EGE.realtime.publish({
+      channel: "tutor",
+      eventType: "market.bid.created",
+      title: isTrial ? "Новая заявка на пробный урок (0 ₽)" : "Новая ставка от ученика",
+      message: `${tName} · ${booking.dayLabel || "Слот"}, ${booking.hour || "14:00"} · ${isTrial ? "Пробный 0 ₽" : (rate.toLocaleString("ru-RU") + " ₽/ч")}`,
+      tutorSlug: tSlug,
+      payload: Object.assign({
+        bookingId: booking.id,
+        tutorId: booking.tutorId || tSlug,
+        tutorName: tName,
+        studentName: booking.studentName || "Заявка ученика (из /market)"
+      }, booking)
+    });
+  }
+
   EGE.views = EGE.views || {};
   EGE.views.marketplace = {
     configure,
@@ -958,6 +979,7 @@
     marketSectionHTML,
     viewMarket,
     viewStudy,
-    updateBookingModalLive
+    updateBookingModalLive,
+    publishStudentBid
   };
 })();

@@ -126,9 +126,150 @@
   let _ctx = {};
   let _cache = null;
   let _countdownTimer = null;
+  let _rtUnsub = null;
+
+  const SAMPLE_GCAL_ICS = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Google Inc//Google Calendar 70.9054//EN",
+    "BEGIN:VEVENT",
+    "UID:gcal-sample-wed@google.com",
+    "DTSTAMP:20261115T070000Z",
+    "DTSTART:20261118T070000Z",
+    "DTEND:20261118T080000Z",
+    "SUMMARY:Google Calendar · Методический созвон (07:00 UTC)",
+    "END:VEVENT",
+    "BEGIN:VEVENT",
+    "UID:gcal-sample-sat@google.com",
+    "DTSTAMP:20261115T070000Z",
+    "DTSTART:20261121T070000Z",
+    "DTEND:20261121T080000Z",
+    "SUMMARY:Google Calendar · Внешнее занятие (07:00 UTC)",
+    "END:VEVENT",
+    "END:VCALENDAR"
+  ].join("\r\n");
+
+  function getTutorSlug(st) {
+    const p = (st && st.profile) || {};
+    if (EGE.kit && typeof EGE.kit.entitySlug === "function") {
+      return EGE.kit.entitySlug({ slug: p.slug, name: p.name || "tutor" });
+    }
+    return String(p.name || "tutor").toLowerCase().replace(/[^a-z0-9а-яё]+/gi, "-").replace(/^-|-$/g, "") || "tutor-demo";
+  }
+
+  function applyRtEventToCabinet(evt) {
+    if (!evt || evt.eventType !== "market.bid.created") return;
+    const p = evt.payload || {};
+    const st = tState();
+    const rawId = String(p.bookingId || p.id || evt.id || Date.now());
+    const mktState = typeof _ctx.mkt === "function" ? _ctx.mkt() : null;
+    const mktBookings = (mktState && Array.isArray(mktState.bookings)) ? mktState.bookings : [];
+    const inMarket = mktBookings.some((b) => String(b.id) === rawId);
+    const reqId = "rt-" + rawId;
+    if (!inMarket && !(st.requests || []).some((r) => r.id === reqId || String(r.mktId || "") === rawId)) {
+      const rate = Number(p.offerPrice) || st.profile.price;
+      st.requests = st.requests || [];
+      st.requests.unshift({
+        id: reqId,
+        mktId: rawId,
+        studentName: p.studentName || "Заявка ученика (Live)",
+        exam: p.exam || "ЕГЭ",
+        subjectName: p.subjectName || "Подготовка",
+        format: p.format || "Онлайн",
+        dow: p.dow != null ? String(p.dow) : dayDowFromLabel(p.dayLabel),
+        dayIso: p.dayIso || "",
+        dayLabel: p.dayLabel || "Ближайший слот",
+        hour: p.hour || "14:00",
+        offerPrice: rate,
+        counterPrice: Number(p.counterPrice || rate) || rate,
+        tutorPrice: Number(p.tutorPrice) || st.profile.price,
+        marketPrice: Math.round((Number(p.tutorPrice) || st.profile.price) * 1.28),
+        note: p.note || evt.message || "Новая ставка с витрины /market",
+        status: "pending",
+        createdLabel: "Live · только что"
+      });
+      saveState();
+    }
+    if (typeof _ctx.notifySide === "function") {
+      _ctx.notifySide(evt.title || "Новая ставка от ученика", evt.message || "Проверьте вкладку «Заявки»");
+    }
+    if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+  }
+
+  function ensureRealtimeConnected() {
+    if (!EGE.realtime) return;
+    if (!_rtUnsub && typeof EGE.realtime.onEvent === "function") {
+      _rtUnsub = EGE.realtime.onEvent(applyRtEventToCabinet);
+    }
+    if (typeof EGE.realtime.connect === "function") {
+      const st = _cache;
+      const slug = st ? getTutorSlug(st) : "";
+      const cur = typeof EGE.realtime.getState === "function" ? EGE.realtime.getState() : null;
+      if (!cur || cur.channel !== "tutor" || (slug && cur.tutorSlug !== slug)) {
+        EGE.realtime.connect({ channel: "tutor", tutorSlug: slug });
+      }
+    }
+  }
+
+  function syncTutorCalendar(st) {
+    if (!EGE.realtime || typeof EGE.realtime.syncCalendar !== "function") return null;
+    st = st || tState();
+    const lessons = syncedRequests().filter((r) => r.status === "accepted");
+    const prom = EGE.realtime.syncCalendar({
+      tutorSlug: getTutorSlug(st),
+      tutorName: st.profile.name,
+      city: st.profile.city,
+      timezone: st.profile.timezone,
+      openSlots: st.slots,
+      lessons
+    });
+    const rtCal = typeof EGE.realtime.getState === "function" ? EGE.realtime.getState().calendar : null;
+    if (rtCal) {
+      st.calendarSync = Object.assign({}, st.calendarSync || {}, {
+        icsUrl: rtCal.icsUrl,
+        googleSubscribeUrl: rtCal.googleSubscribeUrl,
+        googleTemplateUrl: rtCal.googleTemplateUrl,
+        eventCount: rtCal.eventCount,
+        lastSyncAt: Date.now()
+      });
+    }
+    if (prom && typeof prom.then === "function") {
+      prom.then((res) => {
+        if (res && res.ok) {
+          const curSt = tState();
+          curSt.calendarSync = Object.assign({}, curSt.calendarSync || {}, {
+            icsUrl: res.icsUrl || curSt.calendarSync.icsUrl,
+            googleSubscribeUrl: res.googleSubscribeUrl || curSt.calendarSync.googleSubscribeUrl,
+            googleTemplateUrl: res.googleTemplateUrl || curSt.calendarSync.googleTemplateUrl,
+            eventCount: res.eventCount != null ? Number(res.eventCount) : curSt.calendarSync.eventCount,
+            busySlots: Array.isArray(res.busySlots) ? res.busySlots : curSt.calendarSync.busySlots,
+            conflicts: Array.isArray(res.conflicts) ? res.conflicts : curSt.calendarSync.conflicts,
+            lastSyncAt: Date.now()
+          });
+          saveState();
+        }
+      }).catch(() => {});
+    }
+    return prom;
+  }
+
+  function publishRtUpdate(eventType, title, message, payload) {
+    if (!EGE.realtime || typeof EGE.realtime.publish !== "function") return null;
+    const st = tState();
+    return EGE.realtime.publish({
+      channel: "tutor",
+      eventType,
+      title,
+      message,
+      tutorSlug: getTutorSlug(st),
+      payload: payload || {},
+      silent: true
+    });
+  }
 
   function configure(ctx) {
     _ctx = ctx || {};
+    ensureRealtimeConnected();
   }
 
   function getTDATA() {
@@ -201,6 +342,18 @@
       calWeek: 0,
       calAddHour: "",
       calAddOpen: false,
+      calImportOpen: false,
+      calImportDraft: "",
+      calendarSync: {
+        gcalConnected: false,
+        icsUrl: "/api/calendar/anna-sokolova.ics",
+        googleSubscribeUrl: "",
+        googleTemplateUrl: "",
+        eventCount: 0,
+        busySlots: [],
+        conflicts: [],
+        lastSyncAt: 0
+      },
       statsPeriod: "7d",
       chartStyle: "sticks",
       monthlyGoal: 60000,
@@ -355,6 +508,11 @@
       _cache = def;
     }
     if (!_cache.chartStyle) _cache.chartStyle = "sticks";
+    if (!_cache.calendarSync || typeof _cache.calendarSync !== "object") {
+      _cache.calendarSync = Object.assign({}, defaultState().calendarSync);
+    }
+    if (!Array.isArray(_cache.calendarSync.busySlots)) _cache.calendarSync.busySlots = [];
+    if (!Array.isArray(_cache.calendarSync.conflicts)) _cache.calendarSync.conflicts = [];
     checkAutoBumpDue(_cache, true);
     return _cache;
   }
@@ -1008,11 +1166,59 @@
       : DAY_LIST.map((d, i) => ({ dow: Number(d.dow), wd: d.wd, wdLong: d.full.toLowerCase(), num: 14 + i, month: "нояб.", shortLabel: `${d.wd}, ${14 + i} нояб.`, fullLabel: `${d.full.toLowerCase()}, ${14 + i} нояб.`, iso: "" }));
     const activeDay = weekDays.find((d) => String(d.dow) === String(st.activeDow)) || weekDays[5] || weekDays[0];
     const dowStr = String(activeDay.dow);
+    const dayKeyByDow = { "1": "mon", "2": "tue", "3": "wed", "4": "thu", "5": "fri", "6": "sat", "0": "sun" };
+    const activeDayKey = dayKeyByDow[dowStr] || "sat";
     const dayOpenSlots = Array.isArray(st.slots[dowStr]) ? st.slots[dowStr] : [];
     const activeLessons = allReqs.filter((r) => r.status === "accepted" && (String(r.dow || dayDowFromLabel(r.dayLabel)) === dowStr));
     const weekCount = allReqs.filter((r) => r.status === "accepted").length;
 
+    const rtCal = (EGE.realtime && typeof EGE.realtime.getState === "function") ? EGE.realtime.getState().calendar : null;
+    const cs = st.calendarSync || {};
+    const busySlots = (Array.isArray(cs.busySlots) && cs.busySlots.length)
+      ? cs.busySlots
+      : ((rtCal && Array.isArray(rtCal.busySlots)) ? rtCal.busySlots : []);
+    const conflictsList = (Array.isArray(cs.conflicts) && cs.conflicts.length)
+      ? cs.conflicts
+      : ((rtCal && Array.isArray(rtCal.conflicts)) ? rtCal.conflicts : []);
+    const busyForActiveDay = busySlots.filter((b) => String(b.day || "") === activeDayKey || (b.dow !== undefined && b.dow !== null && b.dow !== "" && String(b.dow) === dowStr));
+    const openTotal = Object.keys(st.slots || {}).reduce((acc, k) => acc + (Array.isArray(st.slots[k]) ? st.slots[k].length : 0), 0);
+    const slug = getTutorSlug(st);
+    const icsUrl = cs.icsUrl || (rtCal && rtCal.icsUrl) || (`/api/calendar/${encodeURIComponent(slug)}.ics`);
+    const calCardHtml = (EGE.kit && typeof EGE.kit.calendarSyncCardHTML === "function")
+      ? EGE.kit.calendarSyncCardHTML({
+          timezone: st.profile.timezone,
+          city: st.profile.city,
+          gcalConnected: !!(cs.gcalConnected || busySlots.length > 0),
+          icsUrl,
+          googleSubscribeUrl: cs.googleSubscribeUrl || (rtCal && rtCal.googleSubscribeUrl),
+          googleTemplateUrl: cs.googleTemplateUrl || (rtCal && rtCal.googleTemplateUrl),
+          eventCount: Math.max(Number(cs.eventCount || (rtCal && rtCal.eventCount) || 0), weekCount + openTotal),
+          busySlots,
+          conflictsCount: conflictsList.length,
+          syncAction: "tc-cal-sync",
+          copyAction: "tc-cal-copy-ics",
+          importSampleAction: "tc-cal-import-sample",
+          importOpenAction: "tc-cal-import-modal"
+        })
+      : "";
+
     return `<div class="stack" style="gap:14px">
+      ${calCardHtml}
+
+      ${st.calImportOpen ? `<form class="card stack" style="gap:10px;border-color:var(--accent)" data-f="tc-cal-import">
+        <div class="row between" style="gap:8px">
+          <b>Импорт внешнего .ics (Google / Яндекс / Apple Calendar)</b>
+          <button type="button" class="icon-btn sm" data-a="tc-cal-import-close" aria-label="Закрыть">${icon("x")}</button>
+        </div>
+        <div class="field">
+          <label for="tc-ics-text">Вставьте содержимое .ics файла (поддерживаются UTC <code>Z</code> и VEVENT)</label>
+          <textarea class="textarea" id="tc-ics-text" name="icsText" rows="5" placeholder="BEGIN:VCALENDAR&#10;BEGIN:VEVENT&#10;DTSTART:20261121T070000Z&#10;SUMMARY:Урок&#10;END:VEVENT&#10;END:VCALENDAR">${esc(st.calImportDraft || SAMPLE_GCAL_ICS)}</textarea>
+        </div>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <button type="submit" class="btn sm">${icon("check")}<span>Импортировать и пересчитать в ${esc(st.profile.timezone || "UTC+9")}</span></button>
+          <button type="button" class="btn ghost sm" data-a="tc-cal-import-close">Отмена</button>
+        </div>
+      </form>` : ""}
       <div class="card stack" style="gap:12px">
         <div class="row between" style="gap:8px;flex-wrap:wrap">
           <div>
@@ -1087,6 +1293,7 @@
         <div class="tc-cal-hours">
           ${hours.map((h) => {
             const lesson = activeLessons.find((r) => r.hour === h);
+            const gcalBusy = busyForActiveDay.find((b) => b.hour === h);
             const isOpen = dayOpenSlots.includes(h);
             if (lesson) {
               const rate = Number(lesson.counterPrice || lesson.offerPrice) || st.profile.price;
@@ -1099,6 +1306,7 @@
                       <b>${esc(lesson.studentName)}</b>
                       <span class="chip ${isAcc ? "confirm" : "notif"}">${isAcc ? "✓ Подтверждён" : "Ждёт ответа"}</span>
                       <span class="chip num">${rate.toLocaleString("ru-RU")} ₽/ч</span>
+                      ${gcalBusy ? `<span class="chip bad">Конфликт GCal</span>` : ""}
                     </div>
                     <span class="small muted">${esc(lesson.exam)} · ${esc(lesson.subjectName)}${lesson.note ? " — " + esc(lesson.note) : ""}</span>
                   </div>
@@ -1114,6 +1322,18 @@
                       })
                     : `<button type="button" class="btn soft sm" data-a="tc-req-msg" data-id="${esc(lesson.id)}">${icon("msg")}<span>Чат</span></button>`}
                   <button type="button" class="btn ghost sm" data-a="tc-req-decline" data-id="${esc(lesson.id)}">Снять</button>
+                </div>
+              </div>`;
+            }
+            if (gcalBusy) {
+              return `<div class="tc-cal-slot is-gcal-busy">
+                <div class="row" style="gap:10px;min-width:0;flex:1 1 220px;flex-wrap:wrap;align-items:center">
+                  <span class="tc-cal-time">${h}</span>
+                  <span class="badge">Занято в GCal</span>
+                  <span class="small">${esc(gcalBusy.summary || "Событие Google Calendar")}</span>
+                </div>
+                <div class="row" style="gap:6px;flex-wrap:wrap">
+                  <span class="small muted">Пересчитано в ${esc(st.profile.timezone || "UTC+9")}</span>
                 </div>
               </div>`;
             }
@@ -2030,9 +2250,20 @@
 
   function viewCabinet() {
     ensureCountdownTimer();
+    ensureRealtimeConnected();
     const TDATA = getTDATA();
     const st = tState();
     const p = st.profile;
+    const rtState = (EGE.realtime && typeof EGE.realtime.getState === "function") ? EGE.realtime.getState() : { mode: "local", unreadCount: 0 };
+    const rtPillHtml = (EGE.kit && typeof EGE.kit.realtimeStatusPillHTML === "function")
+      ? EGE.kit.realtimeStatusPillHTML({
+          mode: rtState.mode,
+          channelLabel: "tutor",
+          unreadCount: rtState.unreadCount,
+          action: "tc-rt-reconnect",
+          title: "Переподключить Live-поток заявок и расписания"
+        })
+      : "";
     const allReqs = syncedRequests();
     const pendingList = allReqs.filter((r) => r.status === "pending");
     const acceptedList = allReqs.filter((r) => r.status === "accepted");
@@ -2064,7 +2295,8 @@
             <h1 class="h1">${esc(p.name)}</h1>
             <div class="small muted">${esc(p.headline || "Репетитор ЕГЭ / ОГЭ")} · Профиль заполнен на ${comp.pct}% · Авто-24ч: ${esc(lastAutoLabel)}</div>
           </div>
-          <div class="row" style="gap:8px;flex-wrap:wrap">
+          <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
+            ${rtPillHtml}
             <button type="button" class="btn ${st.autoBump24h ? "gold" : "soft"} sm" data-a="tc-autobump-toggle" aria-pressed="${!!st.autoBump24h}">
               ${icon("spark")}<span>${st.autoBump24h ? "Авто-24ч: " : "Вкл. авто-24ч"}</span>${st.autoBump24h ? `<b class="num" data-tc-countdown>${formatCountdown(autoBumpRemainingMs(st))}</b>` : ""}
             </button>
@@ -2413,8 +2645,15 @@
         req.offerPrice = finalPrice;
         req.status = "accepted";
       });
-      if (updated && typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       const who = findReq(id);
+      publishRtUpdate(
+        "request.accepted",
+        "Урок подтверждён",
+        who ? `${who.studentName} · ${who.dayLabel} в ${who.hour}` : "Урок подтверждён",
+        { requestId: id }
+      );
+      syncTutorCalendar(st);
+      if (updated && typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       if (typeof _ctx.notifySide === "function") {
         _ctx.notifySide(
           "Урок подтверждён",
@@ -2439,6 +2678,8 @@
 
     if (act === "tc-req-decline") {
       updateReq(id, (req) => { req.status = "declined"; });
+      publishRtUpdate("request.declined", "Заявка снята", `Слот освобождён (${id})`, { requestId: id });
+      syncTutorCalendar(st);
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       if (typeof _ctx.toast === "function") _ctx.toast("Заявка отклонена");
       return true;
@@ -2508,7 +2749,96 @@
       st.slots[dow] = list;
       syncPublishedTutor(st);
       saveState();
+      publishRtUpdate("calendar.slot.updated", "Обновлено окно в расписании", `${dow}: ${hour}`, { dow, hour });
+      syncTutorCalendar(st);
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-rt-reconnect") {
+      if (EGE.realtime) {
+        if (typeof EGE.realtime.clearUnread === "function") EGE.realtime.clearUnread();
+        if (typeof EGE.realtime.connect === "function") {
+          EGE.realtime.connect({ channel: "tutor", tutorSlug: getTutorSlug(st) });
+        }
+      }
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      if (typeof _ctx.toast === "function") _ctx.toast("Live-поток обновлён");
+      return true;
+    }
+
+    if (act === "tc-cal-sync") {
+      syncTutorCalendar(st);
+      saveState();
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      if (typeof _ctx.notifySide === "function") {
+        _ctx.notifySide(".ics-лента синхронизирована", `Часовой пояс ${st.profile.timezone || "UTC+9"} · ссылка готова для Google Calendar`);
+      }
+      return true;
+    }
+
+    if (act === "tc-cal-copy-ics") {
+      const cs = st.calendarSync || {};
+      const url = d.url || cs.icsUrl || (`/api/calendar/${encodeURIComponent(getTutorSlug(st))}.ics`);
+      copyStr(url);
+      if (typeof _ctx.toast === "function") _ctx.toast("Ссылка .ics скопирована");
+      return true;
+    }
+
+    if (act === "tc-cal-import-modal") {
+      st.calImportOpen = true;
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-cal-import-close") {
+      st.calImportOpen = false;
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-cal-import-sample") {
+      if (EGE.realtime && typeof EGE.realtime.importIcs === "function") {
+        const resProm = EGE.realtime.importIcs({
+          tutorSlug: getTutorSlug(st),
+          tutorName: st.profile.name,
+          city: st.profile.city,
+          timezone: st.profile.timezone,
+          icsText: SAMPLE_GCAL_ICS,
+          openSlots: st.slots
+        });
+        const rtCal = typeof EGE.realtime.getState === "function" ? EGE.realtime.getState().calendar : null;
+        if (rtCal) {
+          st.calendarSync = Object.assign({}, st.calendarSync || {}, {
+            gcalConnected: true,
+            icsUrl: rtCal.icsUrl,
+            googleSubscribeUrl: rtCal.googleSubscribeUrl,
+            googleTemplateUrl: rtCal.googleTemplateUrl,
+            busySlots: Array.isArray(rtCal.busySlots) ? rtCal.busySlots : [],
+            conflicts: Array.isArray(rtCal.conflicts) ? rtCal.conflicts : [],
+            lastSyncAt: Date.now()
+          });
+        }
+        saveState();
+        if (resProm && typeof resProm.then === "function") {
+          resProm.then((res) => {
+            if (res && res.ok) {
+              st.calendarSync = Object.assign({}, st.calendarSync || {}, {
+                gcalConnected: true,
+                busySlots: Array.isArray(res.busySlots) ? res.busySlots : st.calendarSync.busySlots,
+                conflicts: Array.isArray(res.conflicts) ? res.conflicts : st.calendarSync.conflicts,
+                lastSyncAt: Date.now()
+              });
+              saveState();
+              if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+            }
+          }).catch(() => {});
+        }
+      }
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      if (typeof _ctx.notifySide === "function") {
+        _ctx.notifySide("Импорт GCal (.ics) выполнен", `События 07:00 UTC пересчитаны в ${st.profile.timezone || "UTC+9"}`);
+      }
       return true;
     }
 
@@ -2811,8 +3141,60 @@
       }
       st.calAddOpen = false;
       saveState();
+      publishRtUpdate("calendar.lesson.created", "Ученик записан в календарь", `${sName} · ${dowObj.wd} в ${hour}`, { studentName: sName, dow: dowObj.dow, hour });
+      syncTutorCalendar(st);
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       if (typeof _ctx.notifySide === "function") _ctx.notifySide("Ученик записан в календарь", `${sName} · ${dowObj.wd} в ${hour} (${rate.toLocaleString("ru-RU")} ₽/ч)`);
+      return true;
+    }
+
+    if (form.dataset.f === "tc-cal-import") {
+      const rawIcs = els.icsText ? String(els.icsText.value || "").trim() : "";
+      if (!rawIcs) {
+        if (typeof _ctx.toast === "function") _ctx.toast("Вставьте содержимое .ics файла");
+        return true;
+      }
+      st.calImportDraft = rawIcs;
+      if (EGE.realtime && typeof EGE.realtime.importIcs === "function") {
+        const resProm = EGE.realtime.importIcs({
+          tutorSlug: getTutorSlug(st),
+          tutorName: st.profile.name,
+          city: st.profile.city,
+          timezone: st.profile.timezone,
+          icsText: rawIcs,
+          openSlots: st.slots
+        });
+        const rtCal = typeof EGE.realtime.getState === "function" ? EGE.realtime.getState().calendar : null;
+        if (rtCal) {
+          st.calendarSync = Object.assign({}, st.calendarSync || {}, {
+            gcalConnected: true,
+            icsUrl: rtCal.icsUrl,
+            googleSubscribeUrl: rtCal.googleSubscribeUrl,
+            googleTemplateUrl: rtCal.googleTemplateUrl,
+            busySlots: Array.isArray(rtCal.busySlots) ? rtCal.busySlots : [],
+            conflicts: Array.isArray(rtCal.conflicts) ? rtCal.conflicts : [],
+            lastSyncAt: Date.now()
+          });
+        }
+        if (resProm && typeof resProm.then === "function") {
+          resProm.then((res) => {
+            if (res && res.ok) {
+              st.calendarSync = Object.assign({}, st.calendarSync || {}, {
+                gcalConnected: true,
+                busySlots: Array.isArray(res.busySlots) ? res.busySlots : st.calendarSync.busySlots,
+                conflicts: Array.isArray(res.conflicts) ? res.conflicts : st.calendarSync.conflicts,
+                lastSyncAt: Date.now()
+              });
+              saveState();
+              if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+            }
+          }).catch(() => {});
+        }
+      }
+      st.calImportOpen = false;
+      saveState();
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      if (typeof _ctx.notifySide === "function") _ctx.notifySide("Внешний .ics импортирован", `События пересчитаны в ${st.profile.timezone || "UTC+9"}`);
       return true;
     }
 

@@ -19,6 +19,8 @@
     skeletonCardHTML,
     pipelineStageCardHTML,
     eventLogFeedHTML,
+    realtimeStatusPillHTML,
+    calendarSyncCardHTML,
     sakhaButtonsHTML,
     marqueePillsHTML,
     rateBenchCardHTML,
@@ -128,6 +130,7 @@
     catQ: "",
     faqOpen: 0,
     maskPhone: "+7 (914) 210-05-11",
+    calTz: "UTC+9",
     maskTg: "@aytal_bio",
     maskMax: "aytal_ege",
     payMethod: "sbp",
@@ -1669,6 +1672,22 @@
         ${emptyHtml}
         ${skelHtml}
       </div>
+
+      <div class="card pad" style="margin-top:12px">
+        <div class="row between" style="gap:8px;flex-wrap:wrap;margin-bottom:10px">
+          <div>
+            <b>realtimeStatusPillHTML · Индикатор Live-транспорта</b>
+            <div class="small muted">Единый компонент для кабинета преподавателя и мониторинга SSE / WebSocket / BroadcastChannel</div>
+          </div>
+          <span class="bb-spec-pill">EGE.kit.realtimeStatusPillHTML</span>
+        </div>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          ${realtimeStatusPillHTML ? realtimeStatusPillHTML({ mode: "sse", channelLabel: isTutor ? "tutor" : "student", unreadCount: 2, action: "bb-demo-toast" }) : ""}
+          ${realtimeStatusPillHTML ? realtimeStatusPillHTML({ mode: "ws", channelLabel: "ws", action: "bb-demo-toast" }) : ""}
+          ${realtimeStatusPillHTML ? realtimeStatusPillHTML({ mode: "connecting", channelLabel: "reconnect" }) : ""}
+          ${realtimeStatusPillHTML ? realtimeStatusPillHTML({ mode: "local", channelLabel: "tabs", action: "bb-demo-toast" }) : ""}
+        </div>
+      </div>
     </section>`;
   }
 
@@ -1877,6 +1896,34 @@
             <b class="num" style="color:var(--${kTone})">${esc(kScore)}</b>
           </div>`).join("")}
         </div>
+      </div>
+
+      <div class="card pad" style="margin-top:12px">
+        <div class="row between" style="gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+          <div>
+            <div class="eyebrow">Backlog #12 · .ics &amp; Google Calendar</div>
+            <h3 class="h3">Пересчёт UTC <code>Z</code> в Якутск (UTC+9) и Москву (UTC+3)</h3>
+          </div>
+          <div class="hh-seg" role="group" aria-label="Часовой пояс календаря">
+            <button type="button" data-a="bb-cal-tz" data-act="bb-cal-tz" data-v="UTC+9" aria-pressed="${(bb.calTz || "UTC+9") === "UTC+9"}">Якутск · UTC+9</button>
+            <button type="button" data-a="bb-cal-tz" data-act="bb-cal-tz" data-v="UTC+3" aria-pressed="${bb.calTz === "UTC+3"}">Москва · UTC+3</button>
+          </div>
+        </div>
+        ${calendarSyncCardHTML ? calendarSyncCardHTML({
+          timezone: bb.calTz === "UTC+3" ? "UTC+3" : "UTC+9",
+          gcalConnected: true,
+          icsUrl: "/api/calendar/brandbook-demo.ics",
+          eventCount: 4,
+          busySlots: [
+            { dayLabel: "Ср", hour: bb.calTz === "UTC+3" ? "10:00" : "16:00", summary: "07:00 UTC · Созвон GCal" },
+            { dayLabel: "Пт", hour: bb.calTz === "UTC+3" ? "11:00" : "17:00", summary: "08:00 UTC · Биология мини-группа" }
+          ],
+          conflictsCount: bb.calTz === "UTC+3" ? 0 : 1,
+          syncAction: "bb-demo-toast",
+          copyAction: "bb-demo-toast",
+          importSampleAction: "bb-demo-toast",
+          importOpenAction: ""
+        }) : ""}
       </div>
     </section>`;
   }

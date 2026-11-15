@@ -4190,7 +4190,7 @@
         reserved = offerPrice;
         st.balance -= reserved;
       }
-      st.bookings.unshift({
+      const newBooking = {
         id: "bk-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
         tutorId: tutor.id,
         tutorName: tutor.name,
@@ -4210,9 +4210,22 @@
         reserved,
         status: "pending",
         createdAt: Date.now()
-      });
+      };
+      st.bookings.unshift(newBooking);
       ui.booking = null;
       saveMkt();
+      if (EGE.views.marketplace && typeof EGE.views.marketplace.publishStudentBid === "function") {
+        EGE.views.marketplace.publishStudentBid(newBooking, tutor);
+      } else if (EGE.realtime && typeof EGE.realtime.publish === "function") {
+        EGE.realtime.publish({
+          channel: "tutor",
+          eventType: "market.bid.created",
+          title: isTrial ? "Новая заявка на пробный урок" : "Новая ставка от ученика",
+          message: `${tutor.name} · ${dayObj.shortLabel}, ${hour} (${offerPrice.toLocaleString("ru-RU")} ₽/ч)`,
+          tutorSlug: String(tutor.id || ""),
+          payload: Object.assign({}, newBooking)
+        });
+      }
       renderModal();
       notifySide(
         isTrial ? "Заявка на пробный урок (0 ₽) отправлена" : "Предложение передано преподавателю",
@@ -4962,6 +4975,11 @@
       bb.pipeFilter = ["all", "postgres", "polars", "airflow", "kafka"].includes(v) ? v : "all";
       scheduleRender();
     },
+    "bb-cal-tz": (el) => {
+      const bb = bbState();
+      bb.calTz = (el.dataset && el.dataset.v === "UTC+3") ? "UTC+3" : "UTC+9";
+      scheduleRender();
+    },
     "fees-rate": (el) => {
       ui.feesRate = Math.max(600, Math.min(3500, Number(el.dataset.rate) || 800));
       scheduleRender();
@@ -5042,7 +5060,7 @@
       maskPhone: "+7 (914) 210-05-11", maskTg: "@aytal_bio", maskMax: "aytal_ege",
       payMethod: "sbp", payState: "frozen", payInitialDone: false,
       tablePreset: "requests", confirmedRows: {}, essayOpenIdx: 0,
-      shellRole: "tutor", pipeFilter: "all"
+      shellRole: "tutor", pipeFilter: "all", calTz: "UTC+9"
     });
     if (bb.marketDemoAccepted === undefined) bb.marketDemoAccepted = false;
     if (bb.reducedMotion === undefined) bb.reducedMotion = false;
@@ -5067,6 +5085,7 @@
     if (bb.essayOpenIdx === undefined) bb.essayOpenIdx = 0;
     if (!bb.shellRole) bb.shellRole = "tutor";
     if (!bb.pipeFilter) bb.pipeFilter = "all";
+    if (!bb.calTz) bb.calTz = "UTC+9";
     return bb;
   }
   function patchMaskTrainerDOM() {
@@ -5376,11 +5395,11 @@
       renderModal();
       return;
     }
-    const el = e.target.closest("[data-a]");
+    const el = e.target.closest("[data-a]") || e.target.closest("[data-act]");
     if (!el || el.disabled) return;
     const hrefAttr = el.tagName === "A" ? el.getAttribute("href") : "";
     const isExtLink = !!(hrefAttr && !hrefAttr.startsWith("#"));
-    const act = el.dataset.a;
+    const act = (el.dataset && (el.dataset.a || el.dataset.act)) || "";
     if (act && act.indexOf("tc-") === 0 && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.handleAction === "function") {
       if (EGE.views.tutorCabinet.handleAction(act, el)) { if (!isExtLink) e.preventDefault(); return; }
     }

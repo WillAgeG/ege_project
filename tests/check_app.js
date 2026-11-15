@@ -1759,6 +1759,41 @@
       !read("frontend/index.html").toLowerCase().includes("#13794b"),
       "expected zero occurrences of Вывести 95% in ux-ui and zero #13794b in index.html"
     );
+
+    // UI Kit + Brandbook: realtimeStatusPillHTML & calendarSyncCardHTML (UTC+9 / UTC+3)
+    assert(
+      typeof globalThis.EGE.kit.realtimeStatusPillHTML === "function" &&
+      typeof globalThis.EGE.kit.calendarSyncCardHTML === "function",
+      "expected EGE.kit.realtimeStatusPillHTML and calendarSyncCardHTML to be exported"
+    );
+    const rtPillSse = globalThis.EGE.kit.realtimeStatusPillHTML({ mode: "sse", channelLabel: "tutor", unreadCount: 3, action: "demo-rt", actAttr: "data-act" });
+    const rtPillWs = globalThis.EGE.kit.realtimeStatusPillHTML({ mode: "ws", channelLabel: "ws" });
+    const rtPillLocal = globalThis.EGE.kit.realtimeStatusPillHTML({ mode: "local" });
+    assert(
+      rtPillSse.includes("rt-status-pill is-sse") && rtPillSse.includes("Live · SSE") && rtPillSse.includes("+3") && rtPillSse.includes('data-act="demo-rt"') &&
+      rtPillWs.includes("rt-status-pill is-ws") && rtPillWs.includes("Live · WS") &&
+      rtPillLocal.includes("rt-status-pill is-local") && rtPillLocal.includes("Табы · Офлайн"),
+      "expected realtimeStatusPillHTML to support sse/ws/local modes, unread badge, and custom actAttr"
+    );
+    const calCardYkt = globalThis.EGE.kit.calendarSyncCardHTML({ timezone: "UTC+9", gcalConnected: true, eventCount: 3, busySlots: [{ dayLabel: "Сб", hour: "16:00", summary: "GCal" }], conflictsCount: 1 });
+    const calCardMsk = globalThis.EGE.kit.calendarSyncCardHTML({ timezone: "UTC+3", gcalConnected: false, eventCount: 2, busySlots: [], conflictsCount: 0 });
+    assert(
+      calCardYkt.includes("cal-sync-card") && calCardYkt.includes("16:00 Якт") && calCardYkt.includes("calendar.google.com") && calCardYkt.includes(".ics") &&
+      calCardMsk.includes("10:00 Мск"),
+      "expected calendarSyncCardHTML to display timezone-aware 07:00 UTC conversion, .ics URL and Google Calendar links"
+    );
+    assert(
+      env5.elements.get("main").innerHTML.includes("rt-status-pill is-sse") &&
+      env5.elements.get("main").innerHTML.includes("cal-sync-card") &&
+      env5.elements.get("main").innerHTML.includes("16:00 Якт"),
+      "expected Brandbook #bb-ui-kit-shells and #bb-ege-timers to render realtimeStatusPillHTML and calendarSyncCardHTML"
+    );
+    clickAction(env5, { a: "bb-cal-tz", v: "UTC+3" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("10:00 Мск") && env5.elements.get("main").innerHTML.includes('data-act="bb-cal-tz"'), "expected bb-cal-tz=UTC+3 in Brandbook to switch sample preview to 10:00 Мск");
+    clickAction(env5, { a: "bb-cal-tz", v: "UTC+9" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("16:00 Якт"), "expected bb-cal-tz=UTC+9 to restore 16:00 Якт preview");
     clickAction(env5, { a: "bb-essay-tab", idx: "1", v: "1" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes('data-a="bb-essay-tab" data-idx="1" data-v="1" aria-pressed="true"'), "expected bb-essay-tab to switch AI essay breakdown tab");
@@ -1828,6 +1863,108 @@
     clickAction(env5, { a: "role-set", role: "student" });
     await flushMicrotasks(4);
     assert(env5.elements.get("main").innerHTML.includes("Тесты ЕГЭ") && env5.elements.get("tutor-balance-dock").hidden === true, "expected role-set back to student to return cleanly to Тесты ЕГЭ and hide teacher balance dock");
+
+    // Realtime SSE/WS/BroadcastChannel клиент + Two-Way .ics / GCal UTC+9 / UTC+3 + live заявка /market -> кабинет репетитора
+    assert(globalThis.EGE.realtime && typeof globalThis.EGE.realtime.publish === "function" && typeof globalThis.EGE.realtime.importIcs === "function", "expected window.EGE.realtime module to be loaded");
+    const sampleIcs0700Z = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "BEGIN:VEVENT",
+      "UID:test-0700z",
+      "DTSTART:20261121T070000Z",
+      "DTEND:20261121T080000Z",
+      "SUMMARY:GCal 07:00 UTC Test",
+      "END:VEVENT",
+      "END:VCALENDAR"
+    ].join("\r\n");
+    const parsedYkt = globalThis.EGE.realtime.parseIcsBusySlots(sampleIcs0700Z, "UTC+9", { "6": ["16:00"] });
+    const parsedMsk = globalThis.EGE.realtime.parseIcsBusySlots(sampleIcs0700Z, "UTC+3", {});
+    assert(
+      parsedYkt.busySlots.length === 1 && parsedYkt.busySlots[0].hour === "16:00" && parsedYkt.busySlots[0].day === "sat" &&
+      parsedYkt.conflicts.length === 1 && parsedYkt.conflicts[0].key === "sat|16:00" &&
+      parsedMsk.busySlots.length === 1 && parsedMsk.busySlots[0].hour === "10:00" && parsedMsk.busySlots[0].day === "sat",
+      "expected parseIcsBusySlots to map 07:00Z to 16:00 in UTC+9 (Yakutsk), 10:00 in UTC+3 (Moscow), and detect { \"6\": [\"16:00\"] } open-slot conflict"
+    );
+    const calCardDowZero = globalThis.EGE.kit.calendarSyncCardHTML({
+      timezone: "UTC+9",
+      gcalConnected: true,
+      eventCount: 1,
+      busySlots: [{ uid: "u-sun", dow: 0, hour: "16:00", summary: "GCal Воскресенье" }],
+      conflictsCount: 0
+    });
+    assert(calCardDowZero.includes("Вс · 16:00 · GCal Воскресенье"), "expected calendarSyncCardHTML to resolve dow:0 Sunday pill fallback without dayLabel");
+
+    const pendingBeforeBid = globalThis.EGE.views.tutorCabinet.pendingCount();
+    let seenBidEvent = null;
+    const unsubRt = globalThis.EGE.realtime.onEvent((ev) => {
+      if (ev && ev.eventType === "market.bid.created") seenBidEvent = ev;
+    });
+    const firstTutorId = (globalThis.EGE.tutors && globalThis.EGE.tutors.LIST && globalThis.EGE.tutors.LIST[0] && globalThis.EGE.tutors.LIST[0].id) || "tut-sokolova";
+    clickAction(env5, { a: "go", v: "market" });
+    await flushMicrotasks(3);
+    clickAction(env5, { a: "book-open", id: firstTutorId, hour: "14:00" });
+    await flushMicrotasks(2);
+    clickAction(env5, { a: "book-submit" });
+    await flushMicrotasks(3);
+    unsubRt();
+    assert(
+      seenBidEvent && seenBidEvent.channel === "tutor" &&
+      globalThis.EGE.views.tutorCabinet.pendingCount() === pendingBeforeBid + 1,
+      "expected student book-submit to publish market.bid.created via EGE.realtime and increment tutorCabinet pendingCount live"
+    );
+
+    // Переключаемся в кабинет преподавателя и проверяем live-пилюлю + календарь .ics / Занято в GCal
+    clickAction(env5, { a: "role-set", role: "tutor" });
+    await flushMicrotasks(3);
+    const tutorCabHtml = env5.elements.get("main").innerHTML;
+    assert(tutorCabHtml.includes("rt-status-pill"), "expected realtimeStatusPillHTML in tutor cabinet header");
+    assert(env5.elements.get("side-nav").innerHTML.includes(`>${pendingBeforeBid + 1}<`), "expected updated Заявки badge count in tutor sidebar navigation");
+    clickAction(env5, { a: "tc-tab", tab: "calendar" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("cal-sync-card"), "expected calendarSyncCardHTML inside tutor calendar tab");
+    clickAction(env5, { a: "tc-cal-import-sample" });
+    await flushMicrotasks(3);
+    const calAfterSample = env5.elements.get("main").innerHTML;
+    assert(
+      calAfterSample.includes("is-gcal-busy") && calAfterSample.includes("Занято в GCal") && calAfterSample.includes("16:00"),
+      "expected tc-cal-import-sample to render 07:00 UTC event as 16:00 Занято в GCal slot in Yakutsk UTC+9"
+    );
+
+    // Проверка воскресного (dow === 0) слота из .ics (07:00Z в Вс 22 нояб. 2026) без потери 0 || ""
+    clickAction(env5, { a: "tc-day", dow: "0" });
+    await flushMicrotasks(2);
+    env5.emitDoc("submit", {
+      target: {
+        closest: () => ({
+          dataset: { f: "tc-cal-import" },
+          elements: {
+            icsText: {
+              value: [
+                "BEGIN:VCALENDAR",
+                "VERSION:2.0",
+                "BEGIN:VEVENT",
+                "UID:sun-dow-0",
+                "DTSTART:20261122T070000Z",
+                "DTEND:20261122T080000Z",
+                "SUMMARY:Sunday GCal 07:00 UTC",
+                "END:VEVENT",
+                "END:VCALENDAR"
+              ].join("\r\n")
+            }
+          }
+        })
+      },
+      preventDefault() {}
+    });
+    await flushMicrotasks(3);
+    const calAfterSunday = env5.elements.get("main").innerHTML;
+    assert(
+      calAfterSunday.includes("is-gcal-busy") && calAfterSunday.includes("Sunday GCal 07:00 UTC") && calAfterSunday.includes("16:00"),
+      "expected Sunday (dow: 0) GCal busy slot to render properly without falsy 0 || \"\" bug"
+    );
+
+    clickAction(env5, { a: "role-set", role: "student" });
+    await flushMicrotasks(3);
 
     out("APP_SMOKE_TESTS_OK");
   }

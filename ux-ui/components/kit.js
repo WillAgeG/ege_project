@@ -625,6 +625,109 @@
     </div>`;
   }
 
+  function realtimeStatusPillHTML(opts) {
+    opts = opts || {};
+    const rawMode = String(opts.mode || "local").toLowerCase();
+    const mode = (rawMode === "sse" || rawMode === "ws" || rawMode === "connecting") ? rawMode : "local";
+    const labels = {
+      sse: "Live · SSE",
+      ws: "Live · WS",
+      connecting: "Подключение…",
+      local: "Табы · Офлайн"
+    };
+    const text = opts.label || labels[mode];
+    const channelLabel = opts.channelLabel ? String(opts.channelLabel) : "";
+    const unread = Number(opts.unreadCount || 0) || 0;
+    const actAttr = opts.actAttr || "data-a";
+    const action = opts.action ? ` ${actAttr}="${esc(opts.action)}"` : "";
+    const tag = opts.action ? "button" : "span";
+    const typeAttr = opts.action ? ' type="button"' : "";
+    const titleAttr = opts.title ? ` title="${esc(opts.title)}"` : "";
+    return `<${tag}${typeAttr} class="rt-status-pill is-${esc(mode)}"${action}${titleAttr} aria-live="polite">
+      <span class="rt-status-dot" aria-hidden="true"></span>
+      <span>${esc(text)}</span>
+      ${channelLabel ? `<span class="rt-status-chan">· ${esc(channelLabel)}</span>` : ""}
+      ${unread > 0 ? `<span class="badge accent num">+${unread}</span>` : ""}
+    </${tag}>`;
+  }
+
+  function calendarSyncCardHTML(opts) {
+    opts = opts || {};
+    const tz = opts.timezone === "UTC+3" ? "UTC+3" : "UTC+9";
+    const city = opts.city || (tz === "UTC+3" ? "Москва" : "Якутск");
+    const tzShort = tz === "UTC+3" ? "Мск" : "Якт";
+    const sampleLocal = tz === "UTC+3" ? "10:00 Мск" : "16:00 Якт";
+    const ianaTz = tz === "UTC+3" ? "Europe/Moscow" : "Asia/Yakutsk";
+    const gcalConnected = !!opts.gcalConnected;
+    const icsUrl = opts.icsUrl || "/api/calendar/tutor-demo.ics";
+    const gcalSubUrl = opts.googleSubscribeUrl || ("https://calendar.google.com/calendar/u/0/r?cid=" + encodeURIComponent(icsUrl));
+    const gcalTplUrl = opts.googleTemplateUrl || ("https://calendar.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent("Урок ЕГЭ · Вектор ЕГЭ") + "&ctz=" + encodeURIComponent(ianaTz));
+    const eventCount = Number(opts.eventCount || 0) || 0;
+    const busySlots = Array.isArray(opts.busySlots) ? opts.busySlots : [];
+    const conflictsCount = Number(opts.conflictsCount || 0) || 0;
+    const actAttr = opts.actAttr || "data-a";
+    const syncAction = opts.syncAction || "tc-cal-sync";
+    const copyAction = opts.copyAction || "tc-cal-copy-ics";
+    const importSampleAction = opts.importSampleAction || "tc-cal-import-sample";
+    const importOpenAction = opts.importOpenAction || "tc-cal-import-modal";
+    const tzAction = opts.tzAction || "";
+
+    const DOW_SHORT_RU = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
+    const busyPills = busySlots.slice(0, 6).map(slot => {
+      const dowFallback = (slot && slot.dow !== undefined && slot.dow !== null && slot.dow !== "")
+        ? (DOW_SHORT_RU[Number(slot.dow)] || "")
+        : "";
+      const dayLbl = (slot && (slot.dayLabel || slot.day || dowFallback)) || "";
+      const hourLbl = (slot && slot.hour) || "";
+      const sum = (slot && slot.summary) || "Занято в GCal";
+      const label = [dayLbl, hourLbl, sum].filter(Boolean).join(" · ");
+      return `<span class="badge">${esc(label)}</span>`;
+    }).join("");
+
+    const tzButtons = tzAction
+      ? `<div class="row" style="gap:6px;flex-wrap:wrap">
+          <button type="button" class="btn sm ${tz === "UTC+9" ? "primary" : "ghost"}" ${actAttr}="${esc(tzAction)}" data-v="UTC+9">Якутск (UTC+9)</button>
+          <button type="button" class="btn sm ${tz === "UTC+3" ? "primary" : "ghost"}" ${actAttr}="${esc(tzAction)}" data-v="UTC+3">Москва (UTC+3)</button>
+        </div>`
+      : "";
+
+    return `<div class="cal-sync-card">
+      <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:flex-start">
+        <div style="min-width:0">
+          <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
+            <b>Двусторонняя синхронизация .ics / Google Calendar</b>
+            <span class="badge ${gcalConnected ? "ok" : "accent"}">${gcalConnected ? "GCal подключён" : "Готово к подписке"}</span>
+          </div>
+          <div class="small muted" style="margin-top:4px">${esc(city)} (${esc(tz)} · ${esc(ianaTz)}) · 07:00 UTC → <b>${esc(sampleLocal)}</b> <span class="muted">(справка: 16:00 Якт / 10:00 Мск)</span></div>
+        </div>
+        ${tzButtons}
+      </div>
+
+      <div class="cal-sync-metrics">
+        <div class="cal-sync-metric"><span>Событий в .ics-ленте</span><b class="num">${eventCount}</b></div>
+        <div class="cal-sync-metric"><span>Занято из GCal (${esc(tzShort)})</span><b class="num">${busySlots.length}</b></div>
+        <div class="cal-sync-metric${conflictsCount > 0 ? " is-warn" : ""}"><span>Конфликты слотов</span><b class="num">${conflictsCount}</b></div>
+      </div>
+
+      <div class="cal-sync-url-row">
+        <code>${esc(icsUrl)}</code>
+        <button type="button" class="btn sm ghost" ${actAttr}="${esc(copyAction)}" data-url="${esc(icsUrl)}">Скопировать .ics URL</button>
+      </div>
+
+      <div class="cal-sync-actions">
+        <button type="button" class="btn sm primary" ${actAttr}="${esc(syncAction)}">${icon("repeat")}<span>Синхронизировать .ics</span></button>
+        <a class="btn sm ghost" href="${esc(gcalSubUrl)}" target="_blank" rel="noopener">Подписаться в Google Calendar</a>
+        <a class="btn sm ghost" href="${esc(gcalTplUrl)}" target="_blank" rel="noopener">Создать событие в GCal</a>
+        <button type="button" class="btn sm ghost" ${actAttr}="${esc(importSampleAction)}">Импорт теста GCal (.ics)</button>
+        ${importOpenAction ? `<button type="button" class="btn sm ghost" ${actAttr}="${esc(importOpenAction)}">Вставить .ics</button>` : ""}
+      </div>
+
+      ${busySlots.length
+        ? `<div class="cal-sync-busy-list">${busyPills}${busySlots.length > 6 ? `<span class="badge">+${busySlots.length - 6}</span>` : ""}</div>`
+        : `<div class="small muted">Импортируйте внешний <code>.ics</code> из Google/Яндекс/Apple Calendar — занятые часы (UTC <code>Z</code>) автоматически пересчитаются в ${esc(tz)} и заблокируют пересечения.</div>`}
+    </div>`;
+  }
+
   EGE.kit = {
     CATALOG_CATEGORIES,
     CATALOG_ITEMS,
@@ -639,6 +742,8 @@
     skeletonCardHTML,
     pipelineStageCardHTML,
     eventLogFeedHTML,
+    realtimeStatusPillHTML,
+    calendarSyncCardHTML,
     sakhaButtonsHTML,
     marqueePillsHTML,
     rateBenchCardHTML,

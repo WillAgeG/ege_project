@@ -24,10 +24,10 @@
 
 | Слой | Технологии и версии | Назначение и ключевые файлы |
 |---|---|---|
-| **Backend API** | Python `3.13`, `fastapi>=0.115,<1`, `uvicorn[standard]>=0.32,<1`, `httpx>=0.27,<1` | HTTP API, SSR-инъекция `window.EGE_HOST`, OAuth 2.0 + PKCE (`S256`), `scrypt`-аутентификация, SSE/JSON ИИ-прокси, allowlist статики ([backend/main.py](backend/main.py), [backend/config.py](backend/config.py), [backend/ai.py](backend/ai.py)) |
-| **Frontend SPA** | Vanilla JS (ES2020+ IIFE, zero-bundler), HTML5, CSS Custom Properties | Одностраничное приложение без сборки и фреймворков; единый неймспейс `window.EGE`; офлайн-режим `localStorage` + облачная очередь синка ([frontend/index.html](frontend/index.html), [frontend/app.js](frontend/app.js)) |
+| **Backend API** | Python `3.13`, `fastapi>=0.115,<1`, `uvicorn[standard]>=0.32,<1`, `httpx>=0.27,<1`, `psycopg[binary]>=3.2,<4`, `psycopg-pool>=3.2,<4` | HTTP API, SSR-инъекция `window.EGE_HOST`, OAuth 2.0 + PKCE (`S256`), `scrypt`-аутентификация, Realtime SSE/WS хаб, `.ics`/Google Calendar синк (`UTC+9` ↔ `UTC+3`), SSE/JSON ИИ-прокси, allowlist статики ([backend/main.py](backend/main.py), [backend/config.py](backend/config.py), [backend/realtime.py](backend/realtime.py), [backend/calendar_sync.py](backend/calendar_sync.py), [backend/ai.py](backend/ai.py)) |
+| **Frontend SPA** | Vanilla JS (ES2020+ IIFE, zero-bundler), HTML5, CSS Custom Properties | Одностраничное приложение без сборки и фреймворков; единый неймспейс `window.EGE`; офлайн-режим `localStorage`, облачная очередь синка и Realtime SSE/WS/BroadcastChannel клиент ([frontend/index.html](frontend/index.html), [frontend/core/realtime.js](frontend/core/realtime.js), [frontend/app.js](frontend/app.js)) |
 | **UI Kit (`ux-ui/`)** | JSON Design Tokens + чистый CSS + модульные SVG/DOM/DataViz компоненты | Изолированная дизайн-система (`EGE.ui`, `EGE.hh`, `EGE.charts`, `EGE.kit`, `EGE.views.brandbook`), не зависящая от данных репетиторов и бизнес-вьюх |
-| **OLTP База данных** | SQLite 3 (`WAL`, `synchronous=NORMAL`, `foreign_keys=ON`, `busy_timeout=5000`) | Хранение пользователей, OAuth-идентичностей, сессий, PKCE-состояний и JSON-документов прогресса ([databases/sqlite/store.py](databases/sqlite/store.py), [databases/migrations/001_initial_sqlite.sql](databases/migrations/001_initial_sqlite.sql)) |
+| **OLTP База данных** | SQLite 3 (`WAL`) + PostgreSQL 17 (`oltp.*`, `outbox.kafka_outbox` в режиме `DualWriteDatabase`) | Хранение пользователей, OAuth-идентичностей, сессий, PKCE-состояний, JSONB-документов прогресса и транзакционного аутбокса ([databases/sqlite/store.py](databases/sqlite/store.py), [databases/postgres/store.py](databases/postgres/store.py), [databases/migrations/001_initial_sqlite.sql](databases/migrations/001_initial_sqlite.sql)) |
 | **OLAP & ETL (`etl/`)** | Python, `polars>=1.9,<2` (`LazyFrame`), `pyarrow>=18,<20`, `duckdb>=1.1,<2` (+ zero-dep fallback) | Medallion-пайплайн (`Bronze → Silver → Gold Parquet`) нормализации анкет из Ykt/TG/WA/MAX и расчёт unit-экономики/GMV ([etl/](etl/)) |
 | **ИИ-провайдеры** | Gemini API (`gemini-3.8-flash` / `gemini-3.1-pro-preview`), OpenAI (`gpt-6.1-terra` / `gpt-6.1-sol`), Anthropic (`claude-sonnet-5-5` / `claude-opus-5-5`), OpenRouter | Проверка сочинений, ИИ-подсказки и разбор тем через `/api/ai` (SSE streaming и JSON mode) ([backend/ai.py](backend/ai.py)) |
 | **Тестирование и CI** | `pytest`, JavaScriptCore (`jsc` на macOS) / Node.js `22`, GitHub Actions, Docker + Railway | Юнит- и интеграционные тесты API/SQLite/ETL/SPA ([tests/](tests/), [.github/workflows/ci.yml](.github/workflows/ci.yml), [Dockerfile](Dockerfile)) |
@@ -69,6 +69,7 @@ Preparation/
 │   ├── app.js                    # Оркестратор: роутинг, store/sync, VIEWS, ACTIONS, EGE.payments (CRLF!)
 │   ├── bank-core.js              # EGE.hash, EGE.qSig, EGE.loadBank — сборка и дедупликация банка
 │   ├── core/utils.js             # EGE.utils — esc, rich, clone, deepMerge, даты, plural, norm
+│   ├── core/realtime.js          # EGE.realtime — SSE/WebSocket/BroadcastChannel клиент + RFC 5545 .ics парсер
 │   ├── assets/lena-pillars.jpg   # Локальный hero-баннер (Ленские столбы)
 │   ├── styles/
 │   │   ├── marketplace.css       # Стили маркетплейса, фильтров, календаря, кабинета преподавателя
@@ -85,14 +86,17 @@ Preparation/
 │
 ├── backend/                      # Серверный слой (FastAPI)
 │   ├── README.md
-│   ├── config.py                 # Загрузка ENV: Settings, AIConfig, GoogleOAuthConfig, resolve_db_path()
+│   ├── config.py                 # Загрузка ENV: Settings, AIConfig, GoogleOAuthConfig, resolve_db_path(), database_url, db_mode
 │   ├── ai.py                     # Адаптер Gemini / OpenAI / Anthropic / OpenRouter (SSE + JSON)
-│   └── main.py                   # create_app(): API, OAuth, rate limiter, SPA shell, static allowlist
+│   ├── realtime.py               # RealtimeHub: SSE (/api/realtime/stream), WebSocket (/api/realtime/ws), publish, recent + PG outbox
+│   ├── calendar_sync.py          # CalendarSyncService: двусторонний .ics / Google Calendar синк (Asia/Yakutsk UTC+9 ↔ Europe/Moscow UTC+3)
+│   └── main.py                   # create_app(): API, OAuth, rate limiter, realtime, calendar, SPA shell, static allowlist
 │
 ├── databases/                    # Слой баз данных
 │   ├── README.md
 │   ├── migrations/001_initial_sqlite.sql  # Базовая DDL-схема SQLite
 │   ├── sqlite/store.py           # Database: WAL, потокобезопасный RLock, scrypt, сессии, docs CRUD
+│   ├── postgres/store.py         # PostgresDatabase, DualWriteDatabase, create_store (oltp.* + outbox.kafka_outbox)
 │   └── analytics/.gitkeep        # Место для аналитических витрин/Parquet
 │
 ├── etl/                          # Изолированная Big Data / Analytics подсистема
@@ -109,8 +113,10 @@ Preparation/
 ├── bank/                         # Исходные табличные материалы банка заданий (bank.csv и т.п.)
 │
 └── tests/                        # Автотесты
-    ├── check_app.js              # Frontend + банк + UI Kit + DataViz + кабинет репетитора (jsc / node)
+    ├── check_app.js              # Frontend + банк + UI Kit + DataViz + Realtime/Calendar + кабинет репетитора (jsc / node)
     ├── test_server.py            # FastAPI endpoints, auth, docs, AI mock, static allowlist
+    ├── test_dualwrite_pg.py      # DualWriteDatabase, PostgresDatabase, /api/health/storage, outbox.kafka_outbox
+    ├── test_realtime_calendar.py # Realtime SSE/WS/publish и двусторонний .ics/Google Calendar синк (UTC+9 ↔ UTC+3)
     └── test_etl.py               # Схема ETL, Polars/fallback витрины, sales_metrics, tokens.json
 ```
 
@@ -149,23 +155,24 @@ UI Kit полностью отделён от домена ЕГЭ и марке�
    - `stickChartHTML`, `lineChartHTML` (линейный + area SVG), `DONUT_DATASETS`, `donutChartHTML` (`stroke-linecap="butt"`, без лишних штрихов и с внешним кольцом-индикатором `.bb-donut-outer-ring`), `TABLE_ROWS`, `TABLE_PRESETS` (`requests`, `payouts`, `exams`), `dataTableHTML(opts)` (универсальная schema-driven таблица: 3/5/7 колонок или кастомные `columns`/`rows`, поиск и фильтрация, `cardWrap: false`, подтверждение строк и автоматическая `@container`/`@media`-трансформация в мобильные карточки с `td[data-label]`).
 4. **[ux-ui/components/kit.js](ux-ui/components/kit.js) → `window.EGE.kit`**
    - Реестр `CATALOG_CATEGORIES` / `CATALOG_ITEMS` (`25` элементов), переиспользуемые лендинг-блоки (`heroBannerHTML`, `searchStripHTML`, `sentNoticeHTML`, `sakhaButtonsHTML`, `marqueePillsHTML`, `rateBenchCardHTML`, `trustStripHTML`, `reviewCardHTML`, `faqListHTML`, `blueBannerHTML`).
-   - Единые Shell-виджеты сайта и системных состояний (используются в `frontend/app.js`, `frontend/views/marketplace.js`, `frontend/views/tutor-cabinet.js` и `/brandbook`): `topBalanceWidgetHTML` (`student` / `tutor`), `tutorBalanceDockHTML` (с `inlinePreview` для стендов), `walletSummaryBarHTML`, `sideToastInnerHTML`, `emptyStateHTML`, `skeletonCardHTML`.
+   - Единые Shell-виджеты сайта и системных состояний (используются в `frontend/app.js`, `frontend/views/marketplace.js`, `frontend/views/tutor-cabinet.js` и `/brandbook`): `topBalanceWidgetHTML` (`student` / `tutor`), `tutorBalanceDockHTML` (с `inlinePreview` для стендов), `walletSummaryBarHTML`, `sideToastInnerHTML`, `emptyStateHTML`, `skeletonCardHTML`, `realtimeStatusPillHTML` (`.rt-status-pill` для `sse | ws | local | connecting`) и `calendarSyncCardHTML` (`.cal-sync-card` для двустороннего `.ics` / Google Calendar синка `UTC+9` ↔ `UTC+3`).
    - Data & Observability UI Kit компоненты для витрины пайплайнов и кликстрима: `pipelineStageCardHTML` (`PostgreSQL 17`, `Polars M4 Pro`, `Airflow DAG`, `Kafka Clickstream`, `Grafana BI`) и `eventLogFeedHTML`.
    - Единая каноническая логика контактов и мессенджеров (WA / TG / MAX): `normalizePhoneDigits`, `formatPhoneMask` (`+7 (XXX) XXX-XX-XX`), `formatTelegramContact` (телефон или `@login`), `entitySlug`, `whatsappUrl`, `telegramUrl`, `maxUrl`, `resolveMessengerUrls`, `messengerLinksHTML`.
    - Ре-экспортирует `EGE.charts` хэлперы и `TABLE_PRESETS` без дублирования кода.
 5. **[ux-ui/brandbook/brandbook.js](ux-ui/brandbook/brandbook.js) → `window.EGE.views.brandbook`**
-   - Рендерит `/brandbook` (передаваемый опционально `{ inside: true }`), включая разделы `#bb-mask-trainer`, `#bb-payments`, `#bb-ui-kit-shells`, `#bb-telemetry-etl`, `#bb-ege-timers` и `#bb-a11y`, и обрабатывает интерактивные состояния (типы графиков, датасеты, пресеты и подтверждение строк таблицы, тренажёр масок, эскроу/пороги оплаты, переключение роли Shell-виджетов `bb-shell-role`, фильтр стадий ETL `bb-pipe-filter`, вкладки разбора сочинения, мультиселект, анимации и `reduced-motion`).
+   - Рендерит `/brandbook` (передаваемый опционально `{ inside: true }`), включая разделы `#bb-mask-trainer`, `#bb-payments`, `#bb-ui-kit-shells`, `#bb-telemetry-etl`, `#bb-ege-timers` и `#bb-a11y`, и обрабатывает интерактивные состояния (типы графиков, датасеты, пресеты и подтверждение строк таблицы, тренажёр масок, эскроу/пороги оплаты, переключение роли Shell-виджетов `bb-shell-role`, фильтр стадий ETL `bb-pipe-filter`, переключение часового пояса календаря `bb-cal-tz`, вкладки разбора сочинения, мультиселект, анимации и `reduced-motion`).
    - Дорожная карта дальнейших интеграций и мульти-репозиторная карта описаны в [ROADMAP_UNCONNECTED.md](ROADMAP_UNCONNECTED.md) и [REPOSITORIES.md](REPOSITORIES.md).
 
 ---
 
 ## 5. Backend API ([backend/](backend/))
 
-### 5.1 HTTP-эндпоинты ([backend/main.py](backend/main.py))
+### 5.1 HTTP и WebSocket эндпоинты ([backend/main.py](backend/main.py), [backend/realtime.py](backend/realtime.py), [backend/calendar_sync.py](backend/calendar_sync.py))
 
 | Метод и путь | Авторизация | Назначение |
 |---|---|---|
-| `GET /api/health` | Нет | Проверка готовности сервиса, `SELECT 1` в SQLite, статуса AI (`enabled`, `provider`) |
+| `GET /api/health` | Нет | Проверка готовности сервиса, `SELECT 1` в хранилище, статуса AI (`enabled`, `provider`) |
+| `GET /api/health/storage` | Нет | Диагностика активного хранилища (`mode`: `sqlite` / `dual` / `postgres`, статус SQLite и PostgreSQL 17) |
 | `GET /api/me` | Опц. кука | Текущий пользователь, флаг `inviteRequired`, доступные провайдеры (`local`, `google`) и AI |
 | `POST /api/auth/register` | Rate limit (`20/15м`) | Регистрация (локально + `scrypt`), проверка `INVITE_CODE` при его наличии, установка `HttpOnly` куки `pvm_session` |
 | `POST /api/auth/login` | Rate limit (`20/15м`) | Логин по username или email, выдача сессионной куки |
@@ -175,6 +182,14 @@ UI Kit полностью отделён от домена ЕГЭ и марке�
 | `GET /api/docs` | `require_user` | Выгрузка всех JSON-документов прогресса пользователя |
 | `PATCH /api/docs/{name}` | `require_user` | Глубокое слияние `deep_merge` (с удалением `null`-ключей) и проверкой `max_doc_bytes` |
 | `PUT /api/docs/{name}` | `require_user` | Полная перезапись документа `{name}` с валидацией |
+| `GET /api/realtime/stream` | Опц. кука | SSE-поток (`text/event-stream`) мгновенных уведомлений кабинета и маркетплейса |
+| `WS /api/realtime/ws` | Опц. кука | Двусторонний WebSocket-канал (`ping`/`pong`, `publish`, `connected`) |
+| `POST /api/realtime/publish` | Опц. кука | Публикация realtime-события (например, `market.bid.created`) в хаб и `outbox.kafka_outbox` |
+| `GET /api/realtime/recent` | Опц. кука | Буфер последних realtime-событий для восстановления состояния после переподключения |
+| `GET /api/calendar/state` | Опц. кука | Состояние расписания репетитора (`10:00–20:00`), `.ics`-ссылки, Google Calendar URL и конвертация `UTC+9` ↔ `UTC+3` |
+| `PUT /api/calendar/sync` | Опц. кука | Сохранение/синхронизация слотов и уроков репетитора с записью в PostgreSQL (`oltp.calendar_sync_tokens`, `oltp.calendar_events`) и `outbox.kafka_outbox` |
+| `GET /api/calendar/{feed_token}.ics` | По токену фида | Экспорт расписания репетитора в формате RFC 5545 `text/calendar` (`UTC` + `VTIMEZONE` `Asia/Yakutsk` / `Europe/Moscow`) |
+| `POST /api/calendar/import-ics` | Опц. кука | Двусторонний импорт внешнего `.ics` (Google Calendar) с вычислением занятых окон и конфликтов в часовом поясе репетитора |
 | `POST /api/ai` | `require_user` + `50/ч` | Прокси к LLM: `mode: "stream"` (SSE `text/event-stream`) или `mode: "json"` |
 | `GET /`, `/index.html`, `/landing`, `/brandbook`, `/fees` | Нет | Отдача SPA с инъекцией `window.EGE_HOST = {"backend": true}` перед `app.js` (`Cache-Control: no-store`) |
 | `GET /privacy` | Нет | Статическая HTML-страница политики конфиденциальности |
@@ -183,6 +198,7 @@ UI Kit полностью отделён от домена ЕГЭ и марке�
 ### 5.2 Конфигурация через ENV ([backend/config.py](backend/config.py), [.env.example](.env.example))
 
 - `DB_PATH` → `RAILWAY_VOLUME_MOUNT_PATH/app.db` → `.local_data/app.db`
+- `DATABASE_URL` (`postgresql://postgres@127.0.0.1:5432/vektor_ege`) и `DB_MODE` (`auto | sqlite | dual | postgres`)
 - `SESSION_DAYS` (`30`), `INVITE_CODE` (`""`), `MAX_USERS` (`0` = без лимита), `MAX_DOC_BYTES` (`2 MiB`)
 - `AI_PROVIDER` (`auto | gemini | openai | anthropic | openrouter`), `GEMINI_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `OPENROUTER_API_KEY` / `AI_API_KEY`, `AI_MODEL`, `AI_MODEL_COMPLEX`, `AI_BASE_URL`
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `PUBLIC_BASE_URL`
@@ -191,9 +207,9 @@ UI Kit полностью отделён от домена ЕГЭ и марке�
 
 ## 6. Схема баз данных и документы прогресса ([databases/](databases/))
 
-### 6.1 OLTP SQLite WAL ([databases/migrations/001_initial_sqlite.sql](databases/migrations/001_initial_sqlite.sql) & [databases/sqlite/store.py](databases/sqlite/store.py))
+### 6.1 OLTP SQLite WAL и PostgreSQL 17 Dual-Write ([databases/sqlite/store.py](databases/sqlite/store.py) & [databases/postgres/store.py](databases/postgres/store.py))
 
-Прагмы соединения: `journal_mode=WAL`, `synchronous=NORMAL`, `foreign_keys=ON`, `busy_timeout=5000`. Потокобезопасность внутри 1 процесса обеспечивается через `threading.RLock`.
+Прагмы SQLite-соединения: `journal_mode=WAL`, `synchronous=NORMAL`, `foreign_keys=ON`, `busy_timeout=5000`. Потокобезопасность внутри 1 процесса обеспечивается через `threading.RLock`. При указании `DATABASE_URL` и `DB_MODE=dual` (или `auto`) фабрика `create_store()` инициализирует `DualWriteDatabase`, который синхронно записывает изменения в SQLite WAL и в схему `oltp.*` PostgreSQL 17, а также публикует события в транзакционный аутбокс `outbox.kafka_outbox`.
 
 Таблицы:
 1. **`users`** — `id`, `username` (UNIQUE), `username_lower` (UNIQUE), `password_hash` (`scrypt$salt$dk`), `display_name`, `email`, `email_lower` (partial UNIQUE index `idx_users_email_lower`), `avatar_url`, `auth_provider` (`local` / `google`), `created_at`.
@@ -202,7 +218,7 @@ UI Kit полностью отделён от домена ЕГЭ и марке�
 4. **`sessions`** — `token_hash` (PK, SHA-256 от сырого токена), `user_id` (FK CASCADE), `created_at`, `expires_at`.
 5. **`docs`** — PK `(user_id, name)`, `data` (JSON-строка), `updated_at`.
 
-Разрешённые имена документов (`DOC_NAME_RE`): `^(profile|plan|mocks|essays|prog-[a-z]+|log-\d{4}-\d{2})$` (`profile`, `plan`, `mocks`, `essays`, `prog-bio`/`prog-chem`/`prog-rus`, `log-YYYY-MM`). Локальные данные маркетплейса и кабинета преподавателя дополнительно кешируются в браузере под ключом `vektor-ege:market`.
+Разрешённые имена документов (`DOC_NAME_RE`): `^(profile|plan|mocks|essays|tutor-cabinet|calendar-sync|prog-[a-z]+|log-\d{4}-\d{2})$` (`profile`, `plan`, `mocks`, `essays`, `tutor-cabinet`, `calendar-sync`, `prog-bio`/`prog-chem`/`prog-rus`, `log-YYYY-MM`). Локальные данные маркетплейса и кабинета преподавателя дополнительно кешируются в браузере под ключом `vektor-ege:market`.
 
 ### 6.2 OLAP & ETL ([etl/](etl/))
 
@@ -219,7 +235,7 @@ UI Kit полностью отделён от домена ЕГЭ и марке�
 1. `bank-core.js` → `EGE.hash`, `EGE.qSig`, `EGE.loadBank`
 2. `subjects/*.js` → `EGE.subjects.{bio,chem,rus}`, `EGE.chemLib`, `EGE.table`
 3. `data/plan.js`, `data/essay.js` → `EGE.exams`, `EGE.plan`, `EGE.essay`
-4. `core/utils.js` → `EGE.utils` (`esc`, `rich`, `clone`, `deepMerge`, `norm`, `plural`, даты)
+4. `core/utils.js` → `EGE.utils` (`esc`, `rich`, `clone`, `deepMerge`, `norm`, `plural`, даты) и `core/realtime.js` → `EGE.realtime` (`connect`, `connectWS`, `publish`, `syncCalendar`, `importIcs`, `parseIcsBusySlots`, `buildIcsText`)
 5. UI Kit: `ux-ui/components/icons.js` (`EGE.ui`) → `hh-components.js` (`EGE.hh`) → `charts.js` (`EGE.charts`) → `kit.js` (`EGE.kit`) → `ux-ui/brandbook/brandbook.js` (`EGE.views.brandbook`)
 6. `data/tutors.js` → `EGE.tutors` (в runtime использует `EGE.kit` для масок и мессенджер-ссылок; обратная зависимость отсутствует)
 7. `views/landing.js` (`EGE.views.landing`), `views/marketplace.js` (`EGE.views.marketplace`), `views/tutor-cabinet.js` (`EGE.views.tutorCabinet`)

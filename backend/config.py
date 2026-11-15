@@ -100,6 +100,8 @@ def load_google_oauth_config() -> GoogleOAuthConfig:
 @dataclass(frozen=True)
 class Settings:
     db_path: Path
+    database_url: str | None = None
+    db_mode: str = "auto"
     session_cookie: str = "pvm_session"
     session_ttl_sec: int = 30 * 86400
     invite_code: str = ""
@@ -115,8 +117,12 @@ class Settings:
 
 
 def load_settings() -> Settings:
+    raw_mode = os.environ.get("DB_MODE", "auto").strip().lower()
+    db_mode = raw_mode if raw_mode in ("sqlite", "dual", "postgres", "auto") else "auto"
     return Settings(
         db_path=resolve_db_path(),
+        database_url=os.environ.get("DATABASE_URL", "").strip() or None,
+        db_mode=db_mode,
         session_ttl_sec=max(1, _int_env("SESSION_DAYS", 30)) * 86400,
         invite_code=os.environ.get("INVITE_CODE", "").strip(),
         max_users=max(0, _int_env("MAX_USERS", 0)),
