@@ -325,19 +325,53 @@
     max: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="14" rx="5"/><path d="M8 14.5v-5l4 3.5 4-3.5v5"/></svg>`
   };
 
+  function normalizePhoneDigits(raw) {
+    let d = String(raw == null ? "" : raw).replace(/\D+/g, "");
+    if (!d) return "";
+    if (d.charAt(0) === "8") d = "7" + d.slice(1);
+    else if (d.charAt(0) === "9") d = "7" + d;
+    else if (d.charAt(0) !== "7") d = "7" + d;
+    return d.slice(0, 11);
+  }
+
+  function formatPhoneMask(raw) {
+    const d = normalizePhoneDigits(raw);
+    if (!d) return "";
+    if (d.length <= 1) return "+7";
+    if (d.length <= 4) return "+7 (" + d.slice(1);
+    if (d.length <= 7) return "+7 (" + d.slice(1, 4) + ") " + d.slice(4);
+    if (d.length <= 9) return "+7 (" + d.slice(1, 4) + ") " + d.slice(4, 7) + "-" + d.slice(7);
+    return "+7 (" + d.slice(1, 4) + ") " + d.slice(4, 7) + "-" + d.slice(7, 9) + "-" + d.slice(9, 11);
+  }
+
+  function formatTelegramContact(raw) {
+    const str = String(raw == null ? "" : raw).trim();
+    if (!str) return "";
+    if (str.charAt(0) === "@" || /[a-zA-Z]/.test(str)) {
+      const clean = str.replace(/^@+/, "").replace(/[^a-zA-Z0-9_]/g, "").slice(0, 32);
+      return "@" + clean;
+    }
+    return formatPhoneMask(str);
+  }
+
   function resolveMessengerUrls(entity, message) {
     if (root.EGE && root.EGE.tutors && typeof root.EGE.tutors.messengerUrls === "function") {
       return root.EGE.tutors.messengerUrls(entity, message);
     }
-    const phone = String((entity && entity.whatsapp) || "79142100100").replace(/\D+/g, "");
-    const rawSlug = (entity && (entity.telegram || entity.tg || entity.handle || entity.username))
+    const phone = normalizePhoneDigits((entity && entity.whatsapp) || "79142100100") || "79142100100";
+    const rawTg = entity && (entity.telegram || entity.tg || entity.handle || entity.username);
+    const tgStr = String(rawTg == null ? "" : rawTg).trim();
+    const tgDigits = normalizePhoneDigits(tgStr);
+    const slug = (tgStr && /[a-zA-Z]/.test(tgStr) ? tgStr.replace(/^@/, "").replace(/[^a-zA-Z0-9_]/g, "") : "")
       || ((entity && entity.id) ? ("vektor_ege_" + String(entity.id).replace(/[^a-zA-Z0-9_]/g, "")) : "vektor_ege_support");
-    const slug = String(rawSlug).replace(/^@/, "");
     const msg = message || ("Здравствуйте" + (entity && entity.name ? (", " + entity.name) : "") + "! Пишу с платформы Вектор ЕГЭ.");
     const q = encodeURIComponent(msg);
+    const tgHref = (tgStr && !/[a-zA-Z]/.test(tgStr) && tgDigits.length >= 10)
+      ? ("https://t.me/+" + tgDigits + "?text=" + q)
+      : ("https://t.me/" + encodeURIComponent(slug) + "?text=" + q);
     return {
       whatsapp: "https://wa.me/" + phone + "?text=" + q,
-      telegram: "https://t.me/" + encodeURIComponent(slug) + "?text=" + q,
+      telegram: tgHref,
       max: "https://max.ru/" + encodeURIComponent(slug) + "?text=" + q
     };
   }
@@ -402,31 +436,61 @@
     ];
   }
 
+  let _comboGradSeq = 0;
+
+  function smoothTrendPath(pts) {
+    if (!pts || !pts.length) return "";
+    let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i];
+      const p1 = pts[i + 1];
+      const cx = ((p0.x + p1.x) / 2).toFixed(1);
+      d += ` C ${cx} ${p0.y.toFixed(1)}, ${cx} ${p1.y.toFixed(1)}, ${p1.x.toFixed(1)} ${p1.y.toFixed(1)}`;
+    }
+    return d;
+  }
+
   function stickChartHTML(styleId, bars, activeIdx, interactive, ariaLabel, opts) {
     opts = opts || {};
     const action = opts.action || "bb-chart-bar";
     const modCls = styleId && styleId !== "classic" ? ` is-${styleId}` : "";
     const isCombo = styleId === "combo";
+    const clampPct = (v) => Math.max(10, Math.min(96, Math.round(Number(v) || 0)));
     let comboSvg = "";
     if (isCombo && bars && bars.length) {
+      const n = bars.length;
       const pts = bars.map((b, i) => {
-        const x = (17 + i * ((280 - 34) / Math.max(1, bars.length - 1))).toFixed(1);
-        const y = (92 - (Math.max(8, Math.min(96, b.pct)) / 100) * 92).toFixed(1);
-        return `${x},${y}`;
-      }).join(" ");
+        const pct = clampPct(b.pct);
+        return {
+          x: ((i + 0.5) / n) * 280,
+          y: 92 * (1 - pct / 100)
+        };
+      });
+      const lineD = smoothTrendPath(pts);
+      const areaD = `${lineD} L ${pts[pts.length - 1].x.toFixed(1)} 92 L ${pts[0].x.toFixed(1)} 92 Z`;
+      const gradId = `tc-combo-grad-${++_comboGradSeq}`;
       comboSvg = `<svg class="tc-combo-svg" viewBox="0 0 280 92" preserveAspectRatio="none" aria-hidden="true">
-        <polyline fill="none" stroke="var(--gold)" stroke-width="2.2" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" points="${pts}"/>
+        <defs>
+          <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="var(--gold)" stop-opacity="0.24"/>
+            <stop offset="100%" stop-color="var(--gold)" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <path class="tc-combo-area" d="${areaD}" fill="url(#${gradId})"/>
+        <path class="tc-combo-line" d="${lineD}" fill="none" stroke="var(--gold)" stroke-width="2.2" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>`;
     }
     return `<div class="tc-bar-chart${modCls}" role="img" aria-label="${esc(ariaLabel || "Диаграмма с палочками")}">
       ${comboSvg}
       ${bars.map((b, idx) => {
         const isAct = interactive && activeIdx === idx;
+        const pct = clampPct(b.pct);
+        const benchPct = clampPct(b.benchPct);
         const inner = styleId === "dual"
-          ? `<div class="tc-bar-fill is-bench" style="height:${b.benchPct}%"></div><div class="tc-bar-fill${b.gold ? " is-gold" : ""}" style="height:${b.pct}%"></div>`
+          ? `<div class="tc-bar-fill is-bench" style="height:${benchPct}%"></div><div class="tc-bar-fill${b.gold ? " is-gold" : ""}" style="height:${pct}%"></div>`
           : (styleId === "range"
             ? `<div class="tc-bar-fill${b.gold ? " is-gold" : ""}" style="--low:${b.low}%;height:${b.span}%"></div>`
-            : `<div class="tc-bar-fill${b.gold ? " is-gold" : ""}" style="height:${b.pct}%"></div>${isCombo ? `<span class="tc-combo-dot${b.gold ? " is-gold" : ""}" style="bottom:calc(${Math.max(8, Math.min(96, b.pct))}% - 4.5px)"></span>` : ""}`);
+            : `<div class="tc-bar-fill${b.gold ? " is-gold" : ""}" style="height:${pct}%"></div>`);
         const body = `<span class="tc-bar-val num">${esc(b.val)}</span><div class="tc-bar-track">${inner}</div><span class="tc-bar-lbl">${esc(b.wd)}</span>`;
         if (interactive) {
           return `<button type="button" class="tc-bar-col${isAct ? " is-active" : ""}" data-a="${esc(action)}" data-idx="${idx}" aria-pressed="${isAct}">${body}</button>`;
@@ -547,24 +611,36 @@
     const slices = ds.slices;
     const activeIdx = Number.isInteger(opts.activeIdx) ? Math.max(0, Math.min(slices.length - 1, opts.activeIdx)) : 0;
     const action = opts.action || "bb-donut-slice";
-    const r = 54;
+    const r = 52;
     const C = 2 * Math.PI * r;
+    const rOut = 65;
+    const outC = 2 * Math.PI * rOut;
+    const gap = 2.6;
     let offset = 0;
+    let activeStartShare = 0;
     const segs = slices.map((s, idx) => {
-      const segLen = Math.max(2, (s.share / 100) * C - 3);
+      const share = Math.max(1, Number(s.share) || 0);
+      const sliceArc = (share / 100) * C;
+      const segLen = Math.max(2, sliceArc - gap);
       const isAct = idx === activeIdx;
-      const svg = `<circle class="bb-donut-seg" cx="75" cy="75" r="${r}" fill="none" stroke="${s.color}" stroke-width="${isAct ? 22 : 17}" stroke-dasharray="${segLen.toFixed(2)} ${(C - segLen).toFixed(2)}" stroke-dashoffset="${(-offset).toFixed(2)}" stroke-linecap="round" opacity="${isAct ? "1" : "0.86"}" data-a="${esc(action)}" data-idx="${idx}"/>`;
-      offset += (s.share / 100) * C;
+      if (isAct) activeStartShare = offset;
+      const svg = `<circle class="bb-donut-seg" cx="75" cy="75" r="${r}" fill="none" stroke="${s.color}" stroke-width="18" stroke-dasharray="${segLen.toFixed(2)} ${(C - segLen).toFixed(2)}" stroke-dashoffset="${(-((offset / 100) * C)).toFixed(2)}" stroke-linecap="butt" opacity="${isAct ? "1" : "0.72"}" data-a="${esc(action)}" data-idx="${idx}"/>`;
+      offset += share;
       return svg;
     }).join("");
     const picked = slices[activeIdx] || slices[0];
+    const pickedShare = Math.max(1, Number(picked.share) || 0);
+    const outSegLen = Math.max(2, (pickedShare / 100) * outC - 3.2);
+    const outOffset = -((activeStartShare / 100) * outC);
+    const activeRing = `<circle class="bb-donut-outer-ring" cx="75" cy="75" r="${rOut}" fill="none" stroke="${picked.color}" stroke-width="3" stroke-dasharray="${outSegLen.toFixed(2)} ${(outC - outSegLen).toFixed(2)}" stroke-dashoffset="${outOffset.toFixed(2)}" stroke-linecap="butt"/>`;
 
     return `<div class="bb-donut-chart" role="group" aria-label="${esc(ds.title)}">
       <div class="bb-donut-wrap">
         <div class="bb-donut-box">
           <svg class="bb-donut-svg" viewBox="0 0 150 150">
-            <circle cx="75" cy="75" r="${r}" fill="none" stroke="var(--line)" stroke-width="17" opacity="0.45"/>
+            <circle cx="75" cy="75" r="${r}" fill="none" stroke="var(--line)" stroke-width="18" opacity="0.35"/>
             ${segs}
+            ${activeRing}
           </svg>
           <div class="bb-donut-center">
             <b class="num">${picked.share}%</b>
@@ -706,6 +782,8 @@
     reviewCardHTML,
     faqListHTML,
     blueBannerHTML,
+    formatPhoneMask,
+    formatTelegramContact,
     messengerLinksHTML,
     CHART_STYLE_META,
     chartDatasetBars,

@@ -1514,22 +1514,54 @@
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes("✓ Отклик отправлен"), "expected teacher response to mark student lead as responded");
 
-    // Мои ученики (трекер баллов ЕГЭ + напоминание о скором уроке в WhatsApp + настройка автоуведомлений)
+    // Мои ученики (трекер баллов ЕГЭ + автоформат +7 (914) + Telegram @логин/телефон + автоуведомления WA/TG/MAX)
     clickAction(env5, { a: "go", v: "tutor-students" });
     await flushMicrotasks(2);
     const tcStudentsHtml = env5.elements.get("main").innerHTML;
     assert(
       tcStudentsHtml.includes("Мои ученики и автоуведомления") &&
+      tcStudentsHtml.includes("+7 (914) 210-05-11") &&
+      tcStudentsHtml.includes("@alina_bio") &&
+      tcStudentsHtml.includes('data-tc-student="telegram"') &&
+      tcStudentsHtml.includes('data-a="tc-student-autochannel"') &&
+      tcStudentsHtml.includes('data-a="tc-wa-channel"') &&
       tcStudentsHtml.includes("Напомнить: скоро урок (Воскресенье, 10:00)") &&
       tcStudentsHtml.includes("tc-wa-global-toggle") &&
       tcStudentsHtml.includes("Тест в WhatsApp"),
-      "expected lesson reminder CTA and configurable WhatsApp auto-notification panel in Мои ученики"
+      "expected formatted phone, Telegram @login/phone, WA/TG/MAX auto-notification channels and reminder CTA in Мои ученики"
     );
+    assert(
+      globalThis.EGE.tutors.formatPhoneMask("79142100511") === "+7 (914) 210-05-11" &&
+      globalThis.EGE.tutors.formatPhoneMask("89142100511") === "+7 (914) 210-05-11" &&
+      globalThis.EGE.tutors.formatTelegramContact("alina_bio") === "@alina_bio" &&
+      globalThis.EGE.tutors.formatTelegramContact("79142100511") === "+7 (914) 210-05-11" &&
+      globalThis.EGE.tutors.telegramUrl({ telegram: "+7 (914) 210-05-12", name: "Дарья" }, "Hi").includes("https://t.me/+79142100512") &&
+      globalThis.EGE.tutors.telegramUrl({ telegram: "@alina_bio", name: "Алина" }, "Hi").includes("https://t.me/alina_bio"),
+      "expected formatPhoneMask, formatTelegramContact, and telegramUrl phone/login support"
+    );
+    const fakePhoneEl = { value: "89142100999", dataset: { tcStudent: "whatsapp", id: "st-alina" } };
+    const fakeTgEl = { value: "timur_ege", dataset: { tcStudent: "telegram", id: "st-alina" } };
+    env5.emitDoc("input", { target: fakePhoneEl });
+    env5.emitDoc("input", { target: fakeTgEl });
+    assert(fakePhoneEl.value === "+7 (914) 210-09-99" && fakeTgEl.value === "@timur_ege", "expected live input formatting for student phone and Telegram handle");
+    clickAction(env5, { a: "tc-student-autochannel", id: "st-alina", ch: "max" });
+    clickAction(env5, { a: "tc-wa-channel", ch: "tg" });
     clickAction(env5, { a: "tc-student-remind", id: "st-alina" });
     clickAction(env5, { a: "tc-wa-lead", v: "1h" });
     clickAction(env5, { a: "tc-student-score", id: "st-alina", delta: "2" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes("78") && env5.elements.get("main").innerHTML.includes('data-a="tc-wa-lead" data-v="1h"'), "expected +2 score increment and WhatsApp reminder lead toggle");
+
+    // Проверка CSS правил: скругление .btn-msg, отсутствие обводки-чёрточки ::after и капсульная обводка .tc-bar-col
+    const baseCss = readFileText("ux-ui/styles/base.css");
+    const mktCss = readFileText("frontend/styles/marketplace.css");
+    assert(
+      baseCss.includes("--r-pill: 999px;") &&
+      /\.btn-msg\s*\{[^}]*border-radius:\s*999px;/.test(baseCss) &&
+      !mktCss.includes(".tc-bar-col.is-active .tc-bar-track::after") &&
+      /\.tc-bar-col\.is-active\s*\{[^}]*border-color:\s*var\(--accent\)/.test(mktCss),
+      "expected 999px pill radius on .btn-msg and capsule outline on .tc-bar-col.is-active without crooked track::after dash"
+    );
 
     // Выплаты и статистика: KPIs + Статистика преподавателя + Цель дохода + Автопродвижение 24ч + Последнее автопродвижение
     clickAction(env5, { a: "go", v: "fees" });
@@ -1575,11 +1607,12 @@
     clickAction(env5, { a: "mkt-reset" });
     await flushMicrotasks(2);
 
-    // Проверка /brandbook: наличие интерактивного мультивыбора (.hh-multi) и виджета баланса
+    // Проверка /brandbook: наличие интерактивного мультивыбора (.hh-multi), виджета баланса, Тренд-кривой и Круговой диаграммы
     clickAction(env5, { a: "go", v: "brandbook" });
     await flushMicrotasks(3);
     const bbHtml1 = env5.elements.get("main").innerHTML;
     assert(bbHtml1.includes("bb-demo-multi") && bbHtml1.includes("top-bal-wrap") && !bbHtml1.includes("Препод · ЕГЭ"), "expected Brandbook to showcase interactive hh-multi and balance pill with full Преподаватель label");
+    assert(bbHtml1.includes('class="tc-combo-line"') && bbHtml1.includes('stroke-linecap="butt"') && bbHtml1.includes("bb-donut-outer-ring") && !bbHtml1.includes("5%:"), "expected smooth .tc-combo-line path, crisp stroke-linecap=butt donut slices with outer indicator ring, and no 5%: substring");
     clickAction(env5, { a: "bb-multi-toggle" });
     await flushMicrotasks(1);
     assert(env5.elements.get("main").innerHTML.includes('class="hh-select hh-multi open"') && env5.elements.get("main").innerHTML.includes('aria-multiselectable="true"'), "expected bb-multi-toggle to open Brandbook multi-select dropdown");

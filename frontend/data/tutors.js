@@ -808,22 +808,60 @@
     return buildCalendarDays(7, monday);
   }
 
+  function normalizePhoneDigits(raw) {
+    var d = String(raw == null ? "" : raw).replace(/\D+/g, "");
+    if (!d) return "";
+    if (d.charAt(0) === "8") d = "7" + d.slice(1);
+    else if (d.charAt(0) === "9") d = "7" + d;
+    else if (d.charAt(0) !== "7") d = "7" + d;
+    return d.slice(0, 11);
+  }
+
+  function formatPhoneMask(raw) {
+    var d = normalizePhoneDigits(raw);
+    if (!d) return "";
+    if (d.length <= 1) return "+7";
+    if (d.length <= 4) return "+7 (" + d.slice(1);
+    if (d.length <= 7) return "+7 (" + d.slice(1, 4) + ") " + d.slice(4);
+    if (d.length <= 9) return "+7 (" + d.slice(1, 4) + ") " + d.slice(4, 7) + "-" + d.slice(7);
+    return "+7 (" + d.slice(1, 4) + ") " + d.slice(4, 7) + "-" + d.slice(7, 9) + "-" + d.slice(9, 11);
+  }
+
+  function formatTelegramContact(raw) {
+    var str = String(raw == null ? "" : raw).trim();
+    if (!str) return "";
+    if (str.charAt(0) === "@" || /[a-zA-Z]/.test(str)) {
+      var clean = str.replace(/^@+/, "").replace(/[^a-zA-Z0-9_]/g, "").slice(0, 32);
+      return "@" + clean;
+    }
+    return formatPhoneMask(str);
+  }
+
   function whatsappUrl(tutor, message) {
-    var phone = String((tutor && tutor.whatsapp) || "79142100100").replace(/\D+/g, "");
+    var phone = normalizePhoneDigits((tutor && (tutor.whatsapp || tutor.phone)) || "79142100100") || "79142100100";
     var text = message || ("Здравствуйте, " + ((tutor && tutor.name) || "") + "! Пишу с платформы Вектор ЕГЭ по поводу занятий (" + ((tutor && tutor.subjectName) || "подготовка") + ").");
     return "https://wa.me/" + phone + "?text=" + encodeURIComponent(text);
   }
 
   function entitySlug(entity) {
     var explicit = entity && (entity.telegram || entity.tg || entity.handle || entity.username);
-    if (explicit) return String(explicit).replace(/^@/, "").replace(/[^a-zA-Z0-9_]/g, "");
+    if (explicit && /[a-zA-Z]/.test(String(explicit))) {
+      var clean = String(explicit).replace(/^@/, "").replace(/[^a-zA-Z0-9_]/g, "");
+      if (clean) return clean;
+    }
     var idPart = String((entity && entity.id) || "").replace(/[^a-zA-Z0-9_]/g, "");
     return idPart ? ("vektor_ege_" + idPart) : "vektor_ege_support";
   }
 
   function telegramUrl(entity, message) {
-    var slug = entitySlug(entity);
+    var rawTg = entity && (entity.telegram || entity.tg || entity.handle || entity.username);
+    var tgStr = String(rawTg == null ? "" : rawTg).trim();
     var text = message || ("Здравствуйте" + (entity && entity.name ? (", " + entity.name) : "") + "! Пишу с платформы Вектор ЕГЭ по поводу занятий.");
+    var tgDigits = normalizePhoneDigits(tgStr);
+    if (tgStr && !/[a-zA-Z]/.test(tgStr) && tgDigits.length >= 10) {
+      return "https://t.me/+" + tgDigits + "?text=" + encodeURIComponent(text);
+    }
+    var slug = entitySlug(entity);
     return "https://t.me/" + encodeURIComponent(slug) + "?text=" + encodeURIComponent(text);
   }
 
@@ -1005,6 +1043,9 @@
     countForHour: countForHour,
     offerSignal: offerSignal,
     botPreviewText: botPreviewText,
+    normalizePhoneDigits: normalizePhoneDigits,
+    formatPhoneMask: formatPhoneMask,
+    formatTelegramContact: formatTelegramContact,
     whatsappUrl: whatsappUrl,
     telegramUrl: telegramUrl,
     maxUrl: maxUrl,

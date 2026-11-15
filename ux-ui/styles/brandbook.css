@@ -726,7 +726,8 @@
 @media (max-width: 560px) { .bb-donut-wrap { grid-template-columns: minmax(0, 1fr); justify-items: center; } }
 .bb-donut-box { position: relative; width: 152px; height: 152px; display: grid; place-items: center; }
 .bb-donut-svg { width: 152px; height: 152px; transform: rotate(-90deg); overflow: visible; }
-.bb-donut-seg { cursor: pointer; transition: stroke-width .16s ease, opacity .16s ease; }
+.bb-donut-seg { cursor: pointer; transition: opacity .16s ease, stroke .16s ease; }
+.bb-donut-outer-ring { pointer-events: none; transition: stroke-dashoffset .22s ease, stroke-dasharray .22s ease; }
 .bb-donut-center {
   position: absolute; inset: 0; display: grid; align-content: center; justify-items: center;
   text-align: center; pointer-events: none; padding: 20px; line-height: 1.15;
@@ -740,6 +741,7 @@
   color: var(--ink); font-family: inherit; font-size: 12.5px; text-align: left; cursor: pointer;
   transition: border-color .15s ease, background .15s ease, transform .15s ease;
 }
+.bb-donut-item:focus:not(:focus-visible) { outline: none; }
 .bb-donut-item:hover { border-color: var(--accent); transform: translateX(2px); }
 .bb-donut-item.is-active {
   border-color: var(--accent); background: var(--accent-soft);

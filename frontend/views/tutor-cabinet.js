@@ -38,6 +38,11 @@
     { id: "2h", label: "За 2 ч" },
     { id: "24h", label: "За 24 ч" }
   ];
+  const AUTO_CHANNELS = [
+    { id: "wa", short: "WA", name: "WhatsApp" },
+    { id: "tg", short: "TG", name: "Telegram" },
+    { id: "max", short: "MAX", name: "MAX" }
+  ];
   const AUTO_BUMP_HOURS = ["09:00", "14:00", "19:00"];
   const GOAL_PRESETS = [40000, 60000, 90000, 120000];
   const QUICK_TEMPLATES = [
@@ -113,9 +118,9 @@
   ];
 
   const DEFAULT_STUDENTS = [
-    { id: "st-alina", name: "Алина С.", exam: "ЕГЭ · Биология", startScore: 58, curScore: 76, targetScore: 88, lessonsDone: 6, hw: "Линия №28 (сцепление генов) — сдать до Сб", lessonDay: "Воскресенье", lessonTime: "10:00", whatsapp: "79142100511", autoNotify: true, lastRemindedAt: 0 },
-    { id: "st-darya", name: "Дарья В.", exam: "ОГЭ · Русский", startScore: 22, curScore: 31, targetScore: 36, lessonsDone: 4, hw: "Синтаксис и сжатое изложение — вариант №4", lessonDay: "Понедельник", lessonTime: "18:00", whatsapp: "79142100512", autoNotify: false, lastRemindedAt: 0 },
-    { id: "st-timur", name: "Тимур К.", exam: "ЕГЭ · Химия", startScore: 64, curScore: 81, targetScore: 92, lessonsDone: 8, hw: "№34 на олеум и массовую долю — 5 задач", lessonDay: "Суббота", lessonTime: "16:00", whatsapp: "79142100513", autoNotify: true, lastRemindedAt: 0 }
+    { id: "st-alina", name: "Алина С.", exam: "ЕГЭ · Биология", startScore: 58, curScore: 76, targetScore: 88, lessonsDone: 6, hw: "Линия №28 (сцепление генов) — сдать до Сб", lessonDay: "Воскресенье", lessonTime: "10:00", whatsapp: "+7 (914) 210-05-11", telegram: "@alina_bio", autoNotify: true, autoChannels: ["wa", "tg", "max"], lastRemindedAt: 0 },
+    { id: "st-darya", name: "Дарья В.", exam: "ОГЭ · Русский", startScore: 22, curScore: 31, targetScore: 36, lessonsDone: 4, hw: "Синтаксис и сжатое изложение — вариант №4", lessonDay: "Понедельник", lessonTime: "18:00", whatsapp: "+7 (914) 210-05-12", telegram: "+7 (914) 210-05-12", autoNotify: false, autoChannels: ["wa", "tg", "max"], lastRemindedAt: 0 },
+    { id: "st-timur", name: "Тимур К.", exam: "ЕГЭ · Химия", startScore: 64, curScore: 81, targetScore: 92, lessonsDone: 8, hw: "№34 на олеум и массовую долю — 5 задач", lessonDay: "Суббота", lessonTime: "16:00", whatsapp: "+7 (914) 210-05-13", telegram: "@timur_chem", autoNotify: true, autoChannels: ["wa", "tg", "max"], lastRemindedAt: 0 }
   ];
 
   let _ctx = {};
@@ -128,6 +133,24 @@
 
   function getTDATA() {
     return _ctx.TDATA || EGE.tutors || null;
+  }
+
+  function formatPhone(raw) {
+    const TDATA = getTDATA();
+    const fn = (TDATA && TDATA.formatPhoneMask) || (EGE.kit && EGE.kit.formatPhoneMask);
+    return typeof fn === "function" ? fn(raw) : String(raw || "");
+  }
+
+  function formatTelegram(raw) {
+    const TDATA = getTDATA();
+    const fn = (TDATA && TDATA.formatTelegramContact) || (EGE.kit && EGE.kit.formatTelegramContact);
+    return typeof fn === "function" ? fn(raw) : String(raw || "");
+  }
+
+  function normalizeChannelList(arr) {
+    const allowed = new Set(["wa", "tg", "max"]);
+    const list = Array.isArray(arr) ? arr.filter((x) => allowed.has(x)) : [];
+    return list.length ? Array.from(new Set(list)) : ["wa", "tg", "max"];
   }
 
   function copyStr(txt) {
@@ -188,6 +211,7 @@
       waSettings: {
         enabled: true,
         lead: "2h",
+        channels: ["wa", "tg", "max"],
         template: "Здравствуйте, {имя}! Напоминаю, что скоро будет урок ({предмет}) — {день} в {время}. Материалы и ссылку пришлю перед занятием."
       },
       profile: {
@@ -201,7 +225,8 @@
         formats: ["Онлайн"],
         city: "Якутск",
         timezone: "UTC+9",
-        whatsapp: "79142100199",
+        whatsapp: "+7 (914) 210-01-99",
+        telegram: "@anna_sokolova_ege",
         education: "СВФУ им. М.К. Аммосова · Педагог-исследователь",
         expYears: 6,
         avgScore: 86,
@@ -257,13 +282,22 @@
           : def.profile.customSkills;
       }
       _cache.waSettings = Object.assign({}, def.waSettings, saved.waSettings || {});
+      _cache.waSettings.channels = normalizeChannelList(_cache.waSettings.channels);
+      _cache.profile.whatsapp = formatPhone(_cache.profile.whatsapp || def.profile.whatsapp);
+      _cache.profile.telegram = formatTelegram(_cache.profile.telegram || def.profile.telegram);
       _cache.lastAutoBumpAt = Number(_cache.lastAutoBumpAt || _cache.lastBumpAt) || def.lastAutoBumpAt;
       _cache.lastBumpAt = _cache.lastAutoBumpAt;
       _cache.lastManualBumpAt = Number(_cache.lastManualBumpAt) || 0;
       _cache.slots = Object.assign({}, def.slots, saved.slots || {});
       _cache.requests = Array.isArray(saved.requests) && saved.requests.length ? saved.requests : def.requests;
       _cache.students = Array.isArray(saved.students) && saved.students.length
-        ? saved.students.map((s, idx) => Object.assign({}, def.students[idx] || { lessonDay: "Воскресенье", lessonTime: "10:00", whatsapp: "79142100511", autoNotify: true, lastRemindedAt: 0 }, s))
+        ? saved.students.map((s, idx) => {
+            const merged = Object.assign({}, def.students[idx] || { lessonDay: "Воскресенье", lessonTime: "10:00", whatsapp: "+7 (914) 210-05-11", telegram: "@alina_bio", autoNotify: true, autoChannels: ["wa", "tg", "max"], lastRemindedAt: 0 }, s);
+            merged.whatsapp = formatPhone(merged.whatsapp || "+7 (914) 210-05-11");
+            merged.telegram = formatTelegram(merged.telegram || "");
+            merged.autoChannels = normalizeChannelList(merged.autoChannels);
+            return merged;
+          })
         : def.students;
     } else {
       _cache = def;
@@ -397,6 +431,7 @@
       city: p.city || "Якутск",
       timezone: p.timezone || "UTC+9",
       whatsapp: String(p.whatsapp || "79142100199").replace(/\D+/g, "") || "79142100199",
+      telegram: p.telegram || "",
       price: Number(p.price) || 1200,
       minFair: Math.min(Number(p.price) || 1200, Number(p.minFair) || 900),
       marketPrice: isPro ? Math.max(1150, Math.round((p.price * 0.85) / 50) * 50) : Math.round((p.price * 1.28) / 50) * 50,
@@ -843,9 +878,13 @@
             <input class="input" id="tc-hh-edu" name="education" data-tc="education" value="${esc(p.education || "")}" maxlength="90" placeholder="ВУЗ, эксперт ЕГЭ, олимпиадная подготовка">
           </div>
           <div class="field">
-            <label for="tc-hh-wa">WhatsApp / контакт для учеников</label>
-            <input class="input num" id="tc-hh-wa" name="whatsapp" data-tc="whatsapp" value="${esc(p.whatsapp || "")}" maxlength="32" placeholder="79142100199">
+            <label for="tc-hh-wa">Телефон (WhatsApp / MAX)</label>
+            <input class="input num" id="tc-hh-wa" name="whatsapp" data-tc="whatsapp" value="${esc(formatPhone(p.whatsapp || ""))}" maxlength="22" placeholder="+7 (914) 000-00-00">
           </div>
+        </div>
+        <div class="field">
+          <label for="tc-hh-tg">Telegram (@логин или номер телефона)</label>
+          <input class="input" id="tc-hh-tg" name="telegram" data-tc="telegram" value="${esc(formatTelegram(p.telegram || ""))}" maxlength="36" placeholder="@username или +7 (914) 000-00-00">
         </div>
 
         <div class="field">
@@ -1055,6 +1094,18 @@
   function studentWaHref(st, student) {
     const phone = String((student && student.whatsapp) || "79142100511").replace(/\D+/g, "") || "79142100511";
     return `https://wa.me/${phone}?text=${encodeURIComponent(formatWaReminderText(st, student))}`;
+  }
+
+  function studentReminderUrl(st, student, chId) {
+    const TDATA = getTDATA();
+    const msg = formatWaReminderText(st, student);
+    if (TDATA && typeof TDATA.messengerUrls === "function") {
+      const urls = TDATA.messengerUrls(student, msg);
+      if (chId === "tg") return urls.telegram;
+      if (chId === "max") return urls.max;
+      return urls.whatsapp;
+    }
+    return studentWaHref(st, student);
   }
 
   function renderPayoutStatsBlocks(st, TDATA, allReqs, acceptedList, totalPayout) {
@@ -1279,15 +1330,16 @@
   function renderStudentsTab(st) {
     const p = st.profile;
     const students = Array.isArray(st.students) ? st.students : [];
-    const waCfg = st.waSettings || { enabled: true, lead: "2h", template: "Здравствуйте, {имя}! Скоро будет урок ({предмет}) — {день} в {время}." };
-    const sampleStudent = students[0] || { name: "Алина С.", exam: "ЕГЭ · Биология", lessonDay: "Воскресенье", lessonTime: "10:00", whatsapp: "79142100511" };
+    const waCfg = st.waSettings || { enabled: true, lead: "2h", channels: ["wa", "tg", "max"], template: "Здравствуйте, {имя}! Скоро будет урок ({предмет}) — {день} в {время}." };
+    const cfgChannels = normalizeChannelList(waCfg.channels);
+    const sampleStudent = students[0] || { id: "st-alina", name: "Алина С.", exam: "ЕГЭ · Биология", lessonDay: "Воскресенье", lessonTime: "10:00", whatsapp: "+7 (914) 210-05-11", telegram: "@alina_bio" };
     const samplePreview = formatWaReminderText(st, sampleStudent);
     const sampleWaHref = studentWaHref(st, sampleStudent);
 
     return `<div class="tc-grid">
-      <section class="stack" style="gap:12px" aria-label="Мои ученики и напоминания в WhatsApp">
+      <section class="stack" style="gap:12px" aria-label="Мои ученики и автонапоминания">
         <div>
-          <div class="eyebrow">Трекер баллов и связь в WhatsApp</div>
+          <div class="eyebrow">Трекер баллов и связь (WhatsApp · Telegram · MAX)</div>
           <h2 class="h2">Мои ученики и автоуведомления</h2>
         </div>
         ${students.map((s) => {
@@ -1295,6 +1347,8 @@
           const gain = s.curScore - s.startScore;
           const day = s.lessonDay || "Воскресенье";
           const time = s.lessonTime || "10:00";
+          const stChannels = normalizeChannelList(s.autoChannels);
+          const chBadgeTxt = stChannels.map((cid) => (AUTO_CHANNELS.find((c) => c.id === cid) || {}).short || cid.toUpperCase()).join(" · ");
           const waHref = studentWaHref(st, s);
           const lastRem = s.lastRemindedAt ? formatTimestamp(s.lastRemindedAt) : "";
           const leadLabel = (WA_LEAD_OPTIONS.find((o) => o.id === waCfg.lead) || WA_LEAD_OPTIONS[2]).label;
@@ -1309,7 +1363,7 @@
               </div>
               <div class="row" style="gap:6px;flex-wrap:wrap">
                 <span class="chip confirm num">+${gain} б.</span>
-                <span class="chip ${s.autoNotify ? "gold" : ""}">${s.autoNotify ? `Авто WhatsApp · ${esc(leadLabel)}` : "Авто-WA выкл"}</span>
+                <span class="chip ${s.autoNotify ? "gold" : ""}">${s.autoNotify ? `Авто: ${esc(chBadgeTxt)} · ${esc(leadLabel)}` : "Автоуведомление выкл"}</span>
               </div>
             </div>
             <div class="stack" style="gap:5px">
@@ -1323,10 +1377,10 @@
 
             <div class="tc-wa-cfg">
               <div class="row between" style="gap:6px;flex-wrap:wrap">
-                <b class="small">Ближайший урок и WhatsApp ученика</b>
+                <b class="small">Ближайший урок и контакты (WhatsApp · Telegram · MAX)</b>
                 ${lastRem ? `<span class="small muted">Отправлено: ${esc(lastRem)}</span>` : `<span class="small muted">Готово к отправке</span>`}
               </div>
-              <div class="fields" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr))">
+              <div class="tc-contact-grid">
                 <div class="field">
                   <label for="st-day-${esc(s.id)}">День</label>
                   <input class="input" id="st-day-${esc(s.id)}" data-tc-student="lessonDay" data-id="${esc(s.id)}" value="${esc(day)}" maxlength="24" placeholder="Воскресенье">
@@ -1336,19 +1390,32 @@
                   <input class="input num" id="st-time-${esc(s.id)}" data-tc-student="lessonTime" data-id="${esc(s.id)}" value="${esc(time)}" maxlength="12" placeholder="10:00">
                 </div>
                 <div class="field">
-                  <label for="st-wa-${esc(s.id)}">WhatsApp</label>
-                  <input class="input num" id="st-wa-${esc(s.id)}" data-tc-student="whatsapp" data-id="${esc(s.id)}" value="${esc(s.whatsapp || "79142100511")}" maxlength="20" placeholder="7914...">
+                  <label for="st-wa-${esc(s.id)}">Телефон (WA / MAX)</label>
+                  <input class="input num" id="st-wa-${esc(s.id)}" data-tc-student="whatsapp" data-id="${esc(s.id)}" value="${esc(formatPhone(s.whatsapp || "79142100511"))}" maxlength="22" placeholder="+7 (914) 000-00-00">
+                </div>
+                <div class="field">
+                  <label for="st-tg-${esc(s.id)}">Telegram (@ или +7)</label>
+                  <input class="input" id="st-tg-${esc(s.id)}" data-tc-student="telegram" data-id="${esc(s.id)}" value="${esc(formatTelegram(s.telegram || ""))}" maxlength="36" placeholder="@username или +7 (914) 000-00-00">
+                </div>
+              </div>
+              <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
+                <span class="small muted">Каналы автоуведомления:</span>
+                <div class="auto-ch-bar" role="group" aria-label="Каналы автоуведомления ученика">
+                  ${AUTO_CHANNELS.map((ch) => {
+                    const on = stChannels.includes(ch.id);
+                    return `<button type="button" class="auto-ch-pill${on ? " is-on" : ""}" data-a="tc-student-autochannel" data-id="${esc(s.id)}" data-ch="${ch.id}" aria-pressed="${on}">${on ? "✓ " : ""}${esc(ch.name)}</button>`;
+                  }).join("")}
                 </div>
               </div>
               <div class="row" style="gap:8px;flex-wrap:wrap">
                 <button type="button" class="btn confirm sm" data-a="tc-student-remind" data-id="${esc(s.id)}">${icon("msg")}<span>Напомнить: скоро урок (${esc(day)}, ${esc(time)})</span></button>
                 <button type="button" class="btn ${s.autoNotify ? "gold" : "soft"} sm" data-a="tc-student-autonotify" data-id="${esc(s.id)}" aria-pressed="${!!s.autoNotify}">
-                  ${icon("bell")}<span>${s.autoNotify ? "✓ Автоуведомление WhatsApp" : "Вкл. автоуведомление"}</span>
+                  ${icon("bell")}<span>${s.autoNotify ? `✓ Авто: ${esc(chBadgeTxt)}` : "Вкл. автоуведомление"}</span>
                 </button>
                 ${EGE.kit && typeof EGE.kit.messengerLinksHTML === "function"
                   ? EGE.kit.messengerLinksHTML({
                       entity: s,
-                      message: `Здравствуйте, ${s.name}! Напоминаю про занятие (${s.subject}, ${day} в ${time}) через Вектор ЕГЭ.`,
+                      message: `Здравствуйте, ${s.name}! Напоминаю про занятие (${s.exam || "ЕГЭ"}, ${day} в ${time}) через Вектор ЕГЭ.`,
                       primaryLabel: "WhatsApp",
                       compact: true
                     })
@@ -1364,11 +1431,11 @@
         }).join("")}
       </section>
 
-      <aside class="stack" style="gap:12px" aria-label="Автоуведомления WhatsApp и шаблоны">
+      <aside class="stack" style="gap:12px" aria-label="Автоуведомления WhatsApp, Telegram и MAX">
         <div class="card stack" style="gap:10px">
           <div class="row between" style="gap:8px;flex-wrap:wrap">
             <div>
-              <div class="eyebrow">WhatsApp-напоминания</div>
+              <div class="eyebrow">WhatsApp · Telegram · MAX</div>
               <h2 class="h2">Настройка автоуведомлений</h2>
             </div>
             <button type="button" class="btn ${waCfg.enabled ? "confirm" : "soft"} sm" data-a="tc-wa-global-toggle" aria-pressed="${!!waCfg.enabled}">
@@ -1376,7 +1443,16 @@
             </button>
           </div>
           <div class="stack" style="gap:6px">
-            <span class="small muted">Когда автоматически писать ученику в WhatsApp:</span>
+            <span class="small muted">Каналы автоматической отправки:</span>
+            <div class="auto-ch-bar" role="group" aria-label="Каналы автоуведомлений">
+              ${AUTO_CHANNELS.map((ch) => {
+                const on = cfgChannels.includes(ch.id);
+                return `<button type="button" class="auto-ch-pill${on ? " is-on" : ""}" data-a="tc-wa-channel" data-ch="${ch.id}" aria-pressed="${on}">${on ? "✓ " : ""}${esc(ch.name)}</button>`;
+              }).join("")}
+            </div>
+          </div>
+          <div class="stack" style="gap:6px">
+            <span class="small muted">Когда автоматически писать ученику:</span>
             <div class="chip-rail">
               ${WA_LEAD_OPTIONS.map((o) => `<button type="button" class="chip-btn${waCfg.lead === o.id ? " on" : ""}" data-a="tc-wa-lead" data-v="${esc(o.id)}">${esc(o.label)}</button>`).join("")}
             </div>
@@ -1388,7 +1464,14 @@
           <div class="tc-template-card">
             <div class="row between" style="gap:8px;flex-wrap:wrap">
               <b class="small">Пример сообщения (${esc(sampleStudent.name)} · ${esc(sampleStudent.lessonDay || "Воскресенье")}, ${esc(sampleStudent.lessonTime || "10:00")})</b>
-              <a class="btn confirm sm" href="${esc(sampleWaHref)}" target="_blank" rel="noopener">${icon("send")}<span>Тест в WhatsApp</span></a>
+              ${EGE.kit && typeof EGE.kit.messengerLinksHTML === "function"
+                ? EGE.kit.messengerLinksHTML({
+                    entity: sampleStudent,
+                    message: samplePreview,
+                    primaryLabel: "Тест в WhatsApp",
+                    compact: true
+                  })
+                : `<a class="btn confirm sm" href="${esc(sampleWaHref)}" target="_blank" rel="noopener">${icon("send")}<span>Тест в WhatsApp</span></a>`}
             </div>
             <div class="tc-template-body">${esc(samplePreview)}</div>
           </div>
@@ -1700,16 +1783,27 @@
     }
 
     if (act === "tc-wa-global-toggle") {
-      if (!st.waSettings) st.waSettings = { enabled: true, lead: "2h", template: "" };
+      if (!st.waSettings) st.waSettings = { enabled: true, lead: "2h", channels: ["wa", "tg", "max"], template: "" };
       st.waSettings.enabled = !st.waSettings.enabled;
       saveState();
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
-      if (typeof _ctx.toast === "function") _ctx.toast(st.waSettings.enabled ? "Автоуведомления WhatsApp включены" : "Автоуведомления WhatsApp на паузе");
+      if (typeof _ctx.toast === "function") _ctx.toast(st.waSettings.enabled ? "Автоуведомления (WA · TG · MAX) включены" : "Автоуведомления на паузе");
+      return true;
+    }
+
+    if (act === "tc-wa-channel") {
+      if (!st.waSettings) st.waSettings = { enabled: true, lead: "2h", channels: ["wa", "tg", "max"], template: "" };
+      const ch = String(d.ch || "");
+      if (AUTO_CHANNELS.some((c) => c.id === ch)) {
+        st.waSettings.channels = toggleArrayVal(normalizeChannelList(st.waSettings.channels), ch, true);
+        saveState();
+        if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      }
       return true;
     }
 
     if (act === "tc-wa-lead") {
-      if (!st.waSettings) st.waSettings = { enabled: true, lead: "2h", template: "" };
+      if (!st.waSettings) st.waSettings = { enabled: true, lead: "2h", channels: ["wa", "tg", "max"], template: "" };
       if (WA_LEAD_OPTIONS.some((o) => o.id === d.v)) st.waSettings.lead = d.v;
       saveState();
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
@@ -1724,11 +1818,23 @@
         if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
         if (typeof _ctx.notifySide === "function") {
           const leadLabel = (WA_LEAD_OPTIONS.find((o) => o.id === ((st.waSettings && st.waSettings.lead) || "2h")) || WA_LEAD_OPTIONS[2]).label;
+          const chNames = normalizeChannelList(s.autoChannels).map((cid) => (AUTO_CHANNELS.find((c) => c.id === cid) || {}).name || cid).join(", ");
           _ctx.notifySide(
-            s.autoNotify ? "Автоуведомление WhatsApp включено" : "Автоуведомление выключено",
-            s.autoNotify ? `${s.name}: система напишет ${leadLabel} (${s.lessonDay || "Воскресенье"}, ${s.lessonTime || "10:00"})` : `${s.name}: только ручные напоминания`
+            s.autoNotify ? "Автоуведомление включено" : "Автоуведомление выключено",
+            s.autoNotify ? `${s.name}: ${chNames} · ${leadLabel} (${s.lessonDay || "Воскресенье"}, ${s.lessonTime || "10:00"})` : `${s.name}: только ручные напоминания`
           );
         }
+      }
+      return true;
+    }
+
+    if (act === "tc-student-autochannel") {
+      const s = (st.students || []).find((x) => x.id === id);
+      const ch = String(d.ch || "");
+      if (s && AUTO_CHANNELS.some((c) => c.id === ch)) {
+        s.autoChannels = toggleArrayVal(normalizeChannelList(s.autoChannels), ch, true);
+        saveState();
+        if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       }
       return true;
     }
@@ -1738,13 +1844,16 @@
       if (s) {
         s.lastRemindedAt = Date.now();
         saveState();
-        const url = studentWaHref(st, s);
+        const chs = normalizeChannelList(s.autoChannels);
+        const primaryCh = chs[0] || "wa";
+        const url = studentReminderUrl(st, s, primaryCh);
         if (typeof window !== "undefined" && typeof window.open === "function") {
           try { window.open(url, "_blank", "noopener"); } catch (e) { /* игнор */ }
         }
         if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
         if (typeof _ctx.notifySide === "function") {
-          _ctx.notifySide("Напоминание подготовлено для WhatsApp", `${s.name} · ${s.lessonDay || "Воскресенье"} в ${s.lessonTime || "10:00"}`);
+          const chNames = chs.map((cid) => (AUTO_CHANNELS.find((c) => c.id === cid) || {}).name || cid).join(" · ");
+          _ctx.notifySide(`Напоминание подготовлено (${chNames})`, `${s.name} · ${s.lessonDay || "Воскресенье"} в ${s.lessonTime || "10:00"}`);
         }
       }
       return true;
@@ -2081,7 +2190,15 @@
       const sk = el.dataset.tcStudent;
       if (sk === "lessonDay") s.lessonDay = String(el.value || "").slice(0, 24);
       else if (sk === "lessonTime") s.lessonTime = String(el.value || "").slice(0, 12);
-      else if (sk === "whatsapp") s.whatsapp = String(el.value || "").slice(0, 20);
+      else if (sk === "whatsapp") {
+        const masked = formatPhone(el.value);
+        if (el.value !== masked) el.value = masked;
+        s.whatsapp = masked;
+      } else if (sk === "telegram") {
+        const tgFormatted = formatTelegram(el.value);
+        if (el.value !== tgFormatted) el.value = tgFormatted;
+        s.telegram = tgFormatted;
+      }
       saveState();
       return true;
     }
@@ -2094,13 +2211,21 @@
     else if (key === "timezone") p.timezone = TZ_OPTIONS.some((tz) => tz.id === el.value) ? el.value : "UTC+9";
     else if (key === "customSkills") p.customSkills = String(el.value || "").slice(0, 120);
     else if (key === "waTemplate") {
-      if (!st.waSettings) st.waSettings = { enabled: true, lead: "2h", template: "" };
+      if (!st.waSettings) st.waSettings = { enabled: true, lead: "2h", channels: ["wa", "tg", "max"], template: "" };
       st.waSettings.template = String(el.value || "").slice(0, 260);
       saveState();
       return true;
     }
     else if (key === "education") p.education = String(el.value || "").slice(0, 90);
-    else if (key === "whatsapp") p.whatsapp = String(el.value || "").slice(0, 32);
+    else if (key === "whatsapp") {
+      const masked = formatPhone(el.value);
+      if (el.value !== masked) el.value = masked;
+      p.whatsapp = masked;
+    } else if (key === "telegram") {
+      const tgFormatted = formatTelegram(el.value);
+      if (el.value !== tgFormatted) el.value = tgFormatted;
+      p.telegram = tgFormatted;
+    }
     else if (key === "expYears") p.expYears = Math.max(1, Math.min(50, Number(el.value) || 1));
     else if (key === "avgScore") p.avgScore = Math.max(40, Math.min(100, Number(el.value) || 80));
     else if (key === "highScorers") p.highScorers = Math.max(0, Math.min(500, Number(el.value) || 0));
@@ -2224,7 +2349,8 @@
     if (els.headline) p.headline = String(els.headline.value || "").trim().slice(0, 72);
     if (els.city) p.city = String(els.city.value || "").trim().slice(0, 48);
     if (els.education) p.education = String(els.education.value || "").trim().slice(0, 90);
-    if (els.whatsapp) p.whatsapp = String(els.whatsapp.value || "").trim().slice(0, 32);
+    if (els.whatsapp) p.whatsapp = formatPhone(String(els.whatsapp.value || "").trim()) || p.whatsapp;
+    if (els.telegram) p.telegram = formatTelegram(String(els.telegram.value || "").trim());
     if (els.expYears) p.expYears = Math.max(1, Math.min(50, Number(els.expYears.value) || p.expYears));
     if (els.avgScore) p.avgScore = Math.max(40, Math.min(100, Number(els.avgScore.value) || p.avgScore));
     if (els.highScorers) p.highScorers = Math.max(0, Math.min(500, Number(els.highScorers.value) || 0));

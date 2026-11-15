@@ -5181,7 +5181,13 @@
     }
     if (el.id === "bal-custom-amount") { if (ui.balanceModal) { ui.balanceModal.customAmount = el.value; ui.balanceModal.error = ""; } return; }
     if (el.id === "lead-price") { if (ui.leadDraft) ui.leadDraft.targetPrice = Number(el.value) || 1000; return; }
-    if (el.id === "lead-wa") { if (ui.leadDraft) ui.leadDraft.whatsapp = el.value; return; }
+    if (el.id === "lead-wa") {
+      const fn = EGE.tutors && EGE.tutors.formatPhoneMask;
+      const masked = typeof fn === "function" ? fn(el.value) : el.value;
+      if (el.value !== masked) el.value = masked;
+      if (ui.leadDraft) ui.leadDraft.whatsapp = masked;
+      return;
+    }
     if (el.id === "lead-comment") { if (ui.leadDraft) ui.leadDraft.comment = el.value; return; }
     if (el.id === "bid-price") {
       if (ui.booking) {
@@ -5306,7 +5312,13 @@
     }
     if (el.id === "bal-custom-amount") { if (ui.balanceModal) { ui.balanceModal.customAmount = el.value; ui.balanceModal.error = ""; } return; }
     if (el.id === "lead-price") { if (ui.leadDraft) ui.leadDraft.targetPrice = Number(el.value) || 1000; return; }
-    if (el.id === "lead-wa") { if (ui.leadDraft) ui.leadDraft.whatsapp = el.value; return; }
+    if (el.id === "lead-wa") {
+      const fn = EGE.tutors && EGE.tutors.formatPhoneMask;
+      const masked = typeof fn === "function" ? fn(el.value) : el.value;
+      if (el.value !== masked) el.value = masked;
+      if (ui.leadDraft) ui.leadDraft.whatsapp = masked;
+      return;
+    }
     if (el.id === "lead-comment") { if (ui.leadDraft) ui.leadDraft.comment = el.value; return; }
     if (el.id === "bid-price") {
       if (ui.booking) {

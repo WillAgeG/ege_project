@@ -740,8 +740,8 @@
             <input class="input num" id="lead-price" name="targetPrice" type="number" min="500" max="5000" step="50" value="${Number(ld.targetPrice) || 1000}">
           </div>
           <div class="field">
-            <label for="lead-wa">Контакт для связи (WhatsApp / телефон)</label>
-            <input class="input num" id="lead-wa" name="whatsapp" type="text" maxlength="40" placeholder="79142100500" value="${esc(ld.whatsapp || "")}">
+            <label for="lead-wa">Телефон (WhatsApp / MAX)</label>
+            <input class="input num" id="lead-wa" name="whatsapp" type="text" maxlength="22" placeholder="+7 (914) 000-00-00" value="${esc(ld.whatsapp && typeof TDATA.formatPhoneMask === "function" ? TDATA.formatPhoneMask(ld.whatsapp) : (ld.whatsapp || ""))}">
           </div>
         </div>
         <div class="field">

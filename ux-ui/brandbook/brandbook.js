@@ -1182,7 +1182,7 @@
 
         <div class="card pad stack" style="gap:10px">
           <div class="row between" style="gap:8px;flex-wrap:wrap">
-            <b>06 · Карточка ученика (.tc-student-card) и WhatsApp</b>
+            <b>06 · Карточка ученика (.tc-student-card) и Авто (WA · TG · MAX)</b>
             <span class="bb-spec-pill confirm">.tc-score-track</span>
           </div>
           <article class="tc-student-card">
@@ -1191,12 +1191,12 @@
                 <span class="tutor-avatar" aria-hidden="true">АЕ</span>
                 <div class="stack" style="gap:2px">
                   <b>Алёна Егорова</b>
-                  <span class="small muted">ЕГЭ Биология · 8 уроков проведено</span>
+                  <span class="small muted">ЕГЭ Биология · 8 уроков · <span class="num">+7 (914) 210-05-11</span> · @alina_bio</span>
                 </div>
               </div>
               <div class="row" style="gap:6px;flex-wrap:wrap">
                 <span class="chip confirm num">+26 б.</span>
-                <span class="chip gold">Авто WhatsApp · За 24 ч</span>
+                <span class="chip gold">Авто: WA · TG · MAX · За 24 ч</span>
               </div>
             </div>
             <div class="stack" style="gap:4px">
@@ -1206,17 +1206,22 @@
           </article>
           <div class="tc-wa-cfg">
             <div class="row between" style="gap:6px;flex-wrap:wrap">
-              <b class="small">Напоминание ученику в WhatsApp (.tc-wa-cfg)</b>
+              <b class="small">Автоуведомление в WA, Telegram и MAX (.tc-wa-cfg)</b>
               <span class="small muted">Воскресенье · 10:00</span>
+            </div>
+            <div class="auto-ch-bar" role="group" aria-label="Каналы автоуведомления">
+              <button type="button" class="auto-ch-pill is-on" data-ch="wa" data-a="bb-demo-toast">✓ WhatsApp</button>
+              <button type="button" class="auto-ch-pill is-on" data-ch="tg" data-a="bb-demo-toast">✓ Telegram</button>
+              <button type="button" class="auto-ch-pill is-on" data-ch="max" data-a="bb-demo-toast">✓ MAX</button>
             </div>
             <div class="row" style="gap:8px;flex-wrap:wrap">
               <button type="button" class="btn confirm sm" data-a="bb-demo-toast">${icon("msg")}<span>Напомнить: скоро урок</span></button>
-              <button type="button" class="btn gold sm" data-a="bb-demo-toast">${icon("bell")}<span>✓ Автоуведомление WA</span></button>
+              <button type="button" class="btn gold sm" data-a="bb-demo-toast">${icon("bell")}<span>✓ Авто: WA · TG · MAX</span></button>
               ${messengerLinksHTML
                 ? messengerLinksHTML({
-                    entity: { id: "st-alena", name: "Алёна Егорова", whatsapp: "79142100511", telegram: "alena_bio", maxHandle: "alena_ege" },
+                    entity: { id: "st-alena", name: "Алёна Егорова", whatsapp: "+7 (914) 210-05-11", telegram: "@alina_bio", maxHandle: "alena_ege" },
                     message: "Здравствуйте, Алёна! Напоминаю об уроке биологии в воскресенье в 10:00.",
-                    primaryLabel: "WA",
+                    primaryLabel: "WhatsApp",
                     compact: true
                   })
                 : ""}
