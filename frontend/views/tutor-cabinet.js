@@ -1332,6 +1332,13 @@
 
   function desktopDockHTML() {
     const summary = getWalletSummary();
+    if (EGE.kit && typeof EGE.kit.tutorBalanceDockHTML === "function") {
+      return EGE.kit.tutorBalanceDockHTML({
+        availableRub: summary.availableRub,
+        escrowRub: summary.escrowRub,
+        action: "tc-payout-open"
+      });
+    }
     return `<div class="tutor-bal-dock" role="region" aria-label="Баланс преподавателя">
       <span class="tutor-bal-ico" aria-hidden="true">${icon("wallet")}</span>
       <div class="tutor-bal-meta">
@@ -1347,6 +1354,14 @@
 
   function mobileTopWidgetHTML() {
     const summary = getWalletSummary();
+    if (EGE.kit && typeof EGE.kit.topBalanceWidgetHTML === "function") {
+      return EGE.kit.topBalanceWidgetHTML({
+        role: "tutor",
+        amountRub: summary.availableRub,
+        pillAction: "tc-payout-open",
+        btnAction: "tc-payout-open"
+      });
+    }
     return `<div class="top-bal-wrap">
       <button type="button" class="top-bal-pill is-funded is-tutor" data-a="tc-payout-open" title="Баланс и вывод средств">${icon("wallet")}<b class="num">${summary.availableRub.toLocaleString("ru-RU")} ₽</b></button>
       <button type="button" class="top-bal-btn is-payout" data-a="tc-payout-open" aria-label="Вывести средства" title="Вывести средства">${icon("upload")}<span>Вывести</span></button>
@@ -1391,14 +1406,24 @@
           <button type="button" class="icon-btn" data-a="tc-payout-close" aria-label="Закрыть">${icon("x")}</button>
         </div>
 
-        <div class="wallet-bar tc-payout-wallet">
+        ${(EGE.kit && typeof EGE.kit.walletSummaryBarHTML === "function")
+          ? EGE.kit.walletSummaryBarHTML({
+              extraClass: "tc-payout-wallet",
+              label: "Доступно к выводу",
+              amountRub: summary.availableRub,
+              amountClass: "num",
+              amountStyle: "font-size:22px;line-height:1.15;font-weight:700;color:var(--ink)",
+              subNote: "95% после 5% комиссии сервиса",
+              badge: { text: `В резерве: ${summary.escrowRub.toLocaleString("ru-RU")} ₽`, cls: "confirm num" }
+            })
+          : `<div class="wallet-bar tc-payout-wallet">
           <div class="stack" style="gap:3px;min-width:0">
             <span class="small muted">Доступно к выводу</span>
             <b class="num" style="font-size:22px;line-height:1.15">${summary.availableRub.toLocaleString("ru-RU")} ₽</b>
             <span class="small muted">95% после 5% комиссии сервиса</span>
           </div>
           <span class="chip confirm num">В резерве: ${summary.escrowRub.toLocaleString("ru-RU")} ₽</span>
-        </div>
+        </div>`}
 
         <div class="hh-seg" role="group" aria-label="Способ получения средств">
           <button type="button" data-a="tc-payout-method" data-v="sbp" aria-pressed="${method === "sbp"}">СБП · 0 ₽ (мгновенно)</button>

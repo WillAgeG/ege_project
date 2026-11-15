@@ -1122,6 +1122,15 @@
   function filterModalHTML() { return EGE.views.marketplace.filterModalHTML(); }
   function balanceTopWidgetHTML(compact) {
     const st = mkt();
+    if (EGE.kit && typeof EGE.kit.topBalanceWidgetHTML === "function") {
+      return EGE.kit.topBalanceWidgetHTML({
+        role: "student",
+        amountRub: st.balance,
+        compact: !!compact,
+        pillAction: "bal-open",
+        btnAction: "bal-open"
+      });
+    }
     const funded = (Number(st.balance) || 0) >= 5000;
     return `<div class="top-bal-wrap" aria-label="Баланс ученика">
       <button type="button" class="top-bal-pill${funded ? " is-funded" : ""}" data-a="bal-open" title="Баланс и тарифы">
@@ -1144,20 +1153,28 @@
     const payProv = EGEPayments && EGEPayments.provider === "demo"
       ? "Демо-режим · готово к подключению СБП / ЮKassa"
       : `Провайдер: ${EGEPayments.provider}`;
-    return `<div class="modal-back" role="dialog" aria-modal="true" aria-labelledby="bal-modal-title">
-      <div class="modal-card">
-        <div class="modal-head">
-          <div class="row" style="gap:8px">${icon("wallet")}<b id="bal-modal-title">Баланс и пополнение</b></div>
-          <button type="button" class="icon-btn sm" data-a="bal-close" aria-label="Закрыть">${icon("x")}</button>
-        </div>
-        <div class="wallet-bar">
+    const walletSummaryHTML = (EGE.kit && typeof EGE.kit.walletSummaryBarHTML === "function")
+      ? EGE.kit.walletSummaryBarHTML({
+          label: "Текущий баланс ученика",
+          amountRub: st.balance,
+          subNote: payProv,
+          badge: { text: minOk ? "✓ Порог 5 000 ₽ открыт" : "Минимум 5 000 ₽", cls: minOk ? "confirm" : "gold" }
+        })
+      : `<div class="wallet-bar">
           <div class="stack" style="gap:2px">
             <span class="small muted">Текущий баланс ученика</span>
             <span class="wallet-num num">${st.balance.toLocaleString("ru-RU")} ₽</span>
             <span class="small muted">${esc(payProv)}</span>
           </div>
           <span class="chip ${minOk ? "confirm" : "gold"}">${minOk ? "✓ Порог 5 000 ₽ открыт" : "Минимум 5 000 ₽"}</span>
+        </div>`;
+    return `<div class="modal-back" role="dialog" aria-modal="true" aria-labelledby="bal-modal-title">
+      <div class="modal-card">
+        <div class="modal-head">
+          <div class="row" style="gap:8px">${icon("wallet")}<b id="bal-modal-title">Баланс и пополнение</b></div>
+          <button type="button" class="icon-btn sm" data-a="bal-close" aria-label="Закрыть">${icon("x")}</button>
         </div>
+        ${walletSummaryHTML}
         ${bm.reason ? `<div class="notice warn"><b>Требуется минимум 5 000 ₽ на балансе</b><span class="small">${esc(bm.reason)}</span></div>` : `<p class="small ink2">${st.initialPaid ? "Подписка активна: далее можно пополнять счёт на любую сумму от <b>100 ₽</b>. Средства не списываются до подтверждения преподавателя." : "Минимальная подписка и первый платёж — от <b>5 000 ₽</b>. После первого пополнения откроются бесплатный пробный урок (0 ₽), отклики и любые доплаты от <b>100 ₽</b>."}</p>`}
         <div class="stack" style="gap:8px">
           <span class="label">Минимальные тарифы и быстрая оплата</span>
@@ -3472,7 +3489,9 @@
     if (el.style) { el.style.transform = ""; el.style.opacity = ""; }
     if (opts.side) {
       el.className = "toast is-side";
-      el.innerHTML = `<span class="toast-side-row"><span class="bb-pulse-dot" style="margin-top:5px;flex:0 0 auto"></span><span class="toast-side-copy"><b>${esc(opts.title || "Уведомление")}</b><span>${esc(msg)}</span></span><button type="button" class="toast-close" data-a="toast-close" aria-label="Убрать уведомление">×</button></span>`;
+      el.innerHTML = (EGE.kit && typeof EGE.kit.sideToastInnerHTML === "function")
+        ? EGE.kit.sideToastInnerHTML({ title: opts.title || "Уведомление", message: msg, closeAction: "toast-close" })
+        : `<span class="toast-side-row"><span class="bb-pulse-dot" style="margin-top:5px;flex:0 0 auto"></span><span class="toast-side-copy"><b>${esc(opts.title || "Уведомление")}</b><span>${esc(msg)}</span></span><button type="button" class="toast-close" data-a="toast-close" aria-label="Убрать уведомление">×</button></span>`;
     } else {
       el.className = "toast";
       el.textContent = msg;
@@ -4932,6 +4951,17 @@
       if (el.dataset && el.dataset.clearQ) bb.tableSearch = "";
       scheduleRender();
     },
+    "bb-shell-role": (el) => {
+      const bb = bbState();
+      bb.shellRole = (el.dataset && (el.dataset.role === "student" || el.dataset.v === "student")) ? "student" : "tutor";
+      scheduleRender();
+    },
+    "bb-pipe-filter": (el) => {
+      const bb = bbState();
+      const v = (el.dataset && el.dataset.v) || "all";
+      bb.pipeFilter = ["all", "postgres", "polars", "airflow", "kafka"].includes(v) ? v : "all";
+      scheduleRender();
+    },
     "fees-rate": (el) => {
       ui.feesRate = Math.max(600, Math.min(3500, Number(el.dataset.rate) || 800));
       scheduleRender();
@@ -5011,7 +5041,8 @@
       linePtIdx: 3, donutDataset: "channels", donutSliceIdx: 0, tableCols: 5, tableFilter: "all", tableSearch: "",
       maskPhone: "+7 (914) 210-05-11", maskTg: "@aytal_bio", maskMax: "aytal_ege",
       payMethod: "sbp", payState: "frozen", payInitialDone: false,
-      tablePreset: "requests", confirmedRows: {}, essayOpenIdx: 0
+      tablePreset: "requests", confirmedRows: {}, essayOpenIdx: 0,
+      shellRole: "tutor", pipeFilter: "all"
     });
     if (bb.marketDemoAccepted === undefined) bb.marketDemoAccepted = false;
     if (bb.reducedMotion === undefined) bb.reducedMotion = false;
@@ -5034,6 +5065,8 @@
     if (!bb.tablePreset) bb.tablePreset = "requests";
     if (!bb.confirmedRows || typeof bb.confirmedRows !== "object") bb.confirmedRows = {};
     if (bb.essayOpenIdx === undefined) bb.essayOpenIdx = 0;
+    if (!bb.shellRole) bb.shellRole = "tutor";
+    if (!bb.pipeFilter) bb.pipeFilter = "all";
     return bb;
   }
   function patchMaskTrainerDOM() {

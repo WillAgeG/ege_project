@@ -50,7 +50,9 @@
     { id: "cabinet", targetId: "bb-cabinet", cat: "app", title: "Кабинет преподавателя, расписание, 6 видов графиков с палочками и баланс", api: "EGE.views.tutorCabinet / EGE.charts.stickChartHTML() / balanceModalHTML()", css: ".sakha-divider.is-gold-logo .tc-cal-hours .tc-bar-chart .is-sticks .is-lollipop .is-capsule .is-dual .is-range .is-combo .tc-hh-meter .wallet-bar", desc: "Модалка пополнения (.wallet-bar, старт 5 000 ₽ / от 100 ₽), сетка слотов 10:00–20:00, лиды учеников, выплаты 95%, витрина графиков с палочками (тонкие, леденцы, капсулы, парные, диапазон, комбо-тренд), профиль .tc-hh-meter и трекер баллов." },
     { id: "dataViz", targetId: "bb-data-viz", cat: "app", title: "Линейные графики, Круговая диаграмма и Таблица (3/5/7 колонок + пресеты)", api: "EGE.charts.{lineChartHTML, donutChartHTML, dataTableHTML}({ preset, confirmedIds, cardWrap })", css: ".bb-line-chart .bb-donut-chart .bb-table-shell .bb-data-table.is-adaptive", desc: "SVG-график с линией и областью, кольцевая диаграмма, супер-адаптивная таблица (Заявки / Выплаты / Пробники, 3/5/7 колонок, кнопка Подтвердить и карточки @container) + WA · Telegram · MAX." },
     { id: "maskTrainer", targetId: "bb-mask-trainer", cat: "app", title: "Живой тренажёр масок контактов (WA · Telegram · MAX)", api: "EGE.kit.{formatPhoneMask, formatTelegramContact, resolveMessengerUrls, messengerLinksHTML}()", css: ".tc-contact-grid .bb-mask-urls .btn-msg.is-wa.is-tg.is-max", desc: "Редактируемые поля +7 (XXX) XXX-XX-XX, @login и MAX с быстрыми примерами и живым расчётом ссылок wa.me / t.me / max.ru." },
-    { id: "payments", targetId: "bb-payments", cat: "app", title: "Эквайринг, эскроу-статусы и выплаты (EGE.payments)", api: "EGE.payments.{createTopupIntent, createPayoutIntent}()", css: ".bb-pay-grid .bb-pay-split .bb-pay-dock-preview .bb-tbl-st.is-refund", desc: "Пополнение от 5 000 ₽ / 100 ₽, эскроу frozen -> captured (95% / 5%) -> refunded (100%), вывод 95% на СБП / Мир и чек НПД." },
+    { id: "payments", targetId: "bb-payments", cat: "app", title: "Эквайринг, эскроу-статусы и выплаты (EGE.payments)", api: "EGE.payments.{createTopupIntent, createPayoutIntent}()", css: ".bb-pay-grid .bb-pay-split .bb-pay-dock-preview .bb-tbl-st.is-refund", desc: "Пополнение от 5 000 ₽ / 100 ₽, эскроу frozen -> captured (95% / 5%) -> refunded (100%), вывод (кнопка «Вывести») на СБП / Мир и чек НПД." },
+    { id: "uiKitShells", targetId: "bb-ui-kit-shells", cat: "app", title: "Единые Shell-виджеты сайта из EGE.kit", api: "EGE.kit.{topBalanceWidgetHTML, tutorBalanceDockHTML, walletSummaryBarHTML, sideToastInnerHTML, emptyStateHTML, skeletonCardHTML}()", css: ".top-bal-wrap .tutor-bal-dock.is-inline-preview .wallet-bar .toast-side-row .empty .bb-skel-bar", desc: "Единые виджеты баланса ученика и преподавателя, панель кошелька (.wallet-bar), боковой тост, empty-state и skeleton-загрузка." },
+    { id: "telemetryEtl", targetId: "bb-telemetry-etl", cat: "app", title: "Data & Observability UI Kit: Пайплайны ETL/ELT и Поток логов", api: "EGE.kit.{pipelineStageCardHTML, eventLogFeedHTML}()", css: ".bb-pipe-card .bb-pipe-metrics .bb-log-feed .bb-log-row", desc: "Карточки стадий ETL/ELT (PostgreSQL 17, Polars M4 Pro, Airflow DAG, Kafka Clickstream, Grafana BI) и лента событий кликстрима." },
     { id: "egeTimers", targetId: "bb-ege-timers", cat: "app", title: "Таймеры ЕГЭ-2027 и ИИ-проверка сочинения (Задание 27)", api: "EGE.exams / EGE.essay", css: ".bb-timer-grid .bb-timer-card .bb-essay-box .bb-essay-criteria", desc: "Обратный отсчёт до экзаменов 2027 (Химия, Русский, Биология), чекпоинт 1 февраля и разбор критериев К1–К10 (21 / 22 б.)." },
     { id: "a11y", targetId: "bb-a11y", cat: "controls", title: "Фокус-кольца, горячие клавиши и Reduced Motion (A11y)", api: ":focus-visible / html.reduced-motion", css: ".bb-focus-map .bb-focus-demo kbd.bb-kbd", desc: "Карта колец фокуса (Primary, Золото Саха, Поле, Ошибка), шпаргалка клавиш Esc / Tab / ← → и отключение анимаций." },
     { id: "sliders", targetId: "bb-sliders", cat: "layout", title: "Слайдер часов 10:00–20:00 и калькулятор в 1 строку", api: "EGE.hh.sliderTicksHTML(cur, style) / .hh-step-readout.is-inline", css: ".hh-time-range .hh-slider-ticks .hh-step-readout.is-inline", desc: "3 варианта шкалы слотов, палка 10×24 px и строчный ввод «1 100 ₽/ч» без переноса." },
@@ -311,27 +313,223 @@
   }
 
   /* Единое оранжевое уведомление брендбука (--notif #F97316) для бокового тоста и статуса отправки. */
-  function sentNoticeHTML(opts) {
+  function sideToastInnerHTML(opts) {
     opts = opts || {};
-    const slot = opts.slot || "13:00";
-    const offerNum = Number(opts.offer) || 1100;
-    const title = opts.title || "Предложение передано преподавателю";
-    const subtitle = opts.subtitle || `Ставка ${offerNum.toLocaleString("ru-RU")} ₽/ч на ${slot} отправлена — уведомим об ответе`;
+    const title = opts.title || "Уведомление";
+    const body = opts.message != null
+      ? opts.message
+      : (opts.msg != null ? opts.msg : (opts.subtitle != null ? opts.subtitle : ""));
+    const closeAction = opts.closeAction !== undefined ? opts.closeAction : "toast-close";
+    const showClose = opts.showClose !== false && !!closeAction;
     const badgeText = opts.badgeText || "";
-    const closeAction = opts.closeAction || "";
     const badgeClass = opts.badgeClass || "chip notif";
-    const rightEl = closeAction
-      ? `<button type="button" class="toast-close" data-a="${esc(closeAction)}" aria-label="Убрать уведомление">×</button>`
+    const rightEl = showClose
+      ? `<button type="button" class="toast-close" data-a="${esc(closeAction)}" aria-label="${esc(opts.closeLabel || "Убрать уведомление")}">×</button>`
       : (badgeText ? `<span class="${esc(badgeClass)}" style="flex:none">${esc(badgeText)}</span>` : "");
 
     return `<span class="toast-side-row">
       <span class="bb-pulse-dot" style="margin-top:5px;flex:0 0 auto" aria-hidden="true"></span>
       <span class="toast-side-copy">
         <b>${esc(title)}</b>
-        <span>${esc(subtitle)}</span>
+        <span>${esc(body)}</span>
       </span>
       ${rightEl}
     </span>`;
+  }
+
+  function sentNoticeHTML(opts) {
+    opts = opts || {};
+    const slot = opts.slot || "13:00";
+    const offerNum = Number(opts.offer) || 1100;
+    const title = opts.title || "Предложение передано преподавателю";
+    const subtitle = opts.subtitle || `Ставка ${offerNum.toLocaleString("ru-RU")} ₽/ч на ${slot} отправлена — уведомим об ответе`;
+    return sideToastInnerHTML({
+      title,
+      message: subtitle,
+      closeAction: opts.closeAction || "",
+      showClose: !!opts.closeAction,
+      badgeText: opts.badgeText || "",
+      badgeClass: opts.badgeClass || "chip notif"
+    });
+  }
+
+  function topBalanceWidgetHTML(opts) {
+    opts = opts || {};
+    const isTutor = opts.role === "tutor";
+    const amount = Math.max(0, Math.round(Number(opts.amountRub != null ? opts.amountRub : opts.amount) || 0));
+    const funded = isTutor ? true : (opts.funded !== undefined ? !!opts.funded : amount >= 5000);
+    const pillAction = opts.pillAction || (isTutor ? "tc-payout-open" : "bal-open");
+    const btnAction = opts.btnAction || pillAction;
+    const ariaLabel = opts.ariaLabel || (isTutor ? "Баланс преподавателя" : "Баланс ученика");
+    const pillTitle = opts.pillTitle || (isTutor ? "Баланс и вывод средств" : "Баланс и тарифы");
+    const btnLabel = opts.btnLabel || (isTutor ? "Вывести" : "Пополнить");
+    const btnAria = opts.btnAriaLabel || (isTutor ? "Вывести средства" : "Пополнить баланс");
+    const pillCls = "top-bal-pill" + (funded ? " is-funded" : "") + (isTutor ? " is-tutor" : "");
+    const btnCls = "top-bal-btn" + (isTutor ? " is-payout" : "");
+    const lblHTML = (!isTutor && !opts.compact) ? `<span class="top-bal-lbl muted">Баланс:</span>` : "";
+
+    return `<div class="top-bal-wrap" aria-label="${esc(ariaLabel)}">
+      <button type="button" class="${pillCls}" data-a="${esc(pillAction)}" title="${esc(pillTitle)}">
+        ${icon("wallet")}
+        ${lblHTML}
+        <b class="num">${amount.toLocaleString("ru-RU")} ₽</b>
+      </button>
+      <button type="button" class="${btnCls}" data-a="${esc(btnAction)}" aria-label="${esc(btnAria)}" title="${esc(btnAria)}">${icon(isTutor ? "upload" : "plus")}<span>${esc(btnLabel)}</span></button>
+    </div>`;
+  }
+
+  function tutorBalanceDockHTML(opts) {
+    opts = opts || {};
+    const available = Math.max(0, Math.round(Number(opts.availableRub != null ? opts.availableRub : opts.available) || 0));
+    const escrow = Math.max(0, Math.round(Number(opts.escrowRub != null ? opts.escrowRub : opts.escrow) || 0));
+    const action = opts.action || "tc-payout-open";
+    const label = opts.label || "Баланс преподавателя";
+    const btnLabel = opts.btnLabel || "Вывести";
+    const cls = "tutor-bal-dock" + (opts.inlinePreview ? " is-inline-preview" : "");
+    return `<div class="${cls}" role="region" aria-label="${esc(label)}">
+      <span class="tutor-bal-ico" aria-hidden="true">${icon("wallet")}</span>
+      <div class="tutor-bal-meta">
+        <span class="tutor-bal-lbl">${esc(label)}</span>
+        <div class="tutor-bal-val">
+          <b class="num">${available.toLocaleString("ru-RU")} ₽</b>
+          <span class="tutor-bal-escrow num">в резерве ${escrow.toLocaleString("ru-RU")} ₽</span>
+        </div>
+      </div>
+      <button type="button" class="btn sm confirm" data-a="${esc(action)}">${esc(btnLabel)}</button>
+    </div>`;
+  }
+
+  function walletSummaryBarHTML(opts) {
+    opts = opts || {};
+    const amount = Math.max(0, Math.round(Number(opts.amountRub != null ? opts.amountRub : opts.amount) || 0));
+    const amountText = opts.amountLabel || (amount.toLocaleString("ru-RU") + " ₽");
+    const extraClass = opts.extraClass ? (" " + esc(opts.extraClass)) : "";
+    const labelBlock = opts.labelHTML
+      ? `<span class="small muted">${opts.labelHTML}</span>`
+      : (opts.label ? `<span class="small muted">${esc(opts.label)}</span>` : "");
+    const numStyle = opts.amountStyle ? ` style="${esc(opts.amountStyle)}"` : "";
+    const numEl = `<span class="${esc(opts.amountClass || "wallet-num num")}"${numStyle}>${esc(amountText)}</span>`;
+    const amountBlock = opts.inlineNote
+      ? `<div class="row" style="gap:10px;align-items:baseline;flex-wrap:wrap">${numEl}<span class="small muted">${esc(opts.inlineNote)}</span></div>`
+      : numEl;
+    const subBlock = opts.subNote ? `<span class="small muted">${esc(opts.subNote)}</span>` : "";
+
+    let rightBlock = "";
+    if (opts.rightHTML) {
+      rightBlock = opts.rightHTML;
+    } else if (Array.isArray(opts.actions) && opts.actions.length) {
+      rightBlock = `<div class="row" style="gap:8px;flex-wrap:wrap">${opts.actions.map((a) => {
+        const ico = a.icon ? icon(a.icon) : "";
+        const valAttr = a.dataVal !== undefined ? ` data-v="${esc(a.dataVal)}"` : "";
+        return `<button type="button" class="${esc(a.cls || "btn soft sm")}" data-a="${esc(a.action || "bb-demo-toast")}"${valAttr}>${ico}<span>${esc(a.label || "")}</span></button>`;
+      }).join("")}</div>`;
+    } else if (opts.badge && opts.badge.text) {
+      rightBlock = `<span class="chip ${esc(opts.badge.cls || "confirm")}">${esc(opts.badge.text)}</span>`;
+    }
+
+    return `<div class="wallet-bar${extraClass}">
+      <div class="stack" style="gap:2px;min-width:0">
+        ${labelBlock}
+        ${amountBlock}
+        ${subBlock}
+      </div>
+      ${rightBlock}
+    </div>`;
+  }
+
+  function emptyStateHTML(opts) {
+    opts = opts || {};
+    const title = opts.title || "Пока ничего не найдено";
+    const subtitle = opts.subtitle || opts.desc || "Попробуйте ослабить фильтры или сбросить поиск.";
+    const actionLabel = opts.actionLabel || "";
+    const action = opts.action || "bb-demo-toast";
+    const valAttr = opts.actionVal !== undefined ? ` data-v="${esc(opts.actionVal)}"` : "";
+    const ico = opts.iconName ? `<span class="muted" aria-hidden="true">${icon(opts.iconName)}</span>` : "";
+    return `<div class="empty${opts.cls ? " " + esc(opts.cls) : ""}">
+      ${ico}
+      <b>${esc(title)}</b>
+      <span class="small muted">${esc(subtitle)}</span>
+      ${actionLabel ? `<button type="button" class="btn soft sm" data-a="${esc(action)}"${valAttr}>${esc(actionLabel)}</button>` : ""}
+    </div>`;
+  }
+
+  function skeletonCardHTML(opts) {
+    opts = opts || {};
+    const widths = Array.isArray(opts.widths) && opts.widths.length ? opts.widths : ["62%", "94%", "45%"];
+    const header = (opts.title || opts.badge)
+      ? `<div class="row between" style="gap:8px;flex-wrap:wrap">${opts.title ? `<b>${esc(opts.title)}</b>` : "<span></span>"}${opts.badge ? `<span class="bb-spec-pill">${esc(opts.badge)}</span>` : ""}</div>`
+      : "";
+    const bars = widths.map((w, idx) => {
+      const h = idx === 1 ? ";height:18px" : "";
+      return `<div class="bb-skel-bar" style="width:${esc(w)}${h}"></div>`;
+    }).join("");
+    const foot = opts.footer ? `<span class="small muted">${esc(opts.footer)}</span>` : "";
+    return `<div class="card pad stack" style="gap:10px">
+      ${header}
+      ${bars}
+      ${foot}
+    </div>`;
+  }
+
+  function pipelineStageCardHTML(opts) {
+    opts = opts || {};
+    const engine = opts.engine || "postgres";
+    const statusMap = {
+      ok: "is-confirmed",
+      pending: "is-pending",
+      info: "is-info",
+      warn: "is-pending"
+    };
+    const stCls = statusMap[opts.status || "ok"] || "is-info";
+    return `<article class="card pad bb-pipe-card" data-engine="${esc(engine)}">
+      <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
+        <b style="font-size:15px">${esc(opts.title || "Pipeline Stage")}</b>
+        <span class="bb-tbl-st ${stCls}">${esc(opts.statusLabel || "Active")}</span>
+      </div>
+      <div class="row" style="gap:6px;flex-wrap:wrap">
+        ${opts.stage ? `<span class="chip accent">${esc(opts.stage)}</span>` : ""}
+        <span class="chip">${esc(engine)}</span>
+      </div>
+      <div class="bb-pipe-metrics">
+        <div class="bb-pipe-metric"><span>Latency</span><b class="num">${esc(opts.latencyMs || "—")}</b></div>
+        <div class="bb-pipe-metric"><span>Throughput</span><b class="num">${esc(opts.throughput || "—")}</b></div>
+        <div class="bb-pipe-metric"><span>Freshness</span><b class="num">${esc(opts.freshness || "—")}</b></div>
+      </div>
+      ${opts.target ? `<code class="bb-pipe-target">${esc(opts.target)}</code>` : ""}
+      ${opts.notes ? `<span class="small muted">${esc(opts.notes)}</span>` : ""}
+    </article>`;
+  }
+
+  const DEFAULT_TELEMETRY_EVENTS = [
+    { event_id: "evt-901", occurred_at: "14:48:02", event_type: "bid_offer", role: "student", view: "market", engine: "postgres", payloadSummary: "tutor=t-aytal · offer=1 100 ₽/ч · slot=14:00" },
+    { event_id: "evt-902", occurred_at: "14:48:09", event_type: "outbox_enqueued", role: "system", view: "api", engine: "kafka", payloadSummary: "topic=vektor.market.bids.v1 · partition=2 · offset=41820" },
+    { event_id: "evt-903", occurred_at: "14:48:15", event_type: "silver_dedup_batch", role: "etl", view: "polars", engine: "polars", payloadSummary: "rows_in=2 480 · dedup=2 412 · write=gold/subject_price_mart.parquet" },
+    { event_id: "evt-904", occurred_at: "14:48:24", event_type: "dag_task_success", role: "scheduler", view: "airflow", engine: "airflow", payloadSummary: "dag=vektor_medallion_hourly · task=refresh_gold_pg · dur=1.4s" },
+    { event_id: "evt-905", occurred_at: "14:48:31", event_type: "payout_intent", role: "tutor", view: "cabinet", engine: "postgres", payloadSummary: "channel=sbp · amount=5 000 ₽ · npd_receipt=pending" },
+    { event_id: "evt-906", occurred_at: "14:48:39", event_type: "clickstream_batch", role: "student", view: "study", engine: "kafka", payloadSummary: "topic=vektor.user.clickstream.v1 · batch=18 · sendBeacon=ok" }
+  ];
+
+  function eventLogFeedHTML(opts) {
+    opts = opts || {};
+    const filter = opts.filterEngine && opts.filterEngine !== "all" ? opts.filterEngine : "";
+    const src = Array.isArray(opts.events) && opts.events.length ? opts.events : DEFAULT_TELEMETRY_EVENTS;
+    const rows = (filter ? src.filter((ev) => ev.engine === filter) : src).slice(0, Number(opts.maxItems) || 6);
+    const title = opts.title || "Поток пользовательских логов и событий (telemetry.user_events)";
+
+    return `<div class="bb-log-feed" role="region" aria-label="${esc(title)}">
+      <div class="row between" style="gap:8px;flex-wrap:wrap">
+        <b>${esc(title)}</b>
+        <span class="bb-spec-pill num">${rows.length} событий</span>
+      </div>
+      ${rows.length
+        ? `<div class="bb-log-list">${rows.map((ev) => `<div class="bb-log-row" data-engine="${esc(ev.engine || "postgres")}">
+            <span class="bb-log-ts num">${esc(ev.occurred_at || "00:00:00")}</span>
+            <span class="bb-log-type">${esc(ev.event_type || "event")}</span>
+            <span class="chip" style="font-size:11px">${esc((ev.role || "user") + " · " + (ev.view || "app"))}</span>
+            <span class="bb-log-payload">${esc(ev.payloadSummary || "")}</span>
+          </div>`).join("")}</div>`
+        : emptyStateHTML({ title: "Нет событий для выбранного движка", subtitle: "Сбросьте фильтр на «Все», чтобы увидеть полный поток.", actionLabel: "Показать все", action: "bb-pipe-filter", actionVal: "all" })}
+    </div>`;
   }
 
   const MSG_SVGS = {
@@ -433,6 +631,14 @@
     heroBannerHTML,
     searchStripHTML,
     sentNoticeHTML,
+    sideToastInnerHTML,
+    topBalanceWidgetHTML,
+    tutorBalanceDockHTML,
+    walletSummaryBarHTML,
+    emptyStateHTML,
+    skeletonCardHTML,
+    pipelineStageCardHTML,
+    eventLogFeedHTML,
     sakhaButtonsHTML,
     marqueePillsHTML,
     rateBenchCardHTML,

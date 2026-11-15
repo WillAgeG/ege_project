@@ -1261,9 +1261,9 @@
     const bbV2Html = env5.elements.get("main").innerHTML;
     const catTargetIds = globalThis.EGE.kit.CATALOG_ITEMS.map((it) => it.targetId);
     assert(
-      globalThis.EGE.kit.CATALOG_ITEMS.length === 23 &&
-      ["bb-market-app", "bb-cabinet", "bb-data-viz", "bb-mask-trainer", "bb-payments", "bb-ege-timers", "bb-a11y", "bb-layers", "bb-bounds", "bb-dodont", "bb-compare"].every((id) => catTargetIds.includes(id)),
-      "expected 23 catalog items covering all brandbook sections including mask-trainer, payments, ege-timers, a11y, /market, cabinet/balance, data-viz, layers, bounds, dodont, and compare"
+      globalThis.EGE.kit.CATALOG_ITEMS.length === 25 &&
+      ["bb-market-app", "bb-cabinet", "bb-data-viz", "bb-mask-trainer", "bb-payments", "bb-ui-kit-shells", "bb-telemetry-etl", "bb-ege-timers", "bb-a11y", "bb-layers", "bb-bounds", "bb-dodont", "bb-compare"].every((id) => catTargetIds.includes(id)),
+      "expected 25 catalog items covering all brandbook sections including mask-trainer, payments, ui-kit-shells, telemetry-etl, ege-timers, a11y, /market, cabinet/balance, data-viz, layers, bounds, dodont, and compare"
     );
     assert(
       !bbV2Html.includes("Unbounded") &&
@@ -1718,13 +1718,47 @@
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes("https://wa.me/79140001122") && env5.elements.get("main").innerHTML.includes("https://t.me/chem_ykt"), "expected live input on #bb-mask-phone and #bb-mask-tg to reformat links immediately");
 
-    // Эквайринг (#bb-payments), ЕГЭ-2027 (#bb-ege-timers) и A11y (#bb-a11y)
+    // Эквайринг (#bb-payments), Shell-виджеты (#bb-ui-kit-shells), Data & Observability (#bb-telemetry-etl), ЕГЭ-2027 (#bb-ege-timers) и A11y (#bb-a11y)
     clickAction(env5, { a: "bb-pay-threshold", v: "repeat" });
     clickAction(env5, { a: "bb-pay-method", v: "tpay" });
     clickAction(env5, { a: "bb-pay-state", v: "captured" });
     await flushMicrotasks(2);
     const bbPayHtml = env5.elements.get("main").innerHTML;
-    assert(bbPayHtml.includes("Повторное от 100 ₽") && bbPayHtml.includes("Проведено · 95% / 5%") && !bbPayHtml.includes("5%:"), "expected #bb-payments interactive threshold/method/state without 5%: substring");
+    assert(
+      bbPayHtml.includes("Повторное от 100 ₽") &&
+      bbPayHtml.includes("Проведено · 95% / 5%") &&
+      bbPayHtml.includes('id="bb-ui-kit-shells"') &&
+      bbPayHtml.includes('id="bb-telemetry-etl"') &&
+      bbPayHtml.includes("tutor-bal-dock is-inline-preview") &&
+      !bbPayHtml.includes("Вывести 95%") &&
+      !bbPayHtml.includes("5%:") &&
+      !bbPayHtml.toLowerCase().includes("#13794b"),
+      "expected #bb-payments, #bb-ui-kit-shells, #bb-telemetry-etl without Вывести 95%, 5%:, or #13794b"
+    );
+    assert(
+      ["topBalanceWidgetHTML", "tutorBalanceDockHTML", "walletSummaryBarHTML", "sideToastInnerHTML", "emptyStateHTML", "skeletonCardHTML", "pipelineStageCardHTML", "eventLogFeedHTML"].every((fn) => typeof globalThis.EGE.kit[fn] === "function"),
+      "expected all 8 new EGE.kit widget/observability builders to be exported"
+    );
+    clickAction(env5, { a: "bb-shell-role", role: "student", v: "student" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("Режим: Ученик") && env5.elements.get("main").innerHTML.includes("Текущий баланс ученика"), "expected bb-shell-role=student to switch shell widget previews to student mode");
+    clickAction(env5, { a: "bb-shell-role", role: "tutor", v: "tutor" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("Режим: Преподаватель") && env5.elements.get("main").innerHTML.includes("Доступно к выводу"), "expected bb-shell-role=tutor to switch shell widget previews back to tutor mode");
+    clickAction(env5, { a: "bb-pipe-filter", v: "polars" });
+    await flushMicrotasks(2);
+    const bbPolarsHtml = env5.elements.get("main").innerHTML;
+    assert(bbPolarsHtml.includes("Polars M4 Pro · Medallion ETL") && !bbPolarsHtml.includes("Airflow DAG · Orchestration"), "expected bb-pipe-filter=polars to filter pipeline cards and event log");
+    clickAction(env5, { a: "bb-pipe-filter", v: "all" });
+    await flushMicrotasks(2);
+    const bbAllPipeHtml = env5.elements.get("main").innerHTML;
+    assert(bbAllPipeHtml.includes("PostgreSQL 17 · OLTP + Outbox") && bbAllPipeHtml.includes("Grafana BI · Observability") && bbAllPipeHtml.includes("Kafka Clickstream"), "expected bb-pipe-filter=all to show all 5 Data & Observability stages");
+    assert(
+      !read("ux-ui/brandbook/brandbook.js").includes("Вывести 95%") &&
+      !read("ux-ui/components/kit.js").includes("Вывести 95%") &&
+      !read("frontend/index.html").toLowerCase().includes("#13794b"),
+      "expected zero occurrences of Вывести 95% in ux-ui and zero #13794b in index.html"
+    );
     clickAction(env5, { a: "bb-essay-tab", idx: "1", v: "1" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes('data-a="bb-essay-tab" data-idx="1" data-v="1" aria-pressed="true"'), "expected bb-essay-tab to switch AI essay breakdown tab");
@@ -1747,6 +1781,11 @@
     await flushMicrotasks(3);
     const wBefore = globalThis.EGE.views.tutorCabinet.getWalletSummary();
     const wBeforeLabel = wBefore.availableRub.toLocaleString("ru-RU") + " ₽";
+    assert(
+      globalThis.EGE.views.tutorCabinet.desktopDockHTML() === globalThis.EGE.kit.tutorBalanceDockHTML({ availableRub: wBefore.availableRub, escrowRub: wBefore.escrowRub, action: "tc-payout-open" }) &&
+      globalThis.EGE.views.tutorCabinet.mobileTopWidgetHTML() === globalThis.EGE.kit.topBalanceWidgetHTML({ role: "tutor", amountRub: wBefore.availableRub, pillAction: "tc-payout-open", btnAction: "tc-payout-open" }),
+      "expected tutorCabinet desktopDockHTML() and mobileTopWidgetHTML() to delegate cleanly to EGE.kit"
+    );
     assert(
       wBefore.availableRub >= 5000 &&
       hasNum(env5.elements.get("tutor-balance-dock").innerHTML, wBeforeLabel) &&

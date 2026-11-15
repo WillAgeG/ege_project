@@ -11,6 +11,14 @@
     CATALOG_ITEMS = [],
     heroBannerHTML,
     sentNoticeHTML,
+    sideToastInnerHTML,
+    topBalanceWidgetHTML,
+    tutorBalanceDockHTML,
+    walletSummaryBarHTML,
+    emptyStateHTML,
+    skeletonCardHTML,
+    pipelineStageCardHTML,
+    eventLogFeedHTML,
     sakhaButtonsHTML,
     marqueePillsHTML,
     rateBenchCardHTML,
@@ -57,6 +65,8 @@
     "bb-mask-trainer": "app",
     "bb-data-viz": "app",
     "bb-payments": "app",
+    "bb-ui-kit-shells": "app",
+    "bb-telemetry-etl": "app",
     "bb-ege-timers": "app",
     "bb-a11y": "controls",
     "bb-sliders": "layout",
@@ -125,7 +135,9 @@
     payInitialDone: false,
     tablePreset: "requests",
     confirmedRows: {},
-    essayOpenIdx: 0
+    essayOpenIdx: 0,
+    shellRole: "tutor",
+    pipeFilter: "all"
   };
 
   function ensureBrandbookState(ui) {
@@ -1524,24 +1536,19 @@
 
           <div class="bb-pay-dock-preview">
             <div class="bb-pay-dock-card">
-              <span class="small muted">Desktop · Низ левого сайдбара</span>
-              <div class="row between" style="gap:8px;align-items:center">
-                <div class="stack" style="gap:2px">
-                  <span class="small muted">К выводу (95%)</span>
-                  <b class="num" style="font-size:18px;color:var(--confirm)">11 400 ₽</b>
-                </div>
-                <button type="button" class="btn confirm sm" data-a="bb-demo-toast">Вывести 95%</button>
-              </div>
+              <span class="small muted">Desktop · Справа снизу (#tutor-balance-dock)</span>
+              ${tutorBalanceDockHTML
+                ? tutorBalanceDockHTML({ availableRub: 11400, escrowRub: 1140, action: "bb-demo-toast", inlinePreview: true })
+                : ""}
               <span class="small muted">Чек НПД · ${payMethod === "card" ? "Карта Мир ••4812" : "СБП +7 (914) 210-05-11"}</span>
             </div>
 
             <div class="bb-pay-dock-card">
-              <span class="small muted">Mobile · Справа в топбаре</span>
-              <div class="bb-pay-mobile-pill">
-                <span class="small num"><b>5 000 ₽</b></span>
-                <span class="bb-pay-plus-btn" aria-hidden="true">+</span>
-              </div>
-              <span class="small muted">Кнопка <code>+</code> 28 px без обрезания</span>
+              <span class="small muted">Mobile · Справа в топбаре (#top-balance-slot)</span>
+              ${topBalanceWidgetHTML
+                ? topBalanceWidgetHTML({ role: "tutor", amountRub: 11400, pillAction: "bb-demo-toast", btnAction: "bb-demo-toast" })
+                : ""}
+              <span class="small muted">Единый компонент <code>EGE.kit.topBalanceWidgetHTML</code> · кнопка «Вывести»</span>
             </div>
           </div>
 
@@ -1551,6 +1558,211 @@
           </div>
         </div>
       </div>
+    </section>`;
+  }
+
+  function uiKitShellsSectionHTML(bb) {
+    const role = bb.shellRole === "student" ? "student" : "tutor";
+    const isTutor = role === "tutor";
+    const topBalHtml = topBalanceWidgetHTML
+      ? topBalanceWidgetHTML({
+          role,
+          amountRub: isTutor ? 11400 : 5000,
+          pillAction: "bb-demo-toast",
+          btnAction: "bb-demo-toast"
+        })
+      : "";
+    const dockHtml = tutorBalanceDockHTML
+      ? tutorBalanceDockHTML({
+          availableRub: 11400,
+          escrowRub: 1140,
+          action: "bb-demo-toast",
+          inlinePreview: true
+        })
+      : "";
+    const walletHtml = walletSummaryBarHTML
+      ? walletSummaryBarHTML(
+          isTutor
+            ? {
+                extraClass: "tc-payout-wallet",
+                label: "Доступно к выводу",
+                amountRub: 11400,
+                amountClass: "num",
+                amountStyle: "font-size:22px;line-height:1.15;font-weight:700;color:var(--ink)",
+                subNote: "95% после 5% комиссии сервиса · СБП / Мир",
+                badge: { text: "В резерве: 1 140 ₽", cls: "confirm num" }
+              }
+            : {
+                label: "Текущий баланс ученика",
+                amountRub: 5000,
+                inlineNote: "доступны пробный урок 0 ₽ и отклики",
+                subNote: "Демо-режим · готово к подключению СБП / ЮKassa",
+                actions: [
+                  { label: "Пополнить баланс", action: "bb-demo-toast", icon: "wallet", cls: "btn soft sm" }
+                ]
+              }
+        )
+      : "";
+    const toastHtml = sideToastInnerHTML
+      ? sideToastInnerHTML({
+          title: isTutor ? "Новая заявка · 1 100 ₽/ч" : "Предложение отправлено",
+          message: isTutor ? "Айтал Н. выбрал субботу 14:00 (Биология · Онлайн)" : "Ожидаем подтверждения от репетитора — уведомим сразу",
+          closeAction: "bb-demo-toast"
+        })
+      : "";
+    const emptyHtml = emptyStateHTML
+      ? emptyStateHTML({
+          title: isTutor ? "Новых заявок пока нет" : "По фильтрам нет анкет",
+          subtitle: isTutor ? "Откройте слоты 10:00–20:00 или поднимите анкету (раз в 4 ч)." : "Ослабьте ограничение ставки или сбросьте выбранный час.",
+          actionLabel: isTutor ? "Открыть календарь" : "Сбросить фильтры",
+          action: "bb-demo-toast",
+          iconName: isTutor ? "cal" : "search"
+        })
+      : "";
+    const skelHtml = skeletonCardHTML
+      ? skeletonCardHTML({
+          title: isTutor ? "Загрузка ленты заявок…" : "Подбор анкет по ставке…",
+          badge: "1.6 s shimmer",
+          footer: "Единый компонент EGE.kit.skeletonCardHTML() для всех вьюх."
+        })
+      : "";
+
+    return `<section class="land-sec" id="bb-ui-kit-shells" aria-label="Единые Shell-виджеты сайта из EGE.kit">
+      <div class="land-sec-head">
+        <div>
+          <div class="eyebrow">Раздел 12 · Унификация Shell-виджетов · Single Source of Truth</div>
+          <h2 class="h2">12 · Единые Shell-виджеты сайта из EGE.kit</h2>
+        </div>
+        <div class="hh-seg" role="group" aria-label="Роль для предпросмотра Shell-виджетов">
+          <button type="button" data-a="bb-shell-role" data-role="student" aria-pressed="${!isTutor}">Ученик</button>
+          <button type="button" data-a="bb-shell-role" data-role="tutor" aria-pressed="${isTutor}">Преподаватель</button>
+        </div>
+      </div>
+
+      <div class="bb-shells-grid">
+        <div class="card pad bb-shell-card">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <b>topBalanceWidgetHTML &amp; tutorBalanceDockHTML</b>
+            <span class="bb-spec-pill">${isTutor ? "Режим: Преподаватель" : "Режим: Ученик"}</span>
+          </div>
+          <div class="bb-shell-stage">
+            <span class="small muted">Топбар / Сайдбар (<code>EGE.kit.topBalanceWidgetHTML</code>)</span>
+            ${topBalHtml}
+          </div>
+          <div class="bb-shell-stage">
+            <span class="small muted">Desktop-док справа снизу (<code>EGE.kit.tutorBalanceDockHTML</code>)</span>
+            ${dockHtml}
+          </div>
+        </div>
+
+        <div class="card pad bb-shell-card">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <b>walletSummaryBarHTML &amp; sideToastInnerHTML</b>
+            <span class="bb-spec-pill confirm">Shared across app.js / market / cabinet</span>
+          </div>
+          ${walletHtml}
+          <div class="bb-shell-toast-box">
+            ${toastHtml}
+          </div>
+        </div>
+
+        ${emptyHtml}
+        ${skelHtml}
+      </div>
+    </section>`;
+  }
+
+  function telemetryEtlSectionHTML(bb) {
+    const activeFilter = bb.pipeFilter || "all";
+    const filterChips = [
+      ["all", "Все стадии"],
+      ["postgres", "PostgreSQL 17"],
+      ["polars", "Polars M4 Pro"],
+      ["airflow", "Airflow DAG"],
+      ["kafka", "Kafka Clickstream"]
+    ];
+    const stages = [
+      {
+        engine: "postgres",
+        title: "PostgreSQL 17 · OLTP + Outbox",
+        stage: "OLTP / CDC",
+        status: "ok",
+        statusLabel: "Healthy",
+        latencyMs: "4.2 ms",
+        throughput: "1 850 rows/s",
+        freshness: "< 1 s",
+        target: "oltp.lesson_requests · outbox.kafka_outbox",
+        notes: "Транзакционное ядро анкет, торгов ±100 ₽, эскроу 95%/5% и outbox-таблица."
+      },
+      {
+        engine: "polars",
+        title: "Polars M4 Pro · Medallion ETL",
+        stage: "Bronze → Silver → Gold",
+        status: "ok",
+        statusLabel: "Batch OK",
+        latencyMs: "38 ms",
+        throughput: "120k rows/s",
+        freshness: "5 min",
+        target: "gold/subject_price_mart.parquet · silver.tutors_dedup",
+        notes: "LazyFrame-дедупликация анкет Ykt/TG/WA/MAX и расчёт витрин GMV."
+      },
+      {
+        engine: "airflow",
+        title: "Airflow DAG · Orchestration",
+        stage: "Hourly + Daily",
+        status: "ok",
+        statusLabel: "SLA 100%",
+        latencyMs: "1.4 s",
+        throughput: "6 tasks/dag",
+        freshness: "15 min",
+        target: "dag: vektor_medallion_hourly",
+        notes: "Оркестрация проверок качества данных, пересчёта воронки и выгрузки витрин."
+      },
+      {
+        engine: "kafka",
+        title: "Kafka Clickstream · Event Bus",
+        stage: "Streaming",
+        status: "pending",
+        statusLabel: "Backlog #7",
+        latencyMs: "11 ms",
+        throughput: "4.6k msg/s",
+        freshness: "Realtime",
+        target: "vektor.user.clickstream.v1 · vektor.market.bids.v1",
+        notes: "Стриминг пользовательских действий (/api/events/batch, sendBeacon) и ставок."
+      },
+      {
+        engine: "grafana",
+        title: "Grafana BI · Observability",
+        stage: "Dashboards",
+        status: "info",
+        statusLabel: "Live Metrics",
+        latencyMs: "28 ms",
+        throughput: "24 panels",
+        freshness: "10 s",
+        target: "gold.daily_gmv_metrics · gold.clickstream_funnel",
+        notes: "Мониторинг конверсии тарифов, времени отклика, SLA эскроу и бенчмарков движков."
+      }
+    ];
+    const visibleStages = activeFilter === "all"
+      ? stages
+      : stages.filter((s) => s.engine === activeFilter);
+
+    return `<section class="land-sec" id="bb-telemetry-etl" aria-label="Data & Observability UI Kit: Пайплайны ETL/ELT и Поток логов">
+      <div class="land-sec-head">
+        <div>
+          <div class="eyebrow">Раздел 13 · Data &amp; Observability UI Kit</div>
+          <h2 class="h2">13 · Data &amp; Observability UI Kit: Пайплайны ETL/ELT и Поток логов</h2>
+        </div>
+        <div class="chip-rail" role="group" aria-label="Фильтр стадий ETL/ELT">
+          ${filterChips.map(([fid, flbl]) => `<button type="button" class="chip-btn${activeFilter === fid ? " on" : ""}" data-a="bb-pipe-filter" data-v="${fid}">${esc(flbl)}</button>`).join("")}
+        </div>
+      </div>
+
+      <div class="bb-pipe-grid">
+        ${pipelineStageCardHTML ? visibleStages.map((st) => pipelineStageCardHTML(st)).join("") : ""}
+      </div>
+
+      ${eventLogFeedHTML ? eventLogFeedHTML({ filterEngine: activeFilter, maxItems: 6 }) : ""}
     </section>`;
   }
 
@@ -1958,6 +2170,8 @@
       ["bb-mask-trainer", "Маски контактов"],
       ["bb-data-viz", "Линия, Круг, Таблица"],
       ["bb-payments", "Эквайринг и выплаты"],
+      ["bb-ui-kit-shells", "Shell-виджеты"],
+      ["bb-telemetry-etl", "ETL и Логи"],
       ["bb-ege-timers", "Таймеры ЕГЭ и ИИ"],
       ["bb-a11y", "Фокус и A11y"],
       ["bb-sliders", "Ползунки"],
@@ -1982,6 +2196,8 @@
           <a href="#bb-cabinet" data-a="land-scroll" data-target="bb-cabinet">Кабинет</a>
           <a href="#bb-data-viz" data-a="land-scroll" data-target="bb-data-viz">Графики и таблица</a>
           <a href="#bb-payments" data-a="land-scroll" data-target="bb-payments">Оплата</a>
+          <a href="#bb-ui-kit-shells" data-a="land-scroll" data-target="bb-ui-kit-shells">Shell-виджеты</a>
+          <a href="#bb-telemetry-etl" data-a="land-scroll" data-target="bb-telemetry-etl">ETL и Логи</a>
           <a href="#bb-ege-timers" data-a="land-scroll" data-target="bb-ege-timers">ЕГЭ-2027</a>
           <a href="#bb-a11y" data-a="land-scroll" data-target="bb-a11y">A11y</a>
           <a href="#bb-dodont" data-a="land-scroll" data-target="bb-dodont">Правила</a>
@@ -2218,6 +2434,10 @@
       ${showSec("bb-data-viz") ? dataVizSectionHTML(bb) : ""}
 
       ${showSec("bb-payments") ? paymentsSectionHTML(bb) : ""}
+
+      ${showSec("bb-ui-kit-shells") ? uiKitShellsSectionHTML(bb) : ""}
+
+      ${showSec("bb-telemetry-etl") ? telemetryEtlSectionHTML(bb) : ""}
 
       ${showSec("bb-ege-timers") ? egeTimersSectionHTML(bb) : ""}
 

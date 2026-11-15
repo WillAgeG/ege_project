@@ -11,7 +11,7 @@
 ### Публичные и внутренние экраны (`VIEWS` в [frontend/app.js](frontend/app.js))
 
 - **Лендинг** (`/landing`, `landing`) — герой-секция с баннером Ленских столбов (`/assets/lena-pillars.jpg`), интерактивный калькулятор ставки `±100 ₽`, витрина репетиторов, бегущая строка тарифов, FAQ, блок с якутскими узорами «Оһуор».
-- **Брендбук / UI Kit** (`/brandbook`, `brandbook`) — живая документация дизайн-системы (`23` карточки каталога `EGE.kit.CATALOG_ITEMS`): 40 анимируемых SVG-иконок, 6 видов графиков + линейные/круговые графики, супер-адаптивные schema-driven таблицы (`EGE.charts.dataTableHTML` с `@container`-карточками), интерактивные селекты и паттерны кабинета, живой тренажёр масок контактов (`#bb-mask-trainer`), экраны эквайринга и выплат (`#bb-payments`), таймеры ЕГЭ-2027 с ИИ-разбором задания 27 (`#bb-ege-timers`) и доступность (`#bb-a11y`, карта `:focus-visible`, горячие клавиши и `reduced-motion`).
+- **Брендбук / UI Kit** (`/brandbook`, `brandbook`) — живая документация дизайн-системы (`25` карточек каталога `EGE.kit.CATALOG_ITEMS`): 40 анимируемых SVG-иконок, 6 видов графиков + линейные/круговые графики, супер-адаптивные schema-driven таблицы (`EGE.charts.dataTableHTML` с `@container`-карточками), интерактивные селекты и паттерны кабинета, живой тренажёр масок контактов (`#bb-mask-trainer`), экраны эквайринга и выплат (`#bb-payments`), единые Shell-виджеты сайта (`#bb-ui-kit-shells`), Data & Observability UI Kit для ETL/ELT-стадий и потока логов (`#bb-telemetry-etl`), таймеры ЕГЭ-2027 с ИИ-разбором задания 27 (`#bb-ege-timers`) и доступность (`#bb-a11y`, карта `:focus-visible`, горячие клавиши и `reduced-motion`).
 - **Оплата и комиссия** (`/fees`, `fees`) — правила пополнения баланса ученика, тарифов, сервисного сбора `5%` (не показывается на этапе подбора, только на `/fees` и при оплате), а в режиме преподавателя — раздел **«Выплаты»** с KPI кошелька и адаптивной историей выводов (`#tc-payout-history`).
 - **Правовая информация** (`/privacy`) — статическая HTML-страница политики конфиденциальности, отдаваемая напрямую FastAPI.
 - **Учебный и маркетплейс-контуры**:
@@ -40,6 +40,8 @@
 Preparation/
 ├── GEMINI.md                     # Этот документ (полный архитектурный справочник)
 ├── ARCHITECTURE.md               # Краткая схема слоёв, HTTP-потока и инвариантов
+├── ROADMAP_UNCONNECTED.md        # Бэклог из 12 неподключённых к живому сайту систем, JSON-конверт и 5 Kafka-топиков
+├── REPOSITORIES.md               # Карта всех 5 независимых репозиториев, порты, скрипты запуска и поток данных
 ├── README.md                     # Быстрый старт и переменные окружения
 ├── Dockerfile                    # python:3.13-slim; копирует ux-ui, frontend, backend, databases; 1 worker
 ├── requirements.txt              # Web-зависимости контейнера (fastapi, uvicorn, httpx)
@@ -146,11 +148,14 @@ UI Kit полностью отделён от домена ЕГЭ и марке�
    - `chartDatasetBars(dsId)`, `smoothTrendPath(pts)` (кубическая кривая Безье для комбо-тренда `.tc-combo-line`).
    - `stickChartHTML`, `lineChartHTML` (линейный + area SVG), `DONUT_DATASETS`, `donutChartHTML` (`stroke-linecap="butt"`, без лишних штрихов и с внешним кольцом-индикатором `.bb-donut-outer-ring`), `TABLE_ROWS`, `TABLE_PRESETS` (`requests`, `payouts`, `exams`), `dataTableHTML(opts)` (универсальная schema-driven таблица: 3/5/7 колонок или кастомные `columns`/`rows`, поиск и фильтрация, `cardWrap: false`, подтверждение строк и автоматическая `@container`/`@media`-трансформация в мобильные карточки с `td[data-label]`).
 4. **[ux-ui/components/kit.js](ux-ui/components/kit.js) → `window.EGE.kit`**
-   - Реестр `CATALOG_CATEGORIES` / `CATALOG_ITEMS` (`23` элемента), переиспользуемые лендинг-блоки (`heroBannerHTML`, `searchStripHTML`, `sentNoticeHTML`, `sakhaButtonsHTML`, `marqueePillsHTML`, `rateBenchCardHTML`, `trustStripHTML`, `reviewCardHTML`, `faqListHTML`, `blueBannerHTML`).
+   - Реестр `CATALOG_CATEGORIES` / `CATALOG_ITEMS` (`25` элементов), переиспользуемые лендинг-блоки (`heroBannerHTML`, `searchStripHTML`, `sentNoticeHTML`, `sakhaButtonsHTML`, `marqueePillsHTML`, `rateBenchCardHTML`, `trustStripHTML`, `reviewCardHTML`, `faqListHTML`, `blueBannerHTML`).
+   - Единые Shell-виджеты сайта и системных состояний (используются в `frontend/app.js`, `frontend/views/marketplace.js`, `frontend/views/tutor-cabinet.js` и `/brandbook`): `topBalanceWidgetHTML` (`student` / `tutor`), `tutorBalanceDockHTML` (с `inlinePreview` для стендов), `walletSummaryBarHTML`, `sideToastInnerHTML`, `emptyStateHTML`, `skeletonCardHTML`.
+   - Data & Observability UI Kit компоненты для витрины пайплайнов и кликстрима: `pipelineStageCardHTML` (`PostgreSQL 17`, `Polars M4 Pro`, `Airflow DAG`, `Kafka Clickstream`, `Grafana BI`) и `eventLogFeedHTML`.
    - Единая каноническая логика контактов и мессенджеров (WA / TG / MAX): `normalizePhoneDigits`, `formatPhoneMask` (`+7 (XXX) XXX-XX-XX`), `formatTelegramContact` (телефон или `@login`), `entitySlug`, `whatsappUrl`, `telegramUrl`, `maxUrl`, `resolveMessengerUrls`, `messengerLinksHTML`.
    - Ре-экспортирует `EGE.charts` хэлперы и `TABLE_PRESETS` без дублирования кода.
 5. **[ux-ui/brandbook/brandbook.js](ux-ui/brandbook/brandbook.js) → `window.EGE.views.brandbook`**
-   - Рендерит `/brandbook` (передаваемый опционально `{ inside: true }`), включая разделы `#bb-mask-trainer`, `#bb-payments`, `#bb-ege-timers` и `#bb-a11y`, и обрабатывает интерактивные состояния (типы графиков, датасеты, пресеты и подтверждение строк таблицы, тренажёр масок, эскроу/пороги оплаты, вкладки разбора сочинения, мультиселект, анимации и `reduced-motion`).
+   - Рендерит `/brandbook` (передаваемый опционально `{ inside: true }`), включая разделы `#bb-mask-trainer`, `#bb-payments`, `#bb-ui-kit-shells`, `#bb-telemetry-etl`, `#bb-ege-timers` и `#bb-a11y`, и обрабатывает интерактивные состояния (типы графиков, датасеты, пресеты и подтверждение строк таблицы, тренажёр масок, эскроу/пороги оплаты, переключение роли Shell-виджетов `bb-shell-role`, фильтр стадий ETL `bb-pipe-filter`, вкладки разбора сочинения, мультиселект, анимации и `reduced-motion`).
+   - Дорожная карта дальнейших интеграций и мульти-репозиторная карта описаны в [ROADMAP_UNCONNECTED.md](ROADMAP_UNCONNECTED.md) и [REPOSITORIES.md](REPOSITORIES.md).
 
 ---
 

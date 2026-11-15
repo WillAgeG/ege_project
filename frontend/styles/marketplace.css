@@ -71,15 +71,6 @@ body[data-auth="1"] .auth-wrap { margin: 8vh auto; padding: 0 16px; }
   background: var(--accent-soft); color: var(--accent); font-family: var(--font-mono); font-weight: 600; font-size: 13px;
 }
 
-/* кошелёк / статус баланса */
-.wallet-bar {
-  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 14px 16px; border-radius: var(--r);
-  background: linear-gradient(135deg, var(--surface) 0%, var(--accent-soft) 160%);
-  border: 1px solid var(--line-strong);
-}
-.wallet-num { font-family: var(--font-display); font-size: 20px; font-weight: 700; color: var(--accent); }
-
 /* фильтры и кружковый календарь */
 .mkt-controls { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; }
 .mkt-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 14px; min-width: 0; }
@@ -1359,65 +1350,7 @@ body[data-auth="1"] .auth-wrap { margin: 8vh auto; padding: 0 16px; }
   .tc-bar-val { font-size: 10px; }
 }
 
-/* Teacher balance dock, mobile payout widget & payouts UI */
-#tutor-balance-dock:empty { display: none; }
-.tutor-bal-dock {
-  position: fixed;
-  right: 22px;
-  bottom: 20px;
-  z-index: 45;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
-  border: 1px solid color-mix(in srgb, var(--gold, #c59b5f) 42%, var(--line));
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.14), 0 0 0 1px color-mix(in srgb, var(--gold, #c59b5f) 14%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  max-width: calc(100vw - 44px);
-}
-.tutor-bal-dock .tutor-bal-dock {
-  position: static;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  max-width: none;
-}
-.tutor-bal-ico {
-  width: 36px;
-  height: 36px;
-  border-radius: 11px;
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  background: color-mix(in srgb, var(--gold, #c59b5f) 16%, var(--surface-2));
-  color: var(--gold, #c59b5f);
-  border: 1px solid color-mix(in srgb, var(--gold, #c59b5f) 34%, transparent);
-}
-.tutor-bal-ico svg { width: 18px; height: 18px; }
-.tutor-bal-meta { display: grid; gap: 1px; min-width: 0; }
-.tutor-bal-lbl { font-size: 11px; font-weight: 600; color: var(--muted); line-height: 1.2; white-space: nowrap; }
-.tutor-bal-val { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; line-height: 1.25; }
-.tutor-bal-val b { font-size: 16px; font-weight: 800; color: var(--ink); letter-spacing: -0.01em; }
-.tutor-bal-escrow { font-size: 11.5px; font-weight: 600; color: var(--confirm); white-space: nowrap; }
-
-.top-bal-pill.is-tutor {
-  border-color: color-mix(in srgb, var(--gold, #c59b5f) 46%, var(--line));
-  background: color-mix(in srgb, var(--gold, #c59b5f) 12%, var(--surface-2));
-  color: var(--ink);
-}
-.top-bal-pill.is-tutor svg { color: var(--gold, #c59b5f); }
-.top-bal-btn.is-payout {
-  background: var(--confirm);
-  color: #fff;
-  border-color: transparent;
-}
-.top-bal-btn.is-payout:hover { filter: brightness(1.06); }
+/* Payouts UI (shared dock & topbar pill styles moved to ux-ui/styles/base.css) */
 
 .tc-payout-wallet {
   display: flex;
@@ -1485,8 +1418,6 @@ body[data-auth="1"] .auth-wrap { margin: 8vh auto; padding: 0 16px; }
   font-weight: 600;
 }
 @media (max-width: 680px) {
-  #tutor-balance-dock,
-  .tutor-bal-dock { display: none !important; }
   .tc-payout-kpis { grid-template-columns: minmax(0, 1fr); }
   .tc-payout-grid { grid-template-columns: minmax(0, 1fr); }
 }

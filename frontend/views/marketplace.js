@@ -604,7 +604,17 @@
         ${TDATA.SUBJECTS.filter((sb) => sb.id !== st.subject).map((sb) => `<button type="button" class="chip-btn" data-a="mkt-subj" data-v="${sb.id}">+ ${esc(sb.short)}</button>`).join("")}
       </div>
 
-      <div class="wallet-bar">
+      ${(EGE.kit && typeof EGE.kit.walletSummaryBarHTML === "function")
+        ? EGE.kit.walletSummaryBarHTML({
+            labelHTML: `Тариф: <b style="color:var(--ink)">${esc(activePlan.name)}</b>`,
+            amountRub: st.balance,
+            inlineNote: hasMinBalance(st) ? "доступны пробный урок 0 ₽ и отклики" : "минимум 5 000 ₽ на балансе для пробного урока и записи",
+            actions: [
+              { label: "Пополнить баланс", action: "bal-open", icon: "wallet", cls: `btn ${hasMinBalance(st) ? "soft" : ""} sm` },
+              { label: "Ищу преподавателя", action: "go-student-lead", icon: "plus", cls: "btn soft sm" }
+            ]
+          })
+        : `<div class="wallet-bar">
         <div class="stack" style="gap:2px">
           <span class="small muted">Тариф: <b style="color:var(--ink)">${esc(activePlan.name)}</b></span>
           <div class="row" style="gap:10px;align-items:baseline;flex-wrap:wrap">
@@ -616,7 +626,7 @@
           <button type="button" class="btn ${hasMinBalance(st) ? "soft" : ""} sm" data-a="bal-open">${icon("wallet")}<span>Пополнить баланс</span></button>
           <button type="button" class="btn soft sm" data-a="go-student-lead">${icon("plus")}<span>Ищу преподавателя</span></button>
         </div>
-      </div>
+      </div>`}
 
       ${bookingsStripHTML(st)}
 
