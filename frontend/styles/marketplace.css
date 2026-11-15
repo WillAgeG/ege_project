@@ -1254,10 +1254,24 @@ body[data-auth="1"] .auth-wrap { margin: 8vh auto; padding: 0 16px; }
   content: ""; position: absolute; top: 50%; left: -3px; right: -3px;
   height: 2px; border-radius: 2px; background: var(--surface-2);
 }
-.tc-bar-chart.is-segmented .tc-bar-fill {
-  width: 10px; border-radius: 4px;
-  -webkit-mask-image: repeating-linear-gradient(to top, #000 0 6px, transparent 6px 8px);
-  mask-image: repeating-linear-gradient(to top, #000 0 6px, transparent 6px 8px);
+.tc-bar-chart.is-combo { position: relative; padding: 12px 10px 6px; }
+.tc-bar-chart.is-combo .tc-bar-lbl { height: 16px; line-height: 16px; }
+.tc-bar-chart.is-combo .tc-bar-track { height: 92px; }
+.tc-bar-chart.is-combo .tc-bar-fill { width: 5px; border-radius: 999px; opacity: .72; }
+.tc-combo-svg {
+  position: absolute; left: 10px; width: calc(100% - 20px); bottom: 27px; height: 92px;
+  pointer-events: none; z-index: 2; overflow: visible;
+}
+.tc-combo-dot {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--accent); border: 2px solid var(--surface-2);
+  z-index: 4; pointer-events: none;
+  box-shadow: 0 2px 6px -1px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.tc-combo-dot.is-gold {
+  background: #c59b5f;
+  box-shadow: 0 2px 6px -1px rgba(197, 155, 95, .65);
 }
 .tc-bar-lbl { font-size: 12px; font-weight: 600; color: var(--ink-2); }
 .tc-student-card {

@@ -168,7 +168,14 @@
           <div class="small ink2">${esc(bk.dayLabel)} в ${esc(bk.hour)} (${esc(bk.format)}) · ${isTrial ? '<b class="num">Пробный урок (0 ₽)</b>' : `твоя ставка <b class="num">${bk.offerPrice} ₽/ч</b> <span class="muted">(вместо ${bk.tutorPrice} ₽)</span>`}</div>
         </div>
         <div class="row" style="gap:8px;flex-wrap:wrap">
-          ${accepted ? `<a class="btn confirm sm" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>Написать</span></a>` : ""}
+          ${accepted ? (EGE.kit && typeof EGE.kit.messengerLinksHTML === "function"
+            ? EGE.kit.messengerLinksHTML({
+                entity: tutor || { id: bk.tutorId, name: bk.tutorName, subjectName: bk.subjectName, whatsapp: "79142100101" },
+                message: `Здравствуйте, ${bk.tutorName}! Напоминаю про занятие (${bk.subjectName}, ${bk.dayLabel} в ${bk.hour}, ${isTrial ? "пробный урок 0 ₽" : "ставка " + bk.offerPrice + " ₽/ч"}).`,
+                primaryLabel: "Написать · WA",
+                compact: true
+              })
+            : `<a class="btn confirm sm" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>Написать</span></a>`) : ""}
           ${!accepted ? `<button type="button" class="btn soft sm" data-a="mkt-sim-accept" data-id="${esc(bk.id)}">Тест: подтвердить</button>` : ""}
           <button type="button" class="btn ${accepted ? "ghost" : "danger bb-btn-adaptive"} sm" data-a="mkt-cancel-book" data-id="${esc(bk.id)}">${accepted ? "Сменить репетитора" : "Отменить"}</button>
         </div>
@@ -789,7 +796,7 @@
       </div>
       <div class="chip-rail">
         <button type="button" class="chip-btn${tab === "week" ? " on" : ""}" data-a="study-tab" data-tab="week">График (${st.bookings.length})</button>
-        <button type="button" class="chip-btn${tab === "chats" ? " on" : ""}" data-a="study-tab" data-tab="chats">Чаты WhatsApp (${bookedList.length})</button>
+        <button type="button" class="chip-btn${tab === "chats" ? " on" : ""}" data-a="study-tab" data-tab="chats">Чаты · WA · TG · MAX (${bookedList.length})</button>
         <button type="button" class="chip-btn${tab === "plan" ? " on" : ""}" data-a="study-tab" data-tab="plan">План ЕГЭ</button>
       </div>`;
 
@@ -802,7 +809,7 @@
         return `${header}
           <div class="empty">
             <b>Пока нет преподавателей, к которым вы записаны</b>
-            <span>Выберите преподавателя во вкладке «Репетиторы» — после записи здесь появятся прямые чаты WhatsApp.</span>
+            <span>Выберите преподавателя во вкладке «Репетиторы» — после записи здесь появятся прямые чаты WhatsApp, Telegram и MAX.</span>
             <button type="button" class="btn sm" data-a="go" data-v="market">Перейти в «Репетиторы»</button>
           </div>
           ${studentLeadCardHTML(TDATA, ui)}`;
@@ -811,14 +818,15 @@
       const rows = sorted.map(({ tutor: t, booking: bk }) => {
         const isTrial = !!bk.isTrial || Number(bk.offerPrice) === 0;
         const slot = `${bk.dayLabel}, ${bk.hour}`;
-        const waHref = TDATA.whatsappUrl(
-          t,
-          `Здравствуйте, ${t.name}! Пишу по поводу занятия ${bk.dayLabel} в ${bk.hour} (${bk.subjectName}, ${isTrial ? "пробный урок 0 ₽" : "ставка " + bk.offerPrice + " ₽/ч"}).`
-        );
+        const msgTxt = `Здравствуйте, ${t.name}! Пишу по поводу занятия ${bk.dayLabel} в ${bk.hour} (${bk.subjectName}, ${isTrial ? "пробный урок 0 ₽" : "ставка " + bk.offerPrice + " ₽/ч"}).`;
+        const waHref = TDATA.whatsappUrl(t, msgTxt);
         const statusTxt = bk.status === "accepted"
-          ? "Подтверждён · WhatsApp"
+          ? "Подтверждён · выберите мессенджер"
           : (isTrial ? "Запрос на пробный 0 ₽" : `Отклик ${bk.offerPrice} ₽/ч`);
-        return `<a class="hh-chat-row" href="${esc(waHref)}" target="_blank" rel="noopener">
+        const msgBar = (EGE.kit && typeof EGE.kit.messengerLinksHTML === "function")
+          ? EGE.kit.messengerLinksHTML({ entity: t, message: msgTxt, primaryLabel: "WhatsApp", compact: true })
+          : `<a class="btn confirm sm" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>WhatsApp</span></a>`;
+        return `<div class="hh-chat-row">
           ${tutorAvatarHTML(t)}
           <div style="min-width:0">
             <div class="row" style="gap:6px;flex-wrap:nowrap">
@@ -828,16 +836,16 @@
             <div class="small muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(bk.subjectName || t.subjectName)} · ${isTrial ? "пробный 0 ₽" : `от ${t.price} ₽/ч`}</div>
             <div class="small" style="color:${bk.status === "accepted" ? "var(--leaf)" : "var(--accent)"}">${esc(statusTxt)}</div>
           </div>
-          <div class="stack" style="gap:4px;justify-items:end">
+          <div class="stack" style="gap:6px;justify-items:end">
             <span class="small muted num">${esc(slot)}</span>
-            <span class="btn confirm sm">${icon("msg")}<span>Чат</span></span>
+            ${msgBar}
           </div>
-        </a>`;
+        </div>`;
       }).join("");
       return `${header}
         <div class="hh-notice-card">
           <b>Чаты только с вашими преподавателями</b>
-          <span class="small ink2">Здесь собраны преподаватели, к которым вы записались. Нажмите для перехода в WhatsApp с готовым текстом.</span>
+          <span class="small ink2">Здесь собраны преподаватели, к которым вы записались. Нажмите для перехода в WhatsApp, Telegram или MAX с готовым текстом.</span>
         </div>
         <div class="hh-chat-list">${rows}</div>`;
     }
@@ -894,7 +902,14 @@
                   <div class="small muted num">${esc(bk.hour)} · ${esc(bk.format)} · ${isTrial ? "Пробный 0 ₽" : `${Number(bk.offerPrice).toLocaleString("ru-RU")} ₽/ч`}</div>
                 </div>
                 <div class="row" style="gap:6px;flex-wrap:wrap">
-                  <a class="btn confirm sm" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>WhatsApp</span></a>
+                  ${(EGE.kit && typeof EGE.kit.messengerLinksHTML === "function")
+                    ? EGE.kit.messengerLinksHTML({
+                        entity: tutor,
+                        message: `Здравствуйте, ${bk.tutorName}! Пишу по уроку на ${d.fullLabel} (${bk.hour}), предмет — ${bk.subjectName}.`,
+                        primaryLabel: "WhatsApp",
+                        compact: true
+                      })
+                    : `<a class="btn confirm sm" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>WhatsApp</span></a>`}
                 </div>
               </div>`;
             }).join("");

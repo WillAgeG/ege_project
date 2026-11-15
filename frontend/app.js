@@ -845,7 +845,7 @@
     motion: { playing: true, preset: "design", step: 0, slot: "10:00", offer: 1200, sent: false, clicking: false, hitTarget: "" },
     savings: { freq: 2, marketRate: 1350, offerRate: 1000 },
     bbModal: false,
-    brandbook: { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, vpWidth: 390, chipOn: true, sent: false, fav: true, switchVal: "online", multiSubjs: ["bio", "chem"], multiMenuOpen: false, pickedPlan: "month10k", quizOpt: 1, marketDemoAccepted: false, reducedMotion: false, balFunded: true, chartStyle: "sticks", chartDataset: "income", chartActiveIdx: 3 }
+    brandbook: { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, vpWidth: 390, chipOn: true, sent: false, fav: true, switchVal: "online", multiSubjs: ["bio", "chem"], multiMenuOpen: false, pickedPlan: "month10k", quizOpt: 1, marketDemoAccepted: false, reducedMotion: false, balFunded: true, chartStyle: "sticks", chartDataset: "income", chartActiveIdx: 3, linePtIdx: 3, donutDataset: "channels", donutSliceIdx: 0, tableCols: 5, tableFilter: "all", tableSearch: "" }
   };
   const MARKET_LS_KEY = "vektor-ege:market";
   const TDATA = EGE.tutors || null;
@@ -4749,6 +4749,36 @@
       scheduleRender();
       toast("Выбран столбик №" + (bb.chartActiveIdx + 1));
     },
+    "bb-line-pt": (el) => {
+      const bb = bbState();
+      bb.linePtIdx = Math.max(0, Math.min(6, Number(el.dataset && el.dataset.idx) || 0));
+      scheduleRender();
+      toast("Точка линии №" + (bb.linePtIdx + 1));
+    },
+    "bb-donut-ds": (el) => {
+      const bb = bbState();
+      bb.donutDataset = (el.dataset && el.dataset.v) || "channels";
+      bb.donutSliceIdx = 0;
+      scheduleRender();
+      toast("Срез диаграммы обновлён");
+    },
+    "bb-donut-slice": (el) => {
+      const bb = bbState();
+      bb.donutSliceIdx = Math.max(0, Math.min(3, Number(el.dataset && el.dataset.idx) || 0));
+      scheduleRender();
+    },
+    "bb-tbl-cols": (el) => {
+      const bb = bbState();
+      const c = Number(el.dataset && el.dataset.cols);
+      bb.tableCols = [3, 5, 7].includes(c) ? c : 5;
+      scheduleRender();
+      toast("Колонок в таблице: " + bb.tableCols);
+    },
+    "bb-tbl-filter": (el) => {
+      const bb = bbState();
+      bb.tableFilter = (el.dataset && el.dataset.v) || "all";
+      scheduleRender();
+    },
     "fees-rate": (el) => {
       ui.feesRate = Math.max(600, Math.min(3500, Number(el.dataset.rate) || 800));
       scheduleRender();
@@ -4824,7 +4854,8 @@
       cancelDemoUndone: false, previewToastDismissed: false, sakhaSent: false, sakhaKunOn: false, sakhaStarOn: false,
       heroSubmitted: false, heroBetaOn: false, heroSearchSubmitted: false, heroQ: "", cat: "all", catQ: "", faqOpen: 0,
       marketDemoAccepted: false, reducedMotion: false, balFunded: true,
-      chartStyle: "sticks", chartDataset: "income", chartActiveIdx: 3
+      chartStyle: "sticks", chartDataset: "income", chartActiveIdx: 3,
+      linePtIdx: 3, donutDataset: "channels", donutSliceIdx: 0, tableCols: 5, tableFilter: "all", tableSearch: ""
     });
     if (bb.marketDemoAccepted === undefined) bb.marketDemoAccepted = false;
     if (bb.reducedMotion === undefined) bb.reducedMotion = false;
@@ -4832,6 +4863,12 @@
     if (!bb.chartStyle) bb.chartStyle = "sticks";
     if (!bb.chartDataset) bb.chartDataset = "income";
     if (bb.chartActiveIdx === undefined) bb.chartActiveIdx = 3;
+    if (bb.linePtIdx === undefined) bb.linePtIdx = 3;
+    if (!bb.donutDataset) bb.donutDataset = "channels";
+    if (bb.donutSliceIdx === undefined) bb.donutSliceIdx = 0;
+    if (!bb.tableCols) bb.tableCols = 5;
+    if (!bb.tableFilter) bb.tableFilter = "all";
+    if (bb.tableSearch === undefined) bb.tableSearch = "";
     return bb;
   }
   function applyBrandbookViewport(rawW) { return EGE.views.brandbook.applyBrandbookViewport(ui, rawW); }
@@ -5080,12 +5117,14 @@
     }
     const el = e.target.closest("[data-a]");
     if (!el || el.disabled) return;
+    const hrefAttr = el.tagName === "A" ? el.getAttribute("href") : "";
+    const isExtLink = !!(hrefAttr && !hrefAttr.startsWith("#"));
     const act = el.dataset.a;
     if (act && act.indexOf("tc-") === 0 && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.handleAction === "function") {
-      if (EGE.views.tutorCabinet.handleAction(act, el)) { e.preventDefault(); return; }
+      if (EGE.views.tutorCabinet.handleAction(act, el)) { if (!isExtLink) e.preventDefault(); return; }
     }
     const h = ACTIONS[act];
-    if (h) { e.preventDefault(); h(el, e); }
+    if (h) { if (!isExtLink) e.preventDefault(); h(el, e); }
   });
   document.addEventListener("submit", (e) => {
     const f = e.target.closest("form[data-f]");
@@ -5109,6 +5148,7 @@
     if (el.id === "hero-banner-q") { ui.heroQuickQ = el.value; return; }
     if (el.id === "bb-hero-demo-q") { bbState().heroQ = el.value; return; }
     if (el.id === "bb-catalog-q") { bbState().catQ = el.value; scheduleRender(); return; }
+    if (el.id === "bb-tbl-q") { bbState().tableSearch = el.value; scheduleRender(); return; }
     if (el.id === "landing-q") { mkt().q = el.value; saveMkt(); return; }
     if (el.id === "bug-body") {
       if (ui.bug) {

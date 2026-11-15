@@ -541,7 +541,14 @@
         <div class="row between" style="gap:8px;flex-wrap:wrap">
           <span class="small ink2">Выплата после урока: <b class="num">${sp.payout.toLocaleString("ru-RU")} ₽</b> <span class="muted">(сбор ${sp.fee} ₽)</span></span>
           <div class="row" style="gap:8px;flex-wrap:wrap">
-            <button type="button" class="btn confirm sm" data-a="tc-req-msg" data-id="${esc(req.id)}">${icon("msg")}<span>Написать ученику</span></button>
+            ${EGE.kit && typeof EGE.kit.messengerLinksHTML === "function"
+              ? EGE.kit.messengerLinksHTML({
+                  entity: { id: req.id, name: req.studentName, whatsapp: req.whatsapp || "79142100511" },
+                  message: `Здравствуйте, ${req.studentName}! Подтверждаю урок (${req.subjectName}, ${req.dayLabel} в ${req.hour}) через Вектор ЕГЭ.`,
+                  primaryLabel: "Написать ученику · WA",
+                  compact: true
+                })
+              : `<button type="button" class="btn confirm sm" data-a="tc-req-msg" data-id="${esc(req.id)}">${icon("msg")}<span>Написать ученику</span></button>`}
           </div>
         </div>` : `
         <div class="row" style="gap:8px">
@@ -1007,7 +1014,14 @@
                 </div>
                 <div class="row" style="gap:6px;flex-wrap:wrap">
                   ${!isAcc ? `<button type="button" class="btn confirm sm" data-a="tc-req-accept" data-id="${esc(lesson.id)}">Подтвердить</button>` : ""}
-                  <button type="button" class="btn soft sm" data-a="tc-req-msg" data-id="${esc(lesson.id)}">${icon("msg")}<span>Чат</span></button>
+                  ${EGE.kit && typeof EGE.kit.messengerLinksHTML === "function"
+                    ? EGE.kit.messengerLinksHTML({
+                        entity: { id: lesson.id, name: lesson.studentName, whatsapp: lesson.whatsapp || "79142100511" },
+                        message: `Здравствуйте, ${lesson.studentName}! По занятию (${lesson.subjectName}, ${h}) на платформе Вектор ЕГЭ.`,
+                        primaryLabel: "WA",
+                        compact: true
+                      })
+                    : `<button type="button" class="btn soft sm" data-a="tc-req-msg" data-id="${esc(lesson.id)}">${icon("msg")}<span>Чат</span></button>`}
                   <button type="button" class="btn ghost sm" data-a="tc-req-decline" data-id="${esc(lesson.id)}">Снять</button>
                 </div>
               </div>`;
@@ -1134,20 +1148,34 @@
                 ["sticks", "Палочки"],
                 ["lollipop", "Леденцы"],
                 ["capsule", "Капсулы"],
+                ["combo", "Тренд"],
                 ["classic", "Столбики"]
               ].map(([cid, clbl]) => `<button type="button" data-a="tc-chart-style" data-v="${cid}" aria-pressed="${(st.chartStyle || "sticks") === cid}">${clbl}</button>`).join("")}
             </div>
           </div>
-          <div class="tc-bar-chart${st.chartStyle === "classic" ? "" : ` is-${st.chartStyle || "sticks"}`}" role="img" aria-label="Диаграмма дохода по дням недели">
-            ${dayBars.map((b) => {
-              const hPct = Math.max(18, Math.round((b.rev / maxRev) * 100));
-              return `<div class="tc-bar-col">
-                <span class="tc-bar-val num">${Math.round(b.rev / 1000)}к ₽</span>
-                <div class="tc-bar-track"><div class="tc-bar-fill${b.isGold ? " is-gold" : ""}" style="height:${hPct}%"></div></div>
-                <span class="tc-bar-lbl">${b.wd}</span>
-              </div>`;
-            }).join("")}
-          </div>
+          ${(EGE.kit && typeof EGE.kit.stickChartHTML === "function")
+            ? EGE.kit.stickChartHTML(
+                st.chartStyle || "sticks",
+                dayBars.map((b) => ({
+                  wd: b.wd,
+                  val: Math.round(b.rev / 1000) + "к ₽",
+                  pct: Math.max(18, Math.round((b.rev / maxRev) * 100)),
+                  gold: !!b.isGold
+                })),
+                -1,
+                false,
+                "Диаграмма дохода по дням недели"
+              )
+            : `<div class="tc-bar-chart${st.chartStyle === "classic" ? "" : ` is-${st.chartStyle || "sticks"}`}" role="img" aria-label="Диаграмма дохода по дням недели">
+              ${dayBars.map((b) => {
+                const hPct = Math.max(18, Math.round((b.rev / maxRev) * 100));
+                return `<div class="tc-bar-col">
+                  <span class="tc-bar-val num">${Math.round(b.rev / 1000)}к ₽</span>
+                  <div class="tc-bar-track"><div class="tc-bar-fill${b.isGold ? " is-gold" : ""}" style="height:${hPct}%"></div></div>
+                  <span class="tc-bar-lbl">${b.wd}</span>
+                </div>`;
+              }).join("")}
+            </div>`}
         </div>
       </div>
 
@@ -1317,7 +1345,14 @@
                 <button type="button" class="btn ${s.autoNotify ? "gold" : "soft"} sm" data-a="tc-student-autonotify" data-id="${esc(s.id)}" aria-pressed="${!!s.autoNotify}">
                   ${icon("bell")}<span>${s.autoNotify ? "✓ Автоуведомление WhatsApp" : "Вкл. автоуведомление"}</span>
                 </button>
-                <a class="btn ghost sm" href="${esc(waHref)}" target="_blank" rel="noopener">Открыть WhatsApp →</a>
+                ${EGE.kit && typeof EGE.kit.messengerLinksHTML === "function"
+                  ? EGE.kit.messengerLinksHTML({
+                      entity: s,
+                      message: `Здравствуйте, ${s.name}! Напоминаю про занятие (${s.subject}, ${day} в ${time}) через Вектор ЕГЭ.`,
+                      primaryLabel: "WhatsApp",
+                      compact: true
+                    })
+                  : `<a class="btn ghost sm" href="${esc(waHref)}" target="_blank" rel="noopener">Открыть WhatsApp →</a>`}
               </div>
             </div>
 
@@ -1434,7 +1469,14 @@
               <span class="small muted">(на руки 95%: <b class="num savings-gold-txt">${sp.payout.toLocaleString("ru-RU")} ₽</b>)</span>
             </div>
             <div class="row" style="gap:8px;flex-wrap:wrap">
-              ${waHref ? `<a class="btn confirm sm" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>Написать ученику</span></a>` : ""}
+              ${waHref ? (EGE.kit && typeof EGE.kit.messengerLinksHTML === "function"
+                ? EGE.kit.messengerLinksHTML({
+                    entity: { id: lead.id, name: lead.studentName, whatsapp: lead.whatsapp || "79142100511" },
+                    message: `Здравствуйте, ${lead.studentName}! Вижу ваш запрос по предмету ${lead.subjectName || "ЕГЭ"}. Готов(а) провести урок по ставке ${rate} ₽/ч.`,
+                    primaryLabel: "Написать ученику · WA",
+                    compact: true
+                  })
+                : `<a class="btn confirm sm" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>Написать ученику</span></a>`) : ""}
               <button type="button" class="btn ${lead.responded ? "soft" : ""} sm" data-a="tc-lead-offer" data-id="${esc(lead.id)}">${lead.responded ? "✓ Отклик отправлен" : "Откликнуться со ставкой"}</button>
             </div>
           </div>
@@ -1970,7 +2012,7 @@
     }
 
     if (act === "tc-chart-style") {
-      st.chartStyle = ["sticks", "lollipop", "capsule", "classic"].includes(d.v) ? d.v : "sticks";
+      st.chartStyle = ["sticks", "lollipop", "capsule", "combo", "classic"].includes(d.v) ? d.v : "sticks";
       saveState();
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       return true;

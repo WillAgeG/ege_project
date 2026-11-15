@@ -814,6 +814,33 @@
     return "https://wa.me/" + phone + "?text=" + encodeURIComponent(text);
   }
 
+  function entitySlug(entity) {
+    var explicit = entity && (entity.telegram || entity.tg || entity.handle || entity.username);
+    if (explicit) return String(explicit).replace(/^@/, "").replace(/[^a-zA-Z0-9_]/g, "");
+    var idPart = String((entity && entity.id) || "").replace(/[^a-zA-Z0-9_]/g, "");
+    return idPart ? ("vektor_ege_" + idPart) : "vektor_ege_support";
+  }
+
+  function telegramUrl(entity, message) {
+    var slug = entitySlug(entity);
+    var text = message || ("Здравствуйте" + (entity && entity.name ? (", " + entity.name) : "") + "! Пишу с платформы Вектор ЕГЭ по поводу занятий.");
+    return "https://t.me/" + encodeURIComponent(slug) + "?text=" + encodeURIComponent(text);
+  }
+
+  function maxUrl(entity, message) {
+    var slug = String((entity && entity.maxHandle) || entitySlug(entity)).replace(/^@/, "");
+    var text = message || ("Здравствуйте" + (entity && entity.name ? (", " + entity.name) : "") + "! Пишу с платформы Вектор ЕГЭ.");
+    return "https://max.ru/" + encodeURIComponent(slug) + "?text=" + encodeURIComponent(text);
+  }
+
+  function messengerUrls(entity, message) {
+    return {
+      whatsapp: whatsappUrl(entity, message),
+      telegram: telegramUrl(entity, message),
+      max: maxUrl(entity, message)
+    };
+  }
+
   var LEADS_LS_KEY = "vektor-ege:student-leads";
   var DEFAULT_STUDENT_LEADS = [
     {
@@ -979,6 +1006,9 @@
     offerSignal: offerSignal,
     botPreviewText: botPreviewText,
     whatsappUrl: whatsappUrl,
+    telegramUrl: telegramUrl,
+    maxUrl: maxUrl,
+    messengerUrls: messengerUrls,
     subjectNamesForIds: subjectNamesForIds,
     getStudentLeads: getStudentLeads,
     addStudentLead: addStudentLead,

@@ -1054,10 +1054,42 @@
       bbChartsHtml.includes("tc-bar-chart is-capsule") &&
       bbChartsHtml.includes("tc-bar-chart is-dual") &&
       bbChartsHtml.includes("tc-bar-chart is-range") &&
-      bbChartsHtml.includes("tc-bar-chart is-segmented") &&
-      bbChartsHtml.includes("bb-spark-sticks"),
-      "expected 6 stick-chart variants + sparkline showcase in #bb-charts"
+      bbChartsHtml.includes("tc-bar-chart is-combo") &&
+      !bbChartsHtml.includes("tc-bar-chart is-segmented") &&
+      !bbChartsHtml.includes("bb-spark-sticks") &&
+      bbChartsHtml.includes('id="bb-data-viz"') &&
+      bbChartsHtml.includes("bb-line-chart") &&
+      bbChartsHtml.includes("bb-donut-chart") &&
+      bbChartsHtml.includes("bb-data-table") &&
+      bbChartsHtml.includes("https://wa.me/") &&
+      bbChartsHtml.includes("https://t.me/") &&
+      bbChartsHtml.includes("https://max.ru/"),
+      "expected 6 stick-chart variants with combo trend, line+donut+table data-viz section, and WhatsApp/Telegram/MAX links"
     );
+    clickAction(env5, { a: "bb-line-pt", idx: "5" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes('class="bb-line-tick is-active" data-a="bb-line-pt" data-idx="5"'), "expected bb-line-pt=5 to activate line chart node");
+    clickAction(env5, { a: "bb-donut-ds", v: "subjects" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("84.5к ₽"), "expected bb-donut-ds=subjects to switch donut dataset");
+    clickAction(env5, { a: "bb-donut-slice", idx: "1" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes('<b class="num">29%</b>'), "expected bb-donut-slice=1 to update donut center readout");
+    clickAction(env5, { a: "bb-tbl-cols", cols: "3" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("bb-data-table cols-3") && env5.elements.get("main").innerHTML.includes("<th>Ученик и предмет</th>"), "expected bb-tbl-cols=3 to render 3-column table");
+    clickAction(env5, { a: "bb-tbl-cols", cols: "7" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("bb-data-table cols-7") && env5.elements.get("main").innerHTML.includes("<th>На руки (95%)</th>"), "expected bb-tbl-cols=7 to render 7-column table");
+    clickAction(env5, { a: "bb-tbl-filter", v: "chem" });
+    await flushMicrotasks(2);
+    const bbTblChem = env5.elements.get("main").innerHTML;
+    assert(bbTblChem.includes("Дамир Осипов") && !bbTblChem.includes("Мария Фёдорова"), "expected bb-tbl-filter=chem to filter table rows");
+    clickAction(env5, { a: "bb-tbl-filter", v: "all" });
+    clickAction(env5, { a: "bb-tbl-cols", cols: "5" });
+    clickAction(env5, { a: "bb-donut-ds", v: "channels" });
+    clickAction(env5, { a: "bb-line-pt", idx: "3" });
+    await flushMicrotasks(2);
     clickAction(env5, { a: "bb-chart-style", v: "lollipop" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes('class="chip-btn on" data-a="bb-chart-style" data-v="lollipop"') && env5.elements.get("main").innerHTML.includes('class="bb-chart-card is-picked"'), "expected bb-chart-style=lollipop to highlight lollipop chip and card");
@@ -1200,9 +1232,9 @@
     const bbV2Html = env5.elements.get("main").innerHTML;
     const catTargetIds = globalThis.EGE.kit.CATALOG_ITEMS.map((it) => it.targetId);
     assert(
-      globalThis.EGE.kit.CATALOG_ITEMS.length === 18 &&
-      ["bb-market-app", "bb-cabinet", "bb-layers", "bb-bounds", "bb-dodont", "bb-compare"].every((id) => catTargetIds.includes(id)),
-      "expected 18 catalog items covering all brandbook sections including /market, cabinet/balance, layers, bounds, dodont, and compare"
+      globalThis.EGE.kit.CATALOG_ITEMS.length === 19 &&
+      ["bb-market-app", "bb-cabinet", "bb-data-viz", "bb-layers", "bb-bounds", "bb-dodont", "bb-compare"].every((id) => catTargetIds.includes(id)),
+      "expected 19 catalog items covering all brandbook sections including /market, cabinet/balance, data-viz, layers, bounds, dodont, and compare"
     );
     assert(
       !bbV2Html.includes("Unbounded") &&
@@ -1416,7 +1448,14 @@
 
     clickAction(env5, { a: "tc-req-accept", id: "tc-req-1" });
     await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("Написать ученику") && env5.elements.get("toast").innerHTML.includes("Урок подтверждён"), "expected tc-req-accept to confirm lesson and show side toast");
+    assert(
+      env5.elements.get("main").innerHTML.includes("Написать ученику") &&
+      env5.elements.get("main").innerHTML.includes("https://wa.me/") &&
+      env5.elements.get("main").innerHTML.includes("https://t.me/") &&
+      env5.elements.get("main").innerHTML.includes("https://max.ru/") &&
+      env5.elements.get("toast").innerHTML.includes("Урок подтверждён"),
+      "expected tc-req-accept to confirm lesson with WhatsApp/Telegram/MAX links and side toast"
+    );
 
     clickAction(env5, { a: "tc-slot-toggle", hour: "13:00" });
     await flushMicrotasks(2);

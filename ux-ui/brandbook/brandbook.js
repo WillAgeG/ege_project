@@ -17,7 +17,14 @@
     trustStripHTML,
     reviewCardHTML,
     faqListHTML,
-    blueBannerHTML
+    blueBannerHTML,
+    messengerLinksHTML,
+    CHART_STYLE_META,
+    chartDatasetBars: kitChartDatasetBars,
+    stickChartHTML: kitStickChartHTML,
+    lineChartHTML,
+    donutChartHTML,
+    dataTableHTML
   } = EGE.kit || {};
   const {
     feeSplitHTML,
@@ -44,6 +51,7 @@
     "bb-study-states": "app",
     "bb-market-app": "app",
     "bb-cabinet": "app",
+    "bb-data-viz": "app",
     "bb-sliders": "layout",
     "bb-layers": "layout",
     "bb-bounds": "layout",
@@ -94,6 +102,12 @@
       chartStyle: "sticks",
       chartDataset: "income",
       chartActiveIdx: 3,
+      linePtIdx: 3,
+      donutDataset: "channels",
+      donutSliceIdx: 0,
+      tableCols: 5,
+      tableFilter: "all",
+      tableSearch: "",
       cat: "all",
       catQ: "",
       faqOpen: 0
@@ -395,76 +409,73 @@
             <input class="input bb-input-error" id="bb-demo-err" type="text" value="08:30" aria-invalid="true">
             <span class="bb-hint-err">Укажите час в окне 10:00–20:00 (например, 14:00).</span>
           </div>
-        </div>
-        <div class="card pad stack" style="gap:12px">
-          <div class="stack" style="gap:10px">
-            <div class="field">
-              <span class="label">Выбор предмета (.hh-select)</span>
-              ${hhSelectHTML({
-                id: "bb-demo-select",
-                options: BB_SUBJECTS,
-                value: bb.subj || "bio",
-                open: !!bb.subjMenuOpen,
-                toggleAction: "bb-subj-toggle",
-                pickAction: "bb-subj-pick",
-                ariaLabel: "Предмет подготовки"
-              })}
-              <span class="hint">Тематический список в цветах Светлой/Тёмной темы без системного тёмного меню браузера.</span>
-            </div>
-            <div class="field">
-              <span class="label">Мультивыбор предметов (.hh-multi)</span>
-              ${typeof hhMultiSelectHTML === "function"
-                ? hhMultiSelectHTML({
-                    id: "bb-demo-multi",
-                    options: BB_SUBJECTS,
-                    values: Array.isArray(bb.multiSubjs) ? bb.multiSubjs : ["bio", "chem"],
-                    placeholder: "Выберите предметы",
-                    open: !!bb.multiMenuOpen,
-                    toggleAction: "bb-multi-toggle",
-                    pickAction: "bb-multi-pick",
-                    ariaLabel: "Мультивыбор предметов"
-                  })
-                : ""}
-              <span class="hint">Синхронный checklist-выпадающий список с отметками и крестиком «×» прямо внутри выбранных тегов поля (без дублирования чипов снизу). Используется в профиле преподавателя и запросах ученика «Ищу преподавателя».</span>
-            </div>
-            <div class="field">
-              <span class="label">Город и часовой пояс (Профиль преподавателя)</span>
-              <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
-                <div class="hh-seg equal" style="flex:1 1 155px" role="group" aria-label="Демо города преподавателя">
-                  <button type="button" class="on" data-a="bb-demo-toast">Якутск</button>
-                  <button type="button" data-a="bb-demo-toast">Москва</button>
-                </div>
-                <select class="select" style="flex:1 1 170px" aria-label="Демо часового пояса">
-                  <option selected>Якутск (UTC+9)</option>
-                  <option>Москва (UTC+3)</option>
-                </select>
-              </div>
-              <span class="hint">По умолчанию для анкеты и расписания — <b>Якутск (UTC+9)</b>; в фильтре городов доступны только Якутск и Москва.</span>
-            </div>
-            <div class="field">
-              <span class="label">Вход и выбор роли по умолчанию (.hh-seg.equal · authCard)</span>
-              <div class="hh-seg equal" role="group" aria-label="Демо выбора роли при входе">
-                <button type="button" data-a="bb-app-role" data-role="student" aria-pressed="${(bb.appRole || "student") !== "tutor"}">${icon("book")}<span>Как ученик</span></button>
-                <button type="button" data-a="bb-app-role" data-role="tutor" aria-pressed="${bb.appRole === "tutor"}">${icon("users")}<span>Как преподаватель</span></button>
-              </div>
-              <div class="row" style="gap:8px;flex-wrap:wrap;padding-top:4px">
-                <button type="button" class="btn ghost sm" data-a="auth-modal-open">Продолжить через Google</button>
-                <button type="button" class="btn sm" data-a="auth-modal-open">Войти</button>
-              </div>
-              <span class="hint">По умолчанию выбрано «Как ученик». Обе кнопки входа сохраняют выбранную роль перед рендером кабинета.</span>
-            </div>
-            <div class="field">
-              <span class="label">Сегмент-переключатель (.switch)</span>
-              <div class="switch" role="group" aria-label="Формат в брендбуке">
-                <button type="button" data-a="bb-switch" data-v="online" aria-pressed="${sw === "online"}">Онлайн</button>
-                <button type="button" data-a="bb-switch" data-v="offline" aria-pressed="${sw === "offline"}">Очно</button>
-                <button type="button" data-a="bb-switch" data-v="all" aria-pressed="${sw === "all"}">Любой</button>
-              </div>
+          <div class="field">
+            <span class="label">Сегмент-переключатель (.switch)</span>
+            <div class="switch" role="group" aria-label="Формат в брендбуке">
+              <button type="button" data-a="bb-switch" data-v="online" aria-pressed="${sw === "online"}">Онлайн</button>
+              <button type="button" data-a="bb-switch" data-v="offline" aria-pressed="${sw === "offline"}">Очно</button>
+              <button type="button" data-a="bb-switch" data-v="all" aria-pressed="${sw === "all"}">Любой</button>
             </div>
           </div>
           <div class="field">
             <label for="bb-demo-notes">Комментарий ученика (.textarea)</label>
             <textarea class="textarea" id="bb-demo-notes" rows="2" placeholder="Разобрать задание №28 (генетика) и пробник…"></textarea>
+          </div>
+        </div>
+        <div class="card pad stack" style="gap:10px">
+          <div class="field">
+            <span class="label">Выбор предмета (.hh-select)</span>
+            ${hhSelectHTML({
+              id: "bb-demo-select",
+              options: BB_SUBJECTS,
+              value: bb.subj || "bio",
+              open: !!bb.subjMenuOpen,
+              toggleAction: "bb-subj-toggle",
+              pickAction: "bb-subj-pick",
+              ariaLabel: "Предмет подготовки"
+            })}
+            <span class="hint">Тематический список в цветах Светлой/Тёмной темы без системного тёмного меню браузера.</span>
+          </div>
+          <div class="field">
+            <span class="label">Мультивыбор предметов (.hh-multi)</span>
+            ${typeof hhMultiSelectHTML === "function"
+              ? hhMultiSelectHTML({
+                  id: "bb-demo-multi",
+                  options: BB_SUBJECTS,
+                  values: Array.isArray(bb.multiSubjs) ? bb.multiSubjs : ["bio", "chem"],
+                  placeholder: "Выберите предметы",
+                  open: !!bb.multiMenuOpen,
+                  toggleAction: "bb-multi-toggle",
+                  pickAction: "bb-multi-pick",
+                  ariaLabel: "Мультивыбор предметов"
+                })
+              : ""}
+            <span class="hint">Синхронный checklist-выпадающий список с отметками и крестиком «×» прямо внутри выбранных тегов поля (без дублирования чипов снизу).</span>
+          </div>
+          <div class="field">
+            <span class="label">Город и часовой пояс (Профиль преподавателя)</span>
+            <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
+              <div class="hh-seg equal" style="flex:1 1 155px" role="group" aria-label="Демо города преподавателя">
+                <button type="button" class="on" data-a="bb-demo-toast">Якутск</button>
+                <button type="button" data-a="bb-demo-toast">Москва</button>
+              </div>
+              <select class="select" style="flex:1 1 170px" aria-label="Демо часового пояса">
+                <option selected>Якутск (UTC+9)</option>
+                <option>Москва (UTC+3)</option>
+              </select>
+            </div>
+            <span class="hint">По умолчанию для анкеты и расписания — <b>Якутск (UTC+9)</b>; в фильтре городов доступны только Якутск и Москва.</span>
+          </div>
+          <div class="field">
+            <span class="label">Вход и выбор роли по умолчанию (.hh-seg.equal · authCard)</span>
+            <div class="hh-seg equal" role="group" aria-label="Демо выбора роли при входе">
+              <button type="button" data-a="bb-app-role" data-role="student" aria-pressed="${(bb.appRole || "student") !== "tutor"}">${icon("book")}<span>Как ученик</span></button>
+              <button type="button" data-a="bb-app-role" data-role="tutor" aria-pressed="${bb.appRole === "tutor"}">${icon("users")}<span>Как преподаватель</span></button>
+            </div>
+            <div class="row" style="gap:8px;flex-wrap:wrap;padding-top:4px">
+              <button type="button" class="btn ghost sm" data-a="auth-modal-open">Продолжить через Google</button>
+              <button type="button" class="btn sm" data-a="auth-modal-open">Войти</button>
+            </div>
           </div>
           <div class="notice info"><b>Информационное плашко-уведомление (.notice.info)</b><span class="small">Используется для нейтральных подсказок без давления и красных алертов.</span></div>
         </div>
@@ -758,7 +769,16 @@
             <div class="small ink2">Суббота в ${pickedHour} (Онлайн) · твоя ставка <b class="num">${bb.price.toLocaleString("ru-RU")} ₽/ч</b> <span class="muted">(вместо 1 800 ₽)</span></div>
           </div>
           <div class="row" style="gap:8px;flex-wrap:wrap">
-            ${accepted ? `<button type="button" class="btn confirm sm" data-a="bb-demo-toast">${icon("msg")}<span>Написать</span></button>` : `<button type="button" class="btn soft sm" data-a="bb-market-req-toggle">Тест: подтвердить</button>`}
+            ${accepted
+              ? (messengerLinksHTML
+                  ? messengerLinksHTML({
+                      entity: { id: "t-sardana", name: "Сардана Егорова", whatsapp: "79142100102", telegram: "sardana_bio", maxHandle: "sardana_ege" },
+                      message: `Здравствуйте, Сардана! Пишу по поводу подтверждённого урока (${pickedHour}, ставка ${bb.price} ₽/ч).`,
+                      primaryLabel: "Написать · WA",
+                      compact: true
+                    })
+                  : `<button type="button" class="btn confirm sm" data-a="bb-demo-toast">${icon("msg")}<span>Написать</span></button>`)
+              : `<button type="button" class="btn soft sm" data-a="bb-market-req-toggle">Тест: подтвердить</button>`}
             <button type="button" class="btn ${accepted ? "ghost" : "danger bb-btn-adaptive"} sm" data-a="bb-market-req-toggle">${accepted ? "Сменить репетитора" : "Отменить"}</button>
           </div>
         </div>
@@ -839,7 +859,14 @@
       <div class="row" style="gap:6px;flex-wrap:wrap">
         <span class="chip sakha">${icon("ohyorCross")}<span>Тоҕус харах</span></span>
         <span class="chip sakha">${icon("sakhaLattice")}<span>Орто Дойду · Ленские столбы</span></span>
-        <button type="button" class="btn confirm sm" data-a="bb-demo-toast">${icon("msg")}<span>Написать (единая .btn.confirm)</span></button>
+        ${messengerLinksHTML
+          ? messengerLinksHTML({
+              entity: { id: "sakha-demo", name: "Айтал Николаев", whatsapp: "79142100100", telegram: "aytal_ege", maxHandle: "aytal_sakha" },
+              message: "Здравствуйте! Пишу с платформы Вектор ЕГЭ.",
+              primaryLabel: "Написать · WA",
+              compact: true
+            })
+          : `<button type="button" class="btn confirm sm" data-a="bb-demo-toast">${icon("msg")}<span>Написать (единая .btn.confirm)</span></button>`}
       </div>
       <span class="small muted">Официальные якутские кнопки EGE.kit.sakhaButtonsHTML() в /brandbook: медальон Күн Оһуор, ромб Сулус и главная узорная кнопка .btn.sakha-pattern (используется для «Сөп · Предложить» без обрезанных краёв).</span>
     </div>`;
@@ -892,47 +919,17 @@
     return out;
   }
 
-  const BB_CHART_STYLES = [
+  const BB_CHART_STYLES = CHART_STYLE_META || [
     ["sticks", "Палочки", "01 · Тонкие палочки с осью (.is-sticks)", "Тонкие 6 px палочки на вертикальной оси 1 px — максимум воздуха и точная линейка для дашборда."],
     ["lollipop", "Леденцы", "02 · Палочки-леденцы с точкой (.is-lollipop)", "Стержень 4 px с круглой вершиной 10 px для акцента на дневных откликах и пиковых значениях."],
     ["capsule", "Капсулы", "03 · Капсульные палочки в колбе (.is-capsule)", "Градусники-колбы 14 px в обводке для прогресса недели, загрузки часов и квот преподавателя."],
     ["dual", "Парные", "04 · Парные палочки «Рынок vs Ставка» (.is-dual)", "Две палочки рядом на одном делении: фиолетовый ориентир рынка против синей/золотой ставки."],
     ["range", "Диапазон", "05 · Диапазонные палочки «Мин–Макс» (.is-range)", "Плавающий отрезок между минимумом и максимумом дня — разброс цен и коридор баллов ЕГЭ."],
-    ["segmented", "Сегменты", "06 · Сегментные палочки + Спарклайн (.is-segmented)", "Дискретные деления по 6 px с зазором 2 px и 14-палочный мини-спарклайн .bb-spark-sticks."]
+    ["combo", "Тренд", "06 · Палочки + линия тренда (.is-combo)", "Сочетание 5 px палочек с плавной линией тренда и опорными узлами динамики."]
   ];
 
   function chartDatasetBars(dsId) {
-    if (dsId === "scores") {
-      return [
-        { wd: "Сен", val: "48", detail: "Сентябрь · диагностика 48 / 100 б.", pct: 48, benchPct: 55, low: 22, span: 28, gold: false },
-        { wd: "Окт", val: "56", detail: "Октябрь · +8 б. по блоку клетки", pct: 56, benchPct: 58, low: 28, span: 32, gold: false },
-        { wd: "Ноя", val: "64", detail: "Ноябрь · 64 / 100 б. (вторая часть)", pct: 64, benchPct: 62, low: 34, span: 34, gold: false },
-        { wd: "Дек", val: "71", detail: "Декабрь · пробник ФИПИ 71 / 100 б.", pct: 71, benchPct: 66, low: 40, span: 36, gold: false },
-        { wd: "Янв", val: "78", detail: "Январь · уверенный рост 78 / 100 б.", pct: 78, benchPct: 70, low: 44, span: 38, gold: false },
-        { wd: "Фев", val: "86", detail: "Февраль · порог медуниверситета 86 / 100 б.", pct: 86, benchPct: 74, low: 50, span: 40, gold: true },
-        { wd: "Мар", val: "94", detail: "Март · 94 / 100 б. (итоговый темп ЕГЭ)", pct: 94, benchPct: 78, low: 56, span: 42, gold: true }
-      ];
-    }
-    if (dsId === "slots") {
-      return [
-        { wd: "10ч", val: "12", detail: "10:00 · 12 откликов (утреннее окно)", pct: 54, benchPct: 42, low: 18, span: 38, gold: false },
-        { wd: "12ч", val: "15", detail: "12:00 · 15 откликов (дневной слот)", pct: 68, benchPct: 52, low: 24, span: 44, gold: false },
-        { wd: "14ч", val: "19", detail: "14:00 · 19 откликов (после школы)", pct: 84, benchPct: 64, low: 30, span: 54, gold: true },
-        { wd: "16ч", val: "22", detail: "16:00 · 22 отклика (главный пик дня)", pct: 100, benchPct: 72, low: 36, span: 60, gold: true },
-        { wd: "18ч", val: "18", detail: "18:00 · 18 откликов (вечер Якутска)", pct: 80, benchPct: 66, low: 28, span: 52, gold: true },
-        { wd: "19ч", val: "14", detail: "19:00 · 14 откликов", pct: 62, benchPct: 50, low: 22, span: 42, gold: false },
-        { wd: "20ч", val: "9", detail: "20:00 · 9 откликов (вечернее окно)", pct: 42, benchPct: 38, low: 14, span: 32, gold: false }
-      ];
-    }
-    return [
-      { wd: "Пн", val: "4.2к", detail: "Пн · 4 200 ₽ · 4 урока · на руки 95% · 3 990 ₽", pct: 52, benchPct: 48, low: 18, span: 44, gold: false },
-      { wd: "Вт", val: "5.6к", detail: "Вт · 5 600 ₽ · 5 уроков · на руки 95% · 5 320 ₽", pct: 70, benchPct: 60, low: 24, span: 52, gold: false },
-      { wd: "Ср", val: "3.4к", detail: "Ср · 3 400 ₽ · 3 урока · на руки 95% · 3 230 ₽", pct: 44, benchPct: 50, low: 14, span: 36, gold: false },
-      { wd: "Чт", val: "7.9к", detail: "Чт · 7 900 ₽ · 7 уроков · на руки 95% · 7 505 ₽ · Пик авто-24ч", pct: 100, benchPct: 68, low: 34, span: 62, gold: true },
-      { wd: "Пт", val: "5.1к", detail: "Пт · 5 100 ₽ · 5 уроков · на руки 95% · 4 845 ₽", pct: 64, benchPct: 58, low: 22, span: 48, gold: false },
-      { wd: "Сб", val: "6.8к", detail: "Сб · 6 800 ₽ · 6 уроков · на руки 95% · 6 460 ₽ · Пик авто-24ч", pct: 86, benchPct: 66, low: 28, span: 58, gold: true },
-      { wd: "Вс", val: "4.5к", detail: "Вс · 4 500 ₽ · 4 урока · на руки 95% · 4 275 ₽", pct: 56, benchPct: 52, low: 20, span: 42, gold: false }
-    ];
+    return kitChartDatasetBars ? kitChartDatasetBars(dsId) : [];
   }
 
   function stickChartHTML(styleId, bars, activeIdx, interactive, ariaLabel) {
@@ -1168,10 +1165,11 @@
               ["lollipop", "Леденцы"],
               ["capsule", "Капсулы"],
               ["dual", "Парные"],
+              ["combo", "Тренд"],
               ["classic", "Столбики"]
             ].map(([vid, lbl]) => `<button type="button" class="chip-btn${cStyle === vid ? " on" : ""}" data-a="bb-chart-style" data-v="${vid}">${lbl}</button>`).join("")}
           </div>
-          ${stickChartHTML(cStyle, bars, cIdx, true, "Интерактивный график выплат по дням недели")}
+          ${(kitStickChartHTML || stickChartHTML)(cStyle, bars, cIdx, true, "Интерактивный график выплат по дням недели")}
           <div class="row between small muted" style="gap:8px;flex-wrap:wrap;padding:6px 10px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line)">
             <span>${activeBar.detail}</span>
             <span class="num" style="color:var(--ink)">кликни столбик</span>
@@ -1214,6 +1212,14 @@
             <div class="row" style="gap:8px;flex-wrap:wrap">
               <button type="button" class="btn confirm sm" data-a="bb-demo-toast">${icon("msg")}<span>Напомнить: скоро урок</span></button>
               <button type="button" class="btn gold sm" data-a="bb-demo-toast">${icon("bell")}<span>✓ Автоуведомление WA</span></button>
+              ${messengerLinksHTML
+                ? messengerLinksHTML({
+                    entity: { id: "st-alena", name: "Алёна Егорова", whatsapp: "79142100511", telegram: "alena_bio", maxHandle: "alena_ege" },
+                    message: "Здравствуйте, Алёна! Напоминаю об уроке биологии в воскресенье в 10:00.",
+                    primaryLabel: "WA",
+                    compact: true
+                  })
+                : ""}
             </div>
           </div>
         </div>
@@ -1236,7 +1242,6 @@
         <div class="bb-charts-grid">
           ${BB_CHART_STYLES.map(([vid, shortLbl, title, desc]) => {
             const picked = cStyle === vid;
-            const sparkVals = [32, 48, 40, 66, 54, 72, 92, 68, 76, 88, 60, 70, 96, 82];
             return `<article class="bb-chart-card${picked ? " is-picked" : ""}">
               <div class="stack" style="gap:4px">
                 <div class="row between" style="gap:6px">
@@ -1245,17 +1250,66 @@
                 </div>
                 <p class="small muted">${desc}</p>
               </div>
-              ${stickChartHTML(vid, bars, cIdx, false, title)}
-              ${vid === "segmented" ? `<div class="stack" style="gap:4px">
-                <span class="small muted">Микро-спарклайн 14 палочек (<code>.bb-spark-sticks</code>)</span>
-                <div class="bb-spark-sticks" aria-hidden="true">
-                  ${sparkVals.map((v, si) => `<span class="bb-spark-stick${si === 6 || si === 12 ? " is-gold" : ""}" style="height:${v}%"></span>`).join("")}
-                </div>
-              </div>` : ""}
+              ${(kitStickChartHTML || stickChartHTML)(vid, bars, cIdx, false, title)}
               <button type="button" class="chip-btn${picked ? " on" : ""}" data-a="bb-chart-style" data-v="${vid}" style="justify-content:center">${picked ? "Применён в кабинете ✓" : "Выбрать этот вид"}</button>
             </article>`;
           }).join("")}
         </div>
+      </div>
+    </section>`;
+  }
+
+  function dataVizSectionHTML(bb) {
+    const cDataset = bb.chartDataset || "income";
+    const dDataset = bb.donutDataset || "channels";
+    const lineIdx = Number.isInteger(bb.linePtIdx) ? Math.max(0, Math.min(6, bb.linePtIdx)) : 3;
+    const donutIdx = Number.isInteger(bb.donutSliceIdx) ? Math.max(0, Math.min(3, bb.donutSliceIdx)) : 0;
+    const tblCols = [3, 5, 7].includes(Number(bb.tableCols)) ? Number(bb.tableCols) : 5;
+    const tblFilter = bb.tableFilter || "all";
+    const tblQuery = bb.tableSearch || "";
+    const bars = chartDatasetBars(cDataset);
+
+    return `<section class="land-sec" id="bb-data-viz" aria-label="Линейные графики, круговая диаграмма и таблица данных">
+      <div class="land-sec-head">
+        <div>
+          <div class="eyebrow">08 · Линейные графики, Круговая диаграмма и Таблица с фильтрами</div>
+          <h2 class="h2">Аналитика динамики, распределения и интерактивная таблица (3 / 5 / 7 колонок)</h2>
+        </div>
+        <button type="button" class="bb-spec-pill" data-a="bb-copy-token" data-copy="EGE.kit.lineChartHTML() / donutChartHTML() / dataTableHTML()">Копировать EGE.kit DataViz</button>
+      </div>
+
+      <div class="bb-viz-grid">
+        <div class="card pad stack" style="gap:10px">
+          <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
+            <b>01 · График с линией и областью (.bb-line-chart)</b>
+            <div class="hh-seg" role="group" aria-label="Данные линейного графика">
+              ${[
+                ["income", "Доход ₽"],
+                ["scores", "Баллы ЕГЭ"],
+                ["slots", "Спрос"]
+              ].map(([did, dlbl]) => `<button type="button" data-a="bb-chart-data" data-v="${did}" aria-pressed="${cDataset === did}">${dlbl}</button>`).join("")}
+            </div>
+          </div>
+          ${lineChartHTML ? lineChartHTML({ dataset: cDataset, bars, activeIdx: lineIdx, gradId: "bbLineGradMain" }) : ""}
+        </div>
+
+        <div class="card pad stack" style="gap:10px">
+          <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
+            <b>02 · Кольцевая / Круговая диаграмма (.bb-donut-chart)</b>
+            <div class="hh-seg" role="group" aria-label="Срез круговой диаграммы">
+              ${[
+                ["channels", "Каналы"],
+                ["subjects", "Предметы"],
+                ["sources", "Форматы"]
+              ].map(([did, dlbl]) => `<button type="button" data-a="bb-donut-ds" data-v="${did}" aria-pressed="${dDataset === did}">${dlbl}</button>`).join("")}
+            </div>
+          </div>
+          ${donutChartHTML ? donutChartHTML({ dataset: dDataset, activeIdx: donutIdx }) : ""}
+        </div>
+      </div>
+
+      <div style="margin-top:14px">
+        ${dataTableHTML ? dataTableHTML({ cols: tblCols, filter: tblFilter, query: tblQuery }) : ""}
       </div>
     </section>`;
   }
@@ -1320,7 +1374,7 @@
         </div>
 
         <div class="card pad stack" style="gap:10px">
-          <div class="row between"><b>04 · Карточка защиты баланса и верификации</b><span class="bb-spec-pill">.verified-badge / .tutor-perk-card</span></div>
+          <div class="row between"><b>04 · Карточка защиты баланса и связи</b><span class="bb-spec-pill">.verified-badge / .tutor-perk-card</span></div>
           <div class="tutor-perk-card">
             <span class="tutor-perk-ico" aria-hidden="true">${icon("shield")}</span>
             <div class="stack" style="gap:3px">
@@ -1331,6 +1385,17 @@
           <div class="row between small muted" style="padding:8px 12px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line)">
             <span class="row" style="gap:6px"><span class="verified-badge sm" aria-hidden="true">${icon("check")}</span><span>Проверенный преподаватель Саха</span></span>
             <b class="num" style="color:var(--confirm)">Слот 10:00–20:00</b>
+          </div>
+          <div class="row between" style="gap:8px;flex-wrap:wrap;padding-top:2px">
+            <span class="small muted">Каналы связи:</span>
+            ${messengerLinksHTML
+              ? messengerLinksHTML({
+                  entity: { id: "kit-demo", name: "Анна Соколова", whatsapp: "79142100101", telegram: "anna_bio_ege", maxHandle: "anna_bio" },
+                  message: "Здравствуйте! Забронировал(а) занятие через Вектор ЕГЭ.",
+                  primaryLabel: "WhatsApp",
+                  compact: true
+                })
+              : ""}
           </div>
         </div>
 
@@ -1480,6 +1545,7 @@
       ["bb-study-states", "Учёба и состояния"],
       ["bb-market-app", "/market и сайдбар"],
       ["bb-cabinet", "Кабинет и баланс"],
+      ["bb-data-viz", "Линия, Круг, Таблица"],
       ["bb-sliders", "Ползунки"],
       ["bb-layers", "Слои Z-index и статус"],
       ["bb-bounds", "Границы 390 px"],
@@ -1500,6 +1566,7 @@
           <a href="#bb-yakutia" data-a="land-scroll" data-target="bb-yakutia">Узоры Саха</a>
           <a href="#bb-market-app" data-a="land-scroll" data-target="bb-market-app">/market</a>
           <a href="#bb-cabinet" data-a="land-scroll" data-target="bb-cabinet">Кабинет</a>
+          <a href="#bb-data-viz" data-a="land-scroll" data-target="bb-data-viz">Графики и таблица</a>
           <a href="#bb-sliders" data-a="land-scroll" data-target="bb-sliders">Ползунки</a>
           <a href="#bb-dodont" data-a="land-scroll" data-target="bb-dodont">Правила</a>
         </nav>
@@ -1652,6 +1719,14 @@
               <button type="button" class="btn soft" data-a="bb-chip">Подробнее</button>
               <button type="button" class="btn ghost" data-a="bb-chip">Фильтры</button>
               <button type="button" class="btn confirm" data-a="bb-demo-toast">${icon("msg")}<span>Написать</span></button>
+              ${messengerLinksHTML
+                ? messengerLinksHTML({
+                    entity: { id: "btn-demo", name: "Анна Соколова", whatsapp: "79142100101", telegram: "anna_bio_ege", maxHandle: "anna_bio" },
+                    message: "Здравствуйте! Пишу через Вектор ЕГЭ.",
+                    primaryLabel: "WhatsApp",
+                    compact: false
+                  })
+                : ""}
               <button type="button" class="btn sakha-pattern${bb.sakhaSent ? " is-confirmed" : ""}" data-a="bb-sakha-toggle">${sakhaPatternSVG("rhombus", 18)}<span>${bb.sakhaSent ? "✓ Сөп" : "Оһуор · Саха"}</span></button>
               <button type="button" class="sakha-medallion-btn sm${bb.sakhaKunOn ? " is-confirmed" : ""}" data-a="bb-sakha-medallion" aria-pressed="${!!bb.sakhaKunOn}" aria-label="Күн Оһуор" title="Күн Оһуор">${sakhaPatternSVG("kun", 36)}</button>
               <button type="button" class="sakha-diamond-btn sm${bb.sakhaStarOn ? " is-confirmed" : ""}" data-a="bb-sakha-diamond" aria-pressed="${!!bb.sakhaStarOn}" aria-label="Сулус" title="Сулус"><span class="sakha-diamond-frame">${sakhaPatternSVG("star", 22)}</span></button>
@@ -1723,6 +1798,8 @@
       ${showSec("bb-market-app") ? marketAndAppSectionHTML(bb) : ""}
 
       ${showSec("bb-cabinet") ? cabinetAndBalanceSectionHTML(bb) : ""}
+
+      ${showSec("bb-data-viz") ? dataVizSectionHTML(bb) : ""}
 
       ${showSec("bb-sliders") ? `<section class="land-sec" id="bb-sliders">
         <div class="land-sec-head">

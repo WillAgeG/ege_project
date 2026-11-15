@@ -303,7 +303,7 @@ p { margin: 0; }
 @media (max-width: 760px) {
   .grid-2, .grid-3, .grid-hero { grid-template-columns: minmax(0, 1fr); }
 }
-.stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; }
+.stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; align-content: start; }
 .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .between { justify-content: space-between; }
 
@@ -334,7 +334,7 @@ p { margin: 0; }
   background: var(--confirm);
   border-color: var(--confirm);
   color: #ffffff;
-  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--confirm), 0 10px 24px -10px color-mix(in srgb, var(--confirm) 65%, transparent);
+  box-shadow: 0 8px 20px -8px color-mix(in srgb, var(--confirm) 58%, transparent);
   animation: confirmPop .44s cubic-bezier(.22, 1, .36, 1) both;
 }
 .btn.is-confirmed:hover,
@@ -342,7 +342,7 @@ p { margin: 0; }
   background: var(--confirm-hover);
   border-color: var(--confirm-hover);
   transform: translateY(-2px);
-  box-shadow: 0 14px 28px -10px color-mix(in srgb, var(--confirm) 72%, transparent);
+  box-shadow: 0 12px 24px -8px color-mix(in srgb, var(--confirm) 68%, transparent);
 }
 @keyframes confirmPop {
   0% { transform: scale(.96); }
@@ -446,14 +446,14 @@ p { margin: 0; }
 .btn.sakha-pattern:hover svg { transform: rotate(45deg); }
 .btn.sakha-pattern.is-confirmed {
   background: var(--confirm); border-color: var(--confirm); color: #ffffff;
-  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--confirm), 0 10px 24px -10px color-mix(in srgb, var(--confirm) 65%, transparent);
+  box-shadow: 0 8px 20px -8px color-mix(in srgb, var(--confirm) 58%, transparent);
   border-radius: var(--r-sm);
 }
 .btn.sakha-pattern.sm.is-confirmed { border-radius: 10px; }
 .btn.sakha-pattern.is-confirmed:hover {
   background: var(--confirm-hover); border-color: var(--confirm-hover); color: #ffffff;
   transform: translateY(-2px);
-  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--confirm-hover), 0 14px 28px -10px color-mix(in srgb, var(--confirm) 72%, transparent);
+  box-shadow: 0 12px 24px -8px color-mix(in srgb, var(--confirm) 68%, transparent);
 }
 .btn.sakha-pattern.is-confirmed svg { color: #ffffff; }
 .sakha-medallion-btn {
@@ -477,7 +477,7 @@ p { margin: 0; }
 .sakha-medallion-btn.is-confirmed,
 .sakha-medallion-btn[aria-pressed="true"] {
   background: var(--confirm); border-color: var(--confirm); color: #ffffff;
-  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--confirm), 0 10px 22px -10px color-mix(in srgb, var(--confirm) 65%, transparent);
+  box-shadow: 0 10px 22px -10px color-mix(in srgb, var(--confirm) 65%, transparent);
 }
 .sakha-medallion-btn.sm { width: 52px; height: 52px; }
 .sakha-medallion-btn.sm svg { width: 38px; height: 38px; }
@@ -507,7 +507,7 @@ p { margin: 0; }
 .sakha-diamond-btn.is-confirmed .sakha-diamond-frame,
 .sakha-diamond-btn[aria-pressed="true"] .sakha-diamond-frame {
   background: var(--confirm); border-color: var(--confirm); color: #ffffff;
-  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--confirm), 0 10px 22px -10px color-mix(in srgb, var(--confirm) 65%, transparent);
+  box-shadow: 0 10px 22px -10px color-mix(in srgb, var(--confirm) 65%, transparent);
 }
 .sakha-diamond-btn.sm { width: 52px; height: 52px; }
 .sakha-diamond-btn.sm .sakha-diamond-frame { width: 36px; height: 36px; border-radius: 5px; }
@@ -615,9 +615,9 @@ p { margin: 0; }
 
 
 /* ---------- формы ---------- */
-.form { display: grid; gap: 12px; }
-.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
-.field { display: grid; gap: 5px; min-width: 0; }
+.form { display: grid; gap: 12px; align-content: start; }
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; align-items: start; }
+.field { display: grid; gap: 5px; min-width: 0; align-content: start; }
 .field label, .field .label { font-size: 13px; font-weight: 500; color: var(--ink-2); }
 .input, .select, .textarea {
   width: 100%; min-width: 0; padding: 9px 12px; min-height: 40px;
@@ -926,6 +926,70 @@ body[data-auth="1"] .top-bal-slot { display: none !important; }
   .topbar .top-bal-pill .top-bal-lbl { display: none; }
   .topbar .top-bal-btn { width: 28px; min-height: 28px; padding: 0; justify-content: center; }
   .topbar .top-bal-btn span { display: none; }
+}
+
+/* Unified messenger bar (WhatsApp · Telegram · MAX) */
+.msg-channel-bar {
+  display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px;
+}
+.msg-channel-bar.is-compact { gap: 4px; }
+.btn-msg {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 34px; padding: 0 11px; border-radius: var(--r-pill);
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  font-family: inherit; font-size: 12.5px; font-weight: 600; line-height: 1;
+  text-decoration: none; white-space: nowrap; cursor: pointer;
+  transition: transform .14s ease, border-color .16s ease, background .16s ease, color .16s ease, box-shadow .16s ease;
+}
+.msg-channel-bar.is-compact .btn-msg { min-height: 30px; padding: 0 9px; font-size: 12px; gap: 5px; }
+.btn-msg:hover { transform: translateY(-1px); text-decoration: none; }
+.btn-msg svg { width: 14px; height: 14px; flex: 0 0 auto; }
+.btn-msg.is-wa {
+  background: color-mix(in srgb, #16a34a 11%, var(--surface));
+  border-color: color-mix(in srgb, #16a34a 36%, var(--line));
+  color: #15803d;
+}
+.btn-msg.is-wa:hover {
+  background: #16a34a; border-color: #16a34a; color: #ffffff;
+  box-shadow: 0 8px 18px -10px color-mix(in srgb, #16a34a 70%, transparent);
+}
+.btn-msg.is-tg {
+  background: color-mix(in srgb, #0284c7 11%, var(--surface));
+  border-color: color-mix(in srgb, #0284c7 36%, var(--line));
+  color: #0369a1;
+}
+.btn-msg.is-tg:hover {
+  background: #0284c7; border-color: #0284c7; color: #ffffff;
+  box-shadow: 0 8px 18px -10px color-mix(in srgb, #0284c7 70%, transparent);
+}
+.btn-msg.is-max {
+  background: color-mix(in srgb, #7c3aed 11%, var(--surface));
+  border-color: color-mix(in srgb, #7c3aed 36%, var(--line));
+  color: #6d28d9;
+}
+.btn-msg.is-max:hover {
+  background: #7c3aed; border-color: #7c3aed; color: #ffffff;
+  box-shadow: 0 8px 18px -10px color-mix(in srgb, #7c3aed 70%, transparent);
+}
+:root[data-theme="dark"] .btn-msg.is-wa {
+  background: color-mix(in srgb, #22c55e 16%, var(--surface));
+  border-color: color-mix(in srgb, #22c55e 40%, var(--line));
+  color: #86efac;
+}
+:root[data-theme="dark"] .btn-msg.is-tg {
+  background: color-mix(in srgb, #38bdf8 16%, var(--surface));
+  border-color: color-mix(in srgb, #38bdf8 40%, var(--line));
+  color: #7dd3fc;
+}
+:root[data-theme="dark"] .btn-msg.is-max {
+  background: color-mix(in srgb, #a78bfa 16%, var(--surface));
+  border-color: color-mix(in srgb, #a78bfa 40%, var(--line));
+  color: #ddd6fe;
+}
+:root[data-theme="dark"] .btn-msg.is-wa:hover,
+:root[data-theme="dark"] .btn-msg.is-tg:hover,
+:root[data-theme="dark"] .btn-msg.is-max:hover {
+  color: #ffffff;
 }
 
 
