@@ -6,7 +6,7 @@
 
 > Подробная схема зависимостей и правил — в [ARCHITECTURE.md](ARCHITECTURE.md) и в `README.md` каждого слоя.
 
-- **[`ux-ui/`](ux-ui/README.md)** — дизайн-система и брендбук (`/brandbook`, `/fees`): токены [`tokens.json`](ux-ui/tokens.json), базовые стили и брендбук-стенд [`ux-ui/styles/`](ux-ui/styles), **36 анимированных SVG-иконок** [`ux-ui/components/icons.js`](ux-ui/components/icons.js) и переиспользуемые hh-компоненты [`ux-ui/components/hh-components.js`](ux-ui/components/hh-components.js).
+- **[`ux-ui/`](ux-ui/README.md)** — обособленный UI Kit и брендбук (`/brandbook`, `/fees`): токены [`tokens.json`](ux-ui/tokens.json), стили [`ux-ui/styles/`](ux-ui/styles), каталог SVG-иконок и орнаментов [`icons.js`](ux-ui/components/icons.js) (`EGE.ui`), hh-контролы [`hh-components.js`](ux-ui/components/hh-components.js) (`EGE.hh`), DataViz-графики и таблицы [`charts.js`](ux-ui/components/charts.js) (`EGE.charts`) и лендинг-блоки/маски мессенджеров [`kit.js`](ux-ui/components/kit.js) (`EGE.kit`).
 - **[`frontend/`](frontend/README.md)** — клиентский zero-bundler стек (HTML5 / CSS3 / ES6+ IIFE): [`index.html`](frontend/index.html), оркестратор [`app.js`](frontend/app.js), [`bank-core.js`](frontend/bank-core.js), утилиты [`core/utils.js`](frontend/core/utils.js), экраны [`views/`](frontend/views), каталог репетиторов [`data/tutors.js`](frontend/data/tutors.js) и банк заданий [`subjects/`](frontend/subjects) (40 файлов).
 - **[`backend/`](backend/README.md)** — FastAPI ASGI-бэкенд: [`main.py`](backend/main.py) (SPA-роуты `/`, `/landing`, `/brandbook`, `/fees`, `/privacy`, API `/api/*`, безопасный allowlist статики), [`config.py`](backend/config.py) и ИИ-прокси [`ai.py`](backend/ai.py).
 - **[`databases/`](databases/README.md)** — слой хранения данных: операционная БД SQLite WAL [`sqlite/store.py`](databases/sqlite/store.py), SQL-миграция [`migrations/001_initial_sqlite.sql`](databases/migrations/001_initial_sqlite.sql) и каталог аналитического хранилища [`analytics/`](databases/analytics) (задел под DuckDB / PostgreSQL).
@@ -68,3 +68,8 @@ python3 -m venv .venv-etl
 - [`Dockerfile`](Dockerfile) собирает тонкий образ (Python 3.13 + `ux-ui/`, `frontend/`, `backend/`, `databases/`), запуская `uvicorn backend.main:app --workers 1` с постоянным томом `RAILWAY_VOLUME_MOUNT_PATH` для SQLite.
 - [`.github/workflows/ci.yml`](.github/workflows/ci.yml) на каждом push / PR запускает `pytest -q` и `node tests/check_app.js`.
 - Настройки ИИ (`GEMINI_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `OPENROUTER_API_KEY`), `INVITE_CODE` и `GOOGLE_CLIENT_*` задаются в Railway Variables (см. [`.env.example`](.env.example)).
+
+## Документация архитектуры и стека
+
+- **[`GEMINI.md`](GEMINI.md)** — подробный справочник по Backend, Frontend, БД (OLTP SQLite WAL + OLAP/ETL), отдельно вынесенному UI Kit (`ux-ui/`), роутам API и строгим инвариантам.
+- **[`ARCHITECTURE.md`](ARCHITECTURE.md)** — обзор слоёв, HTTP-маршрутизации и правил изменений.

@@ -23,3 +23,8 @@
 ## HTTP-роутинг статики
 
 Файлы из `frontend/` отдаются бэкендом по коротким корневым URL (`/app.js`, `/styles/marketplace.css`, `/views/landing.js`, `/data/tutors.js`, `/subjects/biology.js`), а дизайн-система — по префиксу `/ux-ui/...` (строгий allowlist в [`backend/main.py`](../backend/main.py)).
+
+## Связь с UI Kit и общий стек
+
+- UI-примитивы, графики (`EGE.charts`) и форматирование контактов/мессенджеров (`EGE.kit`) вынесены в [`../ux-ui/`](../ux-ui/README.md); `frontend/data/tutors.js` и вьюхи лишь делегируют туда без циклических зависимостей.
+- Полный стек проекта, схема БД и список API-роутов зафиксированы в [`../GEMINI.md`](../GEMINI.md).

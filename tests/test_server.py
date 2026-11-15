@@ -79,6 +79,7 @@ def test_static_asset_allowlist(tmp_path: Path) -> None:
             "/views/marketplace.js",
             "/ux-ui/components/icons.js",
             "/ux-ui/components/hh-components.js",
+            "/ux-ui/components/charts.js",
             "/ux-ui/components/kit.js",
             "/ux-ui/brandbook/brandbook.js",
             "/data/plan.js",

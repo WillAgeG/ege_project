@@ -919,36 +919,10 @@
     return out;
   }
 
-  const BB_CHART_STYLES = CHART_STYLE_META || [
-    ["sticks", "Палочки", "01 · Тонкие палочки с осью (.is-sticks)", "Тонкие 6 px палочки на вертикальной оси 1 px — максимум воздуха и точная линейка для дашборда."],
-    ["lollipop", "Леденцы", "02 · Палочки-леденцы с точкой (.is-lollipop)", "Стержень 4 px с круглой вершиной 10 px для акцента на дневных откликах и пиковых значениях."],
-    ["capsule", "Капсулы", "03 · Капсульные палочки в колбе (.is-capsule)", "Градусники-колбы 14 px в обводке для прогресса недели, загрузки часов и квот преподавателя."],
-    ["dual", "Парные", "04 · Парные палочки «Рынок vs Ставка» (.is-dual)", "Две палочки рядом на одном делении: фиолетовый ориентир рынка против синей/золотой ставки."],
-    ["range", "Диапазон", "05 · Диапазонные палочки «Мин–Макс» (.is-range)", "Плавающий отрезок между минимумом и максимумом дня — разброс цен и коридор баллов ЕГЭ."],
-    ["combo", "Тренд", "06 · Палочки + линия тренда (.is-combo)", "Сочетание 5 px палочек с плавной линией тренда и опорными узлами динамики."]
-  ];
+  const BB_CHART_STYLES = CHART_STYLE_META || [];
 
   function chartDatasetBars(dsId) {
     return kitChartDatasetBars ? kitChartDatasetBars(dsId) : [];
-  }
-
-  function stickChartHTML(styleId, bars, activeIdx, interactive, ariaLabel) {
-    const modCls = styleId && styleId !== "classic" ? ` is-${styleId}` : "";
-    return `<div class="tc-bar-chart${modCls}" role="img" aria-label="${ariaLabel || "Диаграмма с палочками"}">
-      ${bars.map((b, idx) => {
-        const isAct = interactive && activeIdx === idx;
-        const inner = styleId === "dual"
-          ? `<div class="tc-bar-fill is-bench" style="height:${b.benchPct}%"></div><div class="tc-bar-fill${b.gold ? " is-gold" : ""}" style="height:${b.pct}%"></div>`
-          : (styleId === "range"
-            ? `<div class="tc-bar-fill${b.gold ? " is-gold" : ""}" style="--low:${b.low}%;height:${b.span}%"></div>`
-            : `<div class="tc-bar-fill${b.gold ? " is-gold" : ""}" style="height:${b.pct}%"></div>`);
-        const body = `<span class="tc-bar-val num">${b.val}</span><div class="tc-bar-track">${inner}</div><span class="tc-bar-lbl">${b.wd}</span>`;
-        if (interactive) {
-          return `<button type="button" class="tc-bar-col${isAct ? " is-active" : ""}" data-a="bb-chart-bar" data-idx="${idx}" aria-pressed="${isAct}">${body}</button>`;
-        }
-        return `<div class="tc-bar-col">${body}</div>`;
-      }).join("")}
-    </div>`;
   }
 
   function cabinetAndBalanceSectionHTML(bb) {
@@ -1169,7 +1143,7 @@
               ["classic", "Столбики"]
             ].map(([vid, lbl]) => `<button type="button" class="chip-btn${cStyle === vid ? " on" : ""}" data-a="bb-chart-style" data-v="${vid}">${lbl}</button>`).join("")}
           </div>
-          ${(kitStickChartHTML || stickChartHTML)(cStyle, bars, cIdx, true, "Интерактивный график выплат по дням недели")}
+          ${(kitStickChartHTML || (() => ""))(cStyle, bars, cIdx, true, "Интерактивный график выплат по дням недели")}
           <div class="row between small muted" style="gap:8px;flex-wrap:wrap;padding:6px 10px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line)">
             <span>${activeBar.detail}</span>
             <span class="num" style="color:var(--ink)">кликни столбик</span>
@@ -1255,7 +1229,7 @@
                 </div>
                 <p class="small muted">${desc}</p>
               </div>
-              ${(kitStickChartHTML || stickChartHTML)(vid, bars, cIdx, false, title)}
+              ${(kitStickChartHTML || (() => ""))(vid, bars, cIdx, false, title)}
               <button type="button" class="chip-btn${picked ? " on" : ""}" data-a="bb-chart-style" data-v="${vid}" style="justify-content:center">${picked ? "Применён в кабинете ✓" : "Выбрать этот вид"}</button>
             </article>`;
           }).join("")}

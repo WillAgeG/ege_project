@@ -1,5 +1,7 @@
 # Архитектура проекта «Вектор ЕГЭ»
 
+> Полный справочник по стеку, базам данных, UI Kit (`ux-ui/`), API-роутам, ETL и инвариантам вынесен в [**GEMINI.md**](GEMINI.md).
+
 > **Коротко:** Проект разделён на **5 независимых доменных слоёв** в корне репозитория — `ux-ui/`, `frontend/`, `backend/`, `databases/`, `etl/` — чтобы дизайн-система, клиентский стек, HTTP API, базы данных и будущие Big Data / Polars / Sales-пайплайны не смешивались друг с другом и масштабировались раздельно.
 
 ---
@@ -62,3 +64,8 @@ node tests/check_app.js
 # или:
 /System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/Helpers/jsc tests/check_app.js
 ```
+
+## 5. Стек и DataViz-модуль
+
+- **Отдельный UI Kit ([`ux-ui/`](ux-ui/README.md))**: визуальные компоненты (`EGE.ui`, `EGE.hh`, `EGE.charts`, `EGE.kit`) полностью изолированы от бизнес-данных `frontend/data/*` и `frontend/views/*`. Модуль [`ux-ui/components/charts.js`](ux-ui/components/charts.js) отвечает за DataViz (6 стилей столбиковых/комбо-графиков, Безье-тренд, линейный/круговой SVG-график) и `dataTableHTML`.
+- Подробное описание стека, БД и API — в [`GEMINI.md`](GEMINI.md).

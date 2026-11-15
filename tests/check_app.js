@@ -1613,6 +1613,9 @@
     const bbHtml1 = env5.elements.get("main").innerHTML;
     assert(bbHtml1.includes("bb-demo-multi") && bbHtml1.includes("top-bal-wrap") && !bbHtml1.includes("Препод · ЕГЭ"), "expected Brandbook to showcase interactive hh-multi and balance pill with full Преподаватель label");
     assert(bbHtml1.includes('class="tc-combo-line"') && bbHtml1.includes('stroke-linecap="butt"') && bbHtml1.includes("bb-donut-outer-ring") && !bbHtml1.includes("5%:"), "expected smooth .tc-combo-line path, crisp stroke-linecap=butt donut slices with outer indicator ring, and no 5%: substring");
+    assert(globalThis.EGE && globalThis.EGE.charts && Array.isArray(globalThis.EGE.charts.CHART_STYLE_META) && globalThis.EGE.charts.CHART_STYLE_META.length === 6, "expected EGE.charts module with 6 DataViz variants");
+    assert(typeof globalThis.EGE.charts.stickChartHTML === "function" && typeof globalThis.EGE.charts.lineChartHTML === "function" && typeof globalThis.EGE.charts.donutChartHTML === "function" && typeof globalThis.EGE.charts.dataTableHTML === "function", "expected EGE.charts DataViz + DataTable builders");
+    assert(globalThis.EGE.kit && globalThis.EGE.kit.stickChartHTML === globalThis.EGE.charts.stickChartHTML, "expected EGE.kit to re-export canonical EGE.charts helpers without duplication");
     clickAction(env5, { a: "bb-multi-toggle" });
     await flushMicrotasks(1);
     assert(env5.elements.get("main").innerHTML.includes('class="hh-select hh-multi open"') && env5.elements.get("main").innerHTML.includes('aria-multiselectable="true"'), "expected bb-multi-toggle to open Brandbook multi-select dropdown");

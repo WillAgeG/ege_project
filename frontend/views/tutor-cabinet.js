@@ -1217,16 +1217,7 @@
                 false,
                 "Диаграмма дохода по дням недели"
               )
-            : `<div class="tc-bar-chart${st.chartStyle === "classic" ? "" : ` is-${st.chartStyle || "sticks"}`}" role="img" aria-label="Диаграмма дохода по дням недели">
-              ${dayBars.map((b) => {
-                const hPct = Math.max(18, Math.round((b.rev / maxRev) * 100));
-                return `<div class="tc-bar-col">
-                  <span class="tc-bar-val num">${Math.round(b.rev / 1000)}к ₽</span>
-                  <div class="tc-bar-track"><div class="tc-bar-fill${b.isGold ? " is-gold" : ""}" style="height:${hPct}%"></div></div>
-                  <span class="tc-bar-lbl">${b.wd}</span>
-                </div>`;
-              }).join("")}
-            </div>`}
+            : ""}
         </div>
       </div>
 
