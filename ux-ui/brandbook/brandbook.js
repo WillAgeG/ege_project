@@ -1139,8 +1139,8 @@
               ["lollipop", "Леденцы"],
               ["capsule", "Капсулы"],
               ["dual", "Парные"],
-              ["combo", "Тренд"],
-              ["classic", "Столбики"]
+              ["range", "Диапазон"],
+              ["combo", "Тренд"]
             ].map(([vid, lbl]) => `<button type="button" class="chip-btn${cStyle === vid ? " on" : ""}" data-a="bb-chart-style" data-v="${vid}">${lbl}</button>`).join("")}
           </div>
           ${(kitStickChartHTML || (() => ""))(cStyle, bars, cIdx, true, "Интерактивный график выплат по дням недели")}
@@ -1233,6 +1233,57 @@
               <button type="button" class="chip-btn${picked ? " on" : ""}" data-a="bb-chart-style" data-v="${vid}" style="justify-content:center">${picked ? "Применён в кабинете ✓" : "Выбрать этот вид"}</button>
             </article>`;
           }).join("")}
+        </div>
+      </div>
+
+      <div class="bb-forms-grid" style="margin-top:14px">
+        <div class="card pad stack" style="gap:10px">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <b>08 · Мои ученики: маски +7 / @login и напоминание за 1 час</b>
+            <span class="bb-spec-pill confirm">WA · TG · MAX</span>
+          </div>
+          <div class="tc-contact-grid">
+            <div class="field">
+              <label for="bb-mask-phone">WhatsApp / телефон (+7)</label>
+              <input class="input num" id="bb-mask-phone" type="tel" value="+7 (914) 210-05-11" readonly>
+            </div>
+            <div class="field">
+              <label for="bb-mask-lead">За 1 ч до урока</label>
+              <input class="input num" id="bb-mask-lead" type="text" value="Вс · 10:00" readonly>
+            </div>
+            <div class="field">
+              <label for="bb-mask-tg">Telegram (@login или телефон)</label>
+              <input class="input" id="bb-mask-tg" type="text" value="@aytal_bio" readonly>
+            </div>
+            <div class="field">
+              <label for="bb-mask-max">MAX контакт</label>
+              <input class="input" id="bb-mask-max" type="text" value="+7 (914) 210-05-11" readonly>
+            </div>
+          </div>
+          <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
+            <span class="small muted">Маска <code>+7 (914) 000-00-00</code> и авто-обработка <code>@login</code> через <code>EGE.kit.formatPhoneMask</code> / <code>formatTelegramContact</code>.</span>
+            <button type="button" class="btn confirm sm" data-a="bb-demo-toast">${icon("bell")}<span>Автонапоминание в 09:00</span></button>
+          </div>
+        </div>
+
+        <div class="card pad stack" style="gap:10px">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <b>09 · Шкала ИИ-проверки сочинения ЕГЭ (К1–К10 · 21/22 б.)</b>
+            <span class="bb-spec-pill pro">.diff-tag.pro</span>
+          </div>
+          <div class="row" style="gap:6px;flex-wrap:wrap">
+            <span class="chip confirm num">К1 Формулировка · 1/1</span>
+            <span class="chip confirm num">К2 Комментарий · 3/3</span>
+            <span class="chip confirm num">К3 Позиция · 1/1</span>
+            <span class="chip accent num">К4 Аргумент · 1/1</span>
+            <span class="chip notif num">К5 Логика · 1/2</span>
+            <span class="chip pro num">К6–К10 Грамотность · 14/14</span>
+          </div>
+          <div class="stack" style="gap:4px">
+            <div class="row between small"><span>Итоговый первичный балл за сочинение (ИИ-разбор)</span><b class="num" style="color:var(--confirm)">21 / 22 б.</b></div>
+            <div class="meter"><i style="width:95%"></i></div>
+          </div>
+          <span class="small muted">Цветовое кодирование: зелёный <code>--confirm</code> (максимум), оранжевый <code>--notif</code> (есть помарка), фиолетовый <code>--pro</code> (высший блок).</span>
         </div>
       </div>
     </section>`;

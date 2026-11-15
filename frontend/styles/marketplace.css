@@ -262,18 +262,22 @@ body[data-auth="1"] .auth-wrap { margin: 8vh auto; padding: 0 16px; }
 .demo-rate-stepper { width: min(296px, 100%); flex: none; }
 .hh-step-readout.is-inline {
   display: inline-flex; flex-direction: row; flex-wrap: nowrap;
-  align-items: baseline; justify-content: center; gap: 4px;
-  padding: 2px 8px; white-space: nowrap; cursor: text; min-width: 0;
+  align-items: center; justify-content: center; align-self: stretch; gap: 4px;
+  height: 100%; padding: 0 8px; white-space: nowrap; cursor: text; min-width: 0;
 }
 .demo-rate-input {
-  width: 4.5ch; min-width: 40px; max-width: 64px; border: 0; background: transparent; padding: 0; min-height: 0; box-shadow: none; outline: none;
+  width: 4ch; min-width: 38px; max-width: 56px; height: 22px; line-height: 22px;
+  border: 0; background: transparent; padding: 0; margin: 0; min-height: 0; box-shadow: none; outline: none;
   text-align: right; font-family: var(--font-display); font-size: 15.5px; font-weight: 700; color: var(--ink);
   font-variant-numeric: tabular-nums; -moz-appearance: textfield;
 }
 .demo-rate-input::-webkit-outer-spin-button,
 .demo-rate-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .demo-rate-input:focus { outline: none; color: var(--accent); }
-.hh-step-unit { font-size: 13.5px; font-weight: 600; color: var(--ink-2); white-space: nowrap; line-height: 1; flex: none; }
+.hh-step-unit {
+  display: inline-flex; align-items: center; height: 22px; line-height: 22px;
+  font-size: 14px; font-weight: 700; color: var(--ink-2); white-space: nowrap; flex: none;
+}
 .demo-opt {
   width: 100%; text-align: left; display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2);
@@ -914,8 +918,12 @@ body[data-auth="1"] .auth-wrap { margin: 8vh auto; padding: 0 16px; }
 .review-foot { display: grid; gap: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
 .review-author { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .tutor-avatar.review-av { width: 34px; height: 34px; font-size: 12px; border-radius: 50%; flex: none; }
-.verified-badge.sm { width: 15px; height: 15px; }
+.verified-badge.sm { width: 15px; height: 15px; display: inline-grid; place-items: center; flex: none; vertical-align: middle; }
 .verified-badge.sm svg { width: 9px; height: 9px; }
+.review-price-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.review-price-row .hh-price-old { font-size: 13.5px; line-height: 1; }
+.review-price-now { font-size: 16px; font-weight: 700; color: var(--accent); line-height: 1; }
+.review-price-row .diff-tag { line-height: 1; padding: 3px 9px; }
 
 .tutor-perks-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: stretch; min-width: 0; }
 @media (max-width: 820px) { .tutor-perks-grid { grid-template-columns: minmax(0, 1fr); } }
@@ -1273,13 +1281,20 @@ body[data-auth="1"] .auth-wrap { margin: 8vh auto; padding: 0 16px; }
   width: 1px; background: var(--line); transform: translateX(-50%);
 }
 .tc-bar-chart.is-range .tc-bar-fill {
-  width: 6px; border-radius: 999px; position: absolute;
+  width: 4px; border-radius: 999px; position: absolute;
   left: 50%; transform: translateX(-50%); bottom: var(--low, 20%); z-index: 1;
 }
+.tc-bar-chart.is-range .tc-bar-fill::before,
 .tc-bar-chart.is-range .tc-bar-fill::after {
-  content: ""; position: absolute; top: 50%; left: -3px; right: -3px;
-  height: 2px; border-radius: 2px; background: var(--surface-2);
+  content: ""; position: absolute; left: 50%; transform: translateX(-50%);
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--accent); border: 2px solid var(--surface); box-sizing: border-box;
 }
+.tc-bar-chart.is-range .tc-bar-fill::before { top: -2px; }
+.tc-bar-chart.is-range .tc-bar-fill::after { bottom: -2px; }
+.tc-bar-chart.is-range .tc-bar-fill.is-gold::before,
+.tc-bar-chart.is-range .tc-bar-fill.is-gold::after { background: #c59b5f; }
+.tc-bar-min { font-size: 10px; line-height: 12px; color: var(--muted); font-family: var(--font-mono); }
 .tc-bar-chart.is-combo { position: relative; gap: 0; padding: 8px 8px; }
 .tc-bar-chart.is-combo .tc-bar-lbl { height: 16px; line-height: 16px; }
 .tc-bar-chart.is-combo .tc-bar-track { max-width: 24px; height: 92px; }

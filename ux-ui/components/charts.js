@@ -18,34 +18,34 @@
   function chartDatasetBars(dsId) {
     if (dsId === "scores") {
       return [
-        { wd: "Сен", val: "48", num: 48, detail: "Сентябрь · диагностика 48 / 100 б.", pct: 48, benchPct: 55, low: 22, span: 28, gold: false },
-        { wd: "Окт", val: "56", num: 56, detail: "Октябрь · +8 б. по блоку клетки", pct: 56, benchPct: 58, low: 28, span: 32, gold: false },
-        { wd: "Ноя", val: "64", num: 64, detail: "Ноябрь · 64 / 100 б. (вторая часть)", pct: 64, benchPct: 62, low: 34, span: 34, gold: false },
-        { wd: "Дек", val: "71", num: 71, detail: "Декабрь · пробник ФИПИ 71 / 100 б.", pct: 71, benchPct: 66, low: 40, span: 36, gold: false },
-        { wd: "Янв", val: "78", num: 78, detail: "Январь · уверенный рост 78 / 100 б.", pct: 78, benchPct: 70, low: 44, span: 38, gold: false },
-        { wd: "Фев", val: "86", num: 86, detail: "Февраль · порог медуниверситета 86 / 100 б.", pct: 86, benchPct: 74, low: 50, span: 40, gold: true },
-        { wd: "Мар", val: "94", num: 94, detail: "Март · 94 / 100 б. (итоговый темп ЕГЭ)", pct: 94, benchPct: 78, low: 56, span: 42, gold: true }
+        { wd: "Сен", val: "48", minVal: "38", maxVal: "52", num: 48, detail: "Сентябрь · диагностика 48 / 100 б. (коридор 38–52)", pct: 48, benchPct: 55, low: 20, span: 30, gold: false },
+        { wd: "Окт", val: "56", minVal: "46", maxVal: "62", num: 56, detail: "Октябрь · +8 б. по блоку клетки (коридор 46–62)", pct: 56, benchPct: 58, low: 26, span: 32, gold: false },
+        { wd: "Ноя", val: "64", minVal: "54", maxVal: "70", num: 64, detail: "Ноябрь · 64 / 100 б. (коридор 54–70)", pct: 64, benchPct: 62, low: 32, span: 34, gold: false },
+        { wd: "Дек", val: "71", minVal: "62", maxVal: "78", num: 71, detail: "Декабрь · пробник ФИПИ 71 / 100 б. (62–78)", pct: 71, benchPct: 66, low: 38, span: 36, gold: false },
+        { wd: "Янв", val: "78", minVal: "68", maxVal: "84", num: 78, detail: "Январь · уверенный рост 78 / 100 б. (68–84)", pct: 78, benchPct: 70, low: 42, span: 38, gold: false },
+        { wd: "Фев", val: "86", minVal: "76", maxVal: "92", num: 86, detail: "Февраль · порог медуниверситета 86 / 100 б. (76–92)", pct: 86, benchPct: 74, low: 46, span: 40, gold: true },
+        { wd: "Мар", val: "94", minVal: "82", maxVal: "98", num: 94, detail: "Март · 94 / 100 б. (коридор 82–98 б.)", pct: 94, benchPct: 78, low: 50, span: 42, gold: true }
       ];
     }
     if (dsId === "slots") {
       return [
-        { wd: "10ч", val: "12", num: 12, detail: "10:00 · 12 откликов (утреннее окно)", pct: 54, benchPct: 42, low: 18, span: 38, gold: false },
-        { wd: "12ч", val: "15", num: 15, detail: "12:00 · 15 откликов (дневной слот)", pct: 68, benchPct: 52, low: 24, span: 44, gold: false },
-        { wd: "14ч", val: "19", num: 19, detail: "14:00 · 19 откликов (после школы)", pct: 84, benchPct: 64, low: 30, span: 54, gold: true },
-        { wd: "16ч", val: "22", num: 22, detail: "16:00 · 22 отклика (главный пик дня)", pct: 100, benchPct: 72, low: 36, span: 60, gold: true },
-        { wd: "18ч", val: "18", num: 18, detail: "18:00 · 18 откликов (вечер Якутска)", pct: 80, benchPct: 66, low: 28, span: 52, gold: true },
-        { wd: "19ч", val: "14", num: 14, detail: "19:00 · 14 откликов", pct: 62, benchPct: 50, low: 22, span: 42, gold: false },
-        { wd: "20ч", val: "9", num: 9, detail: "20:00 · 9 откликов (вечернее окно)", pct: 42, benchPct: 38, low: 14, span: 32, gold: false }
+        { wd: "10ч", val: "12", minVal: "6", maxVal: "12", num: 12, detail: "10:00 · 6–12 откликов (утреннее окно)", pct: 54, benchPct: 42, low: 16, span: 36, gold: false },
+        { wd: "12ч", val: "15", minVal: "8", maxVal: "15", num: 15, detail: "12:00 · 8–15 откликов (дневной слот)", pct: 68, benchPct: 52, low: 22, span: 42, gold: false },
+        { wd: "14ч", val: "19", minVal: "11", maxVal: "19", num: 19, detail: "14:00 · 11–19 откликов (после школы)", pct: 84, benchPct: 64, low: 28, span: 52, gold: true },
+        { wd: "16ч", val: "22", minVal: "14", maxVal: "22", num: 22, detail: "16:00 · 14–22 отклика (главный пик дня)", pct: 100, benchPct: 72, low: 34, span: 58, gold: true },
+        { wd: "18ч", val: "18", minVal: "10", maxVal: "18", num: 18, detail: "18:00 · 10–18 откликов (вечер Якутска)", pct: 80, benchPct: 66, low: 26, span: 50, gold: true },
+        { wd: "19ч", val: "14", minVal: "8", maxVal: "14", num: 14, detail: "19:00 · 8–14 откликов", pct: 62, benchPct: 50, low: 20, span: 40, gold: false },
+        { wd: "20ч", val: "9", minVal: "4", maxVal: "9", num: 9, detail: "20:00 · 4–9 откликов (вечернее окно)", pct: 42, benchPct: 38, low: 14, span: 30, gold: false }
       ];
     }
     return [
-      { wd: "Пн", val: "4.2к", num: 4200, detail: "Пн · 4 200 ₽ · 4 урока · на руки 95% · 3 990 ₽", pct: 52, benchPct: 48, low: 18, span: 44, gold: false },
-      { wd: "Вт", val: "5.6к", num: 5600, detail: "Вт · 5 600 ₽ · 5 уроков · на руки 95% · 5 320 ₽", pct: 70, benchPct: 60, low: 24, span: 52, gold: false },
-      { wd: "Ср", val: "3.4к", num: 3400, detail: "Ср · 3 400 ₽ · 3 урока · на руки 95% · 3 230 ₽", pct: 44, benchPct: 50, low: 14, span: 36, gold: false },
-      { wd: "Чт", val: "7.9к", num: 7900, detail: "Чт · 7 900 ₽ · 7 уроков · на руки 95% · 7 505 ₽ · Пик авто-24ч", pct: 100, benchPct: 68, low: 34, span: 62, gold: true },
-      { wd: "Пт", val: "5.1к", num: 5100, detail: "Пт · 5 100 ₽ · 5 уроков · на руки 95% · 4 845 ₽", pct: 64, benchPct: 58, low: 22, span: 48, gold: false },
-      { wd: "Сб", val: "6.8к", num: 6800, detail: "Сб · 6 800 ₽ · 6 уроков · на руки 95% · 6 460 ₽ · Пик авто-24ч", pct: 86, benchPct: 66, low: 28, span: 58, gold: true },
-      { wd: "Вс", val: "4.5к", num: 4500, detail: "Вс · 4 500 ₽ · 4 урока · на руки 95% · 4 275 ₽", pct: 56, benchPct: 52, low: 20, span: 42, gold: false }
+      { wd: "Пн", val: "4.2к", minVal: "2.4к", maxVal: "4.2к", num: 4200, detail: "Пн · 2.4к–4.2к ₽ · 4 урока · на руки 95% · 3 990 ₽", pct: 52, benchPct: 48, low: 16, span: 42, gold: false },
+      { wd: "Вт", val: "5.6к", minVal: "3.1к", maxVal: "5.6к", num: 5600, detail: "Вт · 3.1к–5.6к ₽ · 5 уроков · на руки 95% · 5 320 ₽", pct: 70, benchPct: 60, low: 22, span: 50, gold: false },
+      { wd: "Ср", val: "3.4к", minVal: "1.9к", maxVal: "3.4к", num: 3400, detail: "Ср · 1.9к–3.4к ₽ · 3 урока · на руки 95% · 3 230 ₽", pct: 44, benchPct: 50, low: 14, span: 34, gold: false },
+      { wd: "Чт", val: "7.9к", minVal: "4.8к", maxVal: "7.9к", num: 7900, detail: "Чт · 4.8к–7.9к ₽ · 7 уроков · на руки 95% · 7 505 ₽ · Пик авто-24ч", pct: 100, benchPct: 68, low: 32, span: 60, gold: true },
+      { wd: "Пт", val: "5.1к", minVal: "2.9к", maxVal: "5.1к", num: 5100, detail: "Пт · 2.9к–5.1к ₽ · 5 уроков · на руки 95% · 4 845 ₽", pct: 64, benchPct: 58, low: 20, span: 46, gold: false },
+      { wd: "Сб", val: "6.8к", minVal: "3.9к", maxVal: "6.8к", num: 6800, detail: "Сб · 3.9к–6.8к ₽ · 6 уроков · на руки 95% · 6 460 ₽ · Пик авто-24ч", pct: 86, benchPct: 66, low: 26, span: 56, gold: true },
+      { wd: "Вс", val: "4.5к", minVal: "2.5к", maxVal: "4.5к", num: 4500, detail: "Вс · 2.5к–4.5к ₽ · 4 урока · на руки 95% · 4 275 ₽", pct: 56, benchPct: 52, low: 18, span: 40, gold: false }
     ];
   }
 
@@ -101,12 +101,15 @@
         const isAct = interactive && activeIdx === idx;
         const pct = clampPct(b.pct);
         const benchPct = clampPct(b.benchPct);
+        const isRange = styleId === "range";
+        const topVal = isRange ? (b.maxVal || b.val) : b.val;
         const inner = styleId === "dual"
           ? `<div class="tc-bar-fill is-bench" style="height:${benchPct}%"></div><div class="tc-bar-fill${b.gold ? " is-gold" : ""}" style="height:${pct}%"></div>`
-          : (styleId === "range"
+          : (isRange
             ? `<div class="tc-bar-fill${b.gold ? " is-gold" : ""}" style="--low:${b.low}%;height:${b.span}%"></div>`
             : `<div class="tc-bar-fill${b.gold ? " is-gold" : ""}" style="height:${pct}%"></div>`);
-        const body = `<span class="tc-bar-val num">${esc(b.val)}</span><div class="tc-bar-track">${inner}</div><span class="tc-bar-lbl">${esc(b.wd)}</span>`;
+        const minRow = isRange && b.minVal ? `<span class="tc-bar-min num">${esc(b.minVal)}</span>` : "";
+        const body = `<span class="tc-bar-val num">${esc(topVal)}</span><div class="tc-bar-track">${inner}</div>${minRow}<span class="tc-bar-lbl">${esc(b.wd)}</span>`;
         if (interactive) {
           return `<button type="button" class="tc-bar-col${isAct ? " is-active" : ""}" data-a="${esc(action)}" data-idx="${idx}" aria-pressed="${isAct}">${body}</button>`;
         }
@@ -368,7 +371,7 @@
           <h3 class="h3">Расписание и заявки учеников с мгновенной отправкой в WA · Telegram · MAX</h3>
         </div>
         <div class="hh-seg" role="group" aria-label="Количество колонок таблицы">
-          ${[3, 5, 7].map((c) => `<button type="button" data-a="bb-tbl-cols" data-cols="${c}" aria-pressed="${cols === c}">${c} колонки</button>`).join("")}
+          ${[3, 5, 7].map((c) => `<button type="button" data-a="bb-tbl-cols" data-cols="${c}" aria-pressed="${cols === c}">${c === 3 ? "3 колонки" : `${c} колонок`}</button>`).join("")}
         </div>
       </div>
       <div class="bb-tbl-toolbar">
@@ -381,7 +384,11 @@
             ["chem", "Химия"]
           ].map(([fid, flbl]) => `<button type="button" class="chip-btn${filter === fid ? " on" : ""}" data-a="bb-tbl-filter" data-v="${fid}">${esc(flbl)}</button>`).join("")}
         </div>
-        <input class="input" id="bb-tbl-q" type="search" value="${esc(opts.query || "")}" placeholder="Поиск по имени, предмету, городу…" style="max-width:260px" aria-label="Поиск по таблице">
+        <label class="bb-tbl-search" for="bb-tbl-q">
+          ${EGE.ui && typeof EGE.ui.icon === "function" ? EGE.ui.icon("search") : ""}
+          <input id="bb-tbl-q" type="search" value="${esc(opts.query || "")}" placeholder="Поиск: имя, предмет, город…" autocomplete="off" aria-label="Поиск по таблице">
+          ${query ? `<button type="button" class="btn ghost sm" data-a="bb-tbl-filter" data-v="all" data-clear-q="1" aria-label="Сбросить поиск">×</button>` : ""}
+        </label>
       </div>
       <div class="table-wrap">
         <table class="tbl bb-data-table cols-${cols}">

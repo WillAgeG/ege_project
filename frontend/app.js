@@ -4777,6 +4777,7 @@
     "bb-tbl-filter": (el) => {
       const bb = bbState();
       bb.tableFilter = (el.dataset && el.dataset.v) || "all";
+      if (el.dataset && el.dataset.clearQ) bb.tableSearch = "";
       scheduleRender();
     },
     "fees-rate": (el) => {

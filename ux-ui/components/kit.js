@@ -255,10 +255,10 @@
             <span class="small muted">${esc(r.role || "")}</span>
           </div>
         </div>
-        <div class="hh-price-row">
+        <div class="hh-price-row review-price-row">
           ${r.pro
-            ? `<b class="num" style="font-size:15px">Ставка от ${newPrice.toLocaleString("ru-RU")} ₽/ч</b><span class="diff-tag pro">Профи</span>`
-            : `<s class="hh-price-old num">${oldPrice.toLocaleString("ru-RU")} ₽</s><b class="num" style="font-size:15px;color:var(--accent)">${newPrice.toLocaleString("ru-RU")} ₽/ч</b>${savePct > 0 ? `<span class="diff-tag confirm num">−${savePct}%</span>` : ""}`}
+            ? `<b class="review-price-now num">Ставка от ${newPrice.toLocaleString("ru-RU")} ₽/ч</b><span class="diff-tag pro">Профи</span>`
+            : `<s class="hh-price-old num">${oldPrice.toLocaleString("ru-RU")} ₽</s><b class="review-price-now num">${newPrice.toLocaleString("ru-RU")} ₽/ч</b>${savePct > 0 ? `<span class="diff-tag confirm num">−${savePct}%</span>` : ""}`}
         </div>
       </div>
     </article>`;

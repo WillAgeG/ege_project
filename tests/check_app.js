@@ -1061,6 +1061,16 @@
       bbChartsHtml.includes("bb-line-chart") &&
       bbChartsHtml.includes("bb-donut-chart") &&
       bbChartsHtml.includes("bb-data-table") &&
+      bbChartsHtml.includes("bb-tbl-search") &&
+      bbChartsHtml.includes("3 колонки") &&
+      bbChartsHtml.includes("5 колонок") &&
+      bbChartsHtml.includes("7 колонок") &&
+      !bbChartsHtml.includes("5 колонки") &&
+      !bbChartsHtml.includes("7 колонки") &&
+      bbChartsHtml.includes("tc-bar-min") &&
+      bbChartsHtml.includes("review-price-row") &&
+      bbChartsHtml.includes("08 · Мои ученики") &&
+      bbChartsHtml.includes("09 · Шкала ИИ-проверки") &&
       bbChartsHtml.includes("https://wa.me/") &&
       bbChartsHtml.includes("https://t.me/") &&
       bbChartsHtml.includes("https://max.ru/"),

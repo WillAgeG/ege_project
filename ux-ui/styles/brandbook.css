@@ -506,6 +506,7 @@
 
 /* ---------- Элементы лендинга и мобильный стек ---------- */
 .bb-kit-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; min-width: 0; align-items: start; }
+.bb-kit-grid .review-card { height: auto; }
 @media (max-width: 860px) {
   .bb-kit-grid { grid-template-columns: minmax(0, 1fr); }
 }
@@ -753,6 +754,20 @@
 .bb-tbl-toolbar {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
 }
+.bb-tbl-search {
+  display: flex; align-items: center; gap: 8px; flex: 1 1 260px; min-width: 240px; max-width: 340px;
+  min-height: 38px; padding: 0 12px; border-radius: 999px;
+  border: 1px solid var(--line-strong); background: var(--surface);
+  transition: border-color .14s ease, box-shadow .14s ease;
+}
+.bb-tbl-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.bb-tbl-search svg { width: 15px; height: 15px; color: var(--muted); flex: none; }
+.bb-tbl-search input {
+  flex: 1 1 auto; min-width: 0; width: 100%; border: 0; background: transparent;
+  color: var(--ink); font: inherit; font-size: 13.5px; padding: 4px 0; outline: none;
+}
+.bb-tbl-search input::placeholder { color: var(--muted); }
+@media (max-width: 640px) { .bb-tbl-search { flex: 1 1 100%; min-width: 0; max-width: 100%; } }
 .bb-data-table { min-width: 560px; }
 .bb-data-table.cols-3 { min-width: 0; }
 .bb-data-table th {
