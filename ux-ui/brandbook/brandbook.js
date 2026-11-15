@@ -91,6 +91,9 @@
       marketDemoAccepted: false,
       reducedMotion: false,
       balFunded: true,
+      chartStyle: "sticks",
+      chartDataset: "income",
+      chartActiveIdx: 3,
       cat: "all",
       catQ: "",
       faqOpen: 0
@@ -889,8 +892,75 @@
     return out;
   }
 
+  const BB_CHART_STYLES = [
+    ["sticks", "Палочки", "01 · Тонкие палочки с осью (.is-sticks)", "Тонкие 6 px палочки на вертикальной оси 1 px — максимум воздуха и точная линейка для дашборда."],
+    ["lollipop", "Леденцы", "02 · Палочки-леденцы с точкой (.is-lollipop)", "Стержень 4 px с круглой вершиной 10 px для акцента на дневных откликах и пиковых значениях."],
+    ["capsule", "Капсулы", "03 · Капсульные палочки в колбе (.is-capsule)", "Градусники-колбы 14 px в обводке для прогресса недели, загрузки часов и квот преподавателя."],
+    ["dual", "Парные", "04 · Парные палочки «Рынок vs Ставка» (.is-dual)", "Две палочки рядом на одном делении: фиолетовый ориентир рынка против синей/золотой ставки."],
+    ["range", "Диапазон", "05 · Диапазонные палочки «Мин–Макс» (.is-range)", "Плавающий отрезок между минимумом и максимумом дня — разброс цен и коридор баллов ЕГЭ."],
+    ["segmented", "Сегменты", "06 · Сегментные палочки + Спарклайн (.is-segmented)", "Дискретные деления по 6 px с зазором 2 px и 14-палочный мини-спарклайн .bb-spark-sticks."]
+  ];
+
+  function chartDatasetBars(dsId) {
+    if (dsId === "scores") {
+      return [
+        { wd: "Сен", val: "48", detail: "Сентябрь · диагностика 48 / 100 б.", pct: 48, benchPct: 55, low: 22, span: 28, gold: false },
+        { wd: "Окт", val: "56", detail: "Октябрь · +8 б. по блоку клетки", pct: 56, benchPct: 58, low: 28, span: 32, gold: false },
+        { wd: "Ноя", val: "64", detail: "Ноябрь · 64 / 100 б. (вторая часть)", pct: 64, benchPct: 62, low: 34, span: 34, gold: false },
+        { wd: "Дек", val: "71", detail: "Декабрь · пробник ФИПИ 71 / 100 б.", pct: 71, benchPct: 66, low: 40, span: 36, gold: false },
+        { wd: "Янв", val: "78", detail: "Январь · уверенный рост 78 / 100 б.", pct: 78, benchPct: 70, low: 44, span: 38, gold: false },
+        { wd: "Фев", val: "86", detail: "Февраль · порог медуниверситета 86 / 100 б.", pct: 86, benchPct: 74, low: 50, span: 40, gold: true },
+        { wd: "Мар", val: "94", detail: "Март · 94 / 100 б. (итоговый темп ЕГЭ)", pct: 94, benchPct: 78, low: 56, span: 42, gold: true }
+      ];
+    }
+    if (dsId === "slots") {
+      return [
+        { wd: "10ч", val: "12", detail: "10:00 · 12 откликов (утреннее окно)", pct: 54, benchPct: 42, low: 18, span: 38, gold: false },
+        { wd: "12ч", val: "15", detail: "12:00 · 15 откликов (дневной слот)", pct: 68, benchPct: 52, low: 24, span: 44, gold: false },
+        { wd: "14ч", val: "19", detail: "14:00 · 19 откликов (после школы)", pct: 84, benchPct: 64, low: 30, span: 54, gold: true },
+        { wd: "16ч", val: "22", detail: "16:00 · 22 отклика (главный пик дня)", pct: 100, benchPct: 72, low: 36, span: 60, gold: true },
+        { wd: "18ч", val: "18", detail: "18:00 · 18 откликов (вечер Якутска)", pct: 80, benchPct: 66, low: 28, span: 52, gold: true },
+        { wd: "19ч", val: "14", detail: "19:00 · 14 откликов", pct: 62, benchPct: 50, low: 22, span: 42, gold: false },
+        { wd: "20ч", val: "9", detail: "20:00 · 9 откликов (вечернее окно)", pct: 42, benchPct: 38, low: 14, span: 32, gold: false }
+      ];
+    }
+    return [
+      { wd: "Пн", val: "4.2к", detail: "Пн · 4 200 ₽ · 4 урока · на руки 95% · 3 990 ₽", pct: 52, benchPct: 48, low: 18, span: 44, gold: false },
+      { wd: "Вт", val: "5.6к", detail: "Вт · 5 600 ₽ · 5 уроков · на руки 95% · 5 320 ₽", pct: 70, benchPct: 60, low: 24, span: 52, gold: false },
+      { wd: "Ср", val: "3.4к", detail: "Ср · 3 400 ₽ · 3 урока · на руки 95% · 3 230 ₽", pct: 44, benchPct: 50, low: 14, span: 36, gold: false },
+      { wd: "Чт", val: "7.9к", detail: "Чт · 7 900 ₽ · 7 уроков · на руки 95% · 7 505 ₽ · Пик авто-24ч", pct: 100, benchPct: 68, low: 34, span: 62, gold: true },
+      { wd: "Пт", val: "5.1к", detail: "Пт · 5 100 ₽ · 5 уроков · на руки 95% · 4 845 ₽", pct: 64, benchPct: 58, low: 22, span: 48, gold: false },
+      { wd: "Сб", val: "6.8к", detail: "Сб · 6 800 ₽ · 6 уроков · на руки 95% · 6 460 ₽ · Пик авто-24ч", pct: 86, benchPct: 66, low: 28, span: 58, gold: true },
+      { wd: "Вс", val: "4.5к", detail: "Вс · 4 500 ₽ · 4 урока · на руки 95% · 4 275 ₽", pct: 56, benchPct: 52, low: 20, span: 42, gold: false }
+    ];
+  }
+
+  function stickChartHTML(styleId, bars, activeIdx, interactive, ariaLabel) {
+    const modCls = styleId && styleId !== "classic" ? ` is-${styleId}` : "";
+    return `<div class="tc-bar-chart${modCls}" role="img" aria-label="${ariaLabel || "Диаграмма с палочками"}">
+      ${bars.map((b, idx) => {
+        const isAct = interactive && activeIdx === idx;
+        const inner = styleId === "dual"
+          ? `<div class="tc-bar-fill is-bench" style="height:${b.benchPct}%"></div><div class="tc-bar-fill${b.gold ? " is-gold" : ""}" style="height:${b.pct}%"></div>`
+          : (styleId === "range"
+            ? `<div class="tc-bar-fill${b.gold ? " is-gold" : ""}" style="--low:${b.low}%;height:${b.span}%"></div>`
+            : `<div class="tc-bar-fill${b.gold ? " is-gold" : ""}" style="height:${b.pct}%"></div>`);
+        const body = `<span class="tc-bar-val num">${b.val}</span><div class="tc-bar-track">${inner}</div><span class="tc-bar-lbl">${b.wd}</span>`;
+        if (interactive) {
+          return `<button type="button" class="tc-bar-col${isAct ? " is-active" : ""}" data-a="bb-chart-bar" data-idx="${idx}" aria-pressed="${isAct}">${body}</button>`;
+        }
+        return `<div class="tc-bar-col">${body}</div>`;
+      }).join("")}
+    </div>`;
+  }
+
   function cabinetAndBalanceSectionHTML(bb) {
     const pRate = Number(bb.price) || 1200;
+    const cStyle = bb.chartStyle || "sticks";
+    const cDataset = bb.chartDataset || "income";
+    const cIdx = Number.isInteger(bb.chartActiveIdx) ? Math.max(0, Math.min(6, bb.chartActiveIdx)) : 3;
+    const bars = chartDatasetBars(cDataset);
+    const activeBar = bars[cIdx] || bars[3];
     return `<section class="land-sec" id="bb-cabinet">
       <div class="land-sec-head">
         <div>
@@ -1089,28 +1159,22 @@
       <div class="bb-forms-grid" style="margin-top:14px">
         <div class="card pad stack" style="gap:10px">
           <div class="row between" style="gap:8px;flex-wrap:wrap">
-            <b>05 · Выплаты 95%, доход 7 дней (.tc-bar-chart) и Профиль</b>
+            <b>05 · Выплаты 95%, график с палочками (.tc-bar-chart) и Профиль</b>
             <span class="bb-spec-pill num">34 200 ₽/мес</span>
           </div>
-          <div class="row" style="gap:8px;flex-wrap:wrap">
-            <span class="chip confirm">Чистая выплата: 95%</span>
-            <span class="chip num">1 140 ₽ за урок</span>
-            <span class="chip">30 уроков/мес</span>
-          </div>
-          <div class="tc-bar-chart" role="img" aria-label="Диаграмма дохода по дням недели">
+          <div class="row" style="gap:6px;flex-wrap:wrap">
             ${[
-              { wd: "Пн", rev: 4200, pct: 52, gold: false },
-              { wd: "Вт", rev: 5600, pct: 70, gold: false },
-              { wd: "Ср", rev: 3400, pct: 44, gold: false },
-              { wd: "Чт", rev: 7900, pct: 100, gold: true },
-              { wd: "Пт", rev: 5100, pct: 64, gold: false },
-              { wd: "Сб", rev: 6800, pct: 86, gold: true },
-              { wd: "Вс", rev: 4500, pct: 56, gold: false }
-            ].map((b) => `<div class="tc-bar-col">
-              <span class="tc-bar-val num">${(b.rev / 1000).toFixed(1)}к</span>
-              <div class="tc-bar-track"><div class="tc-bar-fill${b.gold ? " is-gold" : ""}" style="height:${b.pct}%"></div></div>
-              <span class="tc-bar-lbl">${b.wd}</span>
-            </div>`).join("")}
+              ["sticks", "Палочки"],
+              ["lollipop", "Леденцы"],
+              ["capsule", "Капсулы"],
+              ["dual", "Парные"],
+              ["classic", "Столбики"]
+            ].map(([vid, lbl]) => `<button type="button" class="chip-btn${cStyle === vid ? " on" : ""}" data-a="bb-chart-style" data-v="${vid}">${lbl}</button>`).join("")}
+          </div>
+          ${stickChartHTML(cStyle, bars, cIdx, true, "Интерактивный график выплат по дням недели")}
+          <div class="row between small muted" style="gap:8px;flex-wrap:wrap;padding:6px 10px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line)">
+            <span>${activeBar.detail}</span>
+            <span class="num" style="color:var(--ink)">кликни столбик</span>
           </div>
           <div class="stack" style="gap:4px">
             <div class="row between small"><span>Заполненность профиля (<code>.tc-hh-meter</code>)</span><b class="num savings-gold-txt">100%</b></div>
@@ -1152,6 +1216,45 @@
               <button type="button" class="btn gold sm" data-a="bb-demo-toast">${icon("bell")}<span>✓ Автоуведомление WA</span></button>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div class="card pad stack" id="bb-charts" style="margin-top:14px;gap:14px">
+        <div class="row between" style="gap:10px;flex-wrap:wrap;align-items:center">
+          <div>
+            <div class="eyebrow">07 · Витрина графиков с палочками · 6 видов</div>
+            <h3 class="h2">Варианты палочных графиков для выплат, спроса и динамики ЕГЭ</h3>
+          </div>
+          <div class="hh-seg" role="group" aria-label="Набор данных графиков">
+            ${[
+              ["income", "Доход 7 дн (₽)"],
+              ["scores", "Пробники ЕГЭ"],
+              ["slots", "Спрос 10–20 ч"]
+            ].map(([did, dlbl]) => `<button type="button" data-a="bb-chart-data" data-v="${did}" aria-pressed="${cDataset === did}">${dlbl}</button>`).join("")}
+          </div>
+        </div>
+        <div class="bb-charts-grid">
+          ${BB_CHART_STYLES.map(([vid, shortLbl, title, desc]) => {
+            const picked = cStyle === vid;
+            const sparkVals = [32, 48, 40, 66, 54, 72, 92, 68, 76, 88, 60, 70, 96, 82];
+            return `<article class="bb-chart-card${picked ? " is-picked" : ""}">
+              <div class="stack" style="gap:4px">
+                <div class="row between" style="gap:6px">
+                  <b class="small">${title}</b>
+                  <span class="chip">${shortLbl}</span>
+                </div>
+                <p class="small muted">${desc}</p>
+              </div>
+              ${stickChartHTML(vid, bars, cIdx, false, title)}
+              ${vid === "segmented" ? `<div class="stack" style="gap:4px">
+                <span class="small muted">Микро-спарклайн 14 палочек (<code>.bb-spark-sticks</code>)</span>
+                <div class="bb-spark-sticks" aria-hidden="true">
+                  ${sparkVals.map((v, si) => `<span class="bb-spark-stick${si === 6 || si === 12 ? " is-gold" : ""}" style="height:${v}%"></span>`).join("")}
+                </div>
+              </div>` : ""}
+              <button type="button" class="chip-btn${picked ? " on" : ""}" data-a="bb-chart-style" data-v="${vid}" style="justify-content:center">${picked ? "Применён в кабинете ✓" : "Выбрать этот вид"}</button>
+            </article>`;
+          }).join("")}
         </div>
       </div>
     </section>`;

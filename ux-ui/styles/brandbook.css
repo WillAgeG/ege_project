@@ -675,3 +675,21 @@
   animation-iteration-count: 1 !important;
   transition-duration: 0.01ms !important;
 }
+
+.bb-charts-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; min-width: 0; }
+@media (max-width: 980px) { .bb-charts-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 680px) { .bb-charts-grid { grid-template-columns: minmax(0, 1fr); } }
+.bb-chart-card {
+  border: 1px solid var(--line); border-radius: 16px; padding: 14px; background: var(--surface);
+  display: grid; gap: 10px; align-content: space-between; min-width: 0;
+  transition: border-color .16s ease, box-shadow .16s ease;
+}
+.bb-chart-card.is-picked { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.bb-spark-sticks {
+  display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: 4px; align-items: end;
+  height: 42px; padding: 6px 8px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line);
+}
+.bb-spark-stick {
+  width: 100%; max-width: 5px; justify-self: center; border-radius: 999px; background: var(--accent);
+}
+.bb-spark-stick.is-gold { background: var(--gold-grad); }

@@ -170,6 +170,7 @@
       calAddHour: "",
       calAddOpen: false,
       statsPeriod: "7d",
+      chartStyle: "sticks",
       monthlyGoal: 60000,
       bumpedToday: false,
       autoBump24h: true,
@@ -267,6 +268,7 @@
     } else {
       _cache = def;
     }
+    if (!_cache.chartStyle) _cache.chartStyle = "sticks";
     checkAutoBumpDue(_cache, true);
     return _cache;
   }
@@ -1125,11 +1127,18 @@
         </div>
 
         <div class="stack" style="gap:6px">
-          <div class="row between" style="gap:8px;flex-wrap:wrap">
+          <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
             <b class="small">Доход по дням недели (золотым — пики после поднятия)</b>
-            <span class="small muted">На руки 95% по ставке ${p.price.toLocaleString("ru-RU")} ₽/ч</span>
+            <div class="hh-seg" role="group" aria-label="Вид графика с палочками">
+              ${[
+                ["sticks", "Палочки"],
+                ["lollipop", "Леденцы"],
+                ["capsule", "Капсулы"],
+                ["classic", "Столбики"]
+              ].map(([cid, clbl]) => `<button type="button" data-a="tc-chart-style" data-v="${cid}" aria-pressed="${(st.chartStyle || "sticks") === cid}">${clbl}</button>`).join("")}
+            </div>
           </div>
-          <div class="tc-bar-chart" role="img" aria-label="Диаграмма дохода по дням недели">
+          <div class="tc-bar-chart${st.chartStyle === "classic" ? "" : ` is-${st.chartStyle || "sticks"}`}" role="img" aria-label="Диаграмма дохода по дням недели">
             ${dayBars.map((b) => {
               const hPct = Math.max(18, Math.round((b.rev / maxRev) * 100));
               return `<div class="tc-bar-col">
@@ -1955,6 +1964,13 @@
 
     if (act === "tc-leads-subj") {
       st.leadsSubj = String(d.v || "all");
+      saveState();
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-chart-style") {
+      st.chartStyle = ["sticks", "lollipop", "capsule", "classic"].includes(d.v) ? d.v : "sticks";
       saveState();
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       return true;

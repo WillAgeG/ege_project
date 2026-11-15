@@ -1046,6 +1046,31 @@
     clickAction(env5, { a: "bb-bal-toggle" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes("5 000 ₽ · активен") && env5.elements.get("main").innerHTML.includes("Пробный урок 0 ₽"), "expected second bb-bal-toggle to restore funded 5 000 ₽ active state");
+    const bbChartsHtml = env5.elements.get("main").innerHTML;
+    assert(
+      bbChartsHtml.includes('id="bb-charts"') &&
+      bbChartsHtml.includes("tc-bar-chart is-sticks") &&
+      bbChartsHtml.includes("tc-bar-chart is-lollipop") &&
+      bbChartsHtml.includes("tc-bar-chart is-capsule") &&
+      bbChartsHtml.includes("tc-bar-chart is-dual") &&
+      bbChartsHtml.includes("tc-bar-chart is-range") &&
+      bbChartsHtml.includes("tc-bar-chart is-segmented") &&
+      bbChartsHtml.includes("bb-spark-sticks"),
+      "expected 6 stick-chart variants + sparkline showcase in #bb-charts"
+    );
+    clickAction(env5, { a: "bb-chart-style", v: "lollipop" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes('class="chip-btn on" data-a="bb-chart-style" data-v="lollipop"') && env5.elements.get("main").innerHTML.includes('class="bb-chart-card is-picked"'), "expected bb-chart-style=lollipop to highlight lollipop chip and card");
+    clickAction(env5, { a: "bb-chart-data", v: "scores" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("диагностика 48") || env5.elements.get("main").innerHTML.includes("пробник ФИПИ 71"), "expected bb-chart-data=scores to switch chart dataset to exam scores");
+    clickAction(env5, { a: "bb-chart-bar", idx: "0" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("Сентябрь · диагностика 48"), "expected bb-chart-bar=0 to update active bar readout");
+    clickAction(env5, { a: "bb-chart-data", v: "income" });
+    clickAction(env5, { a: "bb-chart-bar", idx: "3" });
+    clickAction(env5, { a: "bb-chart-style", v: "sticks" });
+    await flushMicrotasks(2);
     clickAction(env5, { a: "bb-copy-token", copy: "#0070FF · --accent" });
     await flushMicrotasks(2);
     assert(env5.elements.get("toast").textContent.includes("#0070FF"), "expected token copy toast in brandbook");
@@ -1485,7 +1510,12 @@
     );
     clickAction(env5, { a: "tc-stats-period", v: "30d" });
     await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("прогноз за месяц"), "expected 30d period switch in Выплаты stats");
+    assert(env5.elements.get("main").innerHTML.includes("прогноз за месяц") && env5.elements.get("main").innerHTML.includes("tc-bar-chart is-sticks"), "expected 30d period switch and default stick chart in Выплаты stats");
+    clickAction(env5, { a: "tc-chart-style", v: "lollipop" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("tc-bar-chart is-lollipop"), "expected tc-chart-style=lollipop in Выплаты stats");
+    clickAction(env5, { a: "tc-chart-style", v: "sticks" });
+    await flushMicrotasks(1);
     clickAction(env5, { a: "tc-autobump-toggle" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes("Автоподнятие на паузе"), "expected 24h auto-bump toggle to pause");

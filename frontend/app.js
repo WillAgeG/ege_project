@@ -845,7 +845,7 @@
     motion: { playing: true, preset: "design", step: 0, slot: "10:00", offer: 1200, sent: false, clicking: false, hitTarget: "" },
     savings: { freq: 2, marketRate: 1350, offerRate: 1000 },
     bbModal: false,
-    brandbook: { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, vpWidth: 390, chipOn: true, sent: false, fav: true, switchVal: "online", multiSubjs: ["bio", "chem"], multiMenuOpen: false, pickedPlan: "month10k", quizOpt: 1, marketDemoAccepted: false, reducedMotion: false, balFunded: true }
+    brandbook: { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, vpWidth: 390, chipOn: true, sent: false, fav: true, switchVal: "online", multiSubjs: ["bio", "chem"], multiMenuOpen: false, pickedPlan: "month10k", quizOpt: 1, marketDemoAccepted: false, reducedMotion: false, balFunded: true, chartStyle: "sticks", chartDataset: "income", chartActiveIdx: 3 }
   };
   const MARKET_LS_KEY = "vektor-ege:market";
   const TDATA = EGE.tutors || null;
@@ -4730,6 +4730,25 @@
       toast(bb.balFunded ? "Баланс: 5 000 ₽ · пробный урок 0 ₽ открыт" : "Баланс: 0 ₽ · требуется первый взнос от 5 000 ₽");
       notifySide("Баланс · Стенд", bb.balFunded ? "Первый порог 5 000 ₽ пройден — доступны пополнения от 100 ₽ и бесплатный пробный урок" : "Начальный баланс 0 ₽: запись на пробный 0 ₽ заблокирована до внесения 5 000 ₽");
     },
+    "bb-chart-style": (el) => {
+      const bb = bbState();
+      bb.chartStyle = (el.dataset && el.dataset.v) || "sticks";
+      scheduleRender();
+      toast("Вид графика: " + bb.chartStyle);
+      notifySide("График с палочками", `Выбран стиль «${bb.chartStyle}» — обновлён в кабинете и стенде`);
+    },
+    "bb-chart-data": (el) => {
+      const bb = bbState();
+      bb.chartDataset = (el.dataset && el.dataset.v) || "income";
+      scheduleRender();
+      toast("Набор данных графика обновлён");
+    },
+    "bb-chart-bar": (el) => {
+      const bb = bbState();
+      bb.chartActiveIdx = Math.max(0, Math.min(6, Number(el.dataset && el.dataset.idx) || 0));
+      scheduleRender();
+      toast("Выбран столбик №" + (bb.chartActiveIdx + 1));
+    },
     "fees-rate": (el) => {
       ui.feesRate = Math.max(600, Math.min(3500, Number(el.dataset.rate) || 800));
       scheduleRender();
@@ -4804,11 +4823,15 @@
       subj: "bio", subjMenuOpen: false, pickedPlan: "month10k", quizOpt: 1,
       cancelDemoUndone: false, previewToastDismissed: false, sakhaSent: false, sakhaKunOn: false, sakhaStarOn: false,
       heroSubmitted: false, heroBetaOn: false, heroSearchSubmitted: false, heroQ: "", cat: "all", catQ: "", faqOpen: 0,
-      marketDemoAccepted: false, reducedMotion: false, balFunded: true
+      marketDemoAccepted: false, reducedMotion: false, balFunded: true,
+      chartStyle: "sticks", chartDataset: "income", chartActiveIdx: 3
     });
     if (bb.marketDemoAccepted === undefined) bb.marketDemoAccepted = false;
     if (bb.reducedMotion === undefined) bb.reducedMotion = false;
     if (bb.balFunded === undefined) bb.balFunded = true;
+    if (!bb.chartStyle) bb.chartStyle = "sticks";
+    if (!bb.chartDataset) bb.chartDataset = "income";
+    if (bb.chartActiveIdx === undefined) bb.chartActiveIdx = 3;
     return bb;
   }
   function applyBrandbookViewport(rawW) { return EGE.views.brandbook.applyBrandbookViewport(ui, rawW); }
