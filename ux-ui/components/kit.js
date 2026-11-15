@@ -306,7 +306,7 @@
 
   function blueBannerHTML(opts) {
     opts = opts || {};
-    const title = opts.title || "Дизайн-система и брендбук hh-стиля (Белый + Чёрный + Синий)";
+    const title = opts.title || "Дизайн-система и брендбук (Белый + Чёрный OLED + Синий)";
     const subtitle = opts.subtitle || "";
     const pLabel = opts.primaryLabel || "Открыть брендбук";
     const pAction = opts.primaryAction || "go";

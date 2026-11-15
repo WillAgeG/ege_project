@@ -662,12 +662,21 @@ p { margin: 0; }
 .hh-select-item-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .hh-select-item-sub { font-size: 11.5px; color: var(--muted); font-weight: 400; }
 .hh-select-item.on .hh-select-item-sub { color: color-mix(in srgb, var(--accent) 78%, var(--ink)); }
-.hh-multi-val { display: flex; align-items: center; flex-wrap: nowrap; gap: 6px; min-width: 0; overflow: hidden; flex: 1 1 auto; }
+.hh-multi-btn { min-height: 42px; }
+.hh-multi-val { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; flex: 1 1 auto; }
 .hh-multi-pill {
-  display: inline-flex; align-items: center; max-width: 140px; padding: 2px 9px;
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 3px 6px 3px 10px;
   border-radius: 999px; background: var(--accent-soft); color: var(--accent);
-  font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: none;
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, transparent);
+  font-size: 12.5px; font-weight: 600; white-space: nowrap; flex: none;
 }
+.hh-multi-x {
+  display: inline-grid; place-items: center; width: 17px; height: 17px; border: 0; padding: 0;
+  border-radius: 50%; background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent);
+  font-size: 13px; line-height: 1; font-weight: 700; cursor: pointer; flex: none;
+  transition: background-color .12s ease, color .12s ease;
+}
+.hh-multi-x:hover { background: var(--accent); color: var(--accent-ink); }
 .hh-multi-right { display: inline-flex; align-items: center; gap: 6px; flex: none; }
 .hh-multi-check {
   width: 18px; height: 18px; border-radius: 6px; flex: none;
@@ -678,14 +687,6 @@ p { margin: 0; }
 .hh-multi-check.on { background: var(--accent); border-color: var(--accent); }
 .hh-multi-check svg { width: 12px; height: 12px; stroke-width: 2.6; }
 .hh-multi-item-left { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 auto; }
-.hh-multi-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.hh-multi-chip {
-  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px;
-  border-radius: 999px; border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--line));
-  background: var(--accent-soft); color: var(--accent); font-size: 12.5px; font-weight: 600;
-  cursor: pointer; transition: background-color .12s ease, border-color .12s ease;
-}
-.hh-multi-chip:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, var(--surface)); }
 .textarea { min-height: 80px; resize: vertical; }
 .input:focus, .select:focus, .textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .hint { font-size: 12.5px; color: var(--muted); }
@@ -844,12 +845,22 @@ body[data-auth="1"] .main {
 .modal-card textarea { min-height: 170px; font-size: 14px; line-height: 1.5; resize: vertical; }
 @media (max-width: 600px) { .modal-card { padding: 16px; } }
 
-/* ---------- Верхняя панель баланса ученика (desktop + mobile) и переключатель роли ---------- */
-.desktop-top-bar {
-  display: flex; align-items: center; justify-content: flex-end; gap: 10px;
-  min-width: 0; margin-bottom: -6px;
+/* ---------- Нижняя правая панель баланса ученика (всегда видна) и переключатель роли ---------- */
+.bal-float-dock {
+  position: fixed;
+  right: max(18px, env(safe-area-inset-right, 0px));
+  bottom: max(18px, env(safe-area-inset-bottom, 0px));
+  z-index: 35;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px; border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 12px 30px -12px rgba(15, 23, 42, .26);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
-.desktop-top-bar[hidden] { display: none; }
+.bal-float-dock[hidden] { display: none !important; }
+body[data-auth="1"] .bal-float-dock { display: none !important; }
 .top-bal-wrap { display: inline-flex; align-items: center; gap: 6px; min-width: 0; flex: none; }
 .top-bal-pill {
   display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 12px;
@@ -872,21 +883,34 @@ body[data-auth="1"] .main {
 }
 .top-bal-btn:hover { filter: brightness(1.06); transform: translateY(-1px); }
 .top-bal-btn svg { width: 14px; height: 14px; flex: none; }
-#top-balance-slot { display: inline-flex; align-items: center; flex: none; }
-#top-balance-slot[hidden] { display: none; }
-.side-role-seg { display: grid !important; grid-template-columns: auto minmax(0, 1fr); }
-.side-role-seg button { font-size: 12.5px; padding: 6px 8px; white-space: nowrap; }
-.bal-plan-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 10px; }
+.hh-seg.side-role-seg {
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr);
+  width: 100%; min-width: 0; padding: 3px; gap: 3px;
+}
+.hh-seg.side-role-seg button {
+  min-height: 34px; font-size: 12px; padding: 6px 8px;
+  white-space: nowrap; overflow: visible; text-overflow: clip; flex: none;
+}
+.bal-plan-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 10px; }
+@media (min-width: 900px) {
+  body:not([data-auth="1"]) .main { padding-bottom: 84px; }
+}
 @media (max-width: 899px) {
-  .desktop-top-bar { display: none !important; }
-  .top-bal-pill { min-height: 34px; padding: 0 9px; font-size: 12.5px; gap: 5px; }
-  .top-bal-btn { min-height: 34px; padding: 0 10px; font-size: 12px; }
+  .bal-float-dock {
+    right: max(12px, env(safe-area-inset-right, 0px));
+    bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+    padding: 4px;
+  }
+  body:not([data-auth="1"]) .main { padding-bottom: 124px; }
+  .top-bal-pill { min-height: 34px; padding: 0 10px; font-size: 12.5px; gap: 5px; }
+  .top-bal-btn { min-height: 34px; padding: 0 11px; font-size: 12px; }
 }
 @media (max-width: 480px) {
   .top-bal-wrap { gap: 4px; }
-  .top-bal-pill { min-height: 32px; padding: 0 8px; font-size: 12px; }
+  .top-bal-pill { min-height: 32px; padding: 0 9px; font-size: 12px; }
   .top-bal-pill .top-bal-lbl { display: none; }
-  .top-bal-btn { min-height: 32px; padding: 0 9px; font-size: 12px; }
+  .top-bal-btn { min-height: 32px; padding: 0 10px; font-size: 12px; }
 }
 
 

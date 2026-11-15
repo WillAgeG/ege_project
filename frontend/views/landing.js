@@ -125,7 +125,7 @@
       <div class="motion-card-body">
         <div class="row between" style="align-items:flex-start;gap:10px;flex-wrap:wrap">
           <div class="row" style="gap:10px;min-width:0">
-            <span class="tutor-avatar" aria-hidden="true">${esc(initials(tutor.name))}</span>
+            ${EGE.hh && typeof EGE.hh.tutorAvatarHTML === "function" ? EGE.hh.tutorAvatarHTML(tutor) : `<span class="tutor-avatar" aria-hidden="true">${esc(initials(tutor.name))}</span>`}
             <div class="stack" style="gap:2px;min-width:0">
               <div class="row" style="gap:6px;flex-wrap:wrap">
                 <b>${esc(tutor.name)}</b>

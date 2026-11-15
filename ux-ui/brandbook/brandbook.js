@@ -156,7 +156,7 @@
 
   function brandbookPaneHTML(isDark, bb) {
     const cls = isDark ? "is-dark" : "is-light";
-    const title = isDark ? "Чёрный вид (Dark · OLED hh.ru)" : "Белый вид (Light · hh.ru)";
+    const title = isDark ? "Чёрный вид (Dark · OLED)" : "Белый вид (Light)";
     const hourStr = String(bb.hour).padStart(2, "0") + ":00";
     const hourPct = Math.round(((bb.hour - 10) / 10) * 100);
     const favOn = bb.fav !== false;
@@ -401,18 +401,18 @@
                     ariaLabel: "Мультивыбор предметов"
                   })
                 : ""}
-              <span class="hint">Синхронный checklist-выпадающий список с отметками и чипами удаления «×» в темах Светлой/Тёмной OLED. Используется в профиле преподавателя и запросах ученика «Ищу преподавателя».</span>
+              <span class="hint">Синхронный checklist-выпадающий список с отметками и крестиком «×» прямо внутри выбранных тегов поля (без дублирования чипов снизу). Используется в профиле преподавателя и запросах ученика «Ищу преподавателя».</span>
             </div>
             <div class="field">
-              <span class="label">Верхняя панель баланса ученика (.top-bal-wrap)</span>
+              <span class="label">Постоянная нижняя правая панель баланса (.bal-float-dock · .top-bal-wrap)</span>
               <div class="row between" style="padding:10px 12px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line);gap:8px;flex-wrap:wrap">
-                <span class="small muted">Справа вверху у ученика</span>
+                <span class="small muted">Всегда закреплена внизу справа у ученика</span>
                 <div class="top-bal-wrap">
                   <span class="top-bal-pill is-funded">${icon("wallet")}<span class="num">5 000 ₽</span></span>
                   <span class="top-bal-btn">${icon("plus")}<span>Пополнить</span></span>
                 </div>
               </div>
-              <span class="hint">Порог от <b>5 000 ₽</b> открывает запись на бесплатный пробный урок (0 ₽) и ставки. Модалка включает тарифы 0 / 5 000 / 10 000 ₽ и любую произвольную сумму.</span>
+              <span class="hint">Первый платёж или подписка от <b>5 000 ₽</b> открывает запись на бесплатный пробный урок (0 ₽) и отклики; дальнейшие пополнения доступны от <b>100 ₽</b> (любая сумма).</span>
             </div>
             <div class="field">
               <span class="label">Вход и выбор роли по умолчанию (.hh-seg.equal · authCard)</span>
@@ -448,9 +448,8 @@
   function cardsAndOverlaysSectionHTML(bb) {
     const picked = bb.pickedPlan || "month10k";
     const plans = [
-      ["free", "0 ₽", "Бесплатная", "Базовый доступ", ["База анкет и поиск", "Прямые отклики по ставке"], ""],
-      ["trial5k", "5 000 ₽", "Пробник", "Рекомендуемый", ["Пакет часов на балансе", "Защита оплаты до подтверждения"], "featured"],
-      ["month10k", "10 000 ₽", "Месяц под ключ", "Супер-подписка", ["Особый оттенок .super", "Максимум приоритетных откликов"], "featured super"]
+      ["trial5k", "5 000 ₽", "Пробник · мин. подписка", "Старт с балансом", ["Вся сумма падает на внутренний баланс", "Открывает бесплатный пробный урок (0 ₽) и отклики"], "featured"],
+      ["month10k", "10 000 ₽", "Месяц под ключ", "Супер-подписка", ["Особый оттенок .super", "Максимум приоритетных откликов и замена за 15 мин"], "featured super"]
     ];
     return `<section class="land-sec" id="bb-cards-sys">
       <div class="land-sec-head">
@@ -463,7 +462,7 @@
           <button type="button" class="btn sm" data-a="bb-modal-open">Открыть пример модалки</button>
         </div>
       </div>
-      <div class="grid-3">
+      <div class="grid-2">
         ${plans.map(([id, price, name, badge, perks, extraCls]) => {
           const isPick = picked === id;
           const btnCls = isPick ? "btn sm is-confirmed" : (extraCls ? "btn sm" : "btn soft sm");
@@ -698,9 +697,9 @@
         </div>
         <div class="row" style="gap:6px;flex-wrap:wrap">
           <span class="chip gold">${icon("spark")} Автоподнятие 24 ч</span>
-          <span class="chip">Профиль hh: 100%</span>
+          <span class="chip">Профиль: 100%</span>
           <span class="chip accent">Календарь учеников 10:00–20:00</span>
-          <span class="chip">Статистика + Трекер баллов</span>
+          <span class="chip">Выплаты + Трекер баллов</span>
         </div>
       </div>` : ""}
 
@@ -984,7 +983,7 @@
 
     const specRules = [
       ["Контейнер страниц / лендинга", "max-width: 1260 px (≥1360 px: 1340 px) · 0 px переполнения", ""],
-      ["Hero-баннер hh.kz × Ленские столбы", "465–495 px (моб. 430 px) · 2 CTA · светлый ским", ""],
+      ["Hero-баннер · Ленские столбы", "465–495 px (моб. 430 px) · 2 CTA · светлый ским", ""],
       ["Поля экрана (Desktop / Планшет / Моб.)", "28 px / 16 px / 12 px", ""],
       ["Главная кнопка CTA (.btn / Подтверждено)", "h ≥ 42 px · Синий → Зелёный 380 ms", "confirm"],
       ["Вторичная «Подробнее» (.btn.soft)", "Тинт темнеет при hover + подъём −2 px", ""],
@@ -1071,7 +1070,7 @@
 
     return `<div class="land-page${bb.reducedMotion ? " is-reduced" : ""}" id="brandbook-page">
       <header class="land-top">
-        ${brandLockupHTML({ tag: "Брендбук", sub: "UX/UI дизайн-система в стиле hh.ru" })}
+        ${brandLockupHTML({ tag: "Брендбук", sub: "UX/UI дизайн-система Вектор ЕГЭ" })}
         <nav class="land-links" aria-label="Разделы брендбука">
           <a href="#bb-catalog" data-a="land-scroll" data-target="bb-catalog">Каталог</a>
           <a href="#bb-logo" data-a="land-scroll" data-target="bb-logo">Лого</a>
@@ -1687,9 +1686,9 @@
 
         <div class="grid-3">
           <div class="card pad stack" style="gap:6px;box-shadow:none">
-            <span class="chip accent" style="justify-self:start">01 · Баланс 5 000 / 10 000 ₽</span>
-            <b>Пополнение без сгорания</b>
-            <p class="small ink2">Вы пополняете баланс на 5 000 или 10 000 ₽ и расходуете средства по мере подтверждённых занятий.</p>
+            <span class="chip accent" style="justify-self:start">01 · Старт от 5 000 ₽</span>
+            <b>Минимальная подписка 5 000 ₽</b>
+            <p class="small ink2">Первый платёж или подписка — от 5 000 ₽ на баланс; затем пополнение открыто от 100 ₽ на любую удобную сумму.</p>
           </div>
           <div class="card pad stack" style="gap:6px;box-shadow:none">
             <span class="chip confirm" style="justify-self:start">02 · Защита оплаты</span>

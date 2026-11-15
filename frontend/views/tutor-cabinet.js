@@ -1,9 +1,9 @@
-/* Личный кабинет преподавателя в стиле hh.ru + Саха Gold:
+/* Личный кабинет преподавателя (Вектор ЕГЭ + Саха Gold):
    - входящие заявки с торгом ±100 ₽ и расчётом «На руки 95%»;
-   - конструктор профиля/резюме как на hh.ru с публикацией в каталог /market;
+   - конструктор профиля с загрузкой фото / «Без фото» и публикацией в каталог /market;
    - календарь записанных учеников по неделям и часам 10:00–20:00;
-   - статистика воронки и доходов + автопродвижение каждые 24 часа;
-   - трекер баллов ЕГЭ учеников и быстрые шаблоны ответов. */
+   - выплаты, статистика доходов, цель на месяц и автопродвижение 24 ч / 4 ч;
+   - трекер баллов ЕГЭ учеников и автоуведомления в WhatsApp. */
 (function () {
   "use strict";
 
@@ -11,10 +11,11 @@
   const EGE = (root.EGE = root.EGE || {});
   const { esc, plural, initials } = EGE.utils || { esc: (s) => String(s || ""), plural: (n, a) => a, initials: () => "П" };
   const { icon, sakhaPatternSVG, sakhaOhyorHTML } = EGE.ui || { icon: () => "", sakhaPatternSVG: () => "", sakhaOhyorHTML: () => "" };
-  const { priceHeadlineHTML, priceDiffTagsHTML, feeSplitHTML, hhSelectHTML, hhMultiSelectHTML } = EGE.hh || { priceHeadlineHTML: () => "", priceDiffTagsHTML: () => "", feeSplitHTML: () => "", hhSelectHTML: null, hhMultiSelectHTML: null };
+  const { priceHeadlineHTML, priceDiffTagsHTML, feeSplitHTML, hhSelectHTML, hhMultiSelectHTML, tutorAvatarHTML } = EGE.hh || { priceHeadlineHTML: () => "", priceDiffTagsHTML: () => "", feeSplitHTML: () => "", hhSelectHTML: null, hhMultiSelectHTML: null, tutorAvatarHTML: null };
 
   const TC_LS_KEY = "vektor-ege:tutor-cabinet";
   const DAY_MS = 24 * 60 * 60 * 1000;
+  const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
   const DAY_LIST = [
     { dow: "1", wd: "Пн", full: "Понедельник" },
     { dow: "2", wd: "Вт", full: "Вторник" },
@@ -26,9 +27,16 @@
   ];
   const EXAM_OPTIONS = ["ЕГЭ", "ОГЭ", "ДВИ / Олимпиады"];
   const FORMAT_OPTIONS = ["Онлайн", "Очно"];
-  const SKILL_PRESETS = [
-    "Задания ФИПИ 2027", "№28 Генетика", "№34 Химия", "Разбор пробников",
-    "Устная часть", "Сочинение КИМ", "Медвуз", "С нуля до 85+"
+  const CITY_OPTIONS = ["Якутск", "Москва"];
+  const TZ_OPTIONS = [
+    { id: "UTC+9", label: "Якутск (UTC+9)" },
+    { id: "UTC+3", label: "Москва (UTC+3)" }
+  ];
+  const WA_LEAD_OPTIONS = [
+    { id: "30m", label: "За 30 мин" },
+    { id: "1h", label: "За 1 ч" },
+    { id: "2h", label: "За 2 ч" },
+    { id: "24h", label: "За 24 ч" }
   ];
   const AUTO_BUMP_HOURS = ["09:00", "14:00", "19:00"];
   const GOAL_PRESETS = [40000, 60000, 90000, 120000];
@@ -105,9 +113,9 @@
   ];
 
   const DEFAULT_STUDENTS = [
-    { id: "st-alina", name: "Алина С.", exam: "ЕГЭ · Биология", startScore: 58, curScore: 76, targetScore: 88, lessonsDone: 6, hw: "Линия №28 (сцепление генов) — сдать до Сб" },
-    { id: "st-darya", name: "Дарья В.", exam: "ОГЭ · Русский", startScore: 22, curScore: 31, targetScore: 36, lessonsDone: 4, hw: "Синтаксис и сжатое изложение — вариант №4" },
-    { id: "st-timur", name: "Тимур К.", exam: "ЕГЭ · Химия", startScore: 64, curScore: 81, targetScore: 92, lessonsDone: 8, hw: "№34 на олеум и массовую долю — 5 задач" }
+    { id: "st-alina", name: "Алина С.", exam: "ЕГЭ · Биология", startScore: 58, curScore: 76, targetScore: 88, lessonsDone: 6, hw: "Линия №28 (сцепление генов) — сдать до Сб", lessonDay: "Воскресенье", lessonTime: "10:00", whatsapp: "79142100511", autoNotify: true, lastRemindedAt: 0 },
+    { id: "st-darya", name: "Дарья В.", exam: "ОГЭ · Русский", startScore: 22, curScore: 31, targetScore: 36, lessonsDone: 4, hw: "Синтаксис и сжатое изложение — вариант №4", lessonDay: "Понедельник", lessonTime: "18:00", whatsapp: "79142100512", autoNotify: false, lastRemindedAt: 0 },
+    { id: "st-timur", name: "Тимур К.", exam: "ЕГЭ · Химия", startScore: 64, curScore: 81, targetScore: 92, lessonsDone: 8, hw: "№34 на олеум и массовую долю — 5 задач", lessonDay: "Суббота", lessonTime: "16:00", whatsapp: "79142100513", autoNotify: true, lastRemindedAt: 0 }
   ];
 
   let _ctx = {};
@@ -135,6 +143,19 @@
     } catch (e) { /* игнор */ }
   }
 
+  function formatTimestamp(ts) {
+    const n = Number(ts) || 0;
+    if (!n) return "ещё не запускалось";
+    const d = new Date(n);
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    const now = new Date();
+    const sameDay = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+    if (sameDay) return `сегодня в ${hh}:${mm}`;
+    const months = ["янв.", "февр.", "мар.", "апр.", "мая", "июн.", "июл.", "авг.", "сент.", "окт.", "нояб.", "дек."];
+    return `${d.getDate()} ${months[d.getMonth()]} в ${hh}:${mm}`;
+  }
+
   function defaultState() {
     const profName =
       (typeof _ctx.profile === "function" && _ctx.profile().name) ||
@@ -154,28 +175,38 @@
       autoBump24h: true,
       autoBumpHour: "09:00",
       lastBumpAt: now - 18 * 3600000,
+      lastAutoBumpAt: now - 18 * 3600000,
+      lastManualBumpAt: 0,
       bumpCount: 7,
       profilePreview: false,
       published: false,
       subjMenuOpen: false,
+      tzMenuOpen: false,
       leadsSubj: "all",
       leadsMineOnly: false,
+      waSettings: {
+        enabled: true,
+        lead: "2h",
+        template: "Здравствуйте, {имя}! Напоминаю, что скоро будет урок ({предмет}) — {день} в {время}. Материалы и ссылку пришлю перед занятием."
+      },
       profile: {
         name: profName || "Анна Соколова",
         headline: "Эксперт ЕГЭ и ОГЭ · Подготовка к медвузу",
+        photo: "",
         subject: "bio",
         subjects: ["bio"],
         customBadges: ["Эксперт жюри ВсОШ", ""],
         exams: ["ЕГЭ", "ОГЭ"],
         formats: ["Онлайн"],
-        city: "Якутск · Онлайн по РФ",
+        city: "Якутск",
+        timezone: "UTC+9",
         whatsapp: "79142100199",
         education: "СВФУ им. М.К. Аммосова · Педагог-исследователь",
         expYears: 6,
         avgScore: 86,
         highScorers: 14,
         trialFree: true,
-        skills: ["Задания ФИПИ 2027", "№28 Генетика", "Разбор пробников", "Медвуз"],
+        customSkills: "Задания ФИПИ 2027, №28 Генетика, разбор пробников, медвуз",
         price: 1200,
         minFair: 900,
         bio: "Экспертная подготовка без шаблонов: разбираем задания ФИПИ, ловушки второй части и пишем пробники на 85+."
@@ -216,10 +247,23 @@
       _cache.profile.customBadges = _cache.profile.customBadges.slice(0, 2);
       if (!Array.isArray(_cache.profile.exams) || !_cache.profile.exams.length) _cache.profile.exams = def.profile.exams.slice();
       if (!Array.isArray(_cache.profile.formats) || !_cache.profile.formats.length) _cache.profile.formats = def.profile.formats.slice();
-      if (!Array.isArray(_cache.profile.skills)) _cache.profile.skills = def.profile.skills.slice();
+      _cache.profile.city = CITY_OPTIONS.find((c) => String(_cache.profile.city || "").indexOf(c) >= 0) || "Якутск";
+      _cache.profile.timezone = TZ_OPTIONS.some((tz) => tz.id === _cache.profile.timezone) ? _cache.profile.timezone : "UTC+9";
+      if (typeof _cache.profile.photo !== "string") _cache.profile.photo = "";
+      if (typeof _cache.profile.customSkills !== "string") {
+        _cache.profile.customSkills = Array.isArray(saved.profile && saved.profile.skills) && saved.profile.skills.length
+          ? saved.profile.skills.join(", ")
+          : def.profile.customSkills;
+      }
+      _cache.waSettings = Object.assign({}, def.waSettings, saved.waSettings || {});
+      _cache.lastAutoBumpAt = Number(_cache.lastAutoBumpAt || _cache.lastBumpAt) || def.lastAutoBumpAt;
+      _cache.lastBumpAt = _cache.lastAutoBumpAt;
+      _cache.lastManualBumpAt = Number(_cache.lastManualBumpAt) || 0;
       _cache.slots = Object.assign({}, def.slots, saved.slots || {});
       _cache.requests = Array.isArray(saved.requests) && saved.requests.length ? saved.requests : def.requests;
-      _cache.students = Array.isArray(saved.students) && saved.students.length ? saved.students : def.students;
+      _cache.students = Array.isArray(saved.students) && saved.students.length
+        ? saved.students.map((s, idx) => Object.assign({}, def.students[idx] || { lessonDay: "Воскресенье", lessonTime: "10:00", whatsapp: "79142100511", autoNotify: true, lastRemindedAt: 0 }, s))
+        : def.students;
     } else {
       _cache = def;
     }
@@ -235,9 +279,10 @@
 
   function checkAutoBumpDue(st, silent) {
     if (!st || !st.autoBump24h) return false;
-    const last = Number(st.lastBumpAt) || 0;
+    const last = Number(st.lastAutoBumpAt || st.lastBumpAt) || 0;
     const now = Date.now();
     if (now - last >= DAY_MS) {
+      st.lastAutoBumpAt = now;
       st.lastBumpAt = now;
       st.bumpedToday = true;
       st.bumpCount = (Number(st.bumpCount) || 0) + 1;
@@ -257,14 +302,20 @@
   }
 
   function autoBumpRemainingMs(st) {
-    const last = Number(st.lastBumpAt) || Date.now();
+    const last = Number(st.lastAutoBumpAt || st.lastBumpAt) || Date.now();
     return Math.max(0, (last + DAY_MS) - Date.now());
+  }
+
+  function manualBumpRemainingMs(st) {
+    const last = Number(st && st.lastManualBumpAt) || 0;
+    if (!last) return 0;
+    return Math.max(0, (last + FOUR_HOURS_MS) - Date.now());
   }
 
   function ensureCountdownTimer() {
     if (typeof document === "undefined" || typeof setInterval !== "function" || _countdownTimer) return;
     _countdownTimer = setInterval(() => {
-      if (!_ctx.ui || _ctx.ui.view !== "cabinet") return;
+      if (!_ctx.ui || (_ctx.ui.view !== "cabinet" && _ctx.ui.view !== "fees")) return;
       const st = tState();
       if (checkAutoBumpDue(st, false)) {
         if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
@@ -276,6 +327,10 @@
       const txt = st.autoBump24h ? formatCountdown(autoBumpRemainingMs(st)) : "Пауза";
       document.querySelectorAll("[data-tc-countdown]").forEach((node) => {
         node.textContent = txt;
+      });
+      const mRem = manualBumpRemainingMs(st);
+      document.querySelectorAll("[data-tc-manual-countdown]").forEach((node) => {
+        node.textContent = mRem > 0 ? `Через ${formatCountdown(mRem)}` : "Доступно сейчас";
       });
     }, 1000);
   }
@@ -289,10 +344,10 @@
     const totalSlots = Object.keys(slots || {}).reduce((s, k) => s + (Array.isArray(slots[k]) ? slots[k].length : 0), 0);
     const checks = [
       { ok: String(p.name || "").trim().length >= 3, tip: "укажите имя и фамилию" },
-      { ok: String(p.headline || "").trim().length >= 8, tip: "добавьте заголовок как на hh" },
+      { ok: String(p.headline || "").trim().length >= 8, tip: "добавьте заголовок специализации" },
       { ok: String(p.education || "").trim().length >= 6, tip: "укажите вуз или квалификацию" },
       { ok: Number(p.avgScore) >= 60, tip: "заполните средний балл учеников" },
-      { ok: Array.isArray(p.skills) && p.skills.length >= 2, tip: "выберите от 2 тегов навыков" },
+      { ok: String(p.customSkills || "").trim().length >= 8, tip: "впишите ключевые навыки подготовки" },
       { ok: String(p.bio || "").trim().length >= 30, tip: "опишите подход к подготовке (30+ симв.)" },
       { ok: String(p.whatsapp || "").replace(/\D+/g, "").length >= 10, tip: "добавьте WhatsApp / контакт" },
       { ok: totalSlots >= 4, tip: "откройте минимум 4 окна 10:00–20:00" }
@@ -325,27 +380,31 @@
     const customBadges = Array.isArray(p.customBadges)
       ? p.customBadges.map((b) => String(b || "").trim().slice(0, 36)).filter(Boolean).slice(0, 2)
       : [];
+    const customSkillsText = String(p.customSkills || "").trim();
     return {
       id: "tc-my-profile",
       name: p.name || "Преподаватель",
+      photo: p.photo || "",
       subject: subjIds[0] || "bio",
       subjects: subjIds,
       subjectName: subjNames.length ? subjNames.join(" · ") : "Биология",
       customBadges,
+      customSkillsText,
       exams: Array.isArray(p.exams) && p.exams.length ? p.exams.slice() : ["ЕГЭ"],
       formats: Array.isArray(p.formats) && p.formats.length ? p.formats.slice() : ["Онлайн"],
-      city: p.city || "Онлайн по РФ",
+      city: p.city || "Якутск",
+      timezone: p.timezone || "UTC+9",
       whatsapp: String(p.whatsapp || "79142100199").replace(/\D+/g, "") || "79142100199",
       price: Number(p.price) || 1200,
       minFair: Math.min(Number(p.price) || 1200, Number(p.minFair) || 900),
       marketPrice: isPro ? Math.max(1150, Math.round((p.price * 0.85) / 50) * 50) : Math.round((p.price * 1.28) / 50) * 50,
       tier: isPro ? "pro" : "budget",
-      qualBadge: isPro ? "Профиль hh · Эксперт" : "Проверенная анкета hh",
+      qualBadge: isPro ? "Профиль · Эксперт" : "Проверенная анкета",
       rating: 4.9,
       reviews: 18 + Math.min(20, Number(p.highScorers) || 0),
       exp: `${years} ${plural(years, "год", "года", "лет")} · ср. балл ${avg}`,
-      tag: p.headline || (Array.isArray(p.skills) && p.skills.slice(0, 2).join(" · ")) || "Подготовка ФИПИ",
-      source: "Кабинет hh",
+      tag: p.headline || customSkillsText || "Подготовка ФИПИ",
+      source: "Кабинет",
       verified: true,
       bumpedToday: !!(st.bumpedToday || st.autoBump24h),
       bumpText: st.autoBump24h ? `Автоподнятие 24 ч (${st.autoBumpHour})` : (st.bumpedToday ? "Поднята сегодня" : "Ваша анкета"),
@@ -552,7 +611,7 @@
         <form class="card stack" style="gap:12px" data-f="tc-profile">
           <div class="row between" style="gap:8px;flex-wrap:wrap">
             <div>
-              <div class="eyebrow">Быстрая правка · hh</div>
+              <div class="eyebrow">Быстрая правка</div>
               <h2 class="h2">Ставка и профиль</h2>
             </div>
             <span class="chip${p.price >= 1400 ? " pro" : " accent"}">${p.price >= 1400 ? "Профи выше рынка" : "В рынке"}</span>
@@ -604,7 +663,7 @@
             </div>
           </div>
           <div class="bid-fee-row">${feeSplitHTML(p.price, TDATA)}</div>
-          <span class="small muted">На руки <b class="num">${baseSplit.payout.toLocaleString("ru-RU")} ₽</b> за урок. <button type="button" class="link-btn small" data-a="tc-tab" data-tab="profile">Открыть полный профиль hh →</button></span>
+          <span class="small muted">На руки <b class="num">${baseSplit.payout.toLocaleString("ru-RU")} ₽</b> за урок. <button type="button" class="link-btn small" data-a="tc-tab" data-tab="profile">Открыть профиль →</button></span>
           <div class="row" style="gap:8px;flex-wrap:wrap">
             <button type="submit" class="btn sm">Сохранить анкету</button>
             <button type="button" class="btn ghost sm" data-a="tc-reset-demo">Сбросить демо</button>
@@ -615,19 +674,22 @@
     </div>`;
   }
 
-  function renderProfileHHTab(st, TDATA, baseSplit) {
+  function renderProfileTab(st, TDATA, baseSplit) {
     const p = st.profile;
     const comp = profileCompleteness(p, st.slots);
     const subjects = (TDATA && TDATA.SUBJECTS) ? TDATA.SUBJECTS : [{ id: "bio", name: "Биология" }];
     const previewCard = st.profilePreview && EGE.views.marketplace && typeof EGE.views.marketplace.tutorCardHTML === "function"
       ? EGE.views.marketplace.tutorCardHTML(buildMarketTutorPayload(st))
       : "";
+    const avHTML = typeof tutorAvatarHTML === "function"
+      ? tutorAvatarHTML({ photo: p.photo, name: p.name }, { cls: "lg" })
+      : `<span class="tutor-avatar lg is-no-photo"><span>Без фото</span></span>`;
 
     return `<div class="stack" style="gap:16px">
       <div class="card stack" style="gap:10px">
         <div class="row between" style="gap:10px;flex-wrap:wrap">
           <div class="stack" style="gap:2px">
-            <div class="eyebrow">Резюме преподавателя как на hh.ru</div>
+            <div class="eyebrow">Профиль преподавателя</div>
             <h2 class="h2">Заполненность профиля: <span class="num savings-gold-txt">${comp.pct}%</span></h2>
           </div>
           <div class="row" style="gap:8px;flex-wrap:wrap">
@@ -643,8 +705,21 @@
 
       <form class="card stack" style="gap:14px" data-f="tc-profile">
         <div class="row between" style="gap:8px;flex-wrap:wrap">
-          <h3 class="h2">1. Основная визитка (как заголовок резюме)</h3>
+          <h3 class="h2">1. Основная визитка и фото</h3>
           <span class="chip${p.price >= 1400 ? " pro" : " accent"}">${p.price >= 1400 ? "Эксперт выше рынка" : "Доступная ставка"}</span>
+        </div>
+
+        <div class="tc-photo-row">
+          ${avHTML}
+          <div class="stack" style="gap:6px;flex:1 1 200px;min-width:0">
+            <b>${p.photo ? "Фото загружено в анкету" : "Сейчас отображается «Без фото»"}</b>
+            <span class="small muted">Загрузите своё фото — оно обновится в каталоге /market и предпросмотре, либо выберите «Без фото».</span>
+            <div class="row" style="gap:8px;flex-wrap:wrap">
+              <label class="btn soft sm" for="tc-photo-file" style="cursor:pointer">${icon("upload")}<span>Загрузить фото</span></label>
+              <input type="file" id="tc-photo-file" accept="image/*" data-tc-photo="1" class="sr">
+              <button type="button" class="btn ghost sm" data-a="tc-photo-clear"${p.photo ? "" : " disabled"}>Без фото</button>
+            </div>
+          </div>
         </div>
 
         <div class="tc-two-col">
@@ -685,9 +760,27 @@
                   })
                 : `<select class="select" id="tc-subjects" data-tc="subject">${subjects.map((sb) => `<option value="${esc(sb.id)}"${sb.id === p.subject ? " selected" : ""}>${esc(sb.name)}</option>`).join("")}</select>`)}
           </div>
-          <div class="field">
-            <label for="tc-hh-city">Город / часовой пояс</label>
-            <input class="input" id="tc-hh-city" name="city" data-tc="city" value="${esc(p.city || "")}" maxlength="48" placeholder="Якутск · Онлайн по РФ">
+          <div class="tc-two-col">
+            <div class="field">
+              <span class="label">Город</span>
+              <div class="hh-seg equal" role="group" aria-label="Выбор города">
+                ${CITY_OPTIONS.map((c) => `<button type="button" data-a="tc-city-pick" data-v="${esc(c)}" aria-pressed="${(p.city || "Якутск") === c}">${esc(c)}</button>`).join("")}
+              </div>
+            </div>
+            <div class="field">
+              <span class="label">Часовой пояс (UTC)</span>
+              ${typeof hhSelectHTML === "function"
+                ? hhSelectHTML({
+                    id: "tc-timezone",
+                    options: TZ_OPTIONS,
+                    value: p.timezone || "UTC+9",
+                    open: !!st.tzMenuOpen,
+                    toggleAction: "tc-tz-toggle",
+                    pickAction: "tc-tz-pick",
+                    ariaLabel: "Часовой пояс"
+                  })
+                : `<select class="select" id="tc-timezone" data-tc="timezone">${TZ_OPTIONS.map((tz) => `<option value="${esc(tz.id)}"${(p.timezone || "UTC+9") === tz.id ? " selected" : ""}>${esc(tz.label)}</option>`).join("")}</select>`}
+            </div>
           </div>
         </div>
 
@@ -740,13 +833,9 @@
         </div>
 
         <div class="field">
-          <span class="label">Ключевые навыки и теги для поиска (как навыки в резюме hh)</span>
-          <div class="tc-tag-grid">
-            ${SKILL_PRESETS.map((sk) => {
-              const on = Array.isArray(p.skills) && p.skills.includes(sk);
-              return `<button type="button" class="tc-tag" data-a="tc-skill-toggle" data-v="${esc(sk)}" aria-pressed="${on}">${on ? "✓ " : ""}${esc(sk)}</button>`;
-            }).join("")}
-          </div>
+          <label for="tc-hh-skills">Ключевые навыки и акценты подготовки (заполните сами)</label>
+          <input class="input" id="tc-hh-skills" name="customSkills" data-tc="customSkills" value="${esc(p.customSkills || "")}" maxlength="120" placeholder="Например: Генетика №28, разбор пробников ФИПИ, олимпиады">
+          <span class="hint">Укажите сильные темы и специализацию своими словами — они помогают ученикам находить вашу анкету в поиске.</span>
         </div>
 
         <div class="field">
@@ -931,11 +1020,26 @@
     </div>`;
   }
 
-  function renderStatsTab(st, TDATA, allReqs, acceptedList, totalPayout) {
+  function formatWaReminderText(st, student) {
+    const tpl = (st && st.waSettings && st.waSettings.template) ||
+      "Здравствуйте, {имя}! Напоминаю, что скоро будет урок ({предмет}) — {день} в {время}. Ссылку отправлю перед началом.";
+    return String(tpl)
+      .replace(/\{имя\}/gi, student.name || "ученик")
+      .replace(/\{предмет\}/gi, student.exam || "ЕГЭ")
+      .replace(/\{день\}/gi, student.lessonDay || "Воскресенье")
+      .replace(/\{время\}/gi, student.lessonTime || "10:00");
+  }
+
+  function studentWaHref(st, student) {
+    const phone = String((student && student.whatsapp) || "79142100511").replace(/\D+/g, "") || "79142100511";
+    return `https://wa.me/${phone}?text=${encodeURIComponent(formatWaReminderText(st, student))}`;
+  }
+
+  function renderPayoutStatsBlocks(st, TDATA, allReqs, acceptedList, totalPayout) {
     const p = st.profile;
     const sp = TDATA && typeof TDATA.commissionSplit === "function"
       ? TDATA.commissionSplit(p.price)
-      : { payout: Math.round(p.price * 0.95) };
+      : { payout: Math.round(p.price * 0.95), fee: Math.round(p.price * 0.05) };
     const is30 = st.statsPeriod === "30d";
     const mult = is30 ? 4 : 1;
     const views = (312 + st.bumpCount * 28) * mult;
@@ -956,14 +1060,17 @@
     const curMonthlyProj = Math.max(totalPayout, (acceptedList.length + 3) * 4 * sp.payout);
     const goalPct = Math.min(100, Math.round((curMonthlyProj / goal) * 100));
     const remMs = autoBumpRemainingMs(st);
+    const mRem = manualBumpRemainingMs(st);
+    const lastAutoLabel = formatTimestamp(st.lastAutoBumpAt || st.lastBumpAt);
+    const lastManualLabel = formatTimestamp(st.lastManualBumpAt);
 
     return `<div class="stack" style="gap:16px">
       <div class="tc-autobump-card">
         <div class="row between" style="gap:10px;flex-wrap:wrap;align-items:flex-start">
           <div class="stack" style="gap:3px">
-            <span class="chip gold">${icon("spark")}<span>Автопродвижение каждые 24 часа · 0 ₽</span></span>
-            <h2 class="h2">${st.autoBump24h ? "Автоподнятие активно" : "Автоподнятие на паузе"}</h2>
-            <p class="small ink2">Анкета автоматически поднимается в топ выдачи /market раз в 24 часа к пиковому времени учеников (+38% к просмотрам и откликам).</p>
+            <span class="chip gold">${icon("spark")}<span>Автопродвижение каждые 24 часа · ручное поднятие раз в 4 часа (0 ₽)</span></span>
+            <h2 class="h2">${st.autoBump24h ? "Автоподнятие 24 ч активно" : "Автоподнятие на паузе"}</h2>
+            <p class="small ink2">Анкета автоматически поднимается в топ выдачи /market каждые 24 часа. Дополнительно можно поднять вручную раз в 4 часа.</p>
           </div>
           <button type="button" class="btn ${st.autoBump24h ? "confirm" : "gold"} sm" data-a="tc-autobump-toggle" aria-pressed="${!!st.autoBump24h}">
             ${st.autoBump24h ? "✓ Авто-24ч включено" : "Включить авто-24ч"}
@@ -971,17 +1078,23 @@
         </div>
 
         <div class="tc-two-col">
-          <div class="card stack" style="gap:4px">
-            <span class="small muted">До следующего автоподнятия</span>
+          <div class="card stack" style="gap:5px">
+            <span class="small muted">До следующего автоподнятия (24 ч)</span>
             <b class="num savings-gold-txt" style="font-size:24px" data-tc-countdown>${st.autoBump24h ? formatCountdown(remMs) : "Пауза"}</b>
+            <span class="small muted">Последнее автопродвижение: <b style="color:var(--ink)">${esc(lastAutoLabel)}</b></span>
             <span class="small muted">Всего поднятий: <b class="num">${st.bumpCount || 1}</b></span>
           </div>
           <div class="card stack" style="gap:8px">
-            <span class="small muted">Предпочтительное время суточного пика</span>
+            <span class="small muted">Пиковое время суточного автоподнятия</span>
             <div class="row" style="gap:6px;flex-wrap:wrap">
               ${AUTO_BUMP_HOURS.map((hr) => `<button type="button" class="chip-btn${st.autoBumpHour === hr ? " on" : ""}" data-a="tc-autobump-hour" data-hour="${hr}">${hr} Якт</button>`).join("")}
             </div>
-            <button type="button" class="btn soft sm" data-a="tc-bump" style="justify-self:start">${st.bumpedToday ? "✓ Поднята сегодня" : "Поднять прямо сейчас (0 ₽)"}</button>
+            <div class="small muted">Последнее ручное поднятие: <b style="color:var(--ink)">${esc(lastManualLabel)}</b> · интервал 4 ч</div>
+            <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
+              <button type="button" class="btn soft sm" data-a="tc-bump"${mRem > 0 ? " disabled" : ""}>
+                ${mRem > 0 ? `✓ Анкета поднята · через <span class="num" data-tc-manual-countdown>${formatCountdown(mRem)}</span>` : "Поднять анкету сейчас (раз в 4 ч)"}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1042,18 +1155,106 @@
     </div>`;
   }
 
+  function viewPayouts() {
+    ensureCountdownTimer();
+    const TDATA = getTDATA();
+    const st = tState();
+    const p = st.profile;
+    const allReqs = syncedRequests();
+    const acceptedList = allReqs.filter((r) => r.status === "accepted");
+    const baseSplit = TDATA && typeof TDATA.commissionSplit === "function"
+      ? TDATA.commissionSplit(p.price)
+      : { total: p.price, fee: Math.round(p.price * 0.05), payout: Math.round(p.price * 0.95), pct: 5 };
+    const totalReqPayout = acceptedList.reduce((acc, r) => {
+      const rate = Number(r.counterPrice || r.offerPrice) || p.price;
+      const sp = TDATA && typeof TDATA.commissionSplit === "function" ? TDATA.commissionSplit(rate) : { payout: Math.round(rate * 0.95) };
+      return acc + sp.payout;
+    }, 0);
+    const studentsDoneLessons = (st.students || []).reduce((sum, s) => sum + (Number(s.lessonsDone) || 0), 0);
+    const totalLessonsCount = studentsDoneLessons + acceptedList.length;
+    const netIncomeTotal = (studentsDoneLessons * baseSplit.payout) + totalReqPayout;
+    const monthEarned = Math.max(netIncomeTotal, (acceptedList.length + 4) * 4 * baseSplit.payout);
+    const mRem = manualBumpRemainingMs(st);
+
+    return `
+      <div class="head">
+        <div class="row between" style="gap:10px;flex-wrap:wrap;align-items:flex-end">
+          <div>
+            <div class="eyebrow">Финансы преподавателя · 95% на руки</div>
+            <h1 class="h1">Выплаты и статистика</h1>
+          </div>
+          <div class="row" style="gap:8px;flex-wrap:wrap">
+            <button type="button" class="btn ghost sm" data-a="go" data-v="cabinet">← В кабинет</button>
+            <button type="button" class="btn sakha-pattern${mRem > 0 ? " is-confirmed" : ""}" data-a="tc-bump"${mRem > 0 ? " disabled" : ""}>
+              ${sakhaPatternSVG("rhombus", 18)}
+              <span>${mRem > 0 ? `✓ Поднята · <span class="num" data-tc-manual-countdown>${formatCountdown(mRem)}</span>` : "Поднять анкету (раз в 4 ч)"}</span>
+              ${sakhaPatternSVG("lattice", 18)}
+            </button>
+          </div>
+        </div>
+        <p class="lead">Чистый доход после 5% комиссии, количество проведённых уроков, заработок за месяц, цель дохода и управление автопродвижением 24 ч / 4 ч.</p>
+      </div>
+
+      <div class="tiles">
+        <div class="tile">
+          <span class="tile-label">Чистый доход (95%)</span>
+          <span class="tile-value num savings-gold-txt">${netIncomeTotal.toLocaleString("ru-RU")} ₽</span>
+          <span class="tile-note">после 5% сбора системы</span>
+        </div>
+        <div class="tile">
+          <span class="tile-label">Проведено уроков</span>
+          <span class="tile-value num">${totalLessonsCount}</span>
+          <span class="tile-note">активных учеников: ${(st.students || []).length}</span>
+        </div>
+        <div class="tile">
+          <span class="tile-label">Заработано за месяц</span>
+          <span class="tile-value num" style="color:var(--confirm)">${monthEarned.toLocaleString("ru-RU")} ₽</span>
+          <span class="tile-note">прогноз на текущий цикл</span>
+        </div>
+        <div class="tile">
+          <span class="tile-label">Ставка в анкете</span>
+          <span class="tile-value num">${p.price.toLocaleString("ru-RU")} ₽/ч</span>
+          <span class="tile-note">на руки ${baseSplit.payout.toLocaleString("ru-RU")} ₽ · сбор ${baseSplit.fee.toLocaleString("ru-RU")} ₽</span>
+        </div>
+      </div>
+
+      ${renderPayoutStatsBlocks(st, TDATA, allReqs, acceptedList, netIncomeTotal)}
+
+      <section class="card stack" style="gap:12px" aria-label="Условия выплат и сервисный сбор 5%">
+        <div class="row between" style="gap:8px;flex-wrap:wrap">
+          <div>
+            <div class="eyebrow">Прозрачная комиссия</div>
+            <h2 class="h2">Расчёт с урока по ставке анкеты</h2>
+          </div>
+          <span class="chip accent">Комиссия системы: 5%</span>
+        </div>
+        <div class="bid-fee-row">${feeSplitHTML(p.price, TDATA)}</div>
+        <p class="small muted">Средства ученика замораживаются до урока и переводятся преподавателю сразу после проведения занятия (95% на руки, 5% — сервис и поддержка расписания).</p>
+      </section>`;
+  }
+
   function renderStudentsTab(st) {
     const p = st.profile;
     const students = Array.isArray(st.students) ? st.students : [];
+    const waCfg = st.waSettings || { enabled: true, lead: "2h", template: "Здравствуйте, {имя}! Скоро будет урок ({предмет}) — {день} в {время}." };
+    const sampleStudent = students[0] || { name: "Алина С.", exam: "ЕГЭ · Биология", lessonDay: "Воскресенье", lessonTime: "10:00", whatsapp: "79142100511" };
+    const samplePreview = formatWaReminderText(st, sampleStudent);
+    const sampleWaHref = studentWaHref(st, sampleStudent);
+
     return `<div class="tc-grid">
-      <section class="stack" style="gap:12px" aria-label="Трекер баллов ЕГЭ учеников">
+      <section class="stack" style="gap:12px" aria-label="Мои ученики и напоминания в WhatsApp">
         <div>
-          <div class="eyebrow">Авторский инструмент кабинета</div>
-          <h2 class="h2">Мои ученики и трекер баллов ЕГЭ</h2>
+          <div class="eyebrow">Трекер баллов и связь в WhatsApp</div>
+          <h2 class="h2">Мои ученики и автоуведомления</h2>
         </div>
         ${students.map((s) => {
           const pct = Math.max(8, Math.min(100, Math.round((s.curScore / Math.max(1, s.targetScore)) * 100)));
           const gain = s.curScore - s.startScore;
+          const day = s.lessonDay || "Воскресенье";
+          const time = s.lessonTime || "10:00";
+          const waHref = studentWaHref(st, s);
+          const lastRem = s.lastRemindedAt ? formatTimestamp(s.lastRemindedAt) : "";
+          const leadLabel = (WA_LEAD_OPTIONS.find((o) => o.id === waCfg.lead) || WA_LEAD_OPTIONS[2]).label;
           return `<article class="tc-student-card">
             <div class="row between" style="gap:8px;flex-wrap:wrap">
               <div class="row" style="gap:10px">
@@ -1063,7 +1264,10 @@
                   <span class="small muted">${esc(s.exam)} · ${s.lessonsDone} ${plural(s.lessonsDone, "урок", "урока", "уроков")} проведено</span>
                 </div>
               </div>
-              <span class="chip confirm num">+${gain} б. от старта</span>
+              <div class="row" style="gap:6px;flex-wrap:wrap">
+                <span class="chip confirm num">+${gain} б.</span>
+                <span class="chip ${s.autoNotify ? "gold" : ""}">${s.autoNotify ? `Авто WhatsApp · ${esc(leadLabel)}` : "Авто-WA выкл"}</span>
+              </div>
             </div>
             <div class="stack" style="gap:5px">
               <div class="row between small">
@@ -1073,6 +1277,35 @@
               <div class="tc-score-track"><div class="tc-score-fill" style="width:${pct}%"></div></div>
             </div>
             <div class="tc-req-quote">Домашка / фокус: ${esc(s.hw)}</div>
+
+            <div class="tc-wa-cfg">
+              <div class="row between" style="gap:6px;flex-wrap:wrap">
+                <b class="small">Ближайший урок и WhatsApp ученика</b>
+                ${lastRem ? `<span class="small muted">Отправлено: ${esc(lastRem)}</span>` : `<span class="small muted">Готово к отправке</span>`}
+              </div>
+              <div class="fields" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr))">
+                <div class="field">
+                  <label for="st-day-${esc(s.id)}">День</label>
+                  <input class="input" id="st-day-${esc(s.id)}" data-tc-student="lessonDay" data-id="${esc(s.id)}" value="${esc(day)}" maxlength="24" placeholder="Воскресенье">
+                </div>
+                <div class="field">
+                  <label for="st-time-${esc(s.id)}">Время</label>
+                  <input class="input num" id="st-time-${esc(s.id)}" data-tc-student="lessonTime" data-id="${esc(s.id)}" value="${esc(time)}" maxlength="12" placeholder="10:00">
+                </div>
+                <div class="field">
+                  <label for="st-wa-${esc(s.id)}">WhatsApp</label>
+                  <input class="input num" id="st-wa-${esc(s.id)}" data-tc-student="whatsapp" data-id="${esc(s.id)}" value="${esc(s.whatsapp || "79142100511")}" maxlength="20" placeholder="7914...">
+                </div>
+              </div>
+              <div class="row" style="gap:8px;flex-wrap:wrap">
+                <button type="button" class="btn confirm sm" data-a="tc-student-remind" data-id="${esc(s.id)}">${icon("msg")}<span>Напомнить: скоро урок (${esc(day)}, ${esc(time)})</span></button>
+                <button type="button" class="btn ${s.autoNotify ? "gold" : "soft"} sm" data-a="tc-student-autonotify" data-id="${esc(s.id)}" aria-pressed="${!!s.autoNotify}">
+                  ${icon("bell")}<span>${s.autoNotify ? "✓ Автоуведомление WhatsApp" : "Вкл. автоуведомление"}</span>
+                </button>
+                <a class="btn ghost sm" href="${esc(waHref)}" target="_blank" rel="noopener">Открыть WhatsApp →</a>
+              </div>
+            </div>
+
             <div class="row" style="gap:8px;flex-wrap:wrap">
               <button type="button" class="btn soft sm" data-a="tc-student-score" data-id="${esc(s.id)}" data-delta="2">+2 балла за пробник</button>
               <button type="button" class="btn ghost sm" data-a="tc-student-lesson" data-id="${esc(s.id)}">+1 проведённый урок</button>
@@ -1081,7 +1314,36 @@
         }).join("")}
       </section>
 
-      <aside class="stack" style="gap:12px" aria-label="Быстрые шаблоны ответов">
+      <aside class="stack" style="gap:12px" aria-label="Автоуведомления WhatsApp и шаблоны">
+        <div class="card stack" style="gap:10px">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <div>
+              <div class="eyebrow">WhatsApp-напоминания</div>
+              <h2 class="h2">Настройка автоуведомлений</h2>
+            </div>
+            <button type="button" class="btn ${waCfg.enabled ? "confirm" : "soft"} sm" data-a="tc-wa-global-toggle" aria-pressed="${!!waCfg.enabled}">
+              ${waCfg.enabled ? "✓ Система включена" : "Включить систему"}
+            </button>
+          </div>
+          <div class="stack" style="gap:6px">
+            <span class="small muted">Когда автоматически писать ученику в WhatsApp:</span>
+            <div class="chip-rail">
+              ${WA_LEAD_OPTIONS.map((o) => `<button type="button" class="chip-btn${waCfg.lead === o.id ? " on" : ""}" data-a="tc-wa-lead" data-v="${esc(o.id)}">${esc(o.label)}</button>`).join("")}
+            </div>
+          </div>
+          <div class="field">
+            <label for="tc-wa-tpl">Текст напоминания (переменные: <code>{имя}</code>, <code>{предмет}</code>, <code>{день}</code>, <code>{время}</code>)</label>
+            <textarea class="textarea" id="tc-wa-tpl" data-tc="waTemplate" rows="3" maxlength="260">${esc(waCfg.template || "")}</textarea>
+          </div>
+          <div class="tc-template-card">
+            <div class="row between" style="gap:8px;flex-wrap:wrap">
+              <b class="small">Пример сообщения (${esc(sampleStudent.name)} · ${esc(sampleStudent.lessonDay || "Воскресенье")}, ${esc(sampleStudent.lessonTime || "10:00")})</b>
+              <a class="btn confirm sm" href="${esc(sampleWaHref)}" target="_blank" rel="noopener">${icon("send")}<span>Тест в WhatsApp</span></a>
+            </div>
+            <div class="tc-template-body">${esc(samplePreview)}</div>
+          </div>
+        </div>
+
         <div class="card stack" style="gap:10px">
           <div>
             <div class="eyebrow">Экономия времени</div>
@@ -1184,14 +1446,15 @@
     }, 0);
     const baseSplit = TDATA && typeof TDATA.commissionSplit === "function" ? TDATA.commissionSplit(p.price) : { total: p.price, fee: Math.round(p.price * 0.05), payout: Math.round(p.price * 0.95), pct: 5 };
     const comp = profileCompleteness(p, st.slots);
-    const activeTab = ["requests", "leads", "profile", "calendar", "stats", "students"].includes(st.tab) ? st.tab : "requests";
+    const activeTab = ["requests", "leads", "profile", "calendar", "students"].includes(st.tab) ? st.tab : "requests";
     const bookedCalendarCount = acceptedList.length;
+    const mRem = manualBumpRemainingMs(st);
+    const lastAutoLabel = formatTimestamp(st.lastAutoBumpAt || st.lastBumpAt);
 
     let bodyHTML = "";
     if (activeTab === "leads") bodyHTML = renderLeadsTab(st, TDATA);
-    else if (activeTab === "profile") bodyHTML = renderProfileHHTab(st, TDATA, baseSplit);
+    else if (activeTab === "profile") bodyHTML = renderProfileTab(st, TDATA, baseSplit);
     else if (activeTab === "calendar") bodyHTML = renderCalendarTab(st, TDATA, allReqs);
-    else if (activeTab === "stats") bodyHTML = renderStatsTab(st, TDATA, allReqs, acceptedList, totalPayout);
     else if (activeTab === "students") bodyHTML = renderStudentsTab(st);
     else bodyHTML = renderRequestsTab(st, TDATA, allReqs, pendingList, acceptedList, baseSplit);
 
@@ -1201,26 +1464,26 @@
           <div>
             <div class="eyebrow">Саха сирэ · Личный кабинет преподавателя</div>
             <h1 class="h1">${esc(p.name)}</h1>
-            <div class="small muted">${esc(p.headline || "Репетитор ЕГЭ / ОГЭ")} · Профиль hh заполнен на ${comp.pct}%</div>
+            <div class="small muted">${esc(p.headline || "Репетитор ЕГЭ / ОГЭ")} · Профиль заполнен на ${comp.pct}% · Авто-24ч: ${esc(lastAutoLabel)}</div>
           </div>
           <div class="row" style="gap:8px;flex-wrap:wrap">
             <button type="button" class="btn ${st.autoBump24h ? "gold" : "soft"} sm" data-a="tc-autobump-toggle" aria-pressed="${!!st.autoBump24h}">
               ${icon("spark")}<span>${st.autoBump24h ? "Авто-24ч: " : "Вкл. авто-24ч"}</span>${st.autoBump24h ? `<b class="num" data-tc-countdown>${formatCountdown(autoBumpRemainingMs(st))}</b>` : ""}
             </button>
-            <button type="button" class="btn sakha-pattern${st.bumpedToday ? " is-confirmed" : ""}" data-a="tc-bump">
+            <button type="button" class="btn sakha-pattern${mRem > 0 ? " is-confirmed" : ""}" data-a="tc-bump"${mRem > 0 ? " disabled" : ""}>
               ${sakhaPatternSVG("rhombus", 18)}
-              <span>${st.bumpedToday ? "✓ Анкета поднята сегодня" : "Сөп · Актуален сегодня (0 ₽)"}</span>
+              <span>${mRem > 0 ? `✓ Поднята · через <b class="num" data-tc-manual-countdown>${formatCountdown(mRem)}</b>` : "Сөп · Поднять анкету (раз в 4 ч)"}</span>
               ${sakhaPatternSVG("lattice", 18)}
             </button>
           </div>
         </div>
-        <p class="lead">Управляйте заявками ±100 ₽, собирайте профиль как на hh.ru, ведите календарь записанных учеников и включайте автопродвижение каждые 24 часа.</p>
+        <p class="lead">Управляйте заявками ±100 ₽, собирайте профиль и фото, ведите календарь записанных учеников и отправляйте автоуведомления в WhatsApp.</p>
       </div>
 
       <div class="tc-role-bar" role="region" aria-label="Режим профиля">
         <div class="row" style="gap:8px;flex-wrap:wrap">
           <span class="chip gold">${icon("users")}<span>Режим: Преподаватель</span></span>
-          <span class="small ink2">${st.published ? "Ваша анкета опубликована в каталоге /market." : "Заполните профиль как на hh и опубликуйте его на витрину /market."}</span>
+          <span class="small ink2">${st.published ? "Ваша анкета опубликована в каталоге /market." : "Заполните профиль и опубликуйте его на витрину /market."}</span>
         </div>
         <div class="row" style="gap:8px;flex-wrap:wrap">
           <button type="button" class="btn soft sm" data-a="role-set" data-role="student">Перейти как ученик</button>
@@ -1249,20 +1512,30 @@
         <div class="tile">
           <span class="tile-label">Чистый доход (95%)</span>
           <span class="tile-value num savings-gold-txt">${totalPayout.toLocaleString("ru-RU")} ₽</span>
-          <span class="tile-note"><button type="button" class="link-btn small" data-a="go" data-v="fees">Условия 5% →</button></span>
+          <span class="tile-note"><button type="button" class="link-btn small" data-a="go" data-v="fees">Выплаты и статистика →</button></span>
         </div>
       </div>
 
       <div class="chip-rail swipe" role="tablist" aria-label="Разделы кабинета преподавателя">
         <button type="button" role="tab" aria-selected="${activeTab === "requests"}" class="chip-btn${activeTab === "requests" ? " on" : ""}" data-a="tc-tab" data-tab="requests">Заявки (${allReqs.length})</button>
         <button type="button" role="tab" aria-selected="${activeTab === "leads"}" class="chip-btn${activeTab === "leads" ? " on" : ""}" data-a="tc-tab" data-tab="leads">Ученики ищут (${leadsList.length})</button>
-        <button type="button" role="tab" aria-selected="${activeTab === "profile"}" class="chip-btn${activeTab === "profile" ? " on" : ""}" data-a="tc-tab" data-tab="profile">Профиль hh · ${comp.pct}%</button>
+        <button type="button" role="tab" aria-selected="${activeTab === "profile"}" class="chip-btn${activeTab === "profile" ? " on" : ""}" data-a="tc-tab" data-tab="profile">Профиль · ${comp.pct}%</button>
         <button type="button" role="tab" aria-selected="${activeTab === "calendar"}" class="chip-btn${activeTab === "calendar" ? " on" : ""}" data-a="tc-tab" data-tab="calendar">Календарь учеников (${bookedCalendarCount})</button>
-        <button type="button" role="tab" aria-selected="${activeTab === "stats"}" class="chip-btn${activeTab === "stats" ? " on" : ""}" data-a="tc-tab" data-tab="stats">Статистика и 24ч</button>
         <button type="button" role="tab" aria-selected="${activeTab === "students"}" class="chip-btn${activeTab === "students" ? " on" : ""}" data-a="tc-tab" data-tab="students">Мои ученики (${st.students.length})</button>
       </div>
 
       ${bodyHTML}`;
+  }
+
+  function getTab() {
+    const t = tState().tab;
+    return ["requests", "leads", "profile", "calendar", "students"].includes(t) ? t : "requests";
+  }
+
+  function setTab(nextTab) {
+    const st = tState();
+    st.tab = ["requests", "leads", "profile", "calendar", "students"].includes(nextTab) ? nextTab : "requests";
+    saveState();
   }
 
   function toggleArrayVal(arr, val, minOne) {
@@ -1283,41 +1556,134 @@
     const id = d.id || "";
 
     if (act === "tc-tab") {
-      st.tab = ["requests", "leads", "profile", "calendar", "stats", "students"].includes(d.tab) ? d.tab : "requests";
+      st.tab = ["requests", "leads", "profile", "calendar", "students"].includes(d.tab) ? d.tab : "requests";
       saveState();
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       return true;
     }
 
     if (act === "tc-bump") {
-      st.bumpedToday = !st.bumpedToday;
-      if (st.bumpedToday) {
-        st.lastBumpAt = Date.now();
-        st.bumpCount = (Number(st.bumpCount) || 0) + 1;
+      const rem = manualBumpRemainingMs(st);
+      if (rem > 0) {
+        if (typeof _ctx.notifySide === "function") {
+          _ctx.notifySide("Ручное поднятие раз в 4 ч", `Повторить можно через ${formatCountdown(rem)} (последнее — ${formatTimestamp(st.lastManualBumpAt)}).`);
+        }
+        return true;
       }
+      st.bumpedToday = true;
+      st.lastManualBumpAt = Date.now();
+      st.bumpCount = (Number(st.bumpCount) || 0) + 1;
       syncPublishedTutor(st);
       saveState();
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       if (typeof _ctx.notifySide === "function") {
-        _ctx.notifySide(
-          st.bumpedToday ? "Анкета поднята в топ" : "Поднятие отменено",
-          st.bumpedToday ? "Вы среди первых репетиторов в разделе «Актуален сегодня» (0 ₽)." : "Статус анкеты возвращён к обычному."
-        );
+        _ctx.notifySide("Анкета поднята в топ (0 ₽)", "Следующее ручное поднятие будет доступно через 4 часа.");
       }
       return true;
     }
 
     if (act === "tc-autobump-toggle") {
       st.autoBump24h = !st.autoBump24h;
-      if (st.autoBump24h) st.lastBumpAt = Date.now();
+      if (st.autoBump24h) {
+        const now = Date.now();
+        st.lastAutoBumpAt = now;
+        st.lastBumpAt = now;
+      }
       syncPublishedTutor(st);
       saveState();
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       if (typeof _ctx.notifySide === "function") {
         _ctx.notifySide(
           st.autoBump24h ? "Автопродвижение 24 ч включено" : "Автопродвижение на паузе",
-          st.autoBump24h ? `Анкета будет автоматически подниматься каждые 24 часа (к ${st.autoBumpHour} Якт).` : "Поднятие доступно вручную кнопкой «Актуален сегодня»."
+          st.autoBump24h ? `Анкета будет автоматически подниматься каждые 24 часа (к ${st.autoBumpHour} Якт).` : "Поднятие доступно вручную кнопкой раз в 4 ч."
         );
+      }
+      return true;
+    }
+
+    if (act === "tc-photo-clear") {
+      st.profile.photo = "";
+      syncPublishedTutor(st);
+      saveState();
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      if (typeof _ctx.toast === "function") _ctx.toast("Фото убрано — показывается «Без фото»");
+      return true;
+    }
+
+    if (act === "tc-city-pick") {
+      if (CITY_OPTIONS.includes(d.v)) {
+        st.profile.city = d.v;
+        syncPublishedTutor(st);
+        saveState();
+        if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      }
+      return true;
+    }
+
+    if (act === "tc-tz-toggle") {
+      st.tzMenuOpen = !st.tzMenuOpen;
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-tz-pick") {
+      if (TZ_OPTIONS.some((tz) => tz.id === d.v)) {
+        st.profile.timezone = d.v;
+      }
+      st.tzMenuOpen = false;
+      syncPublishedTutor(st);
+      saveState();
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-wa-global-toggle") {
+      if (!st.waSettings) st.waSettings = { enabled: true, lead: "2h", template: "" };
+      st.waSettings.enabled = !st.waSettings.enabled;
+      saveState();
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      if (typeof _ctx.toast === "function") _ctx.toast(st.waSettings.enabled ? "Автоуведомления WhatsApp включены" : "Автоуведомления WhatsApp на паузе");
+      return true;
+    }
+
+    if (act === "tc-wa-lead") {
+      if (!st.waSettings) st.waSettings = { enabled: true, lead: "2h", template: "" };
+      if (WA_LEAD_OPTIONS.some((o) => o.id === d.v)) st.waSettings.lead = d.v;
+      saveState();
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-student-autonotify") {
+      const s = (st.students || []).find((x) => x.id === id);
+      if (s) {
+        s.autoNotify = !s.autoNotify;
+        saveState();
+        if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+        if (typeof _ctx.notifySide === "function") {
+          const leadLabel = (WA_LEAD_OPTIONS.find((o) => o.id === ((st.waSettings && st.waSettings.lead) || "2h")) || WA_LEAD_OPTIONS[2]).label;
+          _ctx.notifySide(
+            s.autoNotify ? "Автоуведомление WhatsApp включено" : "Автоуведомление выключено",
+            s.autoNotify ? `${s.name}: система напишет ${leadLabel} (${s.lessonDay || "Воскресенье"}, ${s.lessonTime || "10:00"})` : `${s.name}: только ручные напоминания`
+          );
+        }
+      }
+      return true;
+    }
+
+    if (act === "tc-student-remind") {
+      const s = (st.students || []).find((x) => x.id === id);
+      if (s) {
+        s.lastRemindedAt = Date.now();
+        saveState();
+        const url = studentWaHref(st, s);
+        if (typeof window !== "undefined" && typeof window.open === "function") {
+          try { window.open(url, "_blank", "noopener"); } catch (e) { /* игнор */ }
+        }
+        if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+        if (typeof _ctx.notifySide === "function") {
+          _ctx.notifySide("Напоминание подготовлено для WhatsApp", `${s.name} · ${s.lessonDay || "Воскресенье"} в ${s.lessonTime || "10:00"}`);
+        }
       }
       return true;
     }
@@ -1630,13 +1996,32 @@
   }
 
   function handleInput(el) {
-    if (!el || !el.dataset || !el.dataset.tc) return false;
-    const key = el.dataset.tc;
+    if (!el || !el.dataset) return false;
     const st = tState();
+    if (el.dataset.tcStudent) {
+      const s = (st.students || []).find((x) => x.id === el.dataset.id);
+      if (!s) return false;
+      const sk = el.dataset.tcStudent;
+      if (sk === "lessonDay") s.lessonDay = String(el.value || "").slice(0, 24);
+      else if (sk === "lessonTime") s.lessonTime = String(el.value || "").slice(0, 12);
+      else if (sk === "whatsapp") s.whatsapp = String(el.value || "").slice(0, 20);
+      saveState();
+      return true;
+    }
+    if (!el.dataset.tc) return false;
+    const key = el.dataset.tc;
     const p = st.profile;
     if (key === "name") p.name = String(el.value || "").slice(0, 48);
     else if (key === "headline") p.headline = String(el.value || "").slice(0, 72);
-    else if (key === "city") p.city = String(el.value || "").slice(0, 48);
+    else if (key === "city") p.city = CITY_OPTIONS.includes(el.value) ? el.value : "Якутск";
+    else if (key === "timezone") p.timezone = TZ_OPTIONS.some((tz) => tz.id === el.value) ? el.value : "UTC+9";
+    else if (key === "customSkills") p.customSkills = String(el.value || "").slice(0, 120);
+    else if (key === "waTemplate") {
+      if (!st.waSettings) st.waSettings = { enabled: true, lead: "2h", template: "" };
+      st.waSettings.template = String(el.value || "").slice(0, 260);
+      saveState();
+      return true;
+    }
     else if (key === "education") p.education = String(el.value || "").slice(0, 90);
     else if (key === "whatsapp") p.whatsapp = String(el.value || "").slice(0, 32);
     else if (key === "expYears") p.expYears = Math.max(1, Math.min(50, Number(el.value) || 1));
@@ -1653,6 +2038,56 @@
     else if (key === "bio") p.bio = String(el.value || "").slice(0, 320);
     syncPublishedTutor(st);
     saveState();
+    return true;
+  }
+
+  function handleFileInput(el) {
+    if (!el || !el.files || !el.files[0]) return false;
+    const file = el.files[0];
+    if (!file.type || file.type.indexOf("image/") !== 0) {
+      if (typeof _ctx.toast === "function") _ctx.toast("Выберите файл изображения (JPG, PNG, WebP)");
+      return true;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const rawData = typeof reader.result === "string" ? reader.result : "";
+      if (!rawData) return;
+      const applyPhoto = (url) => {
+        const st = tState();
+        st.profile.photo = url;
+        syncPublishedTutor(st);
+        saveState();
+        if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+        if (typeof _ctx.toast === "function") _ctx.toast("Фото загружено и обновлено в каталоге");
+      };
+      if (typeof Image === "function" && typeof document !== "undefined") {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const maxDim = 240;
+            const scale = Math.min(1, maxDim / Math.max(img.width || maxDim, img.height || maxDim));
+            const w = Math.max(1, Math.round((img.width || maxDim) * scale));
+            const h = Math.max(1, Math.round((img.height || maxDim) * scale));
+            const cvs = document.createElement("canvas");
+            cvs.width = w;
+            cvs.height = h;
+            const ctx2d = cvs.getContext("2d");
+            if (ctx2d) {
+              ctx2d.drawImage(img, 0, 0, w, h);
+              applyPhoto(cvs.toDataURL("image/jpeg", 0.84));
+              return;
+            }
+          } catch (e) { /* используем исходный dataURL */ }
+          applyPhoto(rawData.slice(0, 350000));
+        };
+        img.onerror = () => applyPhoto(rawData.slice(0, 350000));
+        img.src = rawData;
+      } else {
+        applyPhoto(rawData.slice(0, 350000));
+      }
+    };
+    reader.readAsDataURL(file);
+    el.value = "";
     return true;
   }
 
@@ -1740,21 +2175,30 @@
 
   function closeMenus(target) {
     const st = tState();
+    let changed = false;
     if (st.subjMenuOpen && (!target || typeof target.closest !== "function" || (!target.closest("#tc-subjects") && !target.closest("#tc-subject")))) {
       st.subjMenuOpen = false;
-      return true;
+      changed = true;
     }
-    return false;
+    if (st.tzMenuOpen && (!target || typeof target.closest !== "function" || !target.closest("#tc-timezone"))) {
+      st.tzMenuOpen = false;
+      changed = true;
+    }
+    return changed;
   }
 
   EGE.views = EGE.views || {};
   EGE.views.tutorCabinet = {
     configure,
     pendingCount,
+    getTab,
+    setTab,
     closeMenus,
     viewCabinet,
+    viewPayouts,
     handleAction,
     handleInput,
+    handleFileInput,
     handleSubmit
   };
 })();

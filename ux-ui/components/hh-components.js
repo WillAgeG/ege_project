@@ -149,20 +149,15 @@
     const selectedSet = new Set(values);
     const selectedOpts = options.filter((o) => selectedSet.has(String(o.id)));
     const open = !!opts.open;
-    const maxPreview = Math.max(1, Number(opts.maxPreview) || 2);
     const placeholder = opts.placeholder || "Выберите варианты";
     const leadIcon = opts.leadIcon && EGE.ui && typeof EGE.ui.icon === "function" ? EGE.ui.icon(opts.leadIcon) : "";
     const checkIcon = EGE.ui && typeof EGE.ui.icon === "function" ? EGE.ui.icon("check") : "";
     const chevIcon = EGE.ui && typeof EGE.ui.icon === "function" ? EGE.ui.icon("chevDown") : "";
     const valHTML = selectedOpts.length
-      ? selectedOpts.slice(0, maxPreview).map((o) => `<span class="hh-multi-pill">${esc(o.short || o.label)}</span>`).join("") +
-        (selectedOpts.length > maxPreview ? `<span class="hh-select-meta num">+${selectedOpts.length - maxPreview}</span>` : "")
+      ? selectedOpts.map((o) => `<span class="hh-multi-pill"><span>${esc(o.short || o.label)}</span><button type="button" class="hh-multi-x" data-a="${esc(opts.pickAction || "")}" data-v="${esc(o.id)}" title="Убрать ${esc(o.label)}" aria-label="Убрать ${esc(o.label)}">×</button></span>`).join("")
       : `<span class="muted">${esc(placeholder)}</span>`;
-    const chipsHTML = opts.showChips !== false && selectedOpts.length
-      ? `<div class="hh-multi-chips">${selectedOpts.map((o) => `<button type="button" class="hh-multi-chip" data-a="${esc(opts.pickAction || "")}" data-v="${esc(o.id)}" title="Убрать ${esc(o.label)}">${esc(o.label)} ×</button>`).join("")}</div>`
-      : "";
     return `<div class="hh-select hh-multi${open ? " open" : ""}"${opts.id ? ` id="${esc(opts.id)}"` : ""}>
-      <button type="button" class="hh-select-btn hh-multi-btn" data-a="${esc(opts.toggleAction || "")}" aria-haspopup="listbox" aria-expanded="${open}"${opts.ariaLabel ? ` aria-label="${esc(opts.ariaLabel)}"` : ""}>
+      <div class="hh-select-btn hh-multi-btn" role="combobox" tabindex="0" data-a="${esc(opts.toggleAction || "")}" aria-haspopup="listbox" aria-expanded="${open}"${opts.ariaLabel ? ` aria-label="${esc(opts.ariaLabel)}"` : ""}>
         <span class="hh-multi-val">
           ${leadIcon ? `<span class="hh-select-lead">${leadIcon}</span>` : ""}
           ${valHTML}
@@ -171,7 +166,7 @@
           ${selectedOpts.length ? `<span class="hh-select-meta num">${selectedOpts.length}</span>` : ""}
           <span class="hh-select-chev">${chevIcon}</span>
         </span>
-      </button>
+      </div>
       ${open ? `<div class="hh-select-menu" role="listbox" aria-multiselectable="true"${opts.ariaLabel ? ` aria-label="${esc(opts.ariaLabel)}"` : ""}>
         ${options.map((o) => {
           const isOn = selectedSet.has(String(o.id));
@@ -186,8 +181,18 @@
           </button>`;
         }).join("")}
       </div>` : ""}
-      ${chipsHTML}
     </div>`;
+  }
+
+  function tutorAvatarHTML(tutor, opts) {
+    opts = opts || {};
+    const photo = tutor && tutor.photo ? String(tutor.photo).trim() : "";
+    const extraCls = opts.cls ? " " + esc(opts.cls) : "";
+    if (photo) {
+      const alt = esc((tutor && tutor.name) || "Фото преподавателя");
+      return `<span class="tutor-avatar has-photo${extraCls}"><img src="${esc(photo)}" alt="${alt}"></span>`;
+    }
+    return `<span class="tutor-avatar is-no-photo${extraCls}" aria-label="Без фото"><span>Без фото</span></span>`;
   }
 
   EGE.hh = {
@@ -201,6 +206,7 @@
     BB_DAYS,
     bbDayObj,
     hhSelectHTML,
-    hhMultiSelectHTML
+    hhMultiSelectHTML,
+    tutorAvatarHTML
   };
 })();

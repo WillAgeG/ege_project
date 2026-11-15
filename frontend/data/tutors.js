@@ -56,37 +56,27 @@
     return { total: total, fee: fee, payout: total - fee, pct: COMMISSION_PCT };
   }
 
+  var CITIES = ["Якутск", "Москва"];
+  var TIMEZONES = [
+    { id: "UTC+9", label: "Якутск (UTC+9)", short: "UTC+9" },
+    { id: "UTC+3", label: "Москва (UTC+3)", short: "UTC+3" }
+  ];
+
   var PLANS = [
     {
-      id: "free",
-      name: "Бесплатная",
-      badge: "Тесты и база",
-      price: 0,
-      balance: 0,
-      priceLabel: "0 ₽",
-      period: "навсегда",
-      tagline: "Тренажёр ЕГЭ, конспекты и огромная база репетиторов",
-      cta: "Готовиться бесплатно",
-      features: [
-        "Полный тренажёр ЕГЭ: задания ФИПИ, конспекты и разбор ошибок",
-        "План подготовки к поступлению и отслеживание прогресса",
-        "Анкеты с Доски Ykt, Telegram, WhatsApp, MAX и других сервисов",
-        "Плата за занятия списывается только при бронировании уроков с баланса"
-      ]
-    },
-    {
       id: "trial5k",
-      name: "Пробник",
-      badge: "Старт с балансом",
+      name: "Пробник · Старт",
+      badge: "Минимальная подписка",
+      featured: true,
       price: 5000,
       balance: 5000,
       priceLabel: "5 000 ₽",
-      period: "баланс на репетиторов",
-      tagline: "Вся сумма 5 000 ₽ сразу падает на баланс — тратьте на уроки сразу",
-      cta: "Выбрать за 5 000 ₽",
+      period: "минимальный старт · баланс на уроки",
+      tagline: "Вся сумма 5 000 ₽ падает на баланс и открывает пробный урок (0 ₽) и дальнейшие пополнения от 100 ₽",
+      cta: "Подключить за 5 000 ₽",
       features: [
-        "Баланс 5 000 ₽ на любые занятия с репетиторами из каталога",
-        "Выбор времени с 10:00 до 20:00 и шаг цены −100 / +100 ₽",
+        "Баланс 5 000 ₽ на любые занятия — после старта можно пополнять от 100 ₽",
+        "Открывает бесплатный пробный урок (0 ₽), ставки −100 / +100 ₽ и тренажёр ЕГЭ",
         "Безопасная оплата: средства удерживаются только после согласия репетитора",
         "Замена репетитора в 1 клик — неиспользованный остаток не сгорает"
       ]
@@ -101,7 +91,7 @@
       balance: 10000,
       priceLabel: "10 000 ₽",
       period: "супер-подписка · баланс на месяц",
-      tagline: "Полноценная подготовка с приоритетным подбором и защитой баланса",
+      tagline: "Полноценная подготовка с приоритетным подбором, поддержкой 24/7 и защитой баланса",
       cta: "Подключить за 10 000 ₽",
       features: [
         "10 000 ₽ на внутренний баланс — хватает примерно на 10–12 уроков по 800–1000 ₽",
@@ -123,7 +113,8 @@
       price: 1200,
       minFair: 1000,
       formats: ["Онлайн"],
-      city: "Онлайн по РФ",
+      city: "Якутск",
+      timezone: "UTC+9",
       rating: 4.9,
       reviews: 34,
       exp: "6 лет · средний балл ЕГЭ 87",
@@ -150,7 +141,8 @@
       price: 950,
       minFair: 800,
       formats: ["Онлайн", "Очно"],
-      city: "Онлайн / Очно",
+      city: "Якутск",
+      timezone: "UTC+9",
       rating: 4.8,
       reviews: 19,
       exp: "3 года · ЕГЭ на 96 баллов",
@@ -177,7 +169,8 @@
       price: 1600,
       minFair: 1300,
       formats: ["Онлайн"],
-      city: "Онлайн по РФ",
+      city: "Москва",
+      timezone: "UTC+3",
       rating: 5.0,
       reviews: 52,
       exp: "11 лет · 90+ у каждого 2-го ученика",
@@ -202,7 +195,8 @@
       price: 1100,
       minFair: 900,
       formats: ["Онлайн"],
-      city: "Онлайн по РФ",
+      city: "Москва",
+      timezone: "UTC+3",
       rating: 4.9,
       reviews: 41,
       exp: "7 лет · 18 стобалльников и 90+",
@@ -228,7 +222,8 @@
       price: 900,
       minFair: 800,
       formats: ["Онлайн", "Очно"],
-      city: "Онлайн / Очно",
+      city: "Якутск",
+      timezone: "UTC+9",
       rating: 4.8,
       reviews: 23,
       exp: "4 года · специализация на ОГЭ и тестовой части",
@@ -253,7 +248,8 @@
       price: 1300,
       minFair: 1050,
       formats: ["Онлайн"],
-      city: "Онлайн по РФ",
+      city: "Москва",
+      timezone: "UTC+3",
       rating: 4.9,
       reviews: 37,
       exp: "8 лет · готовлю в медицинские вузы",
@@ -280,7 +276,8 @@
       price: 1000,
       minFair: 850,
       formats: ["Онлайн", "Очно"],
-      city: "Онлайн / Очно",
+      city: "Якутск",
+      timezone: "UTC+9",
       rating: 4.7,
       reviews: 15,
       exp: "3 года · студент-старшекурсник меда",
@@ -305,7 +302,8 @@
       price: 1400,
       minFair: 1150,
       formats: ["Онлайн"],
-      city: "Онлайн по РФ",
+      city: "Москва",
+      timezone: "UTC+3",
       rating: 5.0,
       reviews: 46,
       exp: "9 лет · средний балл 88",
@@ -331,7 +329,8 @@
       price: 1200,
       minFair: 950,
       formats: ["Онлайн", "Очно"],
-      city: "Онлайн / Очно",
+      city: "Якутск",
+      timezone: "UTC+9",
       rating: 4.9,
       reviews: 29,
       exp: "5 лет · профиль 80+ и ОГЭ на «5»",
@@ -358,7 +357,8 @@
       price: 900,
       minFair: 800,
       formats: ["Онлайн"],
-      city: "Онлайн по РФ",
+      city: "Якутск",
+      timezone: "UTC+9",
       rating: 4.8,
       reviews: 21,
       exp: "3 года · база ЕГЭ и ОГЭ геометрия",
@@ -383,7 +383,8 @@
       price: 1350,
       minFair: 1100,
       formats: ["Онлайн"],
-      city: "Онлайн по РФ",
+      city: "Москва",
+      timezone: "UTC+3",
       rating: 4.9,
       reviews: 31,
       exp: "5 лет · Python и Excel для КЕГЭ",
@@ -408,7 +409,8 @@
       price: 1050,
       minFair: 850,
       formats: ["Онлайн", "Очно"],
-      city: "Онлайн / Очно",
+      city: "Якутск",
+      timezone: "UTC+9",
       rating: 4.8,
       reviews: 18,
       exp: "4 года · ОГЭ 38/38 и базовые темы ЕГЭ",
@@ -433,7 +435,8 @@
       marketPrice: 1650,
       minFair: 1000,
       formats: ["Онлайн"],
-      city: "Онлайн по РФ",
+      city: "Москва",
+      timezone: "UTC+3",
       rating: 4.9,
       reviews: 27,
       exp: "6 лет · Senior Product & Motion Designer",
@@ -459,7 +462,8 @@
       marketPrice: 1550,
       minFair: 950,
       formats: ["Онлайн", "Очно"],
-      city: "Онлайн / Очно",
+      city: "Якутск",
+      timezone: "UTC+9",
       rating: 4.9,
       reviews: 33,
       exp: "6 лет · МФТИ, готовлю к ЕГЭ 90+ и Физтеху",
@@ -485,7 +489,8 @@
       marketPrice: 1250,
       minFair: 800,
       formats: ["Онлайн", "Очно"],
-      city: "Онлайн / Очно",
+      city: "Якутск",
+      timezone: "UTC+9",
       rating: 4.8,
       reviews: 22,
       exp: "5 лет · современное пение и акустика",
@@ -511,7 +516,8 @@
       marketPrice: 1350,
       minFair: 850,
       formats: ["Онлайн"],
-      city: "Онлайн по РФ",
+      city: "Якутск",
+      timezone: "UTC+9",
       rating: 4.9,
       reviews: 28,
       exp: "5 лет · средний балл 86, поступят на бюджет",
@@ -539,7 +545,8 @@
       marketPrice: 1700,
       minFair: 2100,
       formats: ["Онлайн"],
-      city: "Москва · Онлайн",
+      city: "Москва",
+      timezone: "UTC+3",
       rating: 5.0,
       reviews: 64,
       exp: "14 лет · 31 стобалльник и призёры олимпиад",
@@ -586,6 +593,12 @@
     t.trialFree = t.trialFree !== false;
     t.subjects = Array.isArray(t.subjects) && t.subjects.length ? t.subjects.slice() : [t.subject || "bio"];
     t.subject = t.subjects[0] || t.subject || "bio";
+    t.photo = t.photo ? String(t.photo).trim() : "";
+    t.city = CITIES.find(function (c) { return String(t.city || "").indexOf(c) >= 0; }) || "Якутск";
+    t.timezone = TIMEZONES.some(function (tz) { return tz.id === t.timezone; })
+      ? t.timezone
+      : (t.city === "Москва" ? "UTC+3" : "UTC+9");
+    t.tzLabel = (TIMEZONES.find(function (tz) { return tz.id === t.timezone; }) || TIMEZONES[0]).label;
     t.customBadges = Array.isArray(t.customBadges)
       ? t.customBadges.map(function (b) { return String(b || "").trim().slice(0, 36); }).filter(Boolean).slice(0, 2)
       : [];
@@ -623,10 +636,12 @@
       subjectName: subjNames.length ? subjNames.join(" · ") : "Подготовка",
       exams: ["ЕГЭ"],
       formats: ["Онлайн"],
-      city: "Онлайн по РФ",
+      city: "Якутск",
+      timezone: "UTC+9",
+      photo: "",
       rating: 4.9,
       reviews: 12,
-      exp: "5 лет · профиль hh",
+      exp: "5 лет · преподаватель",
       tag: "Ваша анкета · Профи",
       verified: true,
       bumpedToday: true,
@@ -697,12 +712,13 @@
       if (!matchesSubj) return false;
     }
     if (filters.format && filters.format !== "all" && tutor.formats.indexOf(filters.format) < 0) return false;
+    if (filters.city && filters.city !== "all" && String(tutor.city || "").indexOf(filters.city) < 0) return false;
     if (filters.maxPrice && filters.maxPrice < 2000 && tutor.price > filters.maxPrice) return false;
     if (filters.onlyBumped && !tutor.bumpedToday) return false;
     if (filters.q) {
       var q = String(filters.q).trim().toLowerCase();
       if (q) {
-        var hay = [tutor.name, tutor.subjectName, tutor.tag, tutor.bio, tutor.city, (tutor.exams || []).join(" "), (tutor.customBadges || []).join(" ")].join(" ").toLowerCase();
+        var hay = [tutor.name, tutor.subjectName, tutor.tag, tutor.bio, tutor.city, tutor.tzLabel || "", tutor.customSkillsText || "", (tutor.exams || []).join(" "), (tutor.customBadges || []).join(" ")].join(" ").toLowerCase();
         if (hay.indexOf(q) < 0) return false;
       }
     }
@@ -945,6 +961,8 @@
     PREP_UNIVERSE: PREP_UNIVERSE,
     LIVE_DEALS: LIVE_DEALS,
     CATALOG_TOTAL: CATALOG_TOTAL,
+    CITIES: CITIES,
+    TIMEZONES: TIMEZONES,
     HOURS: HOURS,
     PLANS: PLANS,
     LIST: LIST,

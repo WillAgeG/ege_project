@@ -851,13 +851,15 @@
   const TDATA = EGE.tutors || null;
   function defaultMarketState() {
     return {
-      planId: "free",
+      planId: "trial5k",
       balance: 0,
+      initialPaid: false,
       calcRate: 800,
       q: "",
       exam: "all",
       subject: "all",
       format: "all",
+      city: "all",
       maxPrice: 2000,
       onlyBumped: false,
       sort: "actual",
@@ -875,6 +877,9 @@
       if (raw) saved = JSON.parse(raw);
     } catch (e) { /* игнор */ }
     ui.market = Object.assign(defaultMarketState(), saved && typeof saved === "object" ? saved : {});
+    ui.market.initialPaid = !!(ui.market.initialPaid || Number(ui.market.balance) >= 5000);
+    if (!ui.market.planId || ui.market.planId === "free") ui.market.planId = "trial5k";
+    if (!ui.market.city) ui.market.city = "all";
     if (!Array.isArray(ui.market.bookings)) ui.market.bookings = [];
     if (!Array.isArray(ui.market.favs)) ui.market.favs = [];
     return ui.market;
@@ -887,6 +892,14 @@
 
   function go(v, opts) {
     opts = opts || {};
+    if (v === "tutor-profile") {
+      if (EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.setTab === "function") EGE.views.tutorCabinet.setTab("profile");
+      v = "cabinet";
+    } else if (v === "cabinet" && opts.fromNav) {
+      if (EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.getTab === "function" && EGE.views.tutorCabinet.getTab() === "profile") {
+        EGE.views.tutorCabinet.setTab("requests");
+      }
+    }
     if (ui.view === "quiz" && v !== "quiz") {
       abortAI();
       if (ui.quiz && !ui.quiz.done) {
@@ -923,6 +936,11 @@
       if (TOPICS[h]) { ui.view = "topic"; ui.topicId = h; ui.sid = TOPICS[h].sid; return; }
       if (SUBJ[h]) { ui.view = "subject"; ui.sid = h; return; }
       if (h === "essay" && EGE.essay && SUBJ.rus) { ui.view = "essay"; ui.sid = "rus"; return; }
+      if (h === "tutor-profile") {
+        if (EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.setTab === "function") EGE.views.tutorCabinet.setTab("profile");
+        ui.view = "cabinet";
+        return;
+      }
       if (["home", "tests", "study", "plan", "stats", "tutor", "cabinet", "market", "landing", "brandbook", "fees", "profile"].includes(h)) { ui.view = h; return; }
     }
     try {
@@ -935,7 +953,10 @@
     if (!h && typeof window !== "undefined" && window.EGE_HOST && window.EGE_HOST.landing) ui.view = "landing";
   }
   function writeHash() {
-    const tok = ui.view === "topic" ? ui.topicId : ui.view === "subject" ? ui.sid : ui.view === "quiz" ? null : ui.view;
+    const tcTab = ui.view === "cabinet" && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.getTab === "function" ? EGE.views.tutorCabinet.getTab() : "";
+    const tok = (ui.view === "cabinet" && tcTab === "profile")
+      ? "tutor-profile"
+      : (ui.view === "topic" ? ui.topicId : ui.view === "subject" ? ui.sid : ui.view === "quiz" ? null : ui.view);
     if (!tok) return;
     try { history.replaceState(null, "", "#" + tok); } catch (e) { /* адрес не меняется в просмотрщике */ }
   }
@@ -977,6 +998,8 @@
     try { if (aid && typeof active.selectionStart === "number") { selS = active.selectionStart; selE = active.selectionEnd; } } catch (e) { /* не текстовое поле */ }
     let html;
     if (authGate) {
+      const balDock = $("#bal-float-dock");
+      if (balDock) { balDock.hidden = true; balDock.innerHTML = ""; }
       html = store.ready
         ? (ui.view === "brandbook" ? viewBrandbook({ inside: false }) : ui.view === "fees" ? viewFees({ inside: false }) : authScreen())
         : `<div class="auth-wrap"><div class="auth-brand">${brandLockupHTML()}<p class="muted">Подключаюсь к серверу…</p></div></div>`;
@@ -993,10 +1016,7 @@
             </div>
           </div>`
         : "";
-      const desktopBalBar = (ui.role !== "tutor" && !["landing", "brandbook", "fees"].includes(ui.view))
-        ? `<div class="desktop-top-bar">${balanceTopWidgetHTML(false)}</div>`
-        : "";
-      main.innerHTML = `<div class="page">${desktopBalBar}${resumeBar}${html}</div>`;
+      main.innerHTML = `<div class="page">${resumeBar}${html}</div>`;
     }
     $("#tip").hidden = true;
     if (!authGate) drawCharts();
@@ -1103,8 +1123,13 @@
     if (!bm) return "";
     const st = mkt();
     const minOk = (Number(st.balance) || 0) >= 5000;
+    const minTopup = st.initialPaid ? 100 : 5000;
+    const chipVals = st.initialPaid ? [100, 500, 1000, 5000] : [5000, 10000, 15000];
     const plans = (TDATA && TDATA.PLANS) || [];
-    const customVal = bm.customAmount != null ? String(bm.customAmount) : "5000";
+    const customVal = bm.customAmount != null ? String(bm.customAmount) : String(minTopup);
+    const payProv = EGEPayments && EGEPayments.provider === "demo"
+      ? "Демо-режим · готово к подключению СБП / ЮKassa"
+      : `Провайдер: ${EGEPayments.provider}`;
     return `<div class="modal-back" role="dialog" aria-modal="true" aria-labelledby="bal-modal-title">
       <div class="modal-card">
         <div class="modal-head">
@@ -1115,12 +1140,13 @@
           <div class="stack" style="gap:2px">
             <span class="small muted">Текущий баланс ученика</span>
             <span class="wallet-num num">${st.balance.toLocaleString("ru-RU")} ₽</span>
+            <span class="small muted">${esc(payProv)}</span>
           </div>
-          <span class="chip ${minOk ? "confirm" : "gold"}">${minOk ? "✓ Порог 5 000 ₽ открыт" : "Нужно от 5 000 ₽"}</span>
+          <span class="chip ${minOk ? "confirm" : "gold"}">${minOk ? "✓ Порог 5 000 ₽ открыт" : "Минимум 5 000 ₽"}</span>
         </div>
-        ${bm.reason ? `<div class="notice warn"><b>Требуется минимум 5 000 ₽ на балансе</b><span class="small">${esc(bm.reason)}</span></div>` : `<p class="small ink2">Минимум <b>5 000 ₽</b> на счёте открывает запись на бесплатный пробный урок (0 ₽) и предложения цены. Средства не списываются до подтверждения преподавателя.</p>`}
+        ${bm.reason ? `<div class="notice warn"><b>Требуется минимум 5 000 ₽ на балансе</b><span class="small">${esc(bm.reason)}</span></div>` : `<p class="small ink2">${st.initialPaid ? "Подписка активна: далее можно пополнять счёт на любую сумму от <b>100 ₽</b>. Средства не списываются до подтверждения преподавателя." : "Минимальная подписка и первый платёж — от <b>5 000 ₽</b>. После первого пополнения откроются бесплатный пробный урок (0 ₽), отклики и любые доплаты от <b>100 ₽</b>."}</p>`}
         <div class="stack" style="gap:8px">
-          <span class="label">Тарифы и быстрая оплата</span>
+          <span class="label">Минимальные тарифы и быстрая оплата</span>
           <div class="bal-plan-grid">
             ${plans.map((p) => {
               const picked = st.planId === p.id;
@@ -1131,22 +1157,20 @@
                 </div>
                 <b class="num" style="font-size:19px">${esc(p.priceLabel)}</b>
                 <span class="small muted">${esc(p.tagline)}</span>
-                ${p.balance > 0
-                  ? `<button type="button" class="btn ${p.super || p.featured ? "" : "soft"} sm" data-a="bal-topup-preset" data-amount="${p.balance}" data-plan="${esc(p.id)}">Пополнить +${p.balance.toLocaleString("ru-RU")} ₽</button>`
-                  : `<button type="button" class="btn soft sm" data-a="mkt-plan" data-id="free"${picked ? ' aria-current="true"' : ""}>${picked ? "Выбран" : "Базовый 0 ₽"}</button>`}
+                <button type="button" class="btn ${p.super || p.featured ? "" : "soft"} sm" data-a="bal-topup-preset" data-amount="${p.balance}" data-plan="${esc(p.id)}"${picked && st.initialPaid ? ' aria-current="true"' : ""}>Пополнить +${p.balance.toLocaleString("ru-RU")} ₽</button>
               </div>`;
             }).join("")}
           </div>
         </div>
         <form class="stack" style="gap:10px" data-f="bal-custom">
           <div class="row between" style="gap:8px;flex-wrap:wrap">
-            <label for="bal-custom-amount" class="label">Любая другая сумма (₽)</label>
+            <label for="bal-custom-amount" class="label">Любая сумма (${st.initialPaid ? "от 100 ₽" : "первый платёж от 5 000 ₽"})</label>
             <div class="row" style="gap:6px;flex-wrap:wrap">
-              ${[2000, 5000, 10000, 15000].map((v) => `<button type="button" class="chip-btn" data-a="bal-chip" data-v="${v}">${v.toLocaleString("ru-RU")} ₽</button>`).join("")}
+              ${chipVals.map((v) => `<button type="button" class="chip-btn" data-a="bal-chip" data-v="${v}">${v.toLocaleString("ru-RU")} ₽</button>`).join("")}
             </div>
           </div>
           <div class="row" style="gap:8px;flex-wrap:wrap">
-            <input class="input num" id="bal-custom-amount" name="amount" type="number" min="100" max="200000" step="100" inputmode="numeric" value="${esc(customVal)}" placeholder="Например, 7500" style="flex:1 1 160px">
+            <input class="input num" id="bal-custom-amount" name="amount" type="number" min="${minTopup}" max="200000" step="100" inputmode="numeric" value="${esc(customVal)}" placeholder="${st.initialPaid ? "От 100 ₽" : "От 5000 ₽"}" style="flex:1 1 160px">
             <button type="submit" class="btn">${icon("wallet")}<span>Пополнить счёт</span></button>
           </div>
           ${bm.error ? `<div class="small" style="color:var(--bad);font-weight:600">${esc(bm.error)}</div>` : ""}
@@ -1293,10 +1317,14 @@
     const tcPending = EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.pendingCount === "function"
       ? EGE.views.tutorCabinet.pendingCount()
       : 0;
+    const tcTab = EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.getTab === "function"
+      ? EGE.views.tutorCabinet.getTab()
+      : "requests";
+    const inTutorProfile = ui.view === "cabinet" && tcTab === "profile";
     const nav = isTutor
       ? [
-          ["cabinet", "Кабинет", "users", ui.view === "cabinet", tcPending],
-          ["study", "Расписание", "cal", inStudy, 0],
+          ["cabinet", "Кабинет", "users", ui.view === "cabinet" && !inTutorProfile, tcPending],
+          ["tutor-profile", "Профиль", "sliders", inTutorProfile, 0],
           ["market", "Каталог", "search", inMarket, 0],
           ["tutor", "Справочник", "book", ui.view === "tutor", 0],
           ["fees", "Выплаты", "wallet", ui.view === "fees", 0]
@@ -1320,7 +1348,7 @@
     const nm = (store.user ? (prof.name || store.user.displayName || store.user.username) : "") || prof.name || (me && me.name) || (store.mode === "local" ? (store.backend ? "Гость" : "Этот браузер") : "");
     const dark = effectiveDark();
     const themeLabel = dark ? "Светлая тема" : "Тёмная тема";
-    $("#side-foot").innerHTML = `<div class="hh-seg equal side-role-seg" role="group" aria-label="Роль на платформе" style="margin-bottom:2px">
+    $("#side-foot").innerHTML = `<div class="hh-seg side-role-seg" role="group" aria-label="Роль на платформе" style="margin-bottom:2px">
         <button type="button" data-a="role-set" data-role="student" aria-pressed="${!isTutor}">Ученик</button>
         <button type="button" data-a="role-set" data-role="tutor" aria-pressed="${isTutor}">Преподаватель</button>
       </div>
@@ -1366,14 +1394,14 @@
     }
     const topLogout = $("#top-logout");
     if (topLogout) topLogout.hidden = !(store.backend && store.user);
-    const topBal = $("#top-balance-slot");
-    if (topBal) {
+    const balDock = $("#bal-float-dock");
+    if (balDock) {
       if (isTutor) {
-        topBal.hidden = true;
-        topBal.innerHTML = "";
+        balDock.hidden = true;
+        balDock.innerHTML = "";
       } else {
-        topBal.hidden = false;
-        topBal.innerHTML = balanceTopWidgetHTML(true);
+        balDock.hidden = false;
+        balDock.innerHTML = balanceTopWidgetHTML(false);
       }
     }
     $("#tabbar").innerHTML = nav.map(([v, l, ic, cur, badge]) =>
@@ -1543,7 +1571,12 @@
   function viewCabinet() { return EGE.views.tutorCabinet ? EGE.views.tutorCabinet.viewCabinet() : viewTests(); }
   function viewStudy() { return EGE.views.marketplace.viewStudy(); }
   function viewBrandbook(opts) { return EGE.views.brandbook.viewBrandbook(opts, { ui, dark: effectiveDark(), TDATA }); }
-  function viewFees(opts) { return EGE.views.brandbook.viewFees(opts, { ui, dark: effectiveDark(), TDATA }); }
+  function viewFees(opts) {
+    if (opts && opts.inside && ui.role === "tutor" && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.viewPayouts === "function") {
+      return EGE.views.tutorCabinet.viewPayouts();
+    }
+    return EGE.views.brandbook.viewFees(opts, { ui, dark: effectiveDark(), TDATA });
+  }
   /** Вкладка «Тесты»: 3 предмета ЕГЭ, тренажёр, варианты КИМ и встроенный Справочник. */
   function viewTests() {
     const prof = profile();
@@ -3420,6 +3453,26 @@
   document.addEventListener("pointerout", (e) => { if (e.target.closest && e.target.closest("[data-tip]")) tipEl.hidden = true; });
   window.addEventListener("scroll", () => { tipEl.hidden = true; }, { passive: true });
 
+  const EGEPayments = (EGE.payments = EGE.payments || {
+    provider: "demo",
+    gatewayHandler: null,
+    setGatewayHandler(fn) { this.gatewayHandler = typeof fn === "function" ? fn : null; },
+    createTopupIntent(params) {
+      const amount = Math.round(Number(params && params.amount) || 0);
+      const intent = {
+        id: "pay-" + Date.now(),
+        provider: this.provider,
+        amount,
+        planId: (params && params.planId) || "",
+        currency: "RUB",
+        status: "succeeded",
+        createdAt: new Date().toISOString()
+      };
+      if (typeof this.gatewayHandler === "function") return this.gatewayHandler(intent);
+      return intent;
+    }
+  });
+
   // ---------- действия ----------
   function subjectOf(el) { return SUBJ[el.dataset.sid] ? el.dataset.sid : ui.sid; }
   const ACTIONS = {
@@ -3439,7 +3492,7 @@
     "bug-q": (el) => { ui.bug = buildBugReport({ qid: el.dataset.qid, qnum: el.dataset.qnum }); ui.focusNext = "bug-body"; renderModal(); },
     "bug-copy": () => { if (ui.bug) copyText(ui.bug.body, "#bug-body"); },
     "bug-close": () => { ui.bug = null; renderModal(); },
-    go: (el) => go(el.dataset.v, { sid: el.dataset.sid, id: el.dataset.id }),
+    go: (el) => go(el.dataset.v, { sid: el.dataset.sid, id: el.dataset.id, fromNav: !!(el.closest && el.closest("#side-nav, #tabbar")) }),
     "open-topic": (el) => go("topic", { id: el.dataset.id }),
     "quiz-mixed": (el) => { const sid = subjectOf(el); startQuiz({ title: "Смешанный тест · " + SUBJ[sid].name, sid, qs: pickMixed(sid, QUIZ_SIZE).map((id) => QS[id]), mode: "mixed", back: { v: "subject", sid } }); },
     "quiz-review": (el) => {
@@ -3685,32 +3738,25 @@
       const plan = TDATA.PLANS.find((p) => p.id === el.dataset.id);
       if (!plan) return;
       const st = mkt();
+      const targetBal = Math.max(5000, Number(plan.balance) || 5000);
+      EGEPayments.createTopupIntent({ amount: targetBal, planId: plan.id });
       st.planId = plan.id;
-      if (!plan.balance) {
-        st.balance = 0;
-        st.bookings.forEach((bk) => { bk.reserved = 0; });
-      } else {
-        const reserved = st.bookings.reduce((sum, bk) => sum + (bk.reserved || 0), 0);
-        st.balance = Math.max(0, plan.balance - reserved);
-      }
+      const reserved = st.bookings.reduce((sum, bk) => sum + (bk.reserved || 0), 0);
+      st.balance = Math.max(0, targetBal - reserved);
+      st.initialPaid = true;
       saveMkt();
       if (ui.balanceModal) { ui.balanceModal = null; renderModal(); }
-      if (plan.id === "free" && !store.user && !ui.guest) {
-        ui.authModal = true;
-        ui.auth.error = "";
-        renderModal();
-        return;
-      }
-      toast(plan.balance ? `Подключён тариф «${plan.name}»: баланс ${st.balance.toLocaleString("ru-RU")} ₽` : "Выбран бесплатный тариф");
+      toast(`Подключён тариф «${plan.name}»: баланс ${st.balance.toLocaleString("ru-RU")} ₽`);
       scheduleRender();
     },
     "bal-open": (el) => {
+      const st = mkt();
       const reason = el && el.dataset && el.dataset.reason === "trial"
         ? "Пополните счёт минимум на 5 000 ₽ — после этого можно бесплатно записаться на пробный урок (0 ₽)."
         : "";
       const pendingBooking = ui.booking ? Object.assign({}, ui.booking, { mode: "trial", offerPrice: 0 }) : null;
       if (pendingBooking) ui.booking = null;
-      ui.balanceModal = { customAmount: 5000, error: "", reason, pendingBooking };
+      ui.balanceModal = { customAmount: st.initialPaid ? 500 : 5000, error: "", reason, pendingBooking };
       renderModal();
     },
     "bal-close": () => {
@@ -3721,17 +3767,21 @@
     },
     "bal-chip": (el) => {
       if (!ui.balanceModal) return;
-      ui.balanceModal.customAmount = Math.max(100, Math.min(200000, Number(el.dataset.v) || 5000));
+      const minAmt = mkt().initialPaid ? 100 : 5000;
+      ui.balanceModal.customAmount = Math.max(minAmt, Math.min(200000, Number(el.dataset.v) || minAmt));
       ui.balanceModal.error = "";
       renderModal();
     },
     "bal-topup-preset": (el) => {
       const st = mkt();
-      const amt = Math.max(100, Math.min(200000, Math.round(Number(el.dataset.amount) || 5000)));
+      const minAmt = st.initialPaid ? 100 : 5000;
+      const amt = Math.max(minAmt, Math.min(200000, Math.round(Number(el.dataset.amount) || 5000)));
+      EGEPayments.createTopupIntent({ amount: amt, planId: el.dataset.plan || st.planId || "trial5k" });
       st.balance = (Number(st.balance) || 0) + amt;
+      if (st.balance >= 5000) st.initialPaid = true;
       if (el.dataset.plan) st.planId = el.dataset.plan;
       else if (st.balance >= 10000) st.planId = "month10k";
-      else if (st.balance >= 5000 && st.planId === "free") st.planId = "trial5k";
+      else if (!st.planId) st.planId = "trial5k";
       saveMkt();
       const pending = ui.balanceModal && ui.balanceModal.pendingBooking;
       ui.balanceModal = null;
@@ -3799,6 +3849,7 @@
     },
     "mkt-exam": (el) => { mkt().exam = el.dataset.v || "all"; saveMkt(); scheduleRender(); },
     "mkt-format": (el) => { mkt().format = el.dataset.v || "all"; saveMkt(); scheduleRender(); },
+    "mkt-city": (el) => { mkt().city = el.dataset.v || "all"; saveMkt(); scheduleRender(); },
     "mkt-subj": (el) => { mkt().subject = el.dataset.v || "all"; saveMkt(); scheduleRender(); },
     "mkt-price": (el) => { mkt().maxPrice = Number(el.dataset.v) || 2000; saveMkt(); scheduleRender(); },
     "mkt-bumped": () => { const st = mkt(); st.onlyBumped = !st.onlyBumped; saveMkt(); scheduleRender(); },
@@ -3809,6 +3860,7 @@
       const cur = mkt(), fresh = defaultMarketState();
       fresh.planId = cur.planId;
       fresh.balance = cur.balance;
+      fresh.initialPaid = !!cur.initialPaid;
       fresh.calcRate = cur.calcRate;
       fresh.favs = cur.favs;
       fresh.bookings = cur.bookings;
@@ -4843,19 +4895,24 @@
       notifySide("Анкета принята на проверку", `${name} · ${subjName} · ${rate.toLocaleString("ru-RU")} ₽/ч — появится в каталоге сегодня`);
     },
     "bal-custom": (form) => {
-      const bm = ui.balanceModal || (ui.balanceModal = { customAmount: 5000, error: "", reason: "", pendingBooking: null });
+      const st = mkt();
+      const minAmt = st.initialPaid ? 100 : 5000;
+      const bm = ui.balanceModal || (ui.balanceModal = { customAmount: minAmt, error: "", reason: "", pendingBooking: null });
       const rawEl = (form && form.elements && form.elements.amount) || $("#bal-custom-amount");
       const raw = rawEl ? Number(rawEl.value) : Number(bm.customAmount);
-      if (!Number.isFinite(raw) || raw < 100) {
-        bm.error = "Введите сумму пополнения от 100 ₽.";
+      if (!Number.isFinite(raw) || raw < minAmt) {
+        bm.error = !st.initialPaid
+          ? "Первое пополнение — минимум 5 000 ₽ (минимальная подписка). Далее можно от 100 ₽."
+          : "Введите сумму пополнения от 100 ₽.";
         renderModal();
         return;
       }
       const amt = Math.min(200000, Math.round(raw));
-      const st = mkt();
+      EGEPayments.createTopupIntent({ amount: amt, planId: st.planId || "trial5k" });
       st.balance = (Number(st.balance) || 0) + amt;
+      if (st.balance >= 5000) st.initialPaid = true;
       if (st.balance >= 10000) st.planId = "month10k";
-      else if (st.balance >= 5000 && st.planId === "free") st.planId = "trial5k";
+      else if (!st.planId) st.planId = "trial5k";
       saveMkt();
       const pending = bm.pendingBooking;
       ui.balanceModal = null;
@@ -4986,7 +5043,7 @@
   });
   document.addEventListener("input", (e) => {
     const el = e.target;
-    if (el && el.dataset && el.dataset.tc && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.handleInput === "function") {
+    if (el && el.dataset && (el.dataset.tc || el.dataset.tcStudent) && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.handleInput === "function") {
       if (EGE.views.tutorCabinet.handleInput(el)) return;
     }
     if (el.id === "subj-q") { ui.subjQ = el.value; scheduleRender(); return; }
@@ -5127,6 +5184,12 @@
   });
   document.addEventListener("change", (e) => {
     const el = e.target;
+    if (el && el.dataset && el.dataset.tcPhoto && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.handleFileInput === "function") {
+      if (EGE.views.tutorCabinet.handleFileInput(el)) return;
+    }
+    if (el && el.dataset && (el.dataset.tc || el.dataset.tcStudent) && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.handleInput === "function") {
+      if (EGE.views.tutorCabinet.handleInput(el)) return;
+    }
     if (el.id === "bb-vp-slider") { applyBrandbookViewport(el.value); return; }
     if (el.id === "mkt-max-price") { mkt().maxPrice = Number(el.value) || 2000; saveMkt(); scheduleRender(); return; }
     if (el.id === "mkt-hour-range") {

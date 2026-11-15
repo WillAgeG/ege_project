@@ -1,4 +1,4 @@
-/* Маркетплейс репетиторов: каталог, фильтры, тарифы 0/5k/10k, модалка записи и вкладка «Учёба». */
+/* Маркетплейс репетиторов: каталог, фильтры (вкл. Якутск/Москва), минимальная подписка от 5к, модалка записи и вкладка «Учёба». */
 (function () {
   "use strict";
 
@@ -6,7 +6,7 @@
   const EGE = (root.EGE = root.EGE || {});
   const { esc, plural, initials } = EGE.utils;
   const { icon } = EGE.ui;
-  const { isValidHHMM, bidBtnLabelHTML, sakhaBidInnerHTML, priceHeadlineHTML, priceDiffTagsHTML, sliderTicksHTML, hhSelectHTML, hhMultiSelectHTML } = EGE.hh;
+  const { isValidHHMM, bidBtnLabelHTML, sakhaBidInnerHTML, priceHeadlineHTML, priceDiffTagsHTML, sliderTicksHTML, hhSelectHTML, hhMultiSelectHTML, tutorAvatarHTML } = EGE.hh;
   const MIN_ACTION_BALANCE = 5000;
 
   function hasMinBalance(st) {
@@ -24,7 +24,7 @@
   }
 
   function getMkt() {
-    return typeof _ctx.mkt === "function" ? _ctx.mkt() : { bookings: [], favs: [], balance: 0, planId: "free", maxPrice: 2000, day: "all", hour: "all", exam: "all", format: "all", subject: "all", sort: "actual" };
+    return typeof _ctx.mkt === "function" ? _ctx.mkt() : { bookings: [], favs: [], balance: 0, initialPaid: false, planId: "trial5k", maxPrice: 2000, day: "all", hour: "all", exam: "all", format: "all", subject: "all", city: "all", sort: "actual" };
   }
 
   function getUi() {
@@ -59,7 +59,7 @@
           <ul class="plan-feats">${p.features.map((f) => `<li><span>${esc(f)}</span></li>`).join("")}</ul>
         </div>
         <div class="stack" style="gap:8px">
-          <button type="button" class="btn${picked && p.id !== "free" ? " is-confirmed" : (p.featured || p.super ? "" : " soft")}" data-a="mkt-plan" data-id="${p.id}"${picked && p.id !== "free" ? ' aria-current="true"' : ""}>${picked && p.id !== "free" ? "✓ Баланс активен · " + st.balance.toLocaleString("ru-RU") + " ₽" : esc(p.cta)}</button>
+          <button type="button" class="btn${picked && hasMinBalance(st) ? " is-confirmed" : (p.featured || p.super ? "" : " soft")}" data-a="mkt-plan" data-id="${p.id}"${picked && hasMinBalance(st) ? ' aria-current="true"' : ""}>${picked && hasMinBalance(st) ? "✓ Баланс активен · " + st.balance.toLocaleString("ru-RU") + " ₽" : esc(p.cta)}</button>
           ${p.balance > 0 ? `<button type="button" class="link-btn small muted" data-a="go" data-v="fees" style="justify-self:start">Условия оплаты и сервисный сбор →</button>` : ""}
         </div>
       </article>`;
@@ -67,9 +67,9 @@
     return `<section class="land-sec" id="land-plans" aria-label="Тарифы и баланс">
       <div class="land-sec-head">
         <div>
-          <div class="eyebrow">3 вида подписки · баланс на занятия</div>
-          <h2 class="h2">Баланс 5 000 / 10 000 ₽ на репетиторов или базовый доступ</h2>
-          <p class="small muted">Средства хранятся на балансе и списываются только после согласия преподавателя. <a href="/fees" data-a="go" data-v="fees" style="color:var(--accent)">Подробнее об оплате и правилах сервиса →</a></p>
+          <div class="eyebrow">Минимальная подписка 5 000 ₽ · баланс на занятия</div>
+          <h2 class="h2">Баланс 5 000 или 10 000 ₽ на репетиторов</h2>
+          <p class="small muted">Первый платёж — от 5 000 ₽, далее можно пополнять на любую сумму от 100 ₽. Средства списываются только после согласия преподавателя. <a href="/fees" data-a="go" data-v="fees" style="color:var(--accent)">Подробнее об оплате и правилах сервиса →</a></p>
         </div>
         <div class="row" style="gap:6px;flex-wrap:wrap">
           <span class="small muted">Ставка для расчёта:</span>
@@ -118,9 +118,10 @@
           <button type="button" class="fav-btn" data-a="mkt-fav" data-id="${esc(t.id)}" aria-pressed="${isFav}" aria-label="В избранное">${icon(isFav ? "heartFill" : "heart")}</button>
         </div>
         <div class="tutor-name-line">
+          ${tutorAvatarHTML(t)}
           <b style="color:var(--ink)">${esc(t.name)}</b>
           ${t.verified ? `<span class="verified-badge" title="Проверенная анкета">${icon("check")}</span>` : ""}
-          <span class="small muted">· ${esc(t.city)} · ★ ${t.rating.toFixed(1)} (${t.reviews})</span>
+          <span class="small muted">· ${esc(t.city)}${t.tzLabel ? " (" + esc(t.tzLabel) + ")" : ""} · ★ ${t.rating.toFixed(1)} (${t.reviews})</span>
         </div>
         <div class="tutor-tags">
           <span class="tutor-tag-pill">${esc(t.source || "Доска Ykt")} · ${esc(winTxt)}</span>
@@ -180,6 +181,7 @@
     let n = 0;
     if (st.exam && st.exam !== "all") n++;
     if (st.format && st.format !== "all") n++;
+    if (st.city && st.city !== "all") n++;
     if (st.subject && st.subject !== "all") n++;
     if (st.maxPrice && st.maxPrice < 2000) n++;
     if (st.onlyBumped) n++;
@@ -481,6 +483,12 @@
             </div>
           </div>
           <div class="stack" style="gap:8px">
+            <div class="small muted">Город</div>
+            <div class="chip-rail">
+              ${[["all", "Все"]].concat(((TDATA && TDATA.CITIES) || ["Якутск", "Москва"]).map((c) => [c, c])).map(([v, l]) => `<button type="button" class="chip-btn${(st.city || "all") === v ? " on" : ""}" data-a="mkt-city" data-v="${esc(v)}">${esc(l)}</button>`).join("")}
+            </div>
+          </div>
+          <div class="stack" style="gap:8px">
             <div class="row between"><span class="small muted">Ставка до</span><b class="num">${st.maxPrice >= 2000 ? "до 2 000+ ₽/ч" : "до " + st.maxPrice + " ₽/ч"}</b></div>
             <div class="chip-rail">
               ${[1000, 1300, 1600, 2000].map((pr) => `<button type="button" class="chip-btn${st.maxPrice === pr ? " on" : ""}" data-a="mkt-price" data-v="${pr}">${pr >= 2000 ? "Любая" : "до " + pr + " ₽"}</button>`).join("")}
@@ -544,6 +552,7 @@
       if (sb) activeChips.push(`<button type="button" class="chip-btn on" data-a="mkt-reset-chip" data-k="subject">${esc(sb.short)} ×</button>`);
     }
     if (st.format !== "all") activeChips.push(`<button type="button" class="chip-btn on" data-a="mkt-reset-chip" data-k="format">${esc(st.format)} ×</button>`);
+    if (st.city && st.city !== "all") activeChips.push(`<button type="button" class="chip-btn on" data-a="mkt-reset-chip" data-k="city">${esc(st.city)} ×</button>`);
     if (st.maxPrice < 2000) activeChips.push(`<button type="button" class="chip-btn on" data-a="mkt-reset-chip" data-k="maxPrice">до ${st.maxPrice} ₽ ×</button>`);
     if (st.onlyBumped) activeChips.push(`<button type="button" class="chip-btn on" data-a="mkt-reset-chip" data-k="onlyBumped">Подняты сегодня ×</button>`);
     if (st.hour !== "all") activeChips.push(`<button type="button" class="chip-btn on" data-a="mkt-reset-chip" data-k="hour">${esc(st.hour)} ×</button>`);
@@ -581,6 +590,7 @@
       <div class="chip-rail swipe" role="group" aria-label="Быстрые фильтры">
         <button type="button" class="chip-btn${fCount ? " on" : ""}" data-a="filter-open">${icon("sliders")}<span>${fCount ? fCount : "Фильтры"}</span></button>
         ${activeChips.join("")}
+        ${(!st.city || st.city === "all") ? (((TDATA && TDATA.CITIES) || ["Якутск", "Москва"]).map((c) => `<button type="button" class="chip-btn" data-a="mkt-city" data-v="${esc(c)}">+ ${esc(c)}</button>`).join("")) : ""}
         ${!st.onlyBumped ? `<button type="button" class="chip-btn" data-a="mkt-bumped">+ Актуальные сегодня</button>` : ""}
         ${st.maxPrice >= 2000 ? `<button type="button" class="chip-btn" data-a="mkt-price" data-v="1300">+ До 1 300 ₽</button>` : ""}
         <button type="button" class="chip-btn" data-a="mkt-preset">+ Английский · Сб 10:00</button>
@@ -809,7 +819,7 @@
           ? "Подтверждён · WhatsApp"
           : (isTrial ? "Запрос на пробный 0 ₽" : `Отклик ${bk.offerPrice} ₽/ч`);
         return `<a class="hh-chat-row" href="${esc(waHref)}" target="_blank" rel="noopener">
-          <span class="tutor-avatar" aria-hidden="true">${esc(initials(t.name))}</span>
+          ${tutorAvatarHTML(t)}
           <div style="min-width:0">
             <div class="row" style="gap:6px;flex-wrap:nowrap">
               <b style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.name)}</b>

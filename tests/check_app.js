@@ -53,7 +53,7 @@
       };
     }
 
-    for (const id of ["main", "side-nav", "side-subjects", "side-foot", "tabbar", "top-balance-slot", "toast", "tip", "modal-root", "bug-mailto"]) {
+    for (const id of ["main", "side-nav", "side-subjects", "side-foot", "tabbar", "bal-float-dock", "toast", "tip", "modal-root", "bug-mailto"]) {
       elements.set(id, makeEl(id));
     }
 
@@ -653,12 +653,12 @@
     const sideNavHtml = env4.elements.get("side-nav").innerHTML;
     const sideFootHtml = env4.elements.get("side-foot").innerHTML;
     const tabHtml = env4.elements.get("tabbar").innerHTML;
-    const topBalHtml = env4.elements.get("top-balance-slot").innerHTML;
+    const balDockHtml = env4.elements.get("bal-float-dock").innerHTML;
     assert(!sideNavHtml.includes('data-v="profile"'), "expected Settings removed from top sidebar nav");
     assert(sideFootHtml.includes('data-v="profile"') && sideFootHtml.includes('data-a="auth-logout"') && sideFootHtml.includes("Выйти"), "expected Settings gear and Logout button in sidebar footer");
-    assert(sideFootHtml.includes("Преподаватель") && !sideFootHtml.includes(">Препод<"), "expected full label Преподаватель without Препод abbreviation");
-    assert(topBalHtml.includes("top-bal-pill") && topBalHtml.includes("Пополнить") && !env4.elements.get("top-balance-slot").hidden, "expected student top-right balance widget visible");
-    assert(env4.elements.get("main").innerHTML.includes("desktop-top-bar") && env4.elements.get("main").innerHTML.includes("top-bal-pill"), "expected desktop topbar with student balance");
+    assert(sideFootHtml.includes("Преподаватель") && !sideFootHtml.includes(">Препод<") && !sideFootHtml.includes("hh-seg equal side-role-seg"), "expected full label Преподаватель without Препод abbreviation or equal grid clipping");
+    assert(balDockHtml.includes("top-bal-pill") && balDockHtml.includes("Пополнить") && !env4.elements.get("bal-float-dock").hidden, "expected persistent student bottom-right balance dock visible");
+    assert(!env4.elements.get("main").innerHTML.includes("desktop-top-bar"), "expected duplicate desktop-top-bar removed in favor of persistent bottom-right dock");
     for (const label of ["Тесты", "Справочник", "Репетиторы", "Учёба", "Показатели"]) {
       assert(sideNavHtml.includes(label) && tabHtml.includes(label), `expected ${label} in sidebar and bottom tabbar`);
     }
@@ -684,14 +684,23 @@
     clickAction(env4, { a: "trial-open", id: "tut-sokolova", hour: "10:00" });
     await flushMicrotasks(2);
     const balModalHtml = env4.elements.get("modal-root").innerHTML;
-    assert(balModalHtml.includes("Баланс и пополнение") && balModalHtml.includes("Любая другая сумма"), "expected trial action under 5000 ₽ balance to open Brandbook balance top-up modal");
+    assert(balModalHtml.includes("Баланс и пополнение") && balModalHtml.includes("первый платёж от 5 000 ₽"), "expected trial action under 5000 ₽ balance to open Brandbook balance top-up modal requiring 5000 ₽ first payment");
+    env4.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "bal-custom" }, elements: { amount: { value: "1000" } } }) }, preventDefault() {} });
+    await flushMicrotasks(2);
+    assert(env4.elements.get("modal-root").innerHTML.includes("Первое пополнение — минимум 5 000 ₽"), "expected first top-up below 5000 ₽ to be rejected");
     env4.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "bal-custom" }, elements: { amount: { value: "6500" } } }) }, preventDefault() {} });
     await flushMicrotasks(3);
     const afterTopupModal = env4.elements.get("modal-root").innerHTML;
-    assert(afterTopupModal.includes("Пробный урок · 0 ₽") && hasNum(env4.elements.get("top-balance-slot").innerHTML, "6 500"), "expected custom top-up to reach 6500 ₽ and resume trial booking modal");
+    assert(afterTopupModal.includes("Пробный урок · 0 ₽") && hasNum(env4.elements.get("bal-float-dock").innerHTML, "6 500"), "expected custom top-up to reach 6500 ₽ and resume trial booking modal");
     clickAction(env4, { a: "book-submit" });
     await flushMicrotasks(3);
-    assert(hasNum(env4.elements.get("top-balance-slot").innerHTML, "6 500"), "expected free trial 0 ₽ booking not to deduct balance");
+    assert(hasNum(env4.elements.get("bal-float-dock").innerHTML, "6 500"), "expected free trial 0 ₽ booking not to deduct balance");
+    clickAction(env4, { a: "bal-open" });
+    await flushMicrotasks(2);
+    assert(env4.elements.get("modal-root").innerHTML.includes("от 100 ₽"), "expected subsequent top-ups from 100 ₽ once initial 5000 ₽ is paid");
+    env4.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "bal-custom" }, elements: { amount: { value: "100" } } }) }, preventDefault() {} });
+    await flushMicrotasks(3);
+    assert(hasNum(env4.elements.get("bal-float-dock").innerHTML, "6 600"), "expected subsequent 100 ₽ custom top-up to succeed cleanly");
 
     clickAction(env4, { a: "go", v: "study" });
     await flushMicrotasks(4);
@@ -911,7 +920,7 @@
     assert(new Set(globalThis.EGE.tutors.LIST.map((t) => t.source)).size >= 3 && globalThis.EGE.tutors.LIST.every((t) => Boolean(t.source) && t.availableFrom && t.availableTo && (t.tier === "pro" ? (t.price > t.marketPrice && t.abovePct > 0 && t.aboveRub > 0) : (t.marketPrice > t.price && t.belowPct > 0 && t.belowRub > 0))), "expected multi-channel sources, window and below/above-market metadata on all tutors");
 
     const landHtml = env5.elements.get("main").innerHTML;
-    assert(landHtml.includes("Бесплатная") && landHtml.includes("Пробник") && landHtml.includes("Месяц под ключ"), "expected 3 tariff names on landing");
+    assert(!landHtml.includes("Бесплатная") && landHtml.includes("Пробник") && landHtml.includes("Месяц под ключ"), "expected minimum 5000 ₽ subscription plans without free tier on landing");
     assert(landHtml.includes("Супер-подписка") && landHtml.includes("plan-card featured super"), "expected distinct super class and badge on 10k tariff");
     assert(landHtml.includes("5 000 ₽") && landHtml.includes("10 000 ₽"), "expected 5k and 10k prices on landing");
     assert(landHtml.includes("Дмитрий Волков") && landHtml.includes("выше рынка") && landHtml.includes("diff-tag pro"), "expected above-market high-qualification expert tutor visible on default Любая filter");
@@ -1342,14 +1351,19 @@
     await flushMicrotasks(6);
 
     const tutorMain1 = env5.elements.get("main").innerHTML;
+    const tutorSideHtml = env5.elements.get("side-nav").innerHTML;
     const tutorTabHtml = env5.elements.get("tabbar").innerHTML;
-    assert(tutorMain1.includes("Личный кабинет преподавателя") && tutorMain1.includes("tc-req-card") && tutorMain1.includes("На руки 95%") && tutorMain1.includes("Актуален сегодня"), "expected full Teacher Personal Cabinet view");
-    assert(env5.elements.get("top-balance-slot").hidden === true && !env5.elements.get("side-foot").innerHTML.includes(">Препод<") && env5.elements.get("side-foot").innerHTML.includes("Преподаватель"), "expected student balance hidden and full Преподаватель label in tutor mode");
-    assert(tutorTabHtml.includes("Кабинет") && tutorTabHtml.includes("Справочник") && tutorTabHtml.includes("Выплаты"), "expected tutor 5-tab bottom bar including Справочник and Выплаты");
+    assert(tutorMain1.includes("Личный кабинет преподавателя") && tutorMain1.includes("tc-req-card") && tutorMain1.includes("На руки 95%") && tutorMain1.includes("Поднять анкету (раз в 4 ч)"), "expected full Teacher Personal Cabinet view with 4h bump CTA");
+    assert(env5.elements.get("bal-float-dock").hidden === true && !env5.elements.get("side-foot").innerHTML.includes(">Препод<") && env5.elements.get("side-foot").innerHTML.includes("Преподаватель"), "expected student balance hidden and full Преподаватель label in tutor mode");
+    assert(tutorSideHtml.includes('data-v="tutor-profile"') && tutorSideHtml.includes("Профиль"), "expected Профиль promoted directly into left sidebar nav for tutor");
+    assert(tutorTabHtml.includes("Кабинет") && tutorTabHtml.includes("Профиль") && tutorTabHtml.includes("Справочник") && tutorTabHtml.includes("Выплаты"), "expected tutor 5-tab bottom bar including Профиль, Справочник and Выплаты");
 
     clickAction(env5, { a: "tc-bump" });
     await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("Анкета поднята сегодня") && env5.elements.get("toast").innerHTML.includes("Анкета поднята в топ"), "expected tc-bump to mark tutor card active today with side toast");
+    assert(env5.elements.get("main").innerHTML.includes("✓ Поднята · через") && env5.elements.get("main").innerHTML.includes("data-tc-manual-countdown") && env5.elements.get("toast").innerHTML.includes("Анкета поднята в топ"), "expected tc-bump to enter 4h cooldown state with side toast");
+    clickAction(env5, { a: "tc-bump" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("toast").innerHTML.includes("Повторить можно через"), "expected immediate second manual bump within 4h to show cooldown message");
 
     clickAction(env5, { a: "tc-req-step", id: "tc-req-1", step: "100" });
     await flushMicrotasks(2);
@@ -1363,22 +1377,36 @@
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes('data-a="tc-slot-toggle" data-hour="13:00" aria-pressed="true"'), "expected tc-slot-toggle to toggle 13:00 availability slot");
 
-    // Профиль hh: мультивыбор предметов, до 2 кастомных плашек квалификации, предпросмотр и публикация в /market
-    clickAction(env5, { a: "tc-tab", tab: "profile" });
+    // Профиль: прямой вход из левого сайдбара, единый мультивыбор с × внутри, фото/Без фото, Якутск/Москва + UTC, ручные навыки, до 2 плашек и публикация в /market
+    clickAction(env5, { a: "go", v: "tutor-profile" });
     await flushMicrotasks(2);
     const tcProfHtml = env5.elements.get("main").innerHTML;
-    assert(tcProfHtml.includes("Заполненность профиля") && tcProfHtml.includes("tc-hh-meter") && tcProfHtml.includes("hh-multi"), "expected hh-style profile completeness meter and hh-multi subject picker");
+    assert(
+      !tcProfHtml.includes("Профиль hh") &&
+      !tcProfHtml.includes("hh-multi-chips") &&
+      !tcProfHtml.includes("tc-skill-toggle") &&
+      tcProfHtml.includes("Заполненность профиля") &&
+      tcProfHtml.includes("tc-hh-meter") &&
+      tcProfHtml.includes("hh-multi-x") &&
+      tcProfHtml.includes("Без фото") &&
+      tcProfHtml.includes("Якутск") &&
+      tcProfHtml.includes("Москва") &&
+      tcProfHtml.includes("UTC+9"),
+      "expected unified Profile builder with single pill multi-select + internal ×, photo/no-photo, Якутск/Москва + UTC, and manual customSkills without presets"
+    );
     clickAction(env5, { a: "tc-subj-toggle" });
     await flushMicrotasks(1);
     clickAction(env5, { a: "tc-subj-pick", v: "chem" });
+    clickAction(env5, { a: "tc-city-pick", v: "Москва" });
+    clickAction(env5, { a: "tc-tz-pick", v: "UTC+3" });
     await flushMicrotasks(2);
     clickAction(env5, { a: "tc-preview-toggle" });
     await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("Живой вид вашей карточки"), "expected live /market tutor card preview in hh profile builder");
-    env5.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "tc-profile" }, elements: { name: { value: "Анна Соколова hh" }, headline: { value: "Эксперт ЕГЭ · СФУ" }, subject: { value: "bio" }, badge0: { value: "Эксперт жюри ВсОШ" }, badge1: { value: "К.б.н. · автор задач" } } }) }, preventDefault() {} });
+    assert(env5.elements.get("main").innerHTML.includes("Живой вид вашей карточки") && env5.elements.get("main").innerHTML.includes("Без фото") && env5.elements.get("main").innerHTML.includes("Москва (UTC+3)"), "expected live /market tutor card preview with Без фото and Москва (UTC+3)");
+    env5.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "tc-profile" }, elements: { name: { value: "Анна Соколова" }, headline: { value: "Эксперт ЕГЭ · СФУ" }, subject: { value: "bio" }, badge0: { value: "Эксперт жюри ВсОШ" }, badge1: { value: "К.б.н. · автор задач" }, customSkills: { value: "ФИПИ 2027, №28 Генетика" } } }) }, preventDefault() {} });
     await flushMicrotasks(2);
     const publishedTutor = globalThis.EGE.tutors.LIST.find((t) => t.id === "tc-my-profile");
-    assert(env5.elements.get("main").innerHTML.includes("Опубликован в /market") && publishedTutor && publishedTutor.name === "Анна Соколова hh" && publishedTutor.subjects.includes("chem") && Array.isArray(publishedTutor.customBadges) && publishedTutor.customBadges.length === 2, "expected submitted hh profile to publish multi-subject & up to 2 custom badges live into EGE.tutors.LIST");
+    assert(env5.elements.get("main").innerHTML.includes("Опубликован в /market") && publishedTutor && publishedTutor.name === "Анна Соколова" && publishedTutor.city === "Москва" && publishedTutor.timezone === "UTC+3" && publishedTutor.subjects.includes("chem") && Array.isArray(publishedTutor.customBadges) && publishedTutor.customBadges.length === 2, "expected submitted profile to publish city/UTC, multi-subject & up to 2 custom badges live into EGE.tutors.LIST");
 
     // Календарь записанных учеников (ТОЛЬКО подтверждённые ученики) + ручная запись ученика в слот
     clickAction(env5, { a: "tc-tab", tab: "calendar" });
@@ -1402,30 +1430,60 @@
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes("✓ Отклик отправлен"), "expected teacher response to mark student lead as responded");
 
-    // Статистика + Автопродвижение каждые 24 часа
-    clickAction(env5, { a: "tc-tab", tab: "stats" });
+    // Мои ученики (трекер баллов ЕГЭ + напоминание о скором уроке в WhatsApp + настройка автоуведомлений)
+    clickAction(env5, { a: "tc-tab", tab: "students" });
     await flushMicrotasks(2);
-    const tcStatsHtml = env5.elements.get("main").innerHTML;
-    assert(tcStatsHtml.includes("Автопродвижение каждые 24 часа") && tcStatsHtml.includes("data-tc-countdown") && tcStatsHtml.includes("Статистика преподавателя") && tcStatsHtml.includes("Цель дохода на месяц"), "expected 24h auto-bump countdown, analytics funnel chart and monthly goal planner");
+    const tcStudentsHtml = env5.elements.get("main").innerHTML;
+    assert(
+      tcStudentsHtml.includes("Мои ученики и автоуведомления") &&
+      tcStudentsHtml.includes("Напомнить: скоро урок (Воскресенье, 10:00)") &&
+      tcStudentsHtml.includes("tc-wa-global-toggle") &&
+      tcStudentsHtml.includes("Тест в WhatsApp"),
+      "expected lesson reminder CTA and configurable WhatsApp auto-notification panel in Мои ученики"
+    );
+    clickAction(env5, { a: "tc-student-remind", id: "st-alina" });
+    clickAction(env5, { a: "tc-wa-lead", v: "1h" });
+    clickAction(env5, { a: "tc-student-score", id: "st-alina", delta: "2" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("78") && env5.elements.get("main").innerHTML.includes('data-a="tc-wa-lead" data-v="1h"'), "expected +2 score increment and WhatsApp reminder lead toggle");
+
+    // Выплаты и статистика: KPIs + Статистика преподавателя + Цель дохода + Автопродвижение 24ч + Последнее автопродвижение
+    clickAction(env5, { a: "go", v: "fees" });
+    await flushMicrotasks(3);
+    const tcPayoutsHtml = env5.elements.get("main").innerHTML;
+    assert(
+      tcPayoutsHtml.includes("Чистый доход (95%)") &&
+      tcPayoutsHtml.includes("Проведено уроков") &&
+      tcPayoutsHtml.includes("Заработано за месяц") &&
+      tcPayoutsHtml.includes("Ставка в анкете") &&
+      tcPayoutsHtml.includes("Автопродвижение каждые 24 часа") &&
+      tcPayoutsHtml.includes("Последнее автопродвижение") &&
+      tcPayoutsHtml.includes("data-tc-countdown") &&
+      tcPayoutsHtml.includes("Статистика преподавателя") &&
+      tcPayoutsHtml.includes("Цель дохода на месяц"),
+      "expected Выплаты dashboard to show net income KPIs, 24h auto-bump + timestamp, 4h manual bump, stats chart and monthly goal"
+    );
     clickAction(env5, { a: "tc-stats-period", v: "30d" });
     await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("прогноз за месяц"), "expected 30d period switch in stats");
+    assert(env5.elements.get("main").innerHTML.includes("прогноз за месяц"), "expected 30d period switch in Выплаты stats");
     clickAction(env5, { a: "tc-autobump-toggle" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes("Автоподнятие на паузе"), "expected 24h auto-bump toggle to pause");
     clickAction(env5, { a: "tc-autobump-toggle" });
     await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("Автоподнятие активно"), "expected 24h auto-bump toggle to reactivate");
+    assert(env5.elements.get("main").innerHTML.includes("Автоподнятие 24 ч активно"), "expected 24h auto-bump toggle to reactivate");
 
-    // Мои ученики (трекер баллов ЕГЭ + быстрые шаблоны)
-    clickAction(env5, { a: "tc-tab", tab: "students" });
+    // Каталог /market фильтр городов: строго Якутск и Москва + Без фото
+    clickAction(env5, { a: "go", v: "market" });
+    await flushMicrotasks(3);
+    clickAction(env5, { a: "mkt-city", v: "Якутск" });
     await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("Мои ученики и трекер баллов ЕГЭ") && env5.elements.get("main").innerHTML.includes("Быстрые шаблоны ответов"), "expected student score tracker and reply templates");
-    clickAction(env5, { a: "tc-student-score", id: "st-alina", delta: "2" });
+    const mktYakHtml = env5.elements.get("main").innerHTML;
+    assert(mktYakHtml.includes("UTC+9") && mktYakHtml.includes("Без фото") && mktYakHtml.includes('data-k="city"'), "expected Якутск city filter chip, UTC+9 and Без фото tutor avatar on /market");
+    clickAction(env5, { a: "mkt-city", v: "Москва" });
     await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("78") && env5.elements.get("toast").innerHTML.includes("Пробник обновлён"), "expected +2 score increment on student tracker");
-
-    clickAction(env5, { a: "tc-tab", tab: "requests" });
+    assert(env5.elements.get("main").innerHTML.includes("Москва (UTC+3)"), "expected Москва (UTC+3) tutors when filtered to Москва");
+    clickAction(env5, { a: "mkt-reset" });
     await flushMicrotasks(2);
 
     // Проверка /brandbook: наличие интерактивного мультивыбора (.hh-multi) и виджета баланса
