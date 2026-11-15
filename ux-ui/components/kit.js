@@ -21,7 +21,7 @@
     { id: "sakha", label: "Саха · Оһуор" },
     { id: "controls", label: "Кнопки и формы" },
     { id: "app", label: "Кабинет и /market" },
-    { id: "motion", label: "Слайдеры и границы" },
+    { id: "layout", label: "Слайдеры и границы" },
     { id: "sections", label: "Витрина и правила" }
   ];
 
@@ -36,10 +36,11 @@
     { id: "overlays", targetId: "bb-cards-sys", cat: "controls", title: "Тарифы, баланс топ-бара, оранжевый тост и модалки", api: "EGE.kit.sentNoticeHTML() / notifySide() / .top-bal-wrap", css: ".plan-card.super .top-bal-pill .toast.is-side .modal-card", desc: "Иерархия 0 / 5 000 / 10 000 ₽ / любая сумма, баланс в шапке, свайп-тост и диалоги." },
     { id: "study", targetId: "bb-study-states", cat: "app", title: "Тренажёр ЕГЭ, Skeleton, Empty и Danger", api: "EGE.views.study / .opt / .meter", css: ".opt.ok .meter .bb-skel-bar .empty .confirm", desc: "Варианты ответов, конспект .theory, шиммер 1.6 s и адаптивная отмена." },
     { id: "marketApp", targetId: "bb-market-app", cat: "app", title: "Каталог /market, Кабинет преподавателя и 5-tab .tabbar", api: "EGE.views.tutorCabinet / EGE.views.market", css: ".tutor-card .tc-req-card .diff-tag.pro .side .tabbar", desc: "Кабинет ученика и личный кабинет преподавателя, до 2 плашек квалификации и «Преподаватель» без сокращений." },
-    { id: "sliders", targetId: "bb-sliders", cat: "motion", title: "Слайдер часов 10:00–20:00 (Clean / Ticks / Ruler)", api: "EGE.hh.sliderTicksHTML(cur, style)", css: ".hh-time-range .hh-slider-ticks", desc: "3 варианта шкалы слотов, палка 10×24 px и сенсорный запас ±6 px." },
-    { id: "motion", targetId: "bb-motion", cat: "motion", title: "Моушен, слои Z-index и Reduced Motion", api: "EGE.kit.sentNoticeHTML({ slot, offer })", css: ".hh-motion-status.sent .bb-pulse-dot .is-reduced", desc: "Статус под кнопкой, подъём −2 px, таблица слоёв (10→100) и отключение анимаций." },
-    { id: "bounds", targetId: "bb-bounds", cat: "motion", title: "Границы 390 px, воздух 6 px и зазор 8 px", api: ".cal-days / .hh-price-stepper", css: ".bb-bp-stage .bb-phone-frame .bb-days-rail", desc: "Защита от обрезания рамок при hover, угол 84 px и мобильный фрейм." },
-    { id: "responsive", targetId: "bb-responsive", cat: "motion", title: "Стенд адаптивности (320 px — 1340 px)", api: "applyBrandbookViewport(width)", css: "@container (max-width: 560px) / @media (max-width: 680px)", desc: "Живой ползунок ширины экрана от Mini SE 320 px до Desktop." },
+    { id: "cabinet", targetId: "bb-cabinet", cat: "app", title: "Кабинет преподавателя, золотая линия-лого, 24ч/4ч и баланс", api: "EGE.views.tutorCabinet / sakhaOhyorHTML({ goldLogo: true })", css: ".sakha-divider.is-gold-logo .tc-autobump-card .side-badge-jump .top-bal-wrap", desc: "7-пунктовый сайдбар с прыжком по бейджу [2], «Без фото», автоподнятие 24 ч / 4 ч, WhatsApp и 28 px «+» баланса." },
+    { id: "sliders", targetId: "bb-sliders", cat: "layout", title: "Слайдер часов 10:00–20:00 и калькулятор в 1 строку", api: "EGE.hh.sliderTicksHTML(cur, style) / .hh-step-readout.is-inline", css: ".hh-time-range .hh-slider-ticks .hh-step-readout.is-inline", desc: "3 варианта шкалы слотов, палка 10×24 px и строчный ввод «1 100 ₽/ч» без переноса." },
+    { id: "layers", targetId: "bb-layers", cat: "layout", title: "Слои Z-index, статус отклика и Reduced Motion", api: "EGE.kit.sentNoticeHTML({ slot, offer })", css: ".hh-motion-status.sent .bb-pulse-dot .is-reduced", desc: "Статус под кнопкой, подъём −2 px, таблица слоёв (10→100) и отключение анимаций." },
+    { id: "bounds", targetId: "bb-bounds", cat: "layout", title: "Границы 390 px, воздух 6 px и зазор 8 px", api: ".cal-days / .hh-price-stepper", css: ".bb-bp-stage .bb-phone-frame .bb-days-rail", desc: "Защита от обрезания рамок при hover, угол 84 px и мобильный фрейм." },
+    { id: "responsive", targetId: "bb-responsive", cat: "layout", title: "Стенд адаптивности (320 px — 1340 px)", api: "applyBrandbookViewport(width)", css: "@container (max-width: 560px) / @media (max-width: 680px)", desc: "Живой ползунок ширины экрана от Mini SE 320 px до Desktop." },
     { id: "kit", targetId: "bb-landing-kit", cat: "sections", title: "Блоки витрины (Лента, Золотая ставка, Ставки, Отзывы)", api: "EGE.kit.rateBenchCardHTML / reviewCardHTML / .savings-bar-fill.gold-fill", css: ".marquee-pill .savings-gold-txt .rate-bench-card .review-card", desc: "Общие компоненты EGE.kit и золотой акцент «Вектор ЕГЭ · твоя ставка»." },
     { id: "dodont", targetId: "bb-dodont", cat: "sections", title: "Do / Don't и Tone of Voice (формат текстов)", api: "tokens.json -> editorial", css: ".bb-do-card .bb-dont-card", desc: "Оранжевые уведомления, правило 5% (/fees и кабинет), формат ₽/ч и якутская орфография." },
     { id: "compare", targetId: "bb-compare", cat: "brand", title: "Сквозная проверка Light vs Dark OLED", api: "EGE.views.brandbook.brandbookPaneHTML()", css: ".bb-pane.is-light .bb-pane.is-dark", desc: "Одновременное сравнение свотчей, слайдера, степпера и карточки в двух темах." }
@@ -82,7 +83,7 @@
     opts = opts || {};
     const formName = opts.formName || "landing-search";
     const inputId = opts.inputId || "landing-q";
-    const placeholder = opts.placeholder || "Предмет, тема, навык или репетитор (Моушен, Python, ОГЭ)…";
+    const placeholder = opts.placeholder || "Предмет, тема, навык или репетитор (UX/UI, Python, ОГЭ)…";
     const val = esc(opts.query || "");
     const submitted = !!opts.submitted;
     const chips = Array.isArray(opts.chips) ? opts.chips : [];
@@ -133,7 +134,7 @@
         </button>
         <div class="stack" style="gap:2px;min-width:0">
           <b>${compact ? "Сулус · Звезда" : "Ромб-кнопка «Сулус»"}</b>
-          <span class="small muted">${starActive ? (compact ? "Выбран" : "✓ Выбран моушен-режим Сулус") : (compact ? "Геометрический ромб" : "8-лучевой алмазный орнамент Саха")}</span>
+          <span class="small muted">${starActive ? (compact ? "Выбран" : "✓ Выбран режим Сулус") : (compact ? "Геометрический ромб" : "8-лучевой алмазный орнамент Саха")}</span>
         </div>
       </div>
 

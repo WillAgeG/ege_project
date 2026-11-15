@@ -927,7 +927,7 @@
     assert(landHtml.includes("Дмитрий Волков") && landHtml.includes("выше рынка") && landHtml.includes("diff-tag pro"), "expected above-market high-qualification expert tutor visible on default Любая filter");
     assert(landHtml.includes('data-a="mkt-day"') && landHtml.includes('id="mkt-hour-range"') && landHtml.includes('<span class="day-dot">7</span>') && !landHtml.includes(">7 дн<") && !landHtml.includes(">7д<"), "expected clean 7 number badge (without 7д/7 дн) and 10:00-20:00 hour range slider on landing");
     assert(landHtml.includes('id="land-demo"') && landHtml.includes("Доска Ykt") && landHtml.includes("Telegram") && landHtml.includes("MAX") && !landHtml.includes("Комиссия 5%") && !landHtml.includes("760 ₽") && landHtml.includes('data-v="fees"'), "expected interactive beta demo, multi-channel sources (Ykt/TG/WA/MAX), hidden 5% commission on landing and separate /fees link");
-    assert(landHtml.includes('id="hero-motion-stage"') && landHtml.includes('id="hero-motion-bid-btn"') && landHtml.includes('id="hero-hour-range"') && landHtml.includes('id="hero-price-minus"') && !landHtml.includes("01 Выбор") && landHtml.includes("hh-price-old") && !landHtml.includes("hh-blue-banner") && landHtml.includes("btn sakha-pattern motion-bid-btn") && hasNum(landHtml, "Сөп · Предложить 1 200 ₽") && landHtml.includes("Денис Ковалёв") && landHtml.includes("marquee-band") && landHtml.includes('id="land-savings"'), "expected clean hh-style UX/UI motion stage with Sakha Предложить CTA, strikethrough price, no brandbook blue banner, and Денис Ковалёв");
+    assert(landHtml.includes('id="hero-motion-stage"') && landHtml.includes('id="hero-motion-bid-btn"') && landHtml.includes('id="hero-hour-range"') && landHtml.includes('id="hero-price-minus"') && !landHtml.includes("01 Выбор") && landHtml.includes("hh-price-old") && !landHtml.includes("hh-blue-banner") && landHtml.includes("btn sakha-pattern motion-bid-btn") && hasNum(landHtml, "Сөп · Предложить 1 200 ₽") && landHtml.includes("Денис Ковалёв") && landHtml.includes("marquee-band") && landHtml.includes('id="land-savings"') && !landHtml.includes('data-target="land-motion-showcase"') && !landHtml.includes(">Моушен<") && !landHtml.includes(">Брендбук<") && landHtml.includes("UX/UI и Figma"), "expected clean hh-style UX/UI stage with Sakha Предложить CTA, strikethrough price, no Моушен/Брендбук links in header, and Денис Ковалёв");
 
     clickAction(env5, { a: "motion-step-price", step: "-100" });
     await flushMicrotasks(2);
@@ -961,7 +961,7 @@
     clickAction(env5, { a: "demo-tab", tab: "calc" });
     await flushMicrotasks(2);
     const calcDemoHtml = env5.elements.get("main").innerHTML;
-    assert(!calcDemoHtml.includes("760 ₽") && !calcDemoHtml.includes("40 ₽") && calcDemoHtml.includes('data-v="fees"') && calcDemoHtml.includes('id="demo-calc-box"') && hasNum(calcDemoHtml, "1 000 ₽/ч"), "expected student calc demo tab to hide 5% split and link to /fees");
+    assert(!calcDemoHtml.includes("760 ₽") && !calcDemoHtml.includes("40 ₽") && calcDemoHtml.includes('data-v="fees"') && calcDemoHtml.includes('id="demo-calc-box"') && calcDemoHtml.includes("hh-step-readout is-inline") && hasNum(calcDemoHtml, "1 000 ₽/ч"), "expected student calc demo tab with single-line rate stepper, hidden 5% split, and link to /fees");
 
     clickAction(env5, { a: "mkt-preset" });
     await flushMicrotasks(4);
@@ -1039,7 +1039,7 @@
     const bbHtml = env5.elements.get("main").innerHTML;
     assert(bbHtml.includes('id="brandbook-page"') && bbHtml.includes('data-bb-pane="light"') && bbHtml.includes('data-bb-pane="dark"') && bbHtml.includes("Синий фон") && bbHtml.includes("hh-price-old") && bbHtml.includes("Inter") && bbHtml.includes("#F97316") && bbHtml.includes('id="bb-buttons"') && bbHtml.includes('id="bb-bounds"') && bbHtml.includes("bb-phone-frame"), "expected brandbook with white/dark/blue surfaces, orange notifications #F97316, full button/heart/icon catalog, spacing boundaries and mobile 390px frame");
     assert(bbHtml.includes('id="bb-logo"') && bbHtml.includes('data-surface="light"') && bbHtml.includes('data-surface="dark"') && bbHtml.includes('data-surface="blue"') && bbHtml.includes('class="brand-wordmark"') && !bbHtml.includes("M5.5 15Q15") && bbHtml.includes('id="bb-forms"') && bbHtml.includes('id="bb-cards-sys"') && bbHtml.includes('id="bb-study-states"') && bbHtml.includes('id="bb-dodont"') && bbHtml.includes("bb-input-error") && bbHtml.includes("plan-card featured super") && bbHtml.includes("bb-skel-bar") && bbHtml.includes('data-a="bb-copy-token"'), "expected extended brandbook sections: 3-surface circular Sakha logo + custom vector wordmark, forms/errors, tariffs/modals/toasts, study/skeleton/empty/danger states, Do/Dont, and copyable tokens");
-    assert(bbHtml.includes('id="bb-sliders"') && bbHtml.includes('id="bb-hour-range-clean"') && bbHtml.includes('id="bb-hour-range-ticks"') && bbHtml.includes('id="bb-hour-range-ruler"') && bbHtml.includes('id="bb-motion"') && bbHtml.includes('id="bb-responsive"') && bbHtml.includes('id="bb-vp-slider"') && bbHtml.includes("bb-blueprint-grid") && bbHtml.includes('data-a="bb-day" data-v="sat"') && !bbHtml.includes("Нажми «Предложить» для перехода") && !bbHtml.includes("5%:"), "expected 3 brandbook sliders, responsive lab, clean CTA card without clipped hint or commission string");
+    assert(bbHtml.includes('id="bb-sliders"') && bbHtml.includes('id="bb-hour-range-clean"') && bbHtml.includes('id="bb-hour-range-ticks"') && bbHtml.includes('id="bb-hour-range-ruler"') && bbHtml.includes('id="bb-layers"') && bbHtml.includes('id="bb-cabinet"') && bbHtml.includes('id="bb-responsive"') && bbHtml.includes('id="bb-vp-slider"') && bbHtml.includes("bb-blueprint-grid") && bbHtml.includes('data-a="bb-day" data-v="sat"') && !bbHtml.includes('id="bb-motion"') && !bbHtml.includes("Нажми «Предложить» для перехода") && !bbHtml.includes("5%:") && bbHtml.includes("sakha-divider is-gold-logo") && bbHtml.includes("is-no-photo") && bbHtml.includes("hh-step-readout is-inline") && bbHtml.includes("tc-autobump-card") && bbHtml.includes("tc-wa-cfg"), "expected 3 brandbook sliders, cabinet/balance showcase, gold divider, inline stepper, layers without bb-motion, responsive lab, clean CTA card without clipped hint or commission string");
     clickAction(env5, { a: "bb-copy-token", copy: "#0070FF · --accent" });
     await flushMicrotasks(2);
     assert(env5.elements.get("toast").textContent.includes("#0070FF"), "expected token copy toast in brandbook");
@@ -1169,9 +1169,9 @@
     const bbV2Html = env5.elements.get("main").innerHTML;
     const catTargetIds = globalThis.EGE.kit.CATALOG_ITEMS.map((it) => it.targetId);
     assert(
-      globalThis.EGE.kit.CATALOG_ITEMS.length === 17 &&
-      ["bb-market-app", "bb-motion", "bb-bounds", "bb-dodont", "bb-compare"].every((id) => catTargetIds.includes(id)),
-      "expected 17 catalog items covering all brandbook sections including /market, motion, bounds, dodont, and compare"
+      globalThis.EGE.kit.CATALOG_ITEMS.length === 18 &&
+      ["bb-market-app", "bb-cabinet", "bb-layers", "bb-bounds", "bb-dodont", "bb-compare"].every((id) => catTargetIds.includes(id)),
+      "expected 18 catalog items covering all brandbook sections including /market, cabinet/balance, layers, bounds, dodont, and compare"
     );
     assert(
       !bbV2Html.includes("Unbounded") &&
@@ -1218,7 +1218,7 @@
     clickAction(env5, { a: "bb-app-role", role: "tutor" });
     await flushMicrotasks(2);
     const bbTutorAppHtml = env5.elements.get("main").innerHTML;
-    assert(bbTutorAppHtml.includes("tc-req-card") && bbTutorAppHtml.includes("Актуален сегодня") && bbTutorAppHtml.includes("на руки 95%"), "expected bb-app-role=tutor in brandbook to display Tutor Cabinet card and 95% payout");
+    assert(bbTutorAppHtml.includes("tc-req-card") && bbTutorAppHtml.includes("Актуален сегодня") && bbTutorAppHtml.includes("на руки 95%") && bbTutorAppHtml.includes("Календарь учеников") && bbTutorAppHtml.includes("Ученики ищут") && bbTutorAppHtml.includes("side-badge-jump"), "expected bb-app-role=tutor in brandbook to display Tutor Cabinet card, 7-item teacher sidebar with jump badge, and 95% payout");
     clickAction(env5, { a: "bb-app-role", role: "student" });
     await flushMicrotasks(2);
 

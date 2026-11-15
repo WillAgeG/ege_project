@@ -4624,7 +4624,7 @@
       const preset = ui.landStarActive ? "inf" : "design";
       if (ACTIONS["motion-preset"]) ACTIONS["motion-preset"]({ dataset: { v: preset } });
       scheduleRender();
-      notifySide("Сулус · Звёздный фильтр Саха", ui.landStarActive ? "Включён трек Информатика КЕГЭ в живом моушене" : "Возвращён трек UX/UI и Моушен");
+      notifySide("Сулус · Звёздный фильтр Саха", ui.landStarActive ? "Включён трек Информатика КЕГЭ в живой карточке" : "Возвращён трек UX/UI и Figma");
     },
     "bb-modal-open": () => {
       ui.bbModal = true;

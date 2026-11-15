@@ -32,7 +32,7 @@
   }
 
   const MOTION_PRESETS = {
-    design: { id: "design", label: "UX/UI и Моушен", short: "Моушен-дизайн", tutorId: "tut-kovalev", fallbackName: "Денис Ковалёв", role: "Figma · After Effects · портфолио", defaultHour: 10, defaultOffer: 1200 },
+    design: { id: "design", label: "UX/UI и Figma", short: "UX/UI-дизайн", tutorId: "tut-kovalev", fallbackName: "Денис Ковалёв", role: "Figma · дизайн-системы · портфолио", defaultHour: 10, defaultOffer: 1200 },
     eng: { id: "eng", label: "Английский", short: "Английский", tutorId: "tut-sokolova", fallbackName: "Анна Соколова", role: "ЕГЭ 90+ · ОГЭ · разговорный", defaultHour: 12, defaultOffer: 1200 },
     inf: { id: "inf", label: "Python и IT", short: "Python / КЕГЭ", tutorId: "tut-lebedev", fallbackName: "Роман Лебедев", role: "Python · алгоритмы · №24–27", defaultHour: 16, defaultOffer: 1300 },
     music: { id: "music", label: "Вокал и гитара", short: "Вокал и гитара", tutorId: "tut-melnikova", fallbackName: "Алина Мельникова", role: "Постановка голоса · акустика", defaultHour: 18, defaultOffer: 900 }
@@ -572,10 +572,10 @@
               </div>
               <div class="hh-price-stepper compact demo-rate-stepper">
                 <button type="button" class="hh-step-btn" data-a="demo-step" data-step="-100" aria-label="Снизить ставку на 100 рублей">−100 ₽</button>
-                <div class="hh-step-readout">
+                <label class="hh-step-readout is-inline" for="demo-rate-inp">
                   <input class="demo-rate-input num" id="demo-rate-inp" type="number" min="500" max="3000" step="50" value="${rate}" aria-label="Своя ставка в рублях">
-                  <span class="small muted">₽/ч</span>
-                </div>
+                  <span class="hh-step-unit">₽/ч</span>
+                </label>
                 <button type="button" class="hh-step-btn" data-a="demo-step" data-step="100" aria-label="Повысить ставку на 100 рублей">+100 ₽</button>
               </div>
             </div>
@@ -991,12 +991,10 @@
       <header class="land-top">
         ${brandLockupHTML({ sub: "Огромная база · ниже рынка" })}
         <nav class="land-links" aria-label="Разделы лендинга">
-          <a href="#land-motion-showcase" data-a="land-scroll" data-target="land-motion-showcase">Моушен</a>
           <a href="#land-match" data-a="land-scroll" data-target="land-match">Подбор</a>
           <a href="#land-rates" data-a="land-scroll" data-target="land-rates">Ставки</a>
           <a href="#land-market" data-a="land-scroll" data-target="land-market">Репетиторы</a>
           <a href="#land-faq" data-a="land-scroll" data-target="land-faq">FAQ</a>
-          <a href="/brandbook" data-a="go" data-v="brandbook">Брендбук</a>
         </nav>
         <div class="land-top-actions">
           <button type="button" class="icon-btn sm" data-a="theme-toggle" aria-label="Сменить тему" title="Сменить тему">${icon(dark ? "sun" : "moon")}</button>

@@ -12,7 +12,7 @@
     { id: "inf", name: "Информатика и Python", short: "Информатика" },
     { id: "phys", name: "Физика и олимпиады", short: "Физика" },
     { id: "hist", name: "История и общество", short: "История" },
-    { id: "design", name: "UX/UI и Моушен-дизайн", short: "Дизайн UX/UI" },
+    { id: "design", name: "UX/UI и Figma", short: "Дизайн UX/UI" },
     { id: "music", name: "Вокал, гитара и музыка", short: "Вокал / Гитара" }
   ];
 
@@ -21,7 +21,7 @@
     { label: "ОГЭ без стресса", subject: "all", meta: "от 850 ₽/ч · −22% ниже рынка" },
     { label: "Python и алгоритмы", subject: "inf", meta: "от 1 100 ₽/ч · вместо 1 500 ₽" },
     { label: "UX/UI в Figma", subject: "design", meta: "от 1 050 ₽/ч · портфолио с нуля" },
-    { label: "Моушен-дизайн (AE)", subject: "design", meta: "от 1 100 ₽/ч · реальные кейсы" },
+    { label: "Продуктовый дизайн", subject: "design", meta: "от 1 100 ₽/ч · реальные кейсы" },
     { label: "Разговорный английский", subject: "eng", meta: "от 950 ₽/ч · IELTS и работа" },
     { label: "Медвуз: биология + химия", subject: "bio", meta: "от 1 000 ₽/ч · задачи 28 и 34" },
     { label: "Высшая математика", subject: "math", meta: "от 1 000 ₽/ч · сессия и ЕГЭ" },
@@ -429,7 +429,7 @@
       id: "tut-kovalev",
       name: "Денис Ковалёв",
       subject: "design",
-      subjectName: "UX/UI и Моушен-дизайн",
+      subjectName: "UX/UI и Figma",
       exams: ["Навыки", "Портфолио"],
       price: 1200,
       marketPrice: 1650,
@@ -439,11 +439,11 @@
       timezone: "UTC+3",
       rating: 4.9,
       reviews: 27,
-      exp: "6 лет · Senior Product & Motion Designer",
-      tag: "Figma, After Effects, анимация интерфейсов",
+      exp: "6 лет · Senior Product & UX/UI Designer",
+      tag: "Figma, дизайн-системы, интерактивные прототипы",
       bumpedToday: true,
       bumpText: "Поднял анкету 2 ч назад",
-      bio: "Учу UX/UI в Figma, прототипированию и моушен-дизайну с нуля до первых коммерческих заказов и сильного портфолио.",
+      bio: "Учу UX/UI в Figma, дизайн-системам и прототипированию с нуля до первых коммерческих заказов и сильного портфолио.",
       slots: {
         1: ["14:00", "18:00", "20:00"],
         3: ["11:00", "16:00", "19:00"],

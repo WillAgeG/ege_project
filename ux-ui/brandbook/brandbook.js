@@ -44,10 +44,11 @@
     "bb-cards-sys": "controls",
     "bb-study-states": "app",
     "bb-market-app": "app",
-    "bb-sliders": "motion",
-    "bb-motion": "motion",
-    "bb-bounds": "motion",
-    "bb-responsive": "motion",
+    "bb-cabinet": "app",
+    "bb-sliders": "layout",
+    "bb-layers": "layout",
+    "bb-bounds": "layout",
+    "bb-responsive": "layout",
     "bb-landing-kit": "sections",
     "bb-dodont": "sections",
     "bb-compare": "brand"
@@ -57,7 +58,7 @@
     { id: "bio", label: "Биология · ЕГЭ 2027", meta: "Естественные" },
     { id: "chem", label: "Химия · ЕГЭ 2027", meta: "Олимпиады и ЕГЭ" },
     { id: "rus", label: "Русский язык · ЕГЭ", meta: "Сочинение и база" },
-    { id: "design", label: "UX/UI и Моушен", meta: "Проектный трек" }
+    { id: "design", label: "UX/UI и Figma", meta: "Проектный трек" }
   ];
 
   function ensureBrandbookState(ui) {
@@ -222,7 +223,7 @@
           <span class="bb-bell-wrap" aria-hidden="true"><span class="icon-btn sm">${icon("bell")}</span><span class="bb-notif-badge">3</span></span>
         </div>
         <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:10px">
-          <button type="button" class="bb-filter-active" data-a="bb-chip">${bb.chipOn ? "UX/UI и Моушен ×" : "+ Направление"}</button>
+          <button type="button" class="bb-filter-active" data-a="bb-chip">${bb.chipOn ? "UX/UI и Figma ×" : "+ Направление"}</button>
           <span class="tutor-tag-pill">+ Время 10:00–20:00</span>
           <span class="tutor-tag-pill">Можно удалённо</span>
           <span class="chip notif">Уведомление · ответ бота</span>
@@ -246,7 +247,7 @@
         <div class="stack" style="gap:8px">
           <div class="tutor-head">
             <div style="min-width:0">
-              <h3 class="h3" style="font-size:17px">Репетитор · UX/UI и Моушен</h3>
+              <h3 class="h3" style="font-size:17px">Репетитор · UX/UI и Figma</h3>
               <div class="hh-price-row" style="margin-top:4px">${priceHeadlineHTML(2000, bb.price, false)}</div>
               <div class="hh-diff-strip" style="margin-top:6px">
                 ${priceDiffTagsHTML({ tutorPrice: 1200, marketPrice: 2000, offerPrice: bb.price, qualBadge: "К.т.н. · эксперт ВсОШ" })}
@@ -644,18 +645,35 @@
     const pickedHour = String(bb.hour || 14).padStart(2, "0") + ":00";
     const appRole = bb.appRole === "tutor" ? "tutor" : "student";
     const tutorSide = appRole === "tutor";
-    const tabItems = tutorSide
+    const sideItems = tutorSide
       ? [
-          { ico: "award", label: "Заявки", active: true, badge: "2" },
-          { ico: "users", label: "Репетиторы" },
-          { ico: "book", label: "Справочник" },
-          { ico: "list", label: "Тесты" },
-          { ico: "cal", label: "Учёба" }
+          { ico: "chat", label: "Заявки", active: true, badge: "2" },
+          { ico: "cal", label: "Календарь учеников" },
+          { ico: "users", label: "Мои ученики" },
+          { ico: "search", label: "Ученики ищут" },
+          { ico: "sliders", label: "Профиль" },
+          { ico: "wallet", label: "Выплаты" },
+          { ico: "book", label: "Справочник" }
         ]
       : [
           { ico: "list", label: "Тесты", active: true },
-          { ico: "users", label: "Репетиторы" },
           { ico: "book", label: "Справочник" },
+          { ico: "search", label: "Репетиторы" },
+          { ico: "cal", label: "Учёба" },
+          { ico: "chart", label: "Показатели" }
+        ];
+    const tabItems = tutorSide
+      ? [
+          { ico: "chat", label: "Заявки", active: true, badge: "2" },
+          { ico: "cal", label: "Календарь" },
+          { ico: "users", label: "Ученики" },
+          { ico: "sliders", label: "Профиль" },
+          { ico: "wallet", label: "Выплаты" }
+        ]
+      : [
+          { ico: "list", label: "Тесты", active: true },
+          { ico: "book", label: "Справочник" },
+          { ico: "search", label: "Репетиторы" },
           { ico: "cal", label: "Учёба" },
           { ico: "chart", label: "Показатели" }
         ];
@@ -723,9 +741,9 @@
       <div class="bb-nav-arch">
         <div class="stack" style="gap:10px">
           <aside class="bb-side-mock" aria-label="Архитектура боковой панели кабинета (.side)">
-            ${brandLockupHTML({ tag: tutorSide ? "Преподаватель · ЕГЭ" : "ЕГЭ 2027", sub: "Десктопный .side · 256 px" })}
-            ${tabItems.map((it) => `<div class="bb-side-item${it.active ? " on" : ""}"><span>${icon(it.ico)} ${it.label}</span>${it.badge ? `<span class="chip notif">${it.badge}</span>` : `<span class="chip ${it.label === "Справочник" ? "gold" : ""}">${it.label === "Справочник" ? "5-tab" : "·"}</span>`}</div>`).join("")}
-            <div class="small muted" style="padding-top:6px;border-top:1px solid var(--line)">На ≤ 960 px сайдбар сворачивается в 5-вкладочный <code>.tabbar</code> со «Справочником» — без дубля кнопки в шапке.</div>
+            ${brandLockupHTML({ sub: tutorSide ? "Кабинет преподавателя" : "ЕГЭ 2027 · 3 предмета" })}
+            ${sideItems.map((it) => `<div class="bb-side-item${it.active ? " on" : ""}"><span>${icon(it.ico)} ${it.label}</span>${it.badge ? `<button type="button" class="chip notif num side-badge-jump" data-a="bb-demo-toast" style="position:static;transform:none" title="Клик ведёт к ожидающим заявкам">${it.badge}</button>` : `<span class="chip">${tutorSide ? "7-item" : "·"}</span>`}</div>`).join("")}
+            <div class="small muted" style="padding-top:6px;border-top:1px solid var(--line)">${tutorSide ? "У преподавателя скрыты «Предметы» и нет «Каталога»; клик по «2» сразу открывает ожидающие заявки." : "На ≤ 899 px сайдбар сворачивается в 5-вкладочный <code>.tabbar</code> — баланс перемещается в верхний правый угол."}</div>
           </aside>
           <div class="bb-tabbar-mock" role="navigation" aria-label="Мобильный нижний .tabbar (5 вкладок)">
             ${tabItems.map((it) => `<div class="bb-tabbar-mock-item${it.active ? " on" : ""}">${it.badge ? `<span class="bb-tabbar-mock-badge">${it.badge}</span>` : ""}${icon(it.ico)}<span>${it.label}</span></div>`).join("")}
@@ -830,14 +848,128 @@
         <div class="land-sec-head">
           <div>
             <div class="eyebrow">Саха сирэ · Культурный код · Орнаменты</div>
-            <h2 class="h2">Якутские кнопки в форме узоров Күн Оһуор, Сулус и Харысхал</h2>
+            <h2 class="h2">Якутские кнопки (Күн Оһуор, Сулус, Харысхал) и золотая линия-лого</h2>
           </div>
           <button type="button" class="bb-spec-pill" data-a="bb-copy-token" data-copy="EGE.kit.sakhaButtonsHTML()">Копировать EGE.kit.sakhaButtonsHTML()</button>
         </div>
         <div class="${mode === "both" ? "bb-cols" : "stack"}">${sakhaCards}</div>
+        <div class="card pad stack" style="gap:8px;box-shadow:none">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <b>Единый золотой разделитель с лого по центру (.sakha-divider.is-gold-logo)</b>
+            <span class="bb-spec-pill">1 золотая линия · без двойных полос</span>
+          </div>
+          ${sakhaOhyorHTML("Вектор ЕГЭ · Саха", { goldLogo: true })}
+          <span class="small muted">Используется в подвале лендинга, под фильтрами и для отделения блоков — строго одна линия градиента Саха (#C59B5F) и золотой круглый знак по центру.</span>
+        </div>
       </section>`;
     }
     return out;
+  }
+
+  function cabinetAndBalanceSectionHTML(bb) {
+    const pRate = Number(bb.price) || 1200;
+    return `<section class="land-sec" id="bb-cabinet">
+      <div class="land-sec-head">
+        <div>
+          <div class="eyebrow">Боевые паттерны приложения · Кабинет и баланс</div>
+          <h2 class="h2">Кабинет преподавателя, баланс (Desktop + Mobile 28 px «+») и строчный калькулятор</h2>
+        </div>
+        <span class="bb-spec-pill confirm">Live Parity · v2.1</span>
+      </div>
+
+      <div class="bb-forms-grid">
+        <div class="card pad stack" style="gap:12px">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <b>01 · Баланс ученика (Сайдбар ↓ + Топбар ↑)</b>
+            <span class="bb-spec-pill">min 5 000 ₽ → потом от 100 ₽</span>
+          </div>
+          <div class="stack" style="gap:8px">
+            <span class="small muted">На десктопе: внизу слева внутри <code>#side-balance-slot</code> (прямо над переключением «Ученик / Преподаватель»); у преподавателя скрыт.</span>
+            <div class="side-bal-slot" style="max-width:260px">
+              <div class="top-bal-wrap" aria-label="Баланс в сайдбаре десктопа">
+                <button type="button" class="top-bal-pill is-funded" data-a="bb-demo-toast">
+                  ${icon("wallet")}
+                  <b class="num">5 000 ₽</b>
+                </button>
+                <button type="button" class="top-bal-btn" data-a="bb-demo-toast">${icon("plus")}<span>Пополнить</span></button>
+              </div>
+            </div>
+            <span class="small muted">На мобилке (≤ 600 px): компактный баланс в правом верхнем углу топбара (<code>#top-balance-slot</code>) с круглой кнопкой 28×28 px «+».</span>
+            <div class="topbar bb-mob-topbal-demo" style="position:static;border:1px solid var(--line);border-radius:14px;padding:8px 10px">
+              <span class="brand-name-txt" style="font-size:13.5px">Вектор ЕГЭ</span>
+              <div class="top-bal-slot">
+                <div class="top-bal-wrap" style="gap:4px">
+                  <button type="button" class="top-bal-pill is-funded" style="min-height:28px;padding:0 8px;font-size:11.5px;gap:4px" data-a="bb-demo-toast">
+                    ${icon("wallet")}
+                    <b class="num">5 000 ₽</b>
+                  </button>
+                  <button type="button" class="top-bal-btn" style="width:28px;min-height:28px;padding:0;justify-content:center" aria-label="Пополнить баланс" data-a="bb-demo-toast">${icon("plus")}</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="stack" style="gap:6px;padding-top:6px;border-top:1px solid var(--line)">
+            <div class="row between" style="gap:8px;flex-wrap:wrap">
+              <b>02 · Строчный степпер калькулятора (.hh-step-readout.is-inline)</b>
+              <span class="bb-spec-pill">1 строка · input + ₽/ч</span>
+            </div>
+            <div class="hh-price-stepper compact demo-rate-stepper">
+              <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-100">−100 ₽</button>
+              <label class="hh-step-readout is-inline" for="bb-inline-rate">
+                <input class="demo-rate-input num" id="bb-inline-rate" type="number" min="500" max="3000" step="100" value="${pRate}" readonly aria-label="Ставка в одну строку">
+                <span class="hh-step-unit">₽/ч</span>
+              </label>
+              <button type="button" class="hh-step-btn" data-a="bb-step" data-step="100">+100 ₽</button>
+            </div>
+            <span class="small muted">Цифра и «₽/ч» всегда стоят на одной горизонтальной линии через <code>inline-flex</code> — единица не падает на вторую строку.</span>
+          </div>
+        </div>
+
+        <div class="card pad stack" style="gap:12px">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <b>03 · Аватар «Без фото», до 2 плашек и Город / UTC</b>
+            <span class="bb-spec-pill confirm">Анкеты и Профиль</span>
+          </div>
+          <div class="tc-photo-row">
+            <span class="tutor-avatar lg is-no-photo"><span>Без фото</span></span>
+            <div class="stack" style="gap:5px;min-width:0;flex:1">
+              <div class="tutor-name-line"><b>Мария Петрова</b><span class="verified-badge" aria-hidden="true">${icon("check")}</span></div>
+              <div class="tutor-badges">
+                <span class="diff-tag pro">Эксперт жюри</span>
+                <span class="diff-tag pro">СВФУ · олимпиады</span>
+              </div>
+              <span class="small muted">Якутск (UTC+9) · доступны фильтры городов: Якутск и Москва</span>
+            </div>
+          </div>
+
+          <div class="tc-autobump-card" style="padding:12px">
+            <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
+              <span class="chip gold">${icon("spark")}<span>Авто-24 ч · Ручное поднятие 4 ч</span></span>
+              <span class="small muted">Пик: <b>18:00 Якт</b></span>
+            </div>
+            <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
+              <div class="stack" style="gap:1px">
+                <span class="small muted">Следующее автоподнятие через</span>
+                <b class="num savings-gold-txt" style="font-size:18px">23:59:18</b>
+              </div>
+              <button type="button" class="btn soft sm" disabled>✓ Поднята · через 03:59:42</button>
+            </div>
+          </div>
+
+          <div class="tc-wa-cfg">
+            <div class="row between" style="gap:6px;flex-wrap:wrap">
+              <b class="small">Напоминание ученику в WhatsApp (.tc-wa-cfg)</b>
+              <span class="small muted">Воскресенье · 10:00</span>
+            </div>
+            <div class="row" style="gap:8px;flex-wrap:wrap">
+              <button type="button" class="btn confirm sm" data-a="bb-demo-toast">${icon("msg")}<span>Напомнить: скоро урок</span></button>
+              <button type="button" class="btn gold sm" data-a="bb-demo-toast">${icon("bell")}<span>✓ Автоуведомление WA</span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>`;
   }
 
   function landingKitSectionHTML(bb) {
@@ -848,7 +980,7 @@
     ];
     const demoPills = marqueePillsHTML({
       universe: [
-        { subject: "design", label: "UX/UI и Моушен", meta: "от 1 200 ₽" },
+        { subject: "design", label: "UX/UI и Figma", meta: "от 1 200 ₽" },
         { subject: "inf", label: "Python / КЕГЭ", meta: "от 1 300 ₽" },
         { subject: "bio", label: "Биология · 90+", meta: "от 1 000 ₽" }
       ],
@@ -1059,8 +1191,9 @@
       ["bb-cards-sys", "Тарифы и тосты"],
       ["bb-study-states", "Учёба и состояния"],
       ["bb-market-app", "/market и сайдбар"],
+      ["bb-cabinet", "Кабинет и баланс"],
       ["bb-sliders", "Ползунки"],
-      ["bb-motion", "Моушен и Z-index"],
+      ["bb-layers", "Слои Z-index и статус"],
       ["bb-bounds", "Границы 390 px"],
       ["bb-responsive", "Адаптив"],
       ["bb-landing-kit", "Витрина"],
@@ -1300,6 +1433,8 @@
 
       ${showSec("bb-market-app") ? marketAndAppSectionHTML(bb) : ""}
 
+      ${showSec("bb-cabinet") ? cabinetAndBalanceSectionHTML(bb) : ""}
+
       ${showSec("bb-sliders") ? `<section class="land-sec" id="bb-sliders">
         <div class="land-sec-head">
           <div>
@@ -1330,7 +1465,7 @@
         </div>
       </section>` : ""}
 
-      ${showSec("bb-motion") ? `<section class="land-sec" id="bb-motion">
+      ${showSec("bb-layers") ? `<section class="land-sec" id="bb-layers">
         <div class="land-sec-head">
           <div>
             <div class="eyebrow">Переходы · Z-index слои · Reduced Motion</div>
@@ -1343,7 +1478,7 @@
             <div class="row between"><b>01 · Сөп Саха → Зелёный CTA + Оранжевое уведомление</b><span class="bb-spec-pill notif">CTA + --notif</span></div>
             <p class="small muted">Нажатие переводит узорную кнопку Сөп (без обрезанных углов) в зелёный --confirm и сразу показывает оранжевое уведомление --notif (#F97316).</p>
             <div class="stack" style="gap:8px">
-              <button type="button" class="btn sakha-pattern${bb.sent ? " is-confirmed" : ""}" id="bb-motion-bid-btn" data-a="bb-bid">${sakhaBidInnerHTML(bb.sent, bb.price)}</button>
+              <button type="button" class="btn sakha-pattern${bb.sent ? " is-confirmed" : ""}" id="bb-layers-bid-btn" data-a="bb-bid">${sakhaBidInnerHTML(bb.sent, bb.price)}</button>
               <div class="hh-motion-status${bb.sent ? " sent" : ""}" data-bb="bid-status">
                 ${bb.sent
                   ? sentNoticeHTML({ slot: `${String(bb.hour || 14).padStart(2, "0")}:00`, offer: bb.price, badgeText: "Уведомим" })
@@ -1502,7 +1637,7 @@
                 <div class="card" style="padding:14px;display:grid;gap:10px;box-shadow:none">
                   <div class="tutor-head">
                     <div style="min-width:0">
-                      <b style="font-size:15px">Репетитор · UX/UI и Моушен</b>
+                      <b style="font-size:15px">Репетитор · UX/UI и Figma</b>
                       <div class="hh-price-row" style="margin-top:3px">${priceHeadlineHTML(market, bb.price, false)}</div>
                       <div class="hh-diff-strip" style="margin-top:5px">
                         ${priceDiffTagsHTML({ tutorPrice: tutorRate, marketPrice: market, offerPrice: bb.price, qualBadge: "К.т.н. · профи" })}
@@ -1624,7 +1759,7 @@
             <div class="card pad stack" style="gap:4px;box-shadow:none">
               <span class="bb-spec-pill confirm">Tablet 681–1080 px</span>
               <b>2-колоночный планшет</b>
-              <p class="small muted">Тарифы, анкеты, моушен и справочник перестраиваются в 2 равные колонки без пустых дыр.</p>
+              <p class="small muted">Тарифы, анкеты, карточки и справочник перестраиваются в 2 равные колонки без пустых дыр.</p>
             </div>
             <div class="card pad stack" style="gap:4px;box-shadow:none">
               <span class="bb-spec-pill pro">Desktop ≥ 1360 px</span>
