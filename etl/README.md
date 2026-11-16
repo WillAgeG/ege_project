@@ -25,3 +25,5 @@ python3 -m venv .venv-etl
 .venv-etl/bin/pip install -r etl/requirements-etl.txt pytest
 .venv-etl/bin/pytest -v tests/test_etl.py
 ```
+
+> Подробная архитектура OLAP, Polars M4 Pro, Airflow и 5 топиков Kafka: [`../docs/context/etl.md`](../docs/context/etl.md).

@@ -23,3 +23,5 @@
 # Из корня репозитория:
 .venv/bin/uvicorn backend.main:app --reload --port 8000
 ```
+
+> Доменный справочник Backend FastAPI (`backend/api/*`, `shell.py`, ENV, эндпоинты): [`../docs/context/backend.md`](../docs/context/backend.md) (роутер: [`../GEMINI.md`](../GEMINI.md)).

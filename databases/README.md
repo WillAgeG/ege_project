@@ -15,3 +15,4 @@
 1. Никаких прямых `sqlite3.connect(...)` внутри `backend/main.py` — HTTP-роуты вызывают методы класса `Database` из [`databases/sqlite/store.py`](sqlite/store.py).
 2. При переезде на PostgreSQL / ClickHouse / DuckDB достаточно реализовать совместимый интерфейс репозитория внутри `databases/` без переписывания эндпоинтов.
 3. Файлы баз данных (`.db`, `.duckdb`, `.wal`) не коммитятся в Git (добавлены в `.gitignore`).
+4. Подробная схема SQLite WAL + PostgreSQL 17 Dual-Write (`oltp.*`, `outbox.kafka_outbox`): [`../docs/context/databases.md`](../docs/context/databases.md).
