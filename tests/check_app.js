@@ -205,7 +205,7 @@
 
   async function main() {
     const scripts = parseHtmlScripts();
-    assert(scripts.length >= 30 && scripts[scripts.length - 1] === "app.js", "expected index.html scripts");
+    assert(scripts.length >= 30 && scripts.includes("core/api.js") && scripts.includes("views/admin.js") && scripts[scripts.length - 1] === "app.js", "expected index.html scripts including core/api.js and views/admin.js");
     const dataScripts = scripts.filter((s) => s !== "app.js");
 
     // 1. Проверка банка и режима локального браузера (включая чтение legacy-ключа)
@@ -696,7 +696,7 @@
     env4.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "student-lead" }, elements: { targetPrice: { value: "1150" }, whatsapp: { value: "79142100999" }, comment: { value: "Нужна химия и биология ЕГЭ на 85+" } } }) }, preventDefault() {} });
     await flushMicrotasks(3);
     const afterLeadHtml = env4.elements.get("main").innerHTML;
-    assert(afterLeadHtml.includes("Опубликовано для преподавателей") && afterLeadHtml.includes("Химия") && afterLeadHtml.includes("Биология"), "expected submitted multi-subject student lead to render in open requests");
+    assert(afterLeadHtml.includes("Опубликовано для преподавателей") && afterLeadHtml.includes('id="student-leads-table"') && afterLeadHtml.includes("bb-data-table") && afterLeadHtml.includes("data-label=") && afterLeadHtml.includes("Химия") && afterLeadHtml.includes("Биология"), "expected submitted multi-subject student lead to render in Brandbook #student-leads-table");
 
     // Пробный урок 0 ₽ блокируется при балансе < 5000 ₽ -> открытие модалки пополнения -> пополнение -> успешная запись за 0 ₽ -> появление преподавателя в «Учёбе»
     clickAction(env4, { a: "go", v: "market" });
@@ -715,6 +715,18 @@
     clickAction(env4, { a: "book-submit" });
     await flushMicrotasks(3);
     assert(hasNum(env4.elements.get("side-foot").innerHTML, "6 500") && hasNum(env4.elements.get("top-balance-slot").innerHTML, "6 500"), "expected free trial 0 ₽ booking not to deduct balance");
+    assert(env4.elements.get("main").innerHTML.includes('id="student-bookings-table"') && env4.elements.get("main").innerHTML.includes("bb-data-table") && env4.elements.get("main").innerHTML.includes("data-label="), "expected #student-bookings-table Brandbook table on /market after booking");
+    clickAction(env4, { a: "mkt-bk-cols", cols: "3" });
+    await flushMicrotasks(3);
+    assert(env4.elements.get("main").innerHTML.includes("bb-data-table cols-3"), "expected mkt-bk-cols=3 to re-render #student-bookings-table with 3 columns");
+    clickAction(env4, { a: "mkt-bk-cols", cols: "5" });
+    await flushMicrotasks(2);
+    env4.emitDoc("input", { target: { id: "mkt-bk-q", value: "НесуществующийЗапрос", dataset: { a: "mkt-bk-q" } } });
+    await flushMicrotasks(3);
+    assert(env4.elements.get("main").innerHTML.includes("По выбранному фильтру откликов нет."), "expected mkt-bk-q input to filter and re-render #student-bookings-table");
+    clickAction(env4, { a: "mkt-bk-filter", v: "all", clearQ: "1" });
+    await flushMicrotasks(2);
+    assert(env4.elements.get("main").innerHTML.includes("Соколова"), "expected mkt-bk-filter clearQ=1 to restore booking row");
     clickAction(env4, { a: "bal-open" });
     await flushMicrotasks(2);
     assert(env4.elements.get("modal-root").innerHTML.includes("от 100 ₽"), "expected subsequent top-ups from 100 ₽ once initial 5000 ₽ is paid");
@@ -725,10 +737,28 @@
     clickAction(env4, { a: "go", v: "study" });
     await flushMicrotasks(4);
     const studyBookedHtml = env4.elements.get("main").innerHTML;
-    assert(studyBookedHtml.includes("Календарь ваших уроков") && studyBookedHtml.includes("https://wa.me/") && studyBookedHtml.includes("Соколова"), "expected enrolled tutor schedule and WhatsApp link in study view after booking");
+    assert(studyBookedHtml.includes("Календарь ваших уроков") && studyBookedHtml.includes('id="study-schedule-table"') && studyBookedHtml.includes("bb-data-table") && studyBookedHtml.includes("data-label=") && studyBookedHtml.includes("https://wa.me/") && studyBookedHtml.includes("Соколова"), "expected enrolled tutor schedule in Brandbook #study-schedule-table and WhatsApp link in study view after booking");
+    clickAction(env4, { a: "study-sched-cols", cols: "7" });
+    await flushMicrotasks(3);
+    assert(env4.elements.get("main").innerHTML.includes("bb-data-table cols-7"), "expected study-sched-cols=7 to re-render #study-schedule-table with 7 columns");
+    env4.emitDoc("input", { target: { id: "study-sched-q", value: "НесуществующийСлот", dataset: { a: "study-sched-q" } } });
+    await flushMicrotasks(3);
+    assert(env4.elements.get("main").innerHTML.includes('data-label="Результат"'), "expected study-sched-q input to filter and re-render #study-schedule-table");
+    clickAction(env4, { a: "study-sched-filter", v: "all", clearQ: "1" });
+    clickAction(env4, { a: "study-sched-cols", cols: "5" });
+    await flushMicrotasks(2);
     clickAction(env4, { a: "study-tab", tab: "chats" });
     await flushMicrotasks(4);
-    assert(env4.elements.get("main").innerHTML.includes("hh-chat-list") && env4.elements.get("main").innerHTML.includes("https://wa.me/"), "expected WhatsApp chat list only for booked tutor in study chats tab");
+    assert(env4.elements.get("main").innerHTML.includes("hh-chat-list") && env4.elements.get("main").innerHTML.includes('id="study-chats-table"') && env4.elements.get("main").innerHTML.includes("bb-data-table") && env4.elements.get("main").innerHTML.includes("https://wa.me/"), "expected WhatsApp chat list in Brandbook #study-chats-table only for booked tutor in study chats tab");
+    clickAction(env4, { a: "study-chats-cols", cols: "3" });
+    await flushMicrotasks(3);
+    assert(env4.elements.get("main").innerHTML.includes("bb-data-table cols-3"), "expected study-chats-cols=3 to re-render #study-chats-table with 3 columns");
+    env4.emitDoc("input", { target: { id: "study-chats-q", value: "НетПреподавателя", dataset: { a: "study-chats-q" } } });
+    await flushMicrotasks(3);
+    assert(env4.elements.get("main").innerHTML.includes('data-label="Результат"'), "expected study-chats-q input to filter and re-render #study-chats-table");
+    clickAction(env4, { a: "study-chats-filter", v: "all", clearQ: "1" });
+    clickAction(env4, { a: "study-chats-cols", cols: "5" });
+    await flushMicrotasks(2);
 
     // Справочник без нейросети: мгновенный поиск по темам и сочинению
     clickAction(env4, { a: "go", v: "tutor" });
@@ -1112,7 +1142,10 @@
     assert(env5.elements.get("main").innerHTML.includes("bb-data-table cols-7") && env5.elements.get("main").innerHTML.includes("<th>На руки (95%)</th>"), "expected bb-tbl-cols=7 to render 7-column table");
     clickAction(env5, { a: "bb-tbl-filter", v: "chem" });
     await flushMicrotasks(2);
-    const bbTblChem = env5.elements.get("main").innerHTML;
+    const bbTblChemFull = env5.elements.get("main").innerHTML;
+    const bbTblChemStart = bbTblChemFull.indexOf('id="bb-data-viz"');
+    const bbTblChemEnd = bbTblChemFull.indexOf('id="bb-arch-split"');
+    const bbTblChem = bbTblChemStart >= 0 ? bbTblChemFull.slice(bbTblChemStart, bbTblChemEnd > bbTblChemStart ? bbTblChemEnd : undefined) : bbTblChemFull;
     assert(bbTblChem.includes("Дамир Осипов") && !bbTblChem.includes("Мария Фёдорова"), "expected bb-tbl-filter=chem to filter table rows");
     clickAction(env5, { a: "bb-tbl-filter", v: "all" });
     clickAction(env5, { a: "bb-tbl-cols", cols: "5" });
@@ -1261,9 +1294,9 @@
     const bbV2Html = env5.elements.get("main").innerHTML;
     const catTargetIds = globalThis.EGE.kit.CATALOG_ITEMS.map((it) => it.targetId);
     assert(
-      globalThis.EGE.kit.CATALOG_ITEMS.length === 25 &&
-      ["bb-market-app", "bb-cabinet", "bb-data-viz", "bb-mask-trainer", "bb-payments", "bb-ui-kit-shells", "bb-telemetry-etl", "bb-ege-timers", "bb-a11y", "bb-layers", "bb-bounds", "bb-dodont", "bb-compare"].every((id) => catTargetIds.includes(id)),
-      "expected 25 catalog items covering all brandbook sections including mask-trainer, payments, ui-kit-shells, telemetry-etl, ege-timers, a11y, /market, cabinet/balance, data-viz, layers, bounds, dodont, and compare"
+      globalThis.EGE.kit.CATALOG_ITEMS.length === 27 &&
+      ["bb-market-app", "bb-cabinet", "bb-data-viz", "bb-mask-trainer", "bb-payments", "bb-ui-kit-shells", "bb-telemetry-etl", "bb-admin-kit", "bb-arch-split", "bb-ege-timers", "bb-a11y", "bb-layers", "bb-bounds", "bb-dodont", "bb-compare"].every((id) => catTargetIds.includes(id)),
+      "expected 27 catalog items covering all brandbook sections including admin-kit, arch-split, mask-trainer, payments, ui-kit-shells, telemetry-etl, ege-timers, a11y, /market, cabinet/balance, data-viz, layers, bounds, dodont, and compare"
     );
     assert(
       !bbV2Html.includes("Unbounded") &&
@@ -1447,7 +1480,7 @@
     const tutorMain1 = env5.elements.get("main").innerHTML;
     const tutorSideHtml = env5.elements.get("side-nav").innerHTML;
     const tutorTabHtml = env5.elements.get("tabbar").innerHTML;
-    assert(tutorMain1.includes("Личный кабинет преподавателя") && tutorMain1.includes("tc-req-card") && tutorMain1.includes('id="tc-first-pending"') && tutorMain1.includes("На руки 95%") && tutorMain1.includes("Поднять анкету (раз в 4 ч)"), "expected full Teacher Personal Cabinet view with 4h bump CTA and #tc-first-pending");
+    assert(tutorMain1.includes("Личный кабинет преподавателя") && tutorMain1.includes('id="tc-requests-table"') && tutorMain1.includes("bb-data-table") && tutorMain1.includes('id="tc-first-pending"') && tutorMain1.includes("На руки 95%") && tutorMain1.includes("Поднять анкету (раз в 4 ч)"), "expected full Teacher Personal Cabinet view with Brandbook #tc-requests-table, 4h bump CTA and #tc-first-pending");
     assert(!tutorMain1.includes("tc-role-bar") && tutorMain1.includes("is-gold-logo") && !tutorMain1.includes('role="tablist"'), "expected tc-role-bar and desktop tablist removed, keeping only gold line with centered emblem");
     assert(
       env5.elements.get("top-balance-slot").hidden === false &&
@@ -1548,7 +1581,7 @@
     clickAction(env5, { a: "go", v: "tutor-leads" });
     await flushMicrotasks(2);
     const tcLeadsHtml = env5.elements.get("main").innerHTML;
-    assert(tcLeadsHtml.includes("Заявки учеников, которые ищут преподавателя") && !tcLeadsHtml.includes('data-a="tc-leads-subj"') && tcLeadsHtml.includes('data-a="tc-leads-mode"') && tcLeadsHtml.includes("Химия"), "expected clean student requests tab in Ученики ищут without duplicate subject chip bar");
+    assert(tcLeadsHtml.includes("Заявки учеников, которые ищут преподавателя") && tcLeadsHtml.includes('id="tc-leads-table"') && tcLeadsHtml.includes("bb-data-table") && !tcLeadsHtml.includes('data-a="tc-leads-subj"') && tcLeadsHtml.includes('data-a="tc-leads-mode"') && tcLeadsHtml.includes("Химия"), "expected clean student requests tab in Ученики ищут using Brandbook #tc-leads-table without duplicate subject chip bar");
     const mLeadOffer = /data-a="tc-lead-offer" data-id="([^"]+)"/.exec(tcLeadsHtml);
     assert(Boolean(mLeadOffer), "expected tc-lead-offer response CTA button on student lead card");
     clickAction(env5, { a: "tc-lead-offer", id: mLeadOffer[1] });
@@ -1561,6 +1594,8 @@
     const tcStudentsHtml = env5.elements.get("main").innerHTML;
     assert(
       tcStudentsHtml.includes("Мои ученики и автоуведомления") &&
+      tcStudentsHtml.includes('id="tc-students-table"') &&
+      tcStudentsHtml.includes("bb-data-table") &&
       tcStudentsHtml.includes("+7 (914) 210-05-11") &&
       tcStudentsHtml.includes("@alina_bio") &&
       tcStudentsHtml.includes('data-tc-student="telegram"') &&
@@ -1697,6 +1732,12 @@
     );
 
     // Переключение пресетов таблицы и подтверждение строки в /brandbook
+    clickAction(env5, { a: "bb-tbl-preset", preset: "students", v: "students" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("Трекер учеников · Табличный реестр"), "expected bb-tbl-preset=students to switch table preset to students");
+    clickAction(env5, { a: "bb-tbl-preset", preset: "admin", v: "admin" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("Реестр анкет, выплат НПД и событий аутбокса"), "expected bb-tbl-preset=admin to switch table preset to admin");
     clickAction(env5, { a: "bb-tbl-preset", preset: "payouts", v: "payouts" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes("88412-НПД") && env5.elements.get("main").innerHTML.includes("СБП · Т-Банк"), "expected bb-tbl-preset=payouts to switch table preset to payouts");
@@ -1708,6 +1749,19 @@
     clickAction(env5, { a: "bb-tbl-confirm", id: "tbl-4" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes('data-a="bb-tbl-confirm" data-id="tbl-4">Сбросить</button>'), "expected bb-tbl-confirm on tbl-4 to confirm row and flip button to Сбросить");
+
+    // Секции #bb-admin-kit и #bb-arch-split в /brandbook: вкладки админ-стенда и dual-role таблицы
+    assert(env5.elements.get("main").innerHTML.includes('id="bb-admin-kit"') && env5.elements.get("main").innerHTML.includes('id="bb-arch-split"'), "expected #bb-admin-kit and #bb-arch-split in /brandbook");
+    clickAction(env5, { a: "bb-admin-tab", v: "payouts" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes('data-a="bb-admin-tab" data-v="payouts" aria-pressed="true"'), "expected bb-admin-tab=payouts to activate payouts tab in #bb-admin-kit");
+    clickAction(env5, { a: "bb-admin-tab", v: "moderation" });
+    await flushMicrotasks(1);
+    clickAction(env5, { a: "bb-dual-role", v: "tutor" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("Перспектива преподавателя · Мои ученики"), "expected bb-dual-role=tutor to switch #bb-arch-split perspective to tutor");
+    clickAction(env5, { a: "bb-dual-role", v: "student" });
+    await flushMicrotasks(1);
 
     // Живой тренажёр масок контактов (#bb-mask-trainer)
     clickAction(env5, { a: "bb-mask-sample", phone: "89245553311", tg: "@sakha_tutor", max: "sakha_max" });
@@ -1965,6 +2019,124 @@
 
     clickAction(env5, { a: "role-set", role: "student" });
     await flushMicrotasks(3);
+
+    // 9. Проверка EGE.api, изоляции ux-ui/* (Zero API / Zero Business Data) и Админ-панели (/admin)
+    assert(
+      globalThis.EGE && globalThis.EGE.api &&
+      typeof globalThis.EGE.api.request === "function" &&
+      typeof globalThis.EGE.api.configure === "function" &&
+      typeof globalThis.EGE.api.getBaseUrl === "function" &&
+      typeof globalThis.EGE.api.health === "function" &&
+      typeof globalThis.EGE.api.storageHealth === "function" &&
+      globalThis.EGE.api.auth && typeof globalThis.EGE.api.auth.login === "function" &&
+      globalThis.EGE.api.docs && typeof globalThis.EGE.api.docs.list === "function" &&
+      globalThis.EGE.api.calendar && typeof globalThis.EGE.api.calendar.state === "function" &&
+      globalThis.EGE.api.realtime && typeof globalThis.EGE.api.realtime.recent === "function" &&
+      globalThis.EGE.api.admin && typeof globalThis.EGE.api.admin.overview === "function" &&
+      typeof globalThis.EGE.api.admin.setUserRole === "function" &&
+      typeof globalThis.EGE.api.admin.moderateTutor === "function" &&
+      typeof globalThis.EGE.api.admin.setRequestStatus === "function" &&
+      typeof globalThis.EGE.api.admin.setPayoutStatus === "function",
+      "expected centralized window.EGE.api module with all resource groups"
+    );
+
+    const uiKitFiles = [
+      "ux-ui/components/icons.js",
+      "ux-ui/components/hh-components.js",
+      "ux-ui/components/charts.js",
+      "ux-ui/components/kit.js",
+      "ux-ui/brandbook/brandbook.js"
+    ];
+    for (const uif of uiKitFiles) {
+      const txt = readFileText(uif);
+      assert(
+        !/\bfetch\s*\(/.test(txt) &&
+        !txt.includes("EventSource") &&
+        !txt.includes("WebSocket") &&
+        !txt.includes("EGE.api") &&
+        !txt.includes("EGE.tutors"),
+        `expected zero API/network/business-data dependencies inside ${uif}`
+      );
+    }
+
+    // Вход в Админ-панель (/admin) через role-set
+    clickAction(env5, { a: "role-set", role: "admin" });
+    await flushMicrotasks(4);
+    const admSideNav = env5.elements.get("side-nav").innerHTML;
+    const admTabBar = env5.elements.get("tabbar").innerHTML;
+    const admOverviewHtml = env5.elements.get("main").innerHTML;
+    assert(
+      env5.elements.get("side-subjects-wrap").hidden === true &&
+      env5.elements.get("tutor-balance-dock").hidden === true &&
+      env5.elements.get("top-balance-slot").hidden === false &&
+      env5.elements.get("top-balance-slot").innerHTML.includes("Админ · Dual PG17") &&
+      env5.elements.get("side-foot").innerHTML.includes("side-admin-pill is-on"),
+      "expected admin chrome: hidden student subjects & tutor dock, concise Админ · Dual PG17 top badge, active side-admin-pill"
+    );
+    for (const label of ["Обзор", "Заявки и ученики", "Репетиторы", "Выплаты НПД", "Система и API"]) {
+      assert(admSideNav.includes(label), `expected admin sidebar item: ${label}`);
+    }
+    for (const mLabel of ["Обзор", "Заявки", "Репетиторы", "Выплаты", "API"]) {
+      assert(admTabBar.includes(mLabel), `expected admin mobile tabbar item: ${mLabel}`);
+    }
+    assert(
+      admOverviewHtml.includes("adm-kpi-grid") &&
+      admOverviewHtml.includes('id="adm-overview-users"') &&
+      admOverviewHtml.includes("GMV ₽") &&
+      admOverviewHtml.includes("Выплаты 95% ₽") &&
+      admOverviewHtml.includes("Сбор 5% ₽"),
+      "expected admin overview tab with KPI grid, charts and users table"
+    );
+    clickAction(env5, { a: "adm-user-role", id: "3", role: "tutor" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("toast").innerHTML.includes("Роль обновлена"), "expected adm-user-role to update user role and notify");
+
+    // Вкладка Заявки и ученики
+    clickAction(env5, { a: "go", v: "admin-requests" });
+    await flushMicrotasks(3);
+    const admReqsHtml = env5.elements.get("main").innerHTML;
+    assert(admReqsHtml.includes('id="adm-requests-table"') && admReqsHtml.includes("bb-data-table"), "expected adm-requests-table in admin requests tab");
+    clickAction(env5, { a: "adm-req-status", id: "req-1002", status: "accepted" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("toast").innerHTML.includes("Статус заявки обновлён"), "expected adm-req-status to update request status");
+
+    // Вкладка Репетиторы
+    clickAction(env5, { a: "go", v: "admin-tutors" });
+    await flushMicrotasks(3);
+    const admTutorsHtml = env5.elements.get("main").innerHTML;
+    assert(admTutorsHtml.includes('id="adm-tutors-table"') && admTutorsHtml.includes("adm-mod-badge"), "expected adm-tutors-table with adminModerationBadgeHTML");
+    const mTutorVerify = /data-a="adm-verify-tutor" data-id="([^"]+)"/.exec(admTutorsHtml);
+    assert(Boolean(mTutorVerify), "expected adm-verify-tutor button in tutors table");
+    clickAction(env5, { a: "adm-verify-tutor", id: mTutorVerify[1] });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("toast").innerHTML.includes("верифи") || env5.elements.get("toast").innerHTML.includes("Верификация"), "expected adm-verify-tutor to toggle verification state");
+
+    // Вкладка Выплаты
+    clickAction(env5, { a: "go", v: "admin-payouts" });
+    await flushMicrotasks(3);
+    const admPayoutsHtml = env5.elements.get("main").innerHTML;
+    assert(admPayoutsHtml.includes('id="adm-payouts-table"') && admPayoutsHtml.includes("88412-НПД"), "expected adm-payouts-table with NPD payout rows");
+    clickAction(env5, { a: "adm-payout-approve", id: "pay-3002" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("toast").innerHTML.includes("Выплата проведена"), "expected adm-payout-approve to mark payout succeeded");
+
+    // Вкладка Система и API
+    clickAction(env5, { a: "go", v: "admin-system" });
+    await flushMicrotasks(3);
+    const admSysHtml = env5.elements.get("main").innerHTML;
+    assert(
+      admSysHtml.includes("arch-boundary-card") &&
+      admSysHtml.includes("vektor-ui-kit") &&
+      admSysHtml.includes("vektor-api") &&
+      admSysHtml.includes("vektor-grafana") &&
+      admSysHtml.includes("bb-log-feed"),
+      "expected admin system tab to render 7 serviceBoundaryCardHTML layers and outbox eventLogFeedHTML"
+    );
+
+    // Возврат обратно к роли Ученик
+    clickAction(env5, { a: "role-set", role: "student" });
+    await flushMicrotasks(3);
+    assert(env5.elements.get("main").innerHTML.includes("Тесты ЕГЭ") && env5.elements.get("side-subjects-wrap").hidden === false, "expected role-set back to student from admin to restore Тесты ЕГЭ and student sidebar");
 
     out("APP_SMOKE_TESTS_OK");
   }

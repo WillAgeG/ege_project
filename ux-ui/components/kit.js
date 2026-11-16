@@ -61,7 +61,9 @@
     { id: "responsive", targetId: "bb-responsive", cat: "layout", title: "Стенд адаптивности (320 px — 1340 px)", api: "applyBrandbookViewport(width)", css: "@container (max-width: 880px) / @container (max-width: 640px)", desc: "Живой ползунок ширины экрана от Mini SE 320 px до Desktop." },
     { id: "kit", targetId: "bb-landing-kit", cat: "sections", title: "Блоки витрины (Лента, Золотая ставка, Ставки, Отзывы)", api: "EGE.kit.rateBenchCardHTML / reviewCardHTML / .savings-bar-fill.gold-fill", css: ".marquee-pill .savings-gold-txt .rate-bench-card .review-card", desc: "Общие компоненты EGE.kit и золотой акцент «Вектор ЕГЭ · твоя ставка»." },
     { id: "dodont", targetId: "bb-dodont", cat: "sections", title: "Do / Don't и Tone of Voice (формат текстов)", api: "tokens.json -> editorial", css: ".bb-do-card .bb-dont-card", desc: "Оранжевые уведомления, правило 5% (/fees и кабинет), формат ₽/ч и якутская орфография." },
-    { id: "compare", targetId: "bb-compare", cat: "brand", title: "Сквозная проверка Light vs Dark OLED", api: "EGE.views.brandbook.brandbookPaneHTML()", css: ".bb-pane.is-light .bb-pane.is-dark", desc: "Одновременное сравнение свотчей, слайдера, степпера и карточки в двух темах." }
+    { id: "compare", targetId: "bb-compare", cat: "brand", title: "Сквозная проверка Light vs Dark OLED", api: "EGE.views.brandbook.brandbookPaneHTML()", css: ".bb-pane.is-light .bb-pane.is-dark", desc: "Одновременное сравнение свотчей, слайдера, степпера и карточки в двух темах." },
+    { id: "admin-kit", section: "Паттерны", category: "cabinet", num: "26", targetId: "bb-admin-kit", cat: "app", title: "Админ-панель и модерация (Admin UI Kit)", api: "EGE.kit.{adminKpiGridHTML, adminModerationBadgeHTML, roleSwitchBannerHTML}()", css: ".adm-kpi-grid .adm-kpi-card .adm-mod-badge .role-switch-banner", desc: "KPI-карточки, бейджи верификации, роль Администратор и адаптивные таблицы управления", tag: "Admin" },
+    { id: "arch-split", section: "Данные и наблюдаемость", category: "telemetry", num: "27", targetId: "bb-arch-split", cat: "app", title: "Разделение UI Kit и API + Таблицы обеих ролей", api: "EGE.kit.serviceBoundaryCardHTML() / EGE.charts.dataTableHTML()", css: ".arch-boundary-card .arch-endpoints .role-switch-banner", desc: "Чистая граница stateless UI-Kit, EGE\u002eapi клиент и табличные заявки ученика/преподавателя", tag: "Architecture" }
   ];
 
   function heroBannerHTML(opts) {
@@ -728,6 +730,109 @@
     </div>`;
   }
 
+  function adminKpiGridHTML(items) {
+    const list = Array.isArray(items) ? items : [];
+    return `<div class="adm-kpi-grid">${list.map((it) => {
+      it = it || {};
+      const tone = String(it.tone || "accent").trim().toLowerCase().replace(/[^a-z0-9-]+/g, "-") || "accent";
+      const actAttr = it.actAttr || "data-a";
+      const hasAction = !!it.action;
+      const actStr = hasAction
+        ? ` ${actAttr}="${esc(it.action)}"${it.actionVal !== undefined ? ` data-v="${esc(it.actionVal)}"` : ""} role="button" tabindex="0"`
+        : "";
+      return `<article class="adm-kpi-card is-${esc(tone)}${hasAction ? " is-clickable" : ""}"${actStr}>
+        <div class="adm-kpi-top">
+          <span class="adm-kpi-lbl">${esc(it.label || "")}</span>
+          ${it.delta ? `<span class="adm-kpi-delta num">${esc(it.delta)}</span>` : ""}
+        </div>
+        <b class="adm-kpi-val num">${esc(it.value != null ? String(it.value) : "0")}</b>
+        ${it.note ? `<span class="adm-kpi-note">${esc(it.note)}</span>` : ""}
+      </article>`;
+    }).join("")}</div>`;
+  }
+
+  const ADMIN_MOD_LABELS = {
+    verified: "Проверен ✓",
+    pending: "На проверке",
+    flagged: "Требует внимания",
+    paid: "Выплачено ✓",
+    frozen: "В резерве",
+    published: "Отправлено в Kafka",
+    declined: "Отклонено"
+  };
+
+  function adminModerationBadgeHTML(status, labelOverride) {
+    const raw = String(status || "pending").trim().toLowerCase();
+    const st = ADMIN_MOD_LABELS[raw] ? raw : "pending";
+    const label = labelOverride != null && labelOverride !== "" ? String(labelOverride) : ADMIN_MOD_LABELS[st];
+    return `<span class="adm-mod-badge is-${esc(st)}">${esc(label)}</span>`;
+  }
+
+  const ARCH_LAYER_LABELS = {
+    "ui-kit": "UI-Kit",
+    "headless-api": "Headless API",
+    "spa-shell": "SPA Shell",
+    postgresql: "PostgreSQL",
+    polars: "Polars",
+    airflow: "Airflow",
+    grafana: "Grafana"
+  };
+
+  function serviceBoundaryCardHTML(opts) {
+    opts = opts || {};
+    const rawLayer = String(opts.layer || "ui-kit").trim();
+    const layerSlug = rawLayer.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "") || "ui-kit";
+    const layerLabel = opts.layerLabel || ARCH_LAYER_LABELS[layerSlug] || rawLayer;
+    const endpoints = Array.isArray(opts.endpoints) ? opts.endpoints : [];
+    const statusRaw = String(opts.status || "live").trim();
+    const statusOk = /^(live|ok|healthy|active|stateless|200)/i.test(statusRaw);
+    return `<article class="arch-boundary-card is-${esc(layerSlug)}">
+      <div class="arch-boundary-head">
+        <div class="stack" style="gap:3px;min-width:0">
+          <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center">
+            <b>${esc(opts.name || layerLabel)}</b>
+            <span class="chip">${esc(layerLabel)}</span>
+            ${opts.port ? `<span class="bb-spec-pill num">:${esc(opts.port)}</span>` : ""}
+          </div>
+          ${opts.repo ? `<code class="arch-boundary-repo">${esc(opts.repo)}</code>` : ""}
+        </div>
+        <span class="bb-tbl-st ${statusOk ? "is-confirmed" : "is-info"}">${esc(statusRaw)}</span>
+      </div>
+      ${opts.summary ? `<p class="small muted" style="margin:0;line-height:1.45">${esc(opts.summary)}</p>` : ""}
+      ${endpoints.length ? `<ul class="arch-endpoints">${endpoints.map((ep) => `<li><code>${esc(ep)}</code></li>`).join("")}</ul>` : ""}
+      ${opts.note ? `<span class="small muted">${esc(opts.note)}</span>` : ""}
+    </article>`;
+  }
+
+  function roleSwitchBannerHTML(opts) {
+    opts = opts || {};
+    const activeRole = ["student", "tutor", "admin"].includes(opts.activeRole) ? opts.activeRole : "student";
+    const action = opts.action || "bb-role-switch";
+    const actAttr = opts.actAttr || "data-a";
+    const counts = opts.counts && typeof opts.counts === "object" ? opts.counts : {};
+    const roles = [
+      { id: "student", label: "Ученик", hint: "Поиск, тесты и заявки" },
+      { id: "tutor", label: "Преподаватель", hint: "Кабинет, слоты 10–20 ч" },
+      { id: "admin", label: "Админ", hint: "Модерация, НПД и Outbox" }
+    ];
+    return `<div class="role-switch-banner" role="group" aria-label="Переключение роли">
+      <div class="role-switch-meta">
+        <span class="eyebrow">Ролевой контур платформы</span>
+        <span class="small muted">${esc((roles.find((r) => r.id === activeRole) || roles[0]).hint)}</span>
+      </div>
+      <div class="role-switch-pills">
+        ${roles.map((r) => {
+          const isAct = activeRole === r.id;
+          const cnt = counts[r.id];
+          return `<button type="button" class="role-switch-pill${isAct ? " is-active" : ""}" ${actAttr}="${esc(action)}" data-role="${r.id}" data-v="${r.id}" aria-pressed="${isAct}">
+            <span>${esc(r.label)}</span>
+            ${cnt != null ? `<span class="badge${isAct ? " accent" : ""} num">${esc(cnt)}</span>` : ""}
+          </button>`;
+        }).join("")}
+      </div>
+    </div>`;
+  }
+
   EGE.kit = {
     CATALOG_CATEGORIES,
     CATALOG_ITEMS,
@@ -744,6 +849,10 @@
     eventLogFeedHTML,
     realtimeStatusPillHTML,
     calendarSyncCardHTML,
+    adminKpiGridHTML,
+    adminModerationBadgeHTML,
+    serviceBoundaryCardHTML,
+    roleSwitchBannerHTML,
     sakhaButtonsHTML,
     marqueePillsHTML,
     rateBenchCardHTML,

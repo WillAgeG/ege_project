@@ -11,9 +11,10 @@
   }
 
   function feeSplitHTML(price, TDATA) {
-    const td = TDATA || EGE.tutors;
-    if (!td || typeof td.commissionSplit !== "function") return "";
-    const sp = td.commissionSplit(price);
+    const total = Math.max(0, Math.round(Number(price) || 0));
+    const sp = (TDATA && typeof TDATA.commissionSplit === "function")
+      ? TDATA.commissionSplit(total)
+      : { total, payout: Math.round(total * 0.95), fee: total - Math.round(total * 0.95), pct: 5 };
     return `<div class="fee-pill"><span>Ученик платит</span><b class="num">${sp.total.toLocaleString("ru-RU")} ₽/ч</b></div>
       <div class="fee-pill"><span>Преподавателю (95%)</span><b class="num">${sp.payout.toLocaleString("ru-RU")} ₽</b></div>
       <div class="fee-pill"><span>Комиссия сервиса (${sp.pct}%)</span><b class="num">${sp.fee.toLocaleString("ru-RU")} ₽</b></div>`;

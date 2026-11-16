@@ -153,6 +153,7 @@ class User:
     email: str | None = None
     avatar_url: str | None = None
     auth_provider: str = "local"
+    role: str = "student"
 
 
 def _row_to_user(row: sqlite3.Row) -> User:
@@ -164,6 +165,7 @@ def _row_to_user(row: sqlite3.Row) -> User:
         email=row["email"] if "email" in keys else None,
         avatar_url=row["avatar_url"] if "avatar_url" in keys else None,
         auth_provider=str(row["auth_provider"] or "local") if "auth_provider" in keys else "local",
+        role=str(row["role"] or "student") if "role" in keys else "student",
     )
 
 
@@ -195,6 +197,7 @@ class Database:
                     email_lower TEXT,
                     avatar_url TEXT,
                     auth_provider TEXT NOT NULL DEFAULT 'local',
+                    role TEXT NOT NULL DEFAULT 'student',
                     created_at INTEGER NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS user_identities (
@@ -274,6 +277,72 @@ class Database:
                 );
                 CREATE INDEX IF NOT EXISTS idx_realtime_notifications_channel_id
                     ON realtime_notifications(channel, id DESC);
+                CREATE TABLE IF NOT EXISTS admin_tutors (
+                    id TEXT PRIMARY KEY,
+                    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    full_name TEXT NOT NULL,
+                    subject TEXT NOT NULL,
+                    city TEXT NOT NULL,
+                    timezone TEXT NOT NULL,
+                    base_rate_rub INTEGER NOT NULL,
+                    market_rate_rub INTEGER NOT NULL,
+                    source_channel TEXT NOT NULL,
+                    tariff_id TEXT NOT NULL,
+                    whatsapp_phone TEXT NOT NULL DEFAULT '',
+                    telegram_handle TEXT NOT NULL DEFAULT '',
+                    max_handle TEXT NOT NULL DEFAULT '',
+                    has_photo INTEGER NOT NULL DEFAULT 1,
+                    verified INTEGER NOT NULL DEFAULT 1,
+                    bumped_today INTEGER NOT NULL DEFAULT 0,
+                    rating REAL NOT NULL DEFAULT 4.9,
+                    reviews_count INTEGER NOT NULL DEFAULT 0,
+                    last_bumped_at TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS admin_lesson_requests (
+                    id TEXT PRIMARY KEY,
+                    tutor_id TEXT NOT NULL,
+                    tutor_name TEXT NOT NULL DEFAULT '',
+                    student_user_id INTEGER,
+                    student_name TEXT NOT NULL,
+                    subject TEXT NOT NULL,
+                    city TEXT NOT NULL,
+                    timezone TEXT NOT NULL,
+                    slot_date TEXT NOT NULL,
+                    hour_slot TEXT NOT NULL,
+                    tariff_id TEXT NOT NULL,
+                    offer_price_rub INTEGER NOT NULL,
+                    counter_price_rub INTEGER,
+                    final_price_rub INTEGER,
+                    status TEXT NOT NULL,
+                    escrow_status TEXT NOT NULL DEFAULT 'none',
+                    messenger_channel TEXT NOT NULL DEFAULT 'whatsapp',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS admin_payout_requests (
+                    id TEXT PRIMARY KEY,
+                    tutor_id TEXT NOT NULL,
+                    tutor_name TEXT NOT NULL DEFAULT '',
+                    method TEXT NOT NULL,
+                    amount_rub INTEGER NOT NULL,
+                    npd_receipt TEXT,
+                    bank TEXT NOT NULL DEFAULT '',
+                    destination_masked TEXT NOT NULL DEFAULT '',
+                    status TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    paid_at TEXT
+                );
+                CREATE TABLE IF NOT EXISTS admin_outbox_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    topic TEXT NOT NULL,
+                    partition_key TEXT NOT NULL,
+                    event_type TEXT NOT NULL,
+                    payload TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    published_at TEXT
+                );
                 """
             )
             existing_cols = {
@@ -285,6 +354,7 @@ class Database:
                 ("email_lower", "TEXT"),
                 ("avatar_url", "TEXT"),
                 ("auth_provider", "TEXT NOT NULL DEFAULT 'local'"),
+                ("role", "TEXT NOT NULL DEFAULT 'student'"),
             )
             for col_name, col_def in migrations:
                 if col_name not in existing_cols:
@@ -304,6 +374,7 @@ class Database:
             )
             self._conn.execute("DELETE FROM sessions WHERE expires_at <= ?", (now,))
             self._conn.execute("DELETE FROM oauth_states WHERE expires_at <= ?", (now,))
+            self._seed_admin_tables()
             self._conn.commit()
 
     def close(self) -> None:
@@ -383,7 +454,7 @@ class Database:
         with self._lock:
             row = self._conn.execute(
                 """
-                SELECT id, username, password_hash, display_name, email, avatar_url, auth_provider
+                SELECT id, username, password_hash, display_name, email, avatar_url, auth_provider, role
                 FROM users
                 WHERE username_lower = ? OR (email_lower IS NOT NULL AND email_lower = ?)
                 """,
@@ -468,7 +539,7 @@ class Database:
         with self._lock:
             id_row = self._conn.execute(
                 """
-                SELECT u.id, u.username, u.display_name, u.email, u.avatar_url, u.auth_provider
+                SELECT u.id, u.username, u.display_name, u.email, u.avatar_url, u.auth_provider, u.role
                 FROM user_identities ui
                 JOIN users u ON u.id = ui.user_id
                 WHERE ui.provider = ? AND ui.provider_subject = ?
@@ -487,14 +558,14 @@ class Database:
                 )
                 self._conn.commit()
                 refreshed = self._conn.execute(
-                    "SELECT id, username, display_name, email, avatar_url, auth_provider FROM users WHERE id = ?",
+                    "SELECT id, username, display_name, email, avatar_url, auth_provider, role FROM users WHERE id = ?",
                     (uid,),
                 ).fetchone()
                 return _row_to_user(refreshed)
 
             if email_lower and email_verified:
                 email_row = self._conn.execute(
-                    "SELECT id, username, display_name, email, avatar_url, auth_provider FROM users WHERE email_lower = ?",
+                    "SELECT id, username, display_name, email, avatar_url, auth_provider, role FROM users WHERE email_lower = ?",
                     (email_lower,),
                 ).fetchone()
                 if email_row:
@@ -511,7 +582,7 @@ class Database:
                     )
                     self._conn.commit()
                     refreshed = self._conn.execute(
-                        "SELECT id, username, display_name, email, avatar_url, auth_provider FROM users WHERE id = ?",
+                        "SELECT id, username, display_name, email, avatar_url, auth_provider, role FROM users WHERE id = ?",
                         (uid,),
                     ).fetchone()
                     return _row_to_user(refreshed)
@@ -572,7 +643,7 @@ class Database:
         with self._lock:
             row = self._conn.execute(
                 """
-                SELECT u.id, u.username, u.display_name, u.email, u.avatar_url, u.auth_provider, s.expires_at
+                SELECT u.id, u.username, u.display_name, u.email, u.avatar_url, u.auth_provider, u.role, s.expires_at
                 FROM sessions s
                 JOIN users u ON u.id = s.user_id
                 WHERE s.token_hash = ?
@@ -1028,3 +1099,519 @@ class Database:
                 (*params, lim),
             ).fetchall()
             return [self._realtime_row_to_dict(r) for r in reversed(rows)]
+
+    def _seed_admin_tables(self) -> None:
+        now_iso = _iso_utc_now()
+        tutors_count = int(self._conn.execute("SELECT COUNT(*) FROM admin_tutors").fetchone()[0])
+        if tutors_count == 0:
+            seed_tutors = (
+                ("tut-ykt-bio-1", None, "Саргылана Петрова", "Биология", "Якутск", "UTC+9", 1100, 1400, "doska_ykt", "trial5k", "+79142701122", "@sargylana_bio", "+79142701122", 1, 1, 1, 4.95, 42, now_iso, now_iso, now_iso),
+                ("tut-ykt-bio-2", None, "Ньургун Иванов", "Биология", "Якутск", "UTC+9", 1000, 1400, "whatsapp", "free", "+79241653344", "@nyurgun_ege", "+79241653344", 0, 0, 0, 4.88, 19, now_iso, now_iso, now_iso),
+                ("tut-msk-chem-1", None, "Дмитрий Волков", "Химия", "Москва", "UTC+3", 1300, 1600, "telegram", "month10k", "+79165558899", "@dmitry_chem34", "@dmitry_chem34", 1, 1, 1, 4.97, 56, now_iso, now_iso, now_iso),
+                ("tut-ykt-chem-2", None, "Алина Соколова", "Химия", "Якутск", "UTC+9", 1100, 1450, "max", "trial5k", "+79148881234", "@alina_chem_ykt", "+79148881234", 1, 1, 0, 4.91, 28, now_iso, now_iso, now_iso),
+                ("tut-msk-rus-1", None, "Елена Морозова", "Русский язык", "Москва", "UTC+3", 1200, 1500, "platform", "month10k", "+79037774567", "@elena_rus_k1", "@elena_rus_k1", 1, 1, 1, 4.98, 63, now_iso, now_iso, now_iso),
+                ("tut-ykt-rus-2", None, "Артём Васильев", "Русский язык", "Якутск", "UTC+9", 900, 1250, "doska_ykt", "free", "+79142229090", "@artem_rus_ykt", "+79142229090", 0, 0, 0, 4.84, 15, now_iso, now_iso, now_iso),
+            )
+            self._conn.executemany(
+                """
+                INSERT INTO admin_tutors (
+                    id, user_id, full_name, subject, city, timezone, base_rate_rub, market_rate_rub,
+                    source_channel, tariff_id, whatsapp_phone, telegram_handle, max_handle,
+                    has_photo, verified, bumped_today, rating, reviews_count,
+                    last_bumped_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                seed_tutors,
+            )
+
+        req_count = int(self._conn.execute("SELECT COUNT(*) FROM admin_lesson_requests").fetchone()[0])
+        if req_count == 0:
+            seed_reqs = (
+                ("req-1001", "tut-ykt-bio-1", "Саргылана Петрова", None, "Айана Николаева", "Биология", "Якутск", "UTC+9", "2026-11-12", "16:00", "trial5k", 1000, 1100, 1100, "accepted", "captured", "whatsapp", now_iso, now_iso),
+                ("req-1002", "tut-ykt-bio-1", "Саргылана Петрова", None, "Айана Николаева", "Биология", "Якутск", "UTC+9", "2026-11-16", "18:00", "trial5k", 1100, None, 1100, "accepted", "frozen", "whatsapp", now_iso, now_iso),
+                ("req-1003", "tut-msk-chem-1", "Дмитрий Волков", None, "Тимур Громов", "Химия", "Москва", "UTC+3", "2026-11-13", "14:00", "month10k", 1200, 1300, 1300, "accepted", "captured", "telegram", now_iso, now_iso),
+                ("req-1006", "tut-ykt-rus-2", "Артём Васильев", None, "Айана Николаева", "Русский язык", "Якутск", "UTC+9", "2026-11-17", "10:00", "free", 900, 1000, None, "pending", "none", "whatsapp", now_iso, now_iso),
+                ("req-1007", "tut-ykt-bio-2", "Ньургун Иванов", None, "Тимур Громов", "Биология", "Якутск", "UTC+9", "2026-11-11", "16:00", "free", 1000, None, 1000, "refunded", "refunded", "whatsapp", now_iso, now_iso),
+                ("req-1010", "tut-ykt-chem-2", "Алина Соколова", None, "Тимур Громов", "Химия", "Якутск", "UTC+9", "2026-11-16", "14:00", "month10k", 1100, None, None, "pending", "none", "max", now_iso, now_iso),
+            )
+            self._conn.executemany(
+                """
+                INSERT INTO admin_lesson_requests (
+                    id, tutor_id, tutor_name, student_user_id, student_name, subject, city, timezone,
+                    slot_date, hour_slot, tariff_id, offer_price_rub, counter_price_rub, final_price_rub,
+                    status, escrow_status, messenger_channel, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                seed_reqs,
+            )
+
+        payout_count = int(self._conn.execute("SELECT COUNT(*) FROM admin_payout_requests").fetchone()[0])
+        if payout_count == 0:
+            seed_payouts = (
+                ("pay-3001", "tut-ykt-bio-1", "Саргылана Петрова", "sbp", 4200, "NPD-2026-YKT-88412", "АЭБ (Якутия)", "+7 (914) ***-11-22", "succeeded", now_iso, now_iso),
+                ("pay-3002", "tut-msk-chem-1", "Дмитрий Волков", "card", 6500, "NPD-2026-MSK-55109", "Т-Банк (Мир)", "2200 70** **** 8899", "succeeded", now_iso, now_iso),
+                ("pay-3003", "tut-ykt-chem-2", "Алина Соколова", "sbp", 1900, "NPD-2026-YKT-91003", "Сбербанк", "+7 (914) ***-12-34", "processing", now_iso, None),
+                ("pay-3004", "tut-msk-rus-1", "Елена Морозова", "card", 3800, None, "Альфа-Банк (Мир)", "2200 15** **** 4567", "processing", now_iso, None),
+            )
+            self._conn.executemany(
+                """
+                INSERT INTO admin_payout_requests (
+                    id, tutor_id, tutor_name, method, amount_rub, npd_receipt,
+                    bank, destination_masked, status, created_at, paid_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                seed_payouts,
+            )
+
+        outbox_count = int(self._conn.execute("SELECT COUNT(*) FROM admin_outbox_events").fetchone()[0])
+        if outbox_count == 0:
+            seed_outbox = (
+                (
+                    "vektor.market.bids.v1",
+                    "req-1001",
+                    "market.bid.accepted",
+                    json.dumps(
+                        {
+                            "event_type": "market.bid.accepted",
+                            "schema_version": "1.0.0",
+                            "role": "tutor",
+                            "view": "cabinet",
+                            "payload": {"requestId": "req-1001", "finalPriceRub": 1100},
+                        },
+                        ensure_ascii=False,
+                    ),
+                    now_iso,
+                    now_iso,
+                ),
+                (
+                    "vektor.payments.ledger.v1",
+                    "pay-3001",
+                    "payments.payout.succeeded",
+                    json.dumps(
+                        {
+                            "event_type": "payments.payout.succeeded",
+                            "schema_version": "1.0.0",
+                            "role": "tutor",
+                            "view": "fees",
+                            "payload": {"payoutId": "pay-3001", "amountRub": 4200, "npd": "NPD-2026-YKT-88412"},
+                        },
+                        ensure_ascii=False,
+                    ),
+                    now_iso,
+                    now_iso,
+                ),
+            )
+            self._conn.executemany(
+                """
+                INSERT INTO admin_outbox_events (
+                    topic, partition_key, event_type, payload, created_at, published_at
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                seed_outbox,
+            )
+
+    def _record_admin_outbox(self, topic: str, partition_key: str, event_type: str, payload: dict[str, Any]) -> None:
+        now_iso = _iso_utc_now()
+        envelope = {
+            "event_id": secrets.token_hex(12),
+            "event_type": event_type,
+            "occurred_at": now_iso,
+            "user_id": payload.get("userId"),
+            "session_id": None,
+            "role": "admin",
+            "view": "admin",
+            "payload": payload,
+            "schema_version": "1.0.0",
+        }
+        self._conn.execute(
+            """
+            INSERT INTO admin_outbox_events (topic, partition_key, event_type, payload, created_at, published_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (topic, partition_key, event_type, json.dumps(envelope, ensure_ascii=False), now_iso, now_iso),
+        )
+
+    @staticmethod
+    def _admin_user_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
+        created_val = row["created_at"]
+        if isinstance(created_val, (int, float)):
+            created_iso = datetime.fromtimestamp(int(created_val), tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        else:
+            created_iso = str(created_val or "")
+        return {
+            "id": int(row["id"]),
+            "username": str(row["username"]),
+            "displayName": str(row["display_name"] or row["username"]),
+            "email": row["email"],
+            "authProvider": str(row["auth_provider"] or "local"),
+            "role": str(row["role"] or "student"),
+            "createdAt": created_iso,
+        }
+
+    @staticmethod
+    def _admin_tutor_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
+        return {
+            "id": str(row["id"]),
+            "userId": int(row["user_id"]) if row["user_id"] is not None else None,
+            "fullName": str(row["full_name"]),
+            "subject": str(row["subject"]),
+            "city": str(row["city"]),
+            "timezone": str(row["timezone"]),
+            "baseRateRub": int(row["base_rate_rub"]),
+            "marketRateRub": int(row["market_rate_rub"]),
+            "sourceChannel": str(row["source_channel"]),
+            "tariffId": str(row["tariff_id"]),
+            "whatsappPhone": str(row["whatsapp_phone"] or ""),
+            "telegramHandle": str(row["telegram_handle"] or ""),
+            "maxHandle": str(row["max_handle"] or ""),
+            "hasPhoto": bool(row["has_photo"]),
+            "verified": bool(row["verified"]),
+            "bumpedToday": bool(row["bumped_today"]),
+            "rating": float(row["rating"]),
+            "reviewsCount": int(row["reviews_count"]),
+            "lastBumpedAt": str(row["last_bumped_at"]),
+            "updatedAt": str(row["updated_at"]),
+        }
+
+    @staticmethod
+    def _admin_request_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
+        return {
+            "id": str(row["id"]),
+            "tutorId": str(row["tutor_id"]),
+            "tutorName": str(row["tutor_name"] or ""),
+            "studentUserId": int(row["student_user_id"]) if row["student_user_id"] is not None else None,
+            "studentName": str(row["student_name"]),
+            "subject": str(row["subject"]),
+            "city": str(row["city"]),
+            "timezone": str(row["timezone"]),
+            "slotDate": str(row["slot_date"]),
+            "hourSlot": str(row["hour_slot"]),
+            "tariffId": str(row["tariff_id"]),
+            "offerPriceRub": int(row["offer_price_rub"]),
+            "counterPriceRub": int(row["counter_price_rub"]) if row["counter_price_rub"] is not None else None,
+            "finalPriceRub": int(row["final_price_rub"]) if row["final_price_rub"] is not None else None,
+            "status": str(row["status"]),
+            "rawStatus": str(row["status"]),
+            "escrowStatus": str(row["escrow_status"] or "none"),
+            "messengerChannel": str(row["messenger_channel"] or "whatsapp"),
+            "createdAt": str(row["created_at"]),
+            "updatedAt": str(row["updated_at"]),
+        }
+
+    @staticmethod
+    def _admin_payout_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
+        return {
+            "id": str(row["id"]),
+            "tutorId": str(row["tutor_id"]),
+            "tutorName": str(row["tutor_name"] or ""),
+            "method": str(row["method"]),
+            "amountRub": int(row["amount_rub"]),
+            "npdReceipt": row["npd_receipt"],
+            "bank": str(row["bank"] or ""),
+            "destinationMasked": str(row["destination_masked"] or ""),
+            "status": str(row["status"]),
+            "rawStatus": str(row["status"]),
+            "createdAt": str(row["created_at"]),
+            "paidAt": row["paid_at"],
+        }
+
+    def admin_overview(self) -> dict[str, Any]:
+        with self._lock:
+            users_count = int(self._conn.execute("SELECT COUNT(*) FROM users").fetchone()[0])
+            tutors_count = int(self._conn.execute("SELECT COUNT(*) FROM admin_tutors").fetchone()[0])
+            req_rows = self._conn.execute(
+                """
+                SELECT slot_date, status, escrow_status, offer_price_rub, counter_price_rub, final_price_rub
+                FROM admin_lesson_requests
+                ORDER BY slot_date ASC
+                """
+            ).fetchall()
+            payouts_count = int(self._conn.execute("SELECT COUNT(*) FROM admin_payout_requests").fetchone()[0])
+            channel_rows = self._conn.execute(
+                """
+                SELECT source_channel AS channel, COUNT(*) AS cnt
+                FROM admin_tutors
+                GROUP BY source_channel
+                ORDER BY cnt DESC, source_channel ASC
+                """
+            ).fetchall()
+
+        requests_count = len(req_rows)
+        pending_requests_count = sum(1 for r in req_rows if str(r["status"]) == "pending")
+        gmv_rub = 0
+        fee_rub = 0
+        payout_rub = 0
+        by_day: dict[str, dict[str, Any]] = {}
+        for r in req_rows:
+            day = str(r["slot_date"])[:10]
+            slot = by_day.setdefault(
+                day,
+                {"date": day, "gmvRub": 0, "feeRub": 0, "payoutRub": 0, "requests": 0, "accepted": 0},
+            )
+            slot["requests"] += 1
+            if str(r["status"]) == "accepted":
+                gross = int(r["final_price_rub"] or r["counter_price_rub"] or r["offer_price_rub"] or 0)
+                fee = int(round(gross * 0.05))
+                net = gross - fee
+                gmv_rub += gross
+                fee_rub += fee
+                payout_rub += net
+                slot["gmvRub"] += gross
+                slot["feeRub"] += fee
+                slot["payoutRub"] += net
+                slot["accepted"] += 1
+
+        total_tutors = max(1, tutors_count)
+        channel_share = [
+            {
+                "channel": str(r["channel"]),
+                "count": int(r["cnt"]),
+                "sharePct": round(int(r["cnt"]) * 100.0 / total_tutors, 1),
+            }
+            for r in channel_rows
+        ]
+        storage = self.storage_health()
+        return {
+            "ok": True,
+            "kpi": {
+                "gmvRub": gmv_rub,
+                "feeRub": fee_rub,
+                "payoutRub": payout_rub,
+                "usersCount": users_count,
+                "tutorsCount": tutors_count,
+                "requestsCount": requests_count,
+                "pendingRequestsCount": pending_requests_count,
+                "payoutsCount": payouts_count,
+                "outboxPending": int(storage.get("outboxPending") or 0),
+            },
+            "channelShare": channel_share,
+            "dailySeries": [by_day[d] for d in sorted(by_day.keys())],
+            "storage": storage,
+        }
+
+    def admin_list_users(self, limit: int = 100) -> list[dict[str, Any]]:
+        lim = max(1, min(int(limit or 100), 500))
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT id, username, display_name, email, auth_provider, role, created_at
+                FROM users
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (lim,),
+            ).fetchall()
+        return [self._admin_user_row_to_dict(r) for r in rows]
+
+    def admin_set_user_role(self, user_id: int, role: str) -> dict[str, Any]:
+        clean_role = (role or "").strip().lower()
+        if clean_role not in ("student", "tutor", "admin"):
+            raise StorageError("invalid_role", "Допустимые роли: student, tutor, admin.", 400)
+        with self._lock:
+            row = self._conn.execute("SELECT id FROM users WHERE id = ?", (int(user_id),)).fetchone()
+            if not row:
+                raise StorageError("not_found", "Пользователь не найден.", 404)
+            self._conn.execute("UPDATE users SET role = ? WHERE id = ?", (clean_role, int(user_id)))
+            self._record_admin_outbox(
+                "vektor.user.clickstream.v1",
+                str(user_id),
+                "admin.user.role_updated",
+                {"userId": int(user_id), "role": clean_role},
+            )
+            self._conn.commit()
+            updated = self._conn.execute(
+                """
+                SELECT id, username, display_name, email, auth_provider, role, created_at
+                FROM users WHERE id = ?
+                """,
+                (int(user_id),),
+            ).fetchone()
+        return self._admin_user_row_to_dict(updated)
+
+    def admin_list_tutors(self, limit: int = 100) -> list[dict[str, Any]]:
+        lim = max(1, min(int(limit or 100), 500))
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT * FROM admin_tutors
+                ORDER BY bumped_today DESC, rating DESC, id ASC
+                LIMIT ?
+                """,
+                (lim,),
+            ).fetchall()
+        return [self._admin_tutor_row_to_dict(r) for r in rows]
+
+    def admin_moderate_tutor(
+        self,
+        tutor_id: Any,
+        *,
+        verified: bool | None = None,
+        bumped: bool | None = None,
+        tariff_id: str | None = None,
+    ) -> dict[str, Any]:
+        tid = str(tutor_id or "").strip()
+        if tariff_id is not None and tariff_id not in ("free", "trial5k", "month10k"):
+            raise StorageError("invalid_tariff", "Допустимые тарифы: free, trial5k, month10k.", 400)
+        now_iso = _iso_utc_now()
+        with self._lock:
+            row = self._conn.execute("SELECT * FROM admin_tutors WHERE id = ?", (tid,)).fetchone()
+            if not row:
+                raise StorageError("not_found", "Преподаватель не найден.", 404)
+            next_verified = (1 if verified else 0) if verified is not None else int(row["verified"])
+            next_bumped = (1 if bumped else 0) if bumped is not None else int(row["bumped_today"])
+            next_tariff = tariff_id if tariff_id is not None else str(row["tariff_id"])
+            next_bumped_at = now_iso if bumped is True else str(row["last_bumped_at"])
+            self._conn.execute(
+                """
+                UPDATE admin_tutors
+                SET verified = ?, bumped_today = ?, tariff_id = ?, last_bumped_at = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (next_verified, next_bumped, next_tariff, next_bumped_at, now_iso, tid),
+            )
+            self._record_admin_outbox(
+                "vektor.market.bids.v1",
+                tid,
+                "admin.tutor.moderated",
+                {
+                    "tutorId": tid,
+                    "verified": bool(next_verified),
+                    "bumpedToday": bool(next_bumped),
+                    "tariffId": next_tariff,
+                },
+            )
+            self._conn.commit()
+            updated = self._conn.execute("SELECT * FROM admin_tutors WHERE id = ?", (tid,)).fetchone()
+        return self._admin_tutor_row_to_dict(updated)
+
+    def admin_list_requests(self, limit: int = 100) -> list[dict[str, Any]]:
+        lim = max(1, min(int(limit or 100), 500))
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT * FROM admin_lesson_requests
+                ORDER BY slot_date DESC, hour_slot DESC, id ASC
+                LIMIT ?
+                """,
+                (lim,),
+            ).fetchall()
+        return [self._admin_request_row_to_dict(r) for r in rows]
+
+    def admin_set_request_status(self, req_id: Any, status: str) -> dict[str, Any]:
+        rid = str(req_id or "").strip()
+        clean_status = (status or "").strip().lower()
+        if clean_status not in ("accepted", "pending", "declined", "refunded"):
+            raise StorageError(
+                "invalid_status",
+                "Допустимые статусы заявки: accepted, pending, declined, refunded.",
+                400,
+            )
+        now_iso = _iso_utc_now()
+        with self._lock:
+            row = self._conn.execute("SELECT * FROM admin_lesson_requests WHERE id = ?", (rid,)).fetchone()
+            if not row:
+                raise StorageError("not_found", "Заявка не найдена.", 404)
+            next_escrow = str(row["escrow_status"] or "none")
+            next_final = row["final_price_rub"]
+            if clean_status == "accepted":
+                next_final = row["final_price_rub"] or row["counter_price_rub"] or row["offer_price_rub"]
+                if next_escrow in ("none", "refunded", "frozen"):
+                    next_escrow = "captured"
+            elif clean_status == "pending":
+                if next_escrow == "captured":
+                    next_escrow = "frozen"
+            elif clean_status in ("declined", "refunded"):
+                if clean_status == "refunded" or next_escrow in ("frozen", "captured"):
+                    next_escrow = "refunded"
+            self._conn.execute(
+                """
+                UPDATE admin_lesson_requests
+                SET status = ?, escrow_status = ?, final_price_rub = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (clean_status, next_escrow, next_final, now_iso, rid),
+            )
+            topic = "vektor.payments.ledger.v1" if clean_status == "refunded" else "vektor.market.bids.v1"
+            self._record_admin_outbox(
+                topic,
+                rid,
+                f"admin.request.{clean_status}",
+                {"requestId": rid, "status": clean_status, "escrowStatus": next_escrow},
+            )
+            self._conn.commit()
+            updated = self._conn.execute("SELECT * FROM admin_lesson_requests WHERE id = ?", (rid,)).fetchone()
+        return self._admin_request_row_to_dict(updated)
+
+    def admin_list_payouts(self, limit: int = 100) -> list[dict[str, Any]]:
+        lim = max(1, min(int(limit or 100), 500))
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT * FROM admin_payout_requests
+                ORDER BY created_at DESC, id ASC
+                LIMIT ?
+                """,
+                (lim,),
+            ).fetchall()
+        return [self._admin_payout_row_to_dict(r) for r in rows]
+
+    def admin_set_payout_status(self, payout_id: Any, status: str) -> dict[str, Any]:
+        pid = str(payout_id or "").strip()
+        clean_status = (status or "").strip().lower()
+        if clean_status not in ("succeeded", "processing", "rejected"):
+            raise StorageError(
+                "invalid_status",
+                "Допустимые статусы выплаты: succeeded, processing, rejected.",
+                400,
+            )
+        now_iso = _iso_utc_now()
+        with self._lock:
+            row = self._conn.execute("SELECT * FROM admin_payout_requests WHERE id = ?", (pid,)).fetchone()
+            if not row:
+                raise StorageError("not_found", "Выплата не найдена.", 404)
+            paid_at = now_iso if clean_status == "succeeded" else None
+            self._conn.execute(
+                "UPDATE admin_payout_requests SET status = ?, paid_at = ? WHERE id = ?",
+                (clean_status, paid_at, pid),
+            )
+            self._record_admin_outbox(
+                "vektor.payments.ledger.v1",
+                pid,
+                f"admin.payout.{clean_status}",
+                {"payoutId": pid, "status": clean_status, "amountRub": int(row["amount_rub"])},
+            )
+            self._conn.commit()
+            updated = self._conn.execute("SELECT * FROM admin_payout_requests WHERE id = ?", (pid,)).fetchone()
+        return self._admin_payout_row_to_dict(updated)
+
+    def admin_list_outbox(self, limit: int = 50) -> list[dict[str, Any]]:
+        lim = max(1, min(int(limit or 50), 200))
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT id, topic, partition_key, event_type, payload, created_at, published_at
+                FROM admin_outbox_events
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (lim,),
+            ).fetchall()
+        out: list[dict[str, Any]] = []
+        for r in rows:
+            try:
+                payload = json.loads(r["payload"])
+            except (json.JSONDecodeError, TypeError):
+                payload = {}
+            out.append(
+                {
+                    "id": int(r["id"]),
+                    "topic": str(r["topic"]),
+                    "partitionKey": str(r["partition_key"]),
+                    "eventType": str(r["event_type"]),
+                    "payload": payload,
+                    "createdAt": str(r["created_at"]),
+                    "publishedAt": r["published_at"],
+                    "status": "published" if r["published_at"] else "pending",
+                }
+            )
+        return out

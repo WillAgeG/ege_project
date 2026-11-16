@@ -173,6 +173,19 @@
   --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 18px 36px -18px rgba(0, 0, 0, .85);
   color-scheme: dark;
 }
+.side-admin-pill {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  width: 100%; min-height: 32px; padding: 5px 10px;
+  border-radius: 10px; border: 1px solid var(--line);
+  background: var(--surface-2); color: var(--ink-2);
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: border-color .12s ease, background-color .12s ease, color .12s ease;
+}
+.side-admin-pill svg { width: 14px; height: 14px; flex: none; }
+.side-admin-pill:hover { border-color: var(--pro); color: var(--ink); }
+.side-admin-pill.is-on {
+  background: var(--pro-soft); border-color: var(--pro); color: var(--pro);
+}
 </style>
 <link rel="stylesheet" href="ux-ui/styles/base.css">
 <link rel="stylesheet" href="styles/study.css">
@@ -284,6 +297,7 @@
 <script src="subjects/table.js"></script>
 <script src="bank-core.js"></script>
 <script src="core/utils.js"></script>
+<script src="core/api.js"></script>
 <script src="core/realtime.js"></script>
 <script src="ux-ui/components/icons.js"></script>
 <script src="ux-ui/components/hh-components.js"></script>
@@ -293,4 +307,5 @@
 <script src="views/marketplace.js"></script>
 <script src="views/landing.js"></script>
 <script src="views/tutor-cabinet.js"></script>
+<script src="views/admin.js"></script>
 <script src="app.js"></script>

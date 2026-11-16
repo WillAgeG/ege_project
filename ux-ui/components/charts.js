@@ -310,6 +310,23 @@
     { id: "ex-5", date: "08.05", subjectId: "bio", subject: "Биология · Линия 28", variant: "Синтез белка и митоз", score: 91, maxScore: 100, essayNote: "Рекомендация ИИ: тайминг", examDate: "15 июн 2027", status: "info", statusLabel: "Рекомендация ИИ" }
   ];
 
+  const STUDENT_ROWS = [
+    { id: "st-1", student: "Алёна Егорова", subjectId: "bio", subject: "Биология · ЕГЭ", city: "Якутск (UTC+9)", nextSlot: "Вс · 10:00", scoreStart: 58, scoreCur: 84, scoreTarget: 90, autoNotify: "Авто: WA · TG · MAX · за 24 ч", status: "accepted", statusLabel: "Активен ✓", whatsapp: "79142100511", telegram: "@alina_bio", maxHandle: "alena_ege" },
+    { id: "st-2", student: "Дамир Осипов", subjectId: "chem", subject: "Химия · ЕГЭ", city: "Якутск (UTC+9)", nextSlot: "Ср · 16:00", scoreStart: 52, scoreCur: 76, scoreTarget: 85, autoNotify: "Авто: TG · за 2 ч", status: "accepted", statusLabel: "Активен ✓", whatsapp: "79142100104", telegram: "@damir_chem", maxHandle: "damir_osipov" },
+    { id: "st-3", student: "Саяна Кычкина", subjectId: "bio", subject: "Биология · Линия 28", city: "Москва (UTC+3)", nextSlot: "Пн · 18:00", scoreStart: 46, scoreCur: 68, scoreTarget: 82, autoNotify: "Авто: WA · MAX · за 24 ч", status: "pending", statusLabel: "Ждёт урока", whatsapp: "79142100106", telegram: "@sayana_msk", maxHandle: "sayana_k" },
+    { id: "st-4", student: "Тимур Платонов", subjectId: "chem", subject: "Химия · Медвуз", city: "Якутск (UTC+9)", nextSlot: "Чт · 14:00", scoreStart: 64, scoreCur: 88, scoreTarget: 95, autoNotify: "Авто: WA · TG · за 1 ч", status: "accepted", statusLabel: "Активен ✓", whatsapp: "79142100108", telegram: "@timur_med", maxHandle: "timur_p" },
+    { id: "st-5", student: "Мария Фёдорова", subjectId: "rus", subject: "Русский · Зад. 27", city: "Москва (UTC+3)", nextSlot: "Пт · 19:00", scoreStart: 61, scoreCur: 81, scoreTarget: 91, autoNotify: "Без авто · ручное напоминание", status: "trial", statusLabel: "Пробный этап", whatsapp: "79142100110", telegram: "@maria_rus", maxHandle: "maria_f" }
+  ];
+
+  const ADMIN_ROWS = [
+    { id: "adm-1", category: "moderation", entity: "Айтал Борисов · Биология", kind: "Анкета репетитора", subject: "Биология · ЕГЭ", city: "Якутск (UTC+9)", updatedAt: "14:42", amount: "1 200 ₽/ч", outbox: "vektor.market.bids.v1", modStatus: "pending", status: "pending", statusLabel: "На проверке" },
+    { id: "adm-2", category: "moderation", entity: "Анна Соколова · Химия", kind: "Верификация диплома", subject: "Химия · Медвуз", city: "Москва (UTC+3)", updatedAt: "14:28", amount: "1 600 ₽/ч", outbox: "vektor.market.bids.v1", modStatus: "verified", status: "accepted", statusLabel: "Проверен ✓" },
+    { id: "adm-3", category: "payouts", entity: "Выплата #4812 · СБП Т-Банк", kind: "Вывод НПД", subject: "Комиссия 5% · на руки 95%", city: "Якутск (UTC+9)", updatedAt: "14:15", amount: "11 400 ₽", outbox: "vektor.payments.ledger.v1", modStatus: "paid", status: "accepted", statusLabel: "Выплачено ✓" },
+    { id: "adm-4", category: "payouts", entity: "Эскроу #9031 · Артём И.", kind: "Резерв эскроу", subject: "Удержание до 16:00", city: "Якутск (UTC+9)", updatedAt: "13:55", amount: "1 140 ₽", outbox: "vektor.payments.ledger.v1", modStatus: "frozen", status: "info", statusLabel: "В резерве" },
+    { id: "adm-5", category: "system", entity: "Outbox #41820 · Clickstream", kind: "Событие Kafka", subject: "batch=18 · PG17 → Kafka", city: "Cluster · PG17", updatedAt: "13:40", amount: "0.8 ms", outbox: "vektor.user.clickstream.v1", modStatus: "published", status: "accepted", statusLabel: "Отправлено в Kafka" },
+    { id: "adm-6", category: "moderation", entity: "Иван К. · Дубликат Ykt/TG", kind: "Проверка жалобы", subject: "Физика · 800 ₽/ч", city: "Якутск (UTC+9)", updatedAt: "13:12", amount: "800 ₽/ч", outbox: "vektor.market.bids.v1", modStatus: "flagged", status: "pending", statusLabel: "Требует внимания" }
+  ];
+
   function tableStatusClass(st) {
     if (st === "accepted" || st === "paid" || st === "done") return "is-confirmed";
     if (st === "trial") return "is-trial";
@@ -501,6 +518,149 @@
     ];
   }
 
+  function buildStudentColumns() {
+    return [
+      {
+        key: "studentCompact",
+        label: "Ученик и предмет",
+        maxCols: 3,
+        render: (r) => `<div class="stack" style="gap:2px"><b>${esc(r.student)}</b><span class="small muted">${esc(r.subject)} · ${esc(r.nextSlot)}</span></div>`
+      },
+      {
+        key: "student",
+        label: "Ученик",
+        minCols: 5,
+        render: (r) => `<b>${esc(r.student)}</b>`
+      },
+      {
+        key: "subject",
+        label: "Предмет",
+        minCols: 5,
+        render: (r) => esc(r.subject)
+      },
+      {
+        key: "city",
+        label: "Город",
+        minCols: 7,
+        render: (r) => `<span class="small">${esc(r.city)}</span>`
+      },
+      {
+        key: "nextSlot",
+        label: "Ближайший слот",
+        minCols: 5,
+        num: true,
+        render: (r) => `<span class="num">${esc(r.nextSlot)}</span>`
+      },
+      {
+        key: "progress",
+        label: "Прогресс ЕГЭ",
+        num: true,
+        render: (r) => {
+          const gain = Math.max(0, Number(r.scoreCur || 0) - Number(r.scoreStart || 0));
+          return `<div class="stack" style="gap:2px"><b class="num">${r.scoreStart} → ${r.scoreCur} / ${r.scoreTarget}</b><span class="small muted num">+${gain} б.</span></div>`;
+        }
+      },
+      {
+        key: "autoNotify",
+        label: "Автоуведомления",
+        minCols: 7,
+        render: (r) => `<span class="small">${esc(r.autoNotify)}</span>`
+      },
+      {
+        key: "contactOnly",
+        label: "Связь (WA · TG · MAX)",
+        maxCols: 3,
+        isActions: true,
+        render: (r, h) => h.messengerHTML(r)
+      },
+      {
+        key: "statusAndContact",
+        label: "Статус и связь",
+        minCols: 5,
+        isActions: true,
+        render: (r, h) => `<div class="stack" style="gap:6px">${h.statusHTML(r)}${h.messengerHTML(r)}</div>`
+      }
+    ];
+  }
+
+  function buildAdminColumns() {
+    const renderModBadge = (r, h) => {
+      const kit = root.EGE && root.EGE.kit;
+      const confirmed = h.isConfirmed(r);
+      if (kit && typeof kit.adminModerationBadgeHTML === "function") {
+        const modSt = confirmed ? "verified" : (r.modStatus || "pending");
+        const modLbl = confirmed ? "Проверен ✓" : r.statusLabel;
+        const badge = kit.adminModerationBadgeHTML(modSt, modLbl);
+        const canConfirm = r && r.id && (r.status === "pending" || r.status === "trial");
+        if (!canConfirm) return badge;
+        const btn = confirmed
+          ? `<button type="button" class="btn ghost sm bb-tbl-act-btn" data-a="${esc(h.confirmAction)}" data-id="${esc(r.id)}">Сбросить</button>`
+          : `<button type="button" class="btn confirm sm bb-tbl-act-btn" data-a="${esc(h.confirmAction)}" data-id="${esc(r.id)}">✓ Подтвердить</button>`;
+        return `<div class="bb-tbl-st-cell">${badge}${btn}</div>`;
+      }
+      return h.statusHTML(r);
+    };
+    return [
+      {
+        key: "entityCompact",
+        label: "Объект и раздел",
+        maxCols: 3,
+        render: (r) => `<div class="stack" style="gap:2px"><b>${esc(r.entity)}</b><span class="small muted">${esc(r.kind)} · ${esc(r.updatedAt)}</span></div>`
+      },
+      {
+        key: "entity",
+        label: "Объект / Событие",
+        minCols: 5,
+        render: (r) => `<div class="stack" style="gap:2px"><b>${esc(r.entity)}</b><span class="small muted">${esc(r.subject)}</span></div>`
+      },
+      {
+        key: "kind",
+        label: "Категория",
+        minCols: 5,
+        render: (r) => esc(r.kind)
+      },
+      {
+        key: "city",
+        label: "Контур / Город",
+        minCols: 7,
+        render: (r) => `<span class="small">${esc(r.city)}</span>`
+      },
+      {
+        key: "updatedAt",
+        label: "Время",
+        minCols: 5,
+        num: true,
+        render: (r) => `<span class="num">${esc(r.updatedAt)}</span>`
+      },
+      {
+        key: "amount",
+        label: "Сумма / Значение",
+        num: true,
+        render: (r) => `<b class="num">${esc(r.amount)}</b>`
+      },
+      {
+        key: "outbox",
+        label: "Топик аутбокса",
+        minCols: 7,
+        render: (r) => `<code class="small">${esc(r.outbox)}</code>`
+      },
+      {
+        key: "statusCompact",
+        label: "Статус",
+        maxCols: 3,
+        isActions: true,
+        render: renderModBadge
+      },
+      {
+        key: "statusFull",
+        label: "Модерация",
+        minCols: 5,
+        isActions: true,
+        render: renderModBadge
+      }
+    ];
+  }
+
   const TABLE_PRESETS = {
     requests: {
       id: "requests",
@@ -517,6 +677,22 @@
         { id: "chem", label: "Химия", match: (r) => r.subjectId === "chem" }
       ],
       getColumns: buildRequestColumns
+    },
+    students: {
+      id: "students",
+      label: "Ученики",
+      eyebrow: "Трекер учеников · Табличный реестр",
+      title: "Активные ученики и автоуведомления WA / TG / MAX",
+      emptyLabel: "учеников",
+      rows: STUDENT_ROWS,
+      filters: [
+        { id: "all", label: "Все (" + STUDENT_ROWS.length + ")", match: () => true },
+        { id: "accepted", label: "Активные ✓", match: (r, h) => h.effectiveStatus(r) === "accepted" },
+        { id: "pending", label: "Ждут урока", match: (r, h) => h.effectiveStatus(r) === "pending" },
+        { id: "bio", label: "Биология", match: (r) => r.subjectId === "bio" },
+        { id: "chem", label: "Химия", match: (r) => r.subjectId === "chem" }
+      ],
+      getColumns: buildStudentColumns
     },
     payouts: {
       id: "payouts",
@@ -549,6 +725,22 @@
         { id: "pending", label: "Ждёт проверки", match: (r, h) => h.effectiveStatus(r) === "pending" }
       ],
       getColumns: buildExamColumns
+    },
+    admin: {
+      id: "admin",
+      label: "Админ · Модерация",
+      eyebrow: "Админ-панель · Модерация и эскроу",
+      title: "Реестр анкет, выплат НПД и событий аутбокса",
+      emptyLabel: "записей",
+      rows: ADMIN_ROWS,
+      filters: [
+        { id: "all", label: "Все (" + ADMIN_ROWS.length + ")", match: () => true },
+        { id: "pending", label: "На проверке", match: (r, h) => h.effectiveStatus(r) === "pending" },
+        { id: "verified", label: "Проверены ✓", match: (r, h) => h.isConfirmed(r) || r.modStatus === "verified" || r.modStatus === "paid" },
+        { id: "flagged", label: "Требуют внимания", match: (r, h) => !h.isConfirmed(r) && r.modStatus === "flagged" },
+        { id: "payouts", label: "Выплаты и эскроу", match: (r) => r.category === "payouts" }
+      ],
+      getColumns: buildAdminColumns
     }
   };
 
@@ -562,11 +754,17 @@
     const filter = opts.filter || "all";
     const query = String(opts.query || "").trim().toLowerCase();
     const confirmAction = opts.confirmAction || "bb-tbl-confirm";
+    const filterAction = opts.filterAction || "bb-tbl-filter";
+    const colsAction = opts.colsAction || "bb-tbl-cols";
+    const presetAction = opts.presetAction || "bb-tbl-preset";
+    const searchAction = opts.searchAction || "bb-tbl-q";
     const confirmedIds = opts.confirmedIds || {};
     const cardWrap = opts.cardWrap !== false;
     const showPresetSwitch = opts.showPresetSwitch !== false && !hasCustomSchema;
     const showColsSwitch = opts.showColsSwitch !== false;
     const searchId = opts.searchId || "bb-tbl-q";
+    const rootId = opts.tableId || opts.id || "";
+    const toolbarExtraHTML = opts.toolbarExtraHTML || "";
 
     const renderMessengerLinks =
       (typeof opts.renderMessengerLinks === "function" && opts.renderMessengerLinks) ||
@@ -611,7 +809,7 @@
     const messengerHTML = (r) => renderMessengerLinks && r
       ? renderMessengerLinks({
           entity: { id: r.id, name: r.student, whatsapp: r.whatsapp, telegram: r.telegram, maxHandle: r.maxHandle },
-          message: `Здравствуйте, ${r.student || "коллега"}! Напоминаю о занятии (${r.subject || ""}, ${r.slot || ""}) через Вектор ЕГЭ.`,
+          message: `Здравствуйте, ${r.student || "коллега"}! Напоминаю о занятии (${r.subject || ""}, ${r.slot || r.nextSlot || ""}) через Вектор ЕГЭ.`,
           primaryLabel: "WA",
           compact: true
         })
@@ -656,29 +854,37 @@
     });
 
     const rowsHtml = filtered.length
-      ? filtered.map((r) => `<tr>${visibleColumns.map((col) => {
-          const valHtml = typeof col.render === "function"
-            ? col.render(r, helpers)
-            : esc(r && r[col.key] != null ? String(r[col.key]) : "");
-          const tdCls = [col.num ? "num" : "", col.isActions ? "bb-tbl-actions-cell" : ""].filter(Boolean).join(" ");
-          const alignStyle = col.align ? ` style="text-align:${esc(col.align)}"` : "";
-          return `<td data-label="${esc(col.label)}"${tdCls ? ` class="${tdCls}"` : ""}${alignStyle}>${valHtml}</td>`;
-        }).join("")}</tr>`).join("")
+      ? filtered.map((r, rowIdx) => {
+          const extraAttr = typeof opts.rowAttrs === "function" ? String(opts.rowAttrs(r, rowIdx, helpers) || "").trim() : "";
+          return `<tr${extraAttr ? " " + extraAttr : ""}>${visibleColumns.map((col) => {
+            const valHtml = typeof col.render === "function"
+              ? col.render(r, helpers)
+              : esc(r && r[col.key] != null ? String(r[col.key]) : "");
+            const tdCls = [col.num ? "num" : "", col.isActions ? "bb-tbl-actions-cell" : ""].filter(Boolean).join(" ");
+            const alignStyle = col.align ? ` style="text-align:${esc(col.align)}"` : "";
+            return `<td data-label="${esc(col.label)}"${tdCls ? ` class="${tdCls}"` : ""}${alignStyle}>${valHtml}</td>`;
+          }).join("")}</tr>`;
+        }).join("")
       : `<tr><td colspan="${Math.max(1, visibleColumns.length)}" data-label="Результат" class="small muted" style="text-align:center;padding:18px 10px">${esc(opts.emptyText || `По фильтру «${query || filter}» ${preset.emptyLabel || "записей"} не найдено — сбросьте фильтр.`)}</td></tr>`;
 
     const eyebrowText = opts.eyebrow != null ? opts.eyebrow : preset.eyebrow;
     const titleText = opts.title != null ? opts.title : preset.title;
-    const searchPlaceholder = opts.searchPlaceholder || (presetId === "payouts" ? "Поиск: банк, чек НПД, сумма…" : (presetId === "exams" ? "Поиск: предмет, вариант, балл…" : "Поиск: имя, предмет, город…"));
+    const searchPlaceholder = opts.searchPlaceholder || (
+      presetId === "payouts" ? "Поиск: банк, чек НПД, сумма…" :
+      (presetId === "exams" ? "Поиск: предмет, вариант, балл…" :
+      (presetId === "students" ? "Поиск: ученик, предмет, канал…" :
+      (presetId === "admin" ? "Поиск: анкета, чек НПД, топик…" : "Поиск: имя, предмет, город…")))
+    );
 
     const presetSwitchHtml = showPresetSwitch
       ? `<div class="hh-seg" role="group" aria-label="Пресет таблицы">
-          ${Object.keys(TABLE_PRESETS).map((pid) => `<button type="button" data-a="bb-tbl-preset" data-preset="${pid}" data-v="${pid}" aria-pressed="${presetId === pid}">${esc(TABLE_PRESETS[pid].label)}</button>`).join("")}
+          ${Object.keys(TABLE_PRESETS).map((pid) => `<button type="button" data-a="${esc(presetAction)}" data-preset="${pid}" data-v="${pid}" aria-pressed="${presetId === pid}">${esc(TABLE_PRESETS[pid].label)}</button>`).join("")}
         </div>`
       : "";
 
     const colsSwitchHtml = showColsSwitch
       ? `<div class="hh-seg" role="group" aria-label="Количество колонок таблицы">
-          ${[3, 5, 7].map((c) => `<button type="button" data-a="bb-tbl-cols" data-cols="${c}" aria-pressed="${cols === c}">${c === 3 ? "3 колонки" : `${c} колонок`}</button>`).join("")}
+          ${[3, 5, 7].map((c) => `<button type="button" data-a="${esc(colsAction)}" data-cols="${c}" aria-pressed="${cols === c}">${c === 3 ? "3 колонки" : `${c} колонок`}</button>`).join("")}
         </div>`
       : "";
 
@@ -692,16 +898,17 @@
         </div>`
       : "";
 
-    const toolbarHtml = (allFilters.length || opts.showSearch !== false)
+    const toolbarHtml = (allFilters.length || opts.showSearch !== false || toolbarExtraHTML)
       ? `<div class="bb-tbl-toolbar">
           ${allFilters.length ? `<div class="row" style="gap:6px;flex-wrap:wrap" role="group" aria-label="Фильтр строк таблицы">
-            ${allFilters.map((f) => `<button type="button" class="chip-btn${filter === f.id ? " on" : ""}" data-a="bb-tbl-filter" data-v="${esc(f.id)}">${esc(f.label)}</button>`).join("")}
+            ${allFilters.map((f) => `<button type="button" class="chip-btn${filter === f.id ? " on" : ""}" data-a="${esc(filterAction)}" data-v="${esc(f.id)}">${esc(f.label)}</button>`).join("")}
           </div>` : ""}
           ${opts.showSearch !== false ? `<label class="bb-tbl-search" for="${esc(searchId)}">
             ${EGE.ui && typeof EGE.ui.icon === "function" ? EGE.ui.icon("search") : ""}
-            <input id="${esc(searchId)}" data-a="bb-tbl-q" type="search" value="${esc(opts.query || "")}" placeholder="${esc(searchPlaceholder)}" autocomplete="off" aria-label="Поиск по таблице">
-            ${query ? `<button type="button" class="btn ghost sm" data-a="bb-tbl-filter" data-v="all" data-clear-q="1" aria-label="Сбросить поиск">×</button>` : ""}
+            <input id="${esc(searchId)}" data-a="${esc(searchAction)}" type="search" value="${esc(opts.query || "")}" placeholder="${esc(searchPlaceholder)}" autocomplete="off" aria-label="Поиск по таблице">
+            ${query ? `<button type="button" class="btn ghost sm" data-a="${esc(filterAction)}" data-v="all" data-clear-q="1" aria-label="Сбросить поиск">×</button>` : ""}
           </label>` : ""}
+          ${toolbarExtraHTML ? `<div class="bb-tbl-toolbar-extra">${toolbarExtraHTML}</div>` : ""}
         </div>`
       : "";
 
@@ -720,10 +927,10 @@
     </div>`;
 
     if (!cardWrap) {
-      return `<div class="bb-tbl-inline"${opts.id ? ` id="${esc(opts.id)}"` : ""}>${headerHtml}${toolbarHtml}${shellHtml}</div>`;
+      return `<div class="bb-tbl-inline"${rootId ? ` id="${esc(rootId)}"` : ""}>${headerHtml}${toolbarHtml}${shellHtml}</div>`;
     }
 
-    return `<div class="card pad bb-data-table-card" id="${esc(opts.id || "bb-table-demo")}">
+    return `<div class="card pad bb-data-table-card" id="${esc(rootId || "bb-table-demo")}">
       ${headerHtml}
       ${toolbarHtml}
       ${shellHtml}
@@ -739,6 +946,8 @@
     DONUT_DATASETS,
     donutChartHTML,
     TABLE_ROWS,
+    STUDENT_ROWS,
+    ADMIN_ROWS,
     TABLE_PRESETS,
     dataTableHTML
   };

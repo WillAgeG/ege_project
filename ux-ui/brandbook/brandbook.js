@@ -21,6 +21,10 @@
     eventLogFeedHTML,
     realtimeStatusPillHTML,
     calendarSyncCardHTML,
+    adminKpiGridHTML,
+    adminModerationBadgeHTML,
+    serviceBoundaryCardHTML,
+    roleSwitchBannerHTML,
     sakhaButtonsHTML,
     marqueePillsHTML,
     rateBenchCardHTML,
@@ -69,6 +73,8 @@
     "bb-payments": "app",
     "bb-ui-kit-shells": "app",
     "bb-telemetry-etl": "app",
+    "bb-admin-kit": "app",
+    "bb-arch-split": "app",
     "bb-ege-timers": "app",
     "bb-a11y": "controls",
     "bb-sliders": "layout",
@@ -140,7 +146,10 @@
     confirmedRows: {},
     essayOpenIdx: 0,
     shellRole: "tutor",
-    pipeFilter: "all"
+    pipeFilter: "all",
+    adminTab: "moderation",
+    adminRole: "admin",
+    dualRole: "student"
   };
 
   function ensureBrandbookState(ui) {
@@ -1677,7 +1686,7 @@
         <div class="row between" style="gap:8px;flex-wrap:wrap;margin-bottom:10px">
           <div>
             <b>realtimeStatusPillHTML · Индикатор Live-транспорта</b>
-            <div class="small muted">Единый компонент для кабинета преподавателя и мониторинга SSE / WebSocket / BroadcastChannel</div>
+            <div class="small muted">Единый компонент для кабинета преподавателя и мониторинга SSE / WS / BroadcastChannel</div>
           </div>
           <span class="bb-spec-pill">EGE.kit.realtimeStatusPillHTML</span>
         </div>
@@ -1785,6 +1794,171 @@
     </section>`;
   }
 
+  function adminKitSectionHTML(bb) {
+    const adminTab = ["moderation", "payouts", "system"].includes(bb.adminTab) ? bb.adminTab : "moderation";
+    const adminRole = ["student", "tutor", "admin"].includes(bb.adminRole) ? bb.adminRole : "admin";
+    const tblCols = [3, 5, 7].includes(Number(bb.tableCols)) ? Number(bb.tableCols) : 5;
+    const tblQuery = bb.tableSearch || "";
+    const presets = (root.EGE && root.EGE.charts && root.EGE.charts.TABLE_PRESETS) || {};
+    const adminPreset = presets.admin || {};
+    const allAdminRows = Array.isArray(adminPreset.rows) ? adminPreset.rows : [];
+    const tabRows = allAdminRows.filter((r) => !r.category || r.category === adminTab);
+    const adminCols = typeof adminPreset.getColumns === "function" ? adminPreset.getColumns(tblCols) : null;
+
+    const kpiItems = [
+      { label: "Оборот (GMV 30 дн)", value: "184 500 ₽", delta: "+18%", tone: "accent", note: "Подтверждённые уроки 95% / 5%", action: "bb-admin-tab", actionVal: "payouts" },
+      { label: "На проверке анкет", value: "4", delta: "SLA 15 мин", tone: "notif", note: "Ожидают модерации и диплома", action: "bb-admin-tab", actionVal: "moderation" },
+      { label: "Выплаты НПД (95%)", value: "175 275 ₽", delta: "СБП / Мир", tone: "confirm", note: "Авточеки НПД сформированы", action: "bb-admin-tab", actionVal: "payouts" },
+      { label: "Outbox → Kafka", value: "0", delta: "100% synced", tone: "pro", note: "outbox.kafka_outbox · 0.8 ms", action: "bb-admin-tab", actionVal: "system" }
+    ];
+
+    const badgeList = ["verified", "pending", "flagged", "paid", "frozen", "published", "declined"];
+    const tabMeta = {
+      moderation: { label: "Модерация анкет", sub: "Верификация дипломов, жалобы и ручное подтверждение" },
+      payouts: { label: "Выплаты НПД и эскроу", sub: "Замороженные резервы и выводы на СБП / Карту Мир" },
+      system: { label: "Система и Outbox", sub: "События транзакционного аутбокса в Kafka" }
+    };
+
+    return `<section class="land-sec" id="bb-admin-kit" aria-label="Админ-панель и модерация (Admin UI Kit)">
+      <div class="land-sec-head">
+        <div>
+          <div class="eyebrow">Раздел 14 · Admin UI Kit · Модерация, НПД и Outbox</div>
+          <h2 class="h2">14 · Админ-панель и модерация (Admin UI Kit)</h2>
+        </div>
+        <div class="hh-seg" role="group" aria-label="Раздел админ-панели">
+          ${[
+            ["moderation", "Модерация"],
+            ["payouts", "Выплаты НПД"],
+            ["system", "Outbox / Система"]
+          ].map(([tid, tlbl]) => `<button type="button" data-a="bb-admin-tab" data-v="${tid}" aria-pressed="${adminTab === tid}">${esc(tlbl)}</button>`).join("")}
+        </div>
+      </div>
+
+      <div class="stack" style="gap:12px">
+        ${roleSwitchBannerHTML ? roleSwitchBannerHTML({
+          activeRole: adminRole,
+          action: "bb-role-switch",
+          counts: { student: 3, tutor: 12, admin: 6 }
+        }) : ""}
+
+        ${adminKpiGridHTML ? adminKpiGridHTML(kpiItems) : ""}
+
+        <div class="card pad stack" style="gap:10px">
+          <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
+            <b>Статусы верификации и платежей (EGE.kit.adminModerationBadgeHTML)</b>
+            <span class="bb-spec-pill">7 токенизированных состояний</span>
+          </div>
+          <div class="bb-adm-badges-row">
+            ${adminModerationBadgeHTML ? badgeList.map((st) => adminModerationBadgeHTML(st)).join("") : ""}
+          </div>
+        </div>
+
+        <div class="card pad stack" style="gap:12px">
+          ${dataTableHTML ? dataTableHTML({
+            preset: "admin",
+            eyebrow: "Реестр · " + (tabMeta[adminTab] ? tabMeta[adminTab].label : "Админ"),
+            title: tabMeta[adminTab] ? tabMeta[adminTab].sub : "Управление платформой",
+            rows: tabRows,
+            columns: adminCols || undefined,
+            cols: tblCols,
+            query: tblQuery,
+            confirmedIds: bb.confirmedRows || {},
+            cardWrap: false,
+            showPresetSwitch: false,
+            searchId: "bb-admin-tbl-q",
+            toolbarExtraHTML: `<span class="bb-spec-pill num">${tabRows.length} записей</span>`
+          }) : ""}
+        </div>
+      </div>
+    </section>`;
+  }
+
+  function archSplitSectionHTML(bb) {
+    const dualRole = bb.dualRole === "tutor" ? "tutor" : "student";
+    const tblCols = [3, 5, 7].includes(Number(bb.tableCols)) ? Number(bb.tableCols) : 5;
+    const tblQuery = bb.tableSearch || "";
+
+    const layers = [
+      {
+        name: "@vektor-ege/ui-kit",
+        layer: "UI-Kit",
+        port: "8772",
+        status: "stateless",
+        repo: "vektor-ui-kit",
+        summary: "Независимая дизайн-система и Brandbook: ноль запросов к API, ноль бизнес-данных, чистые HTML/CSS компоненты.",
+        endpoints: ["EGE.ui / EGE.hh / EGE.charts", "EGE.kit / EGE.views.brandbook", "GET / (127.0.0.1:8772)"],
+        note: "Публикуется как отдельный пакет и стенд."
+      },
+      {
+        name: "EGE\u002eapi + vektor-api",
+        layer: "Headless API",
+        port: "8771",
+        status: "live",
+        repo: "vektor-api",
+        summary: "Чистый JSON / SSE / WS сервер без HTML и статики: авторизация, календарь, админ-модерация и аутбокс.",
+        endpoints: ["GET /api/admin/overview", "GET /api/health/storage", "SSE /api/realtime/stream"],
+        note: "CORS открыт для :8770 и :8772."
+      },
+      {
+        name: "Preparation · SPA Shell",
+        layer: "SPA Shell",
+        port: "8770",
+        status: "live",
+        repo: "Preparation",
+        summary: "Собирает UI-Kit + клиентский слой EGE\u002eapi для Ученика, Преподавателя и Администратора.",
+        endpoints: ["/landing · /market · /study", "/cabinet · /fees · /admin", "/brandbook"],
+        note: "Единый табличный движок dataTableHTML."
+      },
+      {
+        name: "Data & Analytics Mesh",
+        layer: "PostgreSQL",
+        port: "5432",
+        status: "healthy",
+        repo: "vektor-postgres · polars · airflow · grafana",
+        summary: "Dual-Write PostgreSQL 17 + outbox.kafka_outbox → Polars Medallion ETL → Airflow DAG → Grafana BI.",
+        endpoints: ["oltp.* + outbox.kafka_outbox", "Polars gold/*.parquet", "Airflow :8085 · Grafana :3000"],
+        note: "Сквозная наблюдаемость и расчёты 95% / 5%."
+      }
+    ];
+
+    return `<section class="land-sec" id="bb-arch-split" aria-label="Разделение UI Kit и API + Таблицы обеих ролей">
+      <div class="land-sec-head">
+        <div>
+          <div class="eyebrow">Раздел 15 · Clean Architecture · Decoupled UI-Kit &amp; Headless API</div>
+          <h2 class="h2">15 · Разделение UI Kit и API + Таблицы обеих ролей</h2>
+        </div>
+        <div class="hh-seg" role="group" aria-label="Вид таблиц со стороны роли">
+          <button type="button" data-a="bb-dual-role" data-v="student" aria-pressed="${dualRole === "student"}">Со стороны ученика</button>
+          <button type="button" data-a="bb-dual-role" data-v="tutor" aria-pressed="${dualRole === "tutor"}">Со стороны преподавателя</button>
+        </div>
+      </div>
+
+      <div class="bb-arch-grid">
+        ${serviceBoundaryCardHTML ? layers.map((l) => serviceBoundaryCardHTML(l)).join("") : ""}
+      </div>
+
+      <div class="card pad stack" style="margin-top:12px;gap:12px">
+        <div class="bb-dual-role-head">
+          <div class="stack" style="gap:2px">
+            <b>${dualRole === "tutor" ? "Перспектива преподавателя · Мои ученики и автоуведомления" : "Перспектива ученика · Отправленные заявки и ставки ±100 ₽"}</b>
+            <span class="small muted">${dualRole === "tutor" ? "Тот же schema-driven компонент EGE.charts.dataTableHTML в кабинете преподавателя" : "Единая таблица EGE.charts.dataTableHTML в кабинете ученика (/market и /study)"}</span>
+          </div>
+          <span class="bb-spec-pill">${dualRole === "tutor" ? "preset: students" : "preset: requests"}</span>
+        </div>
+        ${dataTableHTML ? dataTableHTML({
+          preset: dualRole === "tutor" ? "students" : "requests",
+          cols: tblCols,
+          filter: "all",
+          query: tblQuery,
+          confirmedIds: bb.confirmedRows || {},
+          cardWrap: false,
+          showPresetSwitch: false,
+          searchId: "bb-dual-tbl-q"
+        }) : ""}
+      </div>
+    </section>`;
+  }
+
   function egeTimersSectionHTML(bb) {
     const fallbackExams = [
       { subject: "chem", name: "Химия", date: "2027-06-01" },
@@ -1800,7 +1974,7 @@
       "2027-06-04": "4 июня 2027",
       "2027-06-15": "15 июня 2027"
     };
-    const colorMap = { chem: "var(--chem)", rus: "var(--rus)", bio: "var(--bio)" };
+    const colorMap = { chem: "var(--c-chem)", rus: "var(--c-rus)", bio: "var(--c-bio)" };
     const focusNote = {
       chem: "Расчётные задачи 34 и ОВР блок",
       rus: "Сочинение Задание 27 + орфоэпия",
@@ -2219,6 +2393,8 @@
       ["bb-payments", "Эквайринг и выплаты"],
       ["bb-ui-kit-shells", "Shell-виджеты"],
       ["bb-telemetry-etl", "ETL и Логи"],
+      ["bb-admin-kit", "Админ UI Kit"],
+      ["bb-arch-split", "UI Kit ↔ API"],
       ["bb-ege-timers", "Таймеры ЕГЭ и ИИ"],
       ["bb-a11y", "Фокус и A11y"],
       ["bb-sliders", "Ползунки"],
@@ -2245,6 +2421,8 @@
           <a href="#bb-payments" data-a="land-scroll" data-target="bb-payments">Оплата</a>
           <a href="#bb-ui-kit-shells" data-a="land-scroll" data-target="bb-ui-kit-shells">Shell-виджеты</a>
           <a href="#bb-telemetry-etl" data-a="land-scroll" data-target="bb-telemetry-etl">ETL и Логи</a>
+          <a href="#bb-admin-kit" data-a="land-scroll" data-target="bb-admin-kit">Админ</a>
+          <a href="#bb-arch-split" data-a="land-scroll" data-target="bb-arch-split">UI Kit ↔ API</a>
           <a href="#bb-ege-timers" data-a="land-scroll" data-target="bb-ege-timers">ЕГЭ-2027</a>
           <a href="#bb-a11y" data-a="land-scroll" data-target="bb-a11y">A11y</a>
           <a href="#bb-dodont" data-a="land-scroll" data-target="bb-dodont">Правила</a>
@@ -2291,7 +2469,7 @@
               <button type="button" class="chip-btn${bb.price === 1200 ? " on" : ""}" data-a="bb-preset" data-price="1200">1 200 ₽ · Анкета</button>
               <button type="button" class="chip-btn${bb.price === 2400 ? " on" : ""}" data-a="bb-preset" data-price="2400">2 400 ₽ · Выше рынка</button>
             </div>
-            <div class="hh-price-stepper compact" style="min-width:240px">
+            <div class="hh-price-stepper compact" style="min-width:min(240px,100%)">
               <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-100">−100 ₽</button>
               <div class="hh-step-readout"><b class="num">${bb.price.toLocaleString("ru-RU")} ₽</b></div>
               <button type="button" class="hh-step-btn" data-a="bb-step" data-step="100">+100 ₽</button>
@@ -2485,6 +2663,10 @@
       ${showSec("bb-ui-kit-shells") ? uiKitShellsSectionHTML(bb) : ""}
 
       ${showSec("bb-telemetry-etl") ? telemetryEtlSectionHTML(bb) : ""}
+
+      ${showSec("bb-admin-kit") ? adminKitSectionHTML(bb) : ""}
+
+      ${showSec("bb-arch-split") ? archSplitSectionHTML(bb) : ""}
 
       ${showSec("bb-ege-timers") ? egeTimersSectionHTML(bb) : ""}
 
@@ -2952,11 +3134,398 @@
     }
   }
 
+  function handleAction(act, el, ui, hooks) {
+    hooks = hooks || {};
+    const bb = ensureBrandbookState(ui || {});
+    const ds = (el && el.dataset) || {};
+    const render = typeof hooks.render === "function" ? hooks.render : (() => {});
+    const notify = typeof hooks.notifySide === "function" ? hooks.notifySide : (() => {});
+    const toast = typeof hooks.toast === "function" ? hooks.toast : (() => {});
+    const copy = typeof hooks.copy === "function" ? hooks.copy : (() => {});
+
+    if (act === "bb-mode") {
+      bb.mode = ["both", "light", "dark"].includes(ds.v) ? ds.v : "both";
+      render();
+      return true;
+    }
+    if (act === "bb-step") {
+      const step = Number(ds.step) || 0;
+      bb.price = Math.max(600, Math.min(3500, (Number(bb.price) || 1200) + step));
+      render();
+      return true;
+    }
+    if (act === "bb-preset") {
+      const p = Number(ds.price);
+      if (Number.isFinite(p)) bb.price = Math.max(600, Math.min(3500, p));
+      render();
+      return true;
+    }
+    if (act === "bb-day") {
+      bb.day = ds.v || "all";
+      render();
+      return true;
+    }
+    if (act === "bb-slider-style") {
+      bb.sliderStyle = ["clean", "ticks", "ruler"].includes(ds.v) ? ds.v : "ticks";
+      render();
+      return true;
+    }
+    if (act === "bb-bounds-toggle") {
+      bb.showBounds = bb.showBounds === false;
+      render();
+      return true;
+    }
+    if (act === "bb-vp") {
+      applyBrandbookViewport(ui, ds.w || 390);
+      render();
+      return true;
+    }
+    if (act === "bb-chip") {
+      bb.chipOn = !bb.chipOn;
+      render();
+      return true;
+    }
+    if (act === "bb-bid") {
+      bb.sent = !bb.sent;
+      render();
+      notify(bb.sent ? "Ставка передана" : "Ставка сброшена", `${Number(bb.price || 1200).toLocaleString("ru-RU")} ₽/ч · ${String(bb.hour || 14).padStart(2, "0")}:00`);
+      return true;
+    }
+    if (act === "bb-fav") {
+      bb.fav = !bb.fav;
+      render();
+      return true;
+    }
+    if (act === "bb-switch") {
+      bb.switchVal = ds.v || (bb.switchVal === "online" ? "offline" : "online");
+      render();
+      return true;
+    }
+    if (act === "bb-select-toggle") {
+      bb.subjMenuOpen = !bb.subjMenuOpen;
+      render();
+      return true;
+    }
+    if (act === "bb-select-pick") {
+      bb.subj = ds.v || "bio";
+      bb.subjMenuOpen = false;
+      render();
+      return true;
+    }
+    if (act === "bb-multi-toggle") {
+      bb.multiMenuOpen = !bb.multiMenuOpen;
+      render();
+      return true;
+    }
+    if (act === "bb-multi-pick" || act === "bb-multi-remove") {
+      const id = ds.v;
+      if (id) {
+        const list = Array.isArray(bb.multiSubjs) ? bb.multiSubjs.slice() : [];
+        const idx = list.indexOf(id);
+        if (act === "bb-multi-remove" || idx >= 0) {
+          if (idx >= 0) list.splice(idx, 1);
+        } else {
+          list.push(id);
+        }
+        bb.multiSubjs = list;
+      }
+      render();
+      return true;
+    }
+    if (act === "bb-plan-pick") {
+      bb.pickedPlan = ds.v || "month10k";
+      render();
+      return true;
+    }
+    if (act === "bb-quiz-pick") {
+      bb.quizOpt = Number(ds.i != null ? ds.i : ds.v) || 0;
+      render();
+      return true;
+    }
+    if (act === "bb-cancel-demo") {
+      bb.cancelDemoUndone = !bb.cancelDemoUndone;
+      render();
+      return true;
+    }
+    if (act === "bb-toast-dismiss") {
+      bb.previewToastDismissed = !bb.previewToastDismissed;
+      render();
+      return true;
+    }
+    if (act === "bb-demo-toast") {
+      toast("Событие UI-Kit (без API)");
+      notify("UI-Kit · Превью", "Действие сработало локально в stateless-режиме");
+      return true;
+    }
+    if (act === "bb-icon-play") {
+      bb.activeIcon = ds.icon || "";
+      render();
+      return true;
+    }
+    if (act === "bb-icons-wave") {
+      toast("Анимация 40 иконок");
+      return true;
+    }
+    if (act === "bb-sakha-toggle") {
+      bb.sakhaSent = !bb.sakhaSent;
+      render();
+      return true;
+    }
+    if (act === "bb-sakha-medallion") {
+      bb.sakhaKunOn = !bb.sakhaKunOn;
+      render();
+      return true;
+    }
+    if (act === "bb-sakha-diamond") {
+      bb.sakhaStarOn = !bb.sakhaStarOn;
+      render();
+      return true;
+    }
+    if (act === "bb-faq-toggle") {
+      const idx = Number(ds.i);
+      bb.faqOpen = bb.faqOpen === idx ? -1 : idx;
+      render();
+      return true;
+    }
+    if (act === "bb-cat") {
+      bb.cat = ds.v || "all";
+      render();
+      return true;
+    }
+    if (act === "bb-cat-clear") {
+      bb.cat = "all";
+      bb.catQ = "";
+      render();
+      return true;
+    }
+    if (act === "bb-hero-primary") {
+      bb.heroSubmitted = !bb.heroSubmitted;
+      render();
+      return true;
+    }
+    if (act === "bb-hero-beta") {
+      bb.heroBetaOn = !bb.heroBetaOn;
+      render();
+      return true;
+    }
+    if (act === "bb-copy-token") {
+      const txt = ds.copy || "";
+      if (txt) copy(txt);
+      toast("Скопировано: " + txt.slice(0, 32));
+      return true;
+    }
+    if (act === "bb-logo-copy" || act === "bb-logo-dl") {
+      const svg = typeof brandLogoSVG === "function" ? brandLogoSVG(ds.surface || "light", ds.kind || "lockup") : "";
+      if (svg) copy(svg);
+      toast(act === "bb-logo-dl" ? "SVG сформирован" : "SVG скопирован");
+      return true;
+    }
+    if (act === "bb-app-role") {
+      bb.appRole = ds.role === "tutor" ? "tutor" : "student";
+      render();
+      return true;
+    }
+    if (act === "bb-market-req-toggle") {
+      bb.marketDemoAccepted = !bb.marketDemoAccepted;
+      render();
+      return true;
+    }
+    if (act === "bb-reduced-toggle" || act === "bb-reduced-motion") {
+      bb.reducedMotion = !bb.reducedMotion;
+      try {
+        if (typeof document !== "undefined" && document.documentElement && document.documentElement.classList) {
+          document.documentElement.classList.toggle("reduced-motion", !!bb.reducedMotion);
+        }
+      } catch (e) { /* ignore */ }
+      render();
+      return true;
+    }
+    if (act === "bb-mask-sample") {
+      const rawP = ds.phone || "+7 (914) 210-05-11";
+      const rawTg = ds.tg || "@aytal_bio";
+      bb.maskPhone = typeof formatPhoneMask === "function" ? (formatPhoneMask(rawP) || rawP) : rawP;
+      bb.maskTg = typeof formatTelegramContact === "function" ? (formatTelegramContact(rawTg) || rawTg) : rawTg;
+      bb.maskMax = ds.max || "aytal_ege";
+      render();
+      return true;
+    }
+    if (act === "bb-pay-threshold") {
+      bb.payInitialDone = ds.v === "repeat";
+      render();
+      return true;
+    }
+    if (act === "bb-pay-method") {
+      bb.payMethod = ["sbp", "card", "tpay"].includes(ds.v) ? ds.v : "sbp";
+      render();
+      return true;
+    }
+    if (act === "bb-pay-state") {
+      bb.payState = ["frozen", "captured", "refunded"].includes(ds.v) ? ds.v : "frozen";
+      render();
+      return true;
+    }
+    if (act === "bb-essay-tab") {
+      const idx = Number(ds.idx !== undefined ? ds.idx : ds.v);
+      bb.essayOpenIdx = Number.isInteger(idx) ? Math.max(0, Math.min(2, idx)) : 0;
+      render();
+      return true;
+    }
+    if (act === "bb-bal-toggle") {
+      bb.balFunded = bb.balFunded === false;
+      render();
+      return true;
+    }
+    if (act === "bb-chart-style") {
+      bb.chartStyle = ds.v || "sticks";
+      render();
+      return true;
+    }
+    if (act === "bb-chart-data") {
+      bb.chartDataset = ds.v || "income";
+      render();
+      return true;
+    }
+    if (act === "bb-chart-bar") {
+      bb.chartActiveIdx = Math.max(0, Math.min(6, Number(ds.idx) || 0));
+      render();
+      return true;
+    }
+    if (act === "bb-line-pt") {
+      bb.linePtIdx = Math.max(0, Math.min(6, Number(ds.idx) || 0));
+      render();
+      return true;
+    }
+    if (act === "bb-donut-ds") {
+      bb.donutDataset = ds.v || "channels";
+      bb.donutSliceIdx = 0;
+      render();
+      return true;
+    }
+    if (act === "bb-donut-slice") {
+      bb.donutSliceIdx = Math.max(0, Math.min(3, Number(ds.idx) || 0));
+      render();
+      return true;
+    }
+    if (act === "bb-tbl-cols") {
+      const c = Number(ds.cols);
+      bb.tableCols = [3, 5, 7].includes(c) ? c : 5;
+      render();
+      return true;
+    }
+    if (act === "bb-tbl-preset") {
+      const p = ds.preset || ds.v || "requests";
+      bb.tablePreset = ["requests", "students", "payouts", "exams", "admin"].includes(p) ? p : "requests";
+      bb.tableFilter = "all";
+      bb.tableSearch = "";
+      render();
+      return true;
+    }
+    if (act === "bb-tbl-confirm") {
+      const rowId = ds.id;
+      if (!rowId) return false;
+      if (!bb.confirmedRows || typeof bb.confirmedRows !== "object") bb.confirmedRows = {};
+      if (bb.confirmedRows[rowId]) delete bb.confirmedRows[rowId];
+      else bb.confirmedRows[rowId] = true;
+      render();
+      return true;
+    }
+    if (act === "bb-tbl-filter") {
+      bb.tableFilter = ds.v || "all";
+      if (ds.clearQ) bb.tableSearch = "";
+      render();
+      return true;
+    }
+    if (act === "bb-shell-role") {
+      bb.shellRole = (ds.role === "student" || ds.v === "student") ? "student" : "tutor";
+      render();
+      return true;
+    }
+    if (act === "bb-pipe-filter") {
+      const v = ds.v || "all";
+      bb.pipeFilter = ["all", "postgres", "polars", "airflow", "kafka"].includes(v) ? v : "all";
+      render();
+      return true;
+    }
+    if (act === "bb-cal-tz") {
+      bb.calTz = ds.v === "UTC+3" ? "UTC+3" : "UTC+9";
+      render();
+      return true;
+    }
+    if (act === "bb-admin-tab") {
+      const v = ds.v || "moderation";
+      bb.adminTab = ["moderation", "payouts", "system"].includes(v) ? v : "moderation";
+      render();
+      return true;
+    }
+    if (act === "bb-role-switch") {
+      const r = ds.role || ds.v || "admin";
+      bb.adminRole = ["student", "tutor", "admin"].includes(r) ? r : "admin";
+      if (r === "student" || r === "tutor") bb.dualRole = r;
+      render();
+      return true;
+    }
+    if (act === "bb-dual-role") {
+      bb.dualRole = ds.v === "tutor" ? "tutor" : "student";
+      render();
+      return true;
+    }
+    return false;
+  }
+
+  function handleInput(el, ui, hooks) {
+    if (!el) return false;
+    hooks = hooks || {};
+    const bb = ensureBrandbookState(ui || {});
+    const render = typeof hooks.render === "function" ? hooks.render : (() => {});
+    const id = el.id || "";
+    const act = el.dataset && el.dataset.a;
+
+    if (id === "bb-catalog-q") {
+      bb.catQ = String(el.value || "");
+      render();
+      return true;
+    }
+    if (act === "bb-tbl-q" || id === "bb-tbl-q" || id === "bb-admin-tbl-q" || id === "bb-dual-tbl-q") {
+      bb.tableSearch = String(el.value || "");
+      render();
+      return true;
+    }
+    if (id === "bb-mask-phone") {
+      const raw = String(el.value || "");
+      const digits = raw.replace(/\D+/g, "");
+      bb.maskPhone = (typeof formatPhoneMask === "function" && digits.length >= 10) ? (formatPhoneMask(raw) || raw) : raw;
+      render();
+      return true;
+    }
+    if (id === "bb-mask-tg") {
+      bb.maskTg = String(el.value || "");
+      render();
+      return true;
+    }
+    if (id === "bb-mask-max") {
+      bb.maskMax = String(el.value || "");
+      render();
+      return true;
+    }
+    if (id === "bb-vp-slider") {
+      applyBrandbookViewport(ui, el.value);
+      return true;
+    }
+    if (id.indexOf("bb-hour-range") === 0) {
+      bb.hour = Math.max(10, Math.min(20, Math.round(Number(el.value) || 14)));
+      render();
+      return true;
+    }
+    return false;
+  }
+
   EGE.views = EGE.views || {};
   EGE.views.brandbook = {
     brandbookPaneHTML,
     viewBrandbook,
     viewFees,
-    applyBrandbookViewport
+    applyBrandbookViewport,
+    handleAction,
+    handleInput
   };
 })();

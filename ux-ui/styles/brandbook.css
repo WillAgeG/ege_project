@@ -767,6 +767,7 @@
 .bb-table-shell { container-type: inline-size; width: 100%; min-width: 0; }
 .bb-tbl-inline { display: grid; gap: 12px; min-width: 0; }
 .bb-tbl-switches { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.bb-tbl-toolbar-extra { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-left: auto; }
 .bb-data-table { min-width: 560px; }
 .bb-data-table.cols-3 { min-width: 0; }
 .bb-data-table th {
@@ -775,7 +776,21 @@
 }
 .bb-data-table th:first-child { border-radius: 10px 0 0 0; }
 .bb-data-table th:last-child { border-radius: 0 10px 0 0; }
-.bb-data-table td { padding: 10px; border-bottom: 1px solid var(--line); vertical-align: middle; font-size: 13.5px; }
+.bb-data-table td { padding: 10px; border-bottom: 1px solid var(--line); vertical-align: middle; font-size: 13.5px; min-width: 0; }
+.bb-data-table td .input,
+.bb-data-table td select {
+  min-height: 32px; padding: 4px 9px; font-size: 12.5px; border-radius: 10px;
+  max-width: 100%; min-width: 0;
+}
+.bb-data-table td .hh-price-stepper.compact {
+  max-width: 210px; min-width: 0;
+}
+.bb-data-table td .hh-price-stepper.compact .hh-step-btn {
+  min-height: 30px; padding: 0 8px; font-size: 12px;
+}
+.bb-data-table td .hh-price-stepper.compact .hh-step-readout {
+  min-height: 30px; padding: 0 6px; font-size: 12.5px;
+}
 .bb-data-table tbody tr:hover td { background: color-mix(in srgb, var(--accent) 4%, var(--surface)); }
 .bb-tbl-st {
   display: inline-flex; align-items: center; gap: 5px; min-height: 24px; padding: 0 9px;
@@ -801,25 +816,34 @@
   .bb-data-table.is-adaptive tr {
     display: grid; gap: 8px; padding: 12px;
     border: 1px solid var(--line); border-radius: 12px; background: var(--surface);
+    min-width: 0;
   }
   .bb-data-table.is-adaptive tbody tr:hover td { background: transparent; }
   .bb-data-table.is-adaptive td {
-    display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
-    padding: 4px 0; min-width: 0; text-align: right; white-space: normal;
+    display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 6px 10px;
+    padding: 5px 0; min-width: 0; width: 100%; text-align: right; white-space: normal;
     border-bottom: 1px dashed color-mix(in srgb, var(--line) 75%, transparent);
   }
   .bb-data-table.is-adaptive td:last-child { border-bottom: 0; padding-bottom: 0; }
   .bb-data-table.is-adaptive td::before {
     content: attr(data-label);
     font-size: 11.5px; font-weight: 600; color: var(--muted);
-    flex: 0 0 auto; max-width: 42%; text-align: left;
+    flex: 0 0 auto; max-width: 44%; text-align: left;
   }
-  .bb-data-table.is-adaptive td > .stack { justify-items: end; }
+  .bb-data-table.is-adaptive td > * { max-width: 100%; min-width: 0 !important; }
+  .bb-data-table.is-adaptive td > .stack { justify-items: end; flex: 1 1 52%; }
+  .bb-data-table.is-adaptive td .field { width: 100%; justify-self: stretch; text-align: left; }
+  .bb-data-table.is-adaptive td .input,
+  .bb-data-table.is-adaptive td select,
+  .bb-data-table.is-adaptive td .hh-price-stepper,
+  .bb-data-table.is-adaptive td .hh-price-stepper.compact { width: 100%; max-width: 100%; }
   .bb-data-table.is-adaptive td .bb-tbl-st { justify-self: end; }
-  .bb-data-table.is-adaptive td .bb-tbl-st-cell { justify-content: flex-end; }
-  .bb-data-table.is-adaptive td .bb-msg-links { justify-content: flex-end; }
+  .bb-data-table.is-adaptive td .bb-tbl-st-cell,
+  .bb-data-table.is-adaptive td .msg-channel-bar,
+  .bb-data-table.is-adaptive td .auto-ch-bar,
+  .bb-data-table.is-adaptive td .bb-msg-links { justify-content: flex-end; flex-wrap: wrap; max-width: 100%; }
 }
-@media (max-width: 640px) {
+@media (max-width: 720px) {
   .bb-table-shell .table-wrap { overflow: visible; border: 0; background: transparent; padding: 0; }
   .bb-data-table.is-adaptive { display: block; width: 100%; min-width: 0 !important; border-collapse: separate; }
   .bb-data-table.is-adaptive thead {
@@ -830,23 +854,32 @@
   .bb-data-table.is-adaptive tr {
     display: grid; gap: 8px; padding: 12px;
     border: 1px solid var(--line); border-radius: 12px; background: var(--surface);
+    min-width: 0;
   }
   .bb-data-table.is-adaptive tbody tr:hover td { background: transparent; }
   .bb-data-table.is-adaptive td {
-    display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
-    padding: 4px 0; min-width: 0; text-align: right; white-space: normal;
+    display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 6px 10px;
+    padding: 5px 0; min-width: 0; width: 100%; text-align: right; white-space: normal;
     border-bottom: 1px dashed color-mix(in srgb, var(--line) 75%, transparent);
   }
   .bb-data-table.is-adaptive td:last-child { border-bottom: 0; padding-bottom: 0; }
   .bb-data-table.is-adaptive td::before {
     content: attr(data-label);
     font-size: 11.5px; font-weight: 600; color: var(--muted);
-    flex: 0 0 auto; max-width: 42%; text-align: left;
+    flex: 0 0 auto; max-width: 44%; text-align: left;
   }
-  .bb-data-table.is-adaptive td > .stack { justify-items: end; }
+  .bb-data-table.is-adaptive td > * { max-width: 100%; min-width: 0 !important; }
+  .bb-data-table.is-adaptive td > .stack { justify-items: end; flex: 1 1 52%; }
+  .bb-data-table.is-adaptive td .field { width: 100%; justify-self: stretch; text-align: left; }
+  .bb-data-table.is-adaptive td .input,
+  .bb-data-table.is-adaptive td select,
+  .bb-data-table.is-adaptive td .hh-price-stepper,
+  .bb-data-table.is-adaptive td .hh-price-stepper.compact { width: 100%; max-width: 100%; }
   .bb-data-table.is-adaptive td .bb-tbl-st { justify-self: end; }
-  .bb-data-table.is-adaptive td .bb-tbl-st-cell { justify-content: flex-end; }
-  .bb-data-table.is-adaptive td .bb-msg-links { justify-content: flex-end; }
+  .bb-data-table.is-adaptive td .bb-tbl-st-cell,
+  .bb-data-table.is-adaptive td .msg-channel-bar,
+  .bb-data-table.is-adaptive td .auto-ch-bar,
+  .bb-data-table.is-adaptive td .bb-msg-links { justify-content: flex-end; flex-wrap: wrap; max-width: 100%; }
 }
 
 /* Живой тренажёр масок, платежи / эквайринг, таймеры ЕГЭ-2027 и A11y */
@@ -1068,3 +1101,27 @@ kbd.bb-kbd {
   overflow-wrap: anywhere;
   min-width: 0;
 }
+
+/* ---------- Секции 14 & 15: Admin UI Kit и Разделение UI Kit / Headless API ---------- */
+.bb-adm-badges-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+.bb-arch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 12px;
+  min-width: 0;
+}
+.bb-dual-role-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+

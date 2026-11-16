@@ -1,0 +1,33 @@
+{
+  "name": "@vektor-ege/ui-kit",
+  "version": "1.2.0",
+  "description": "Standalone zero-API design system & Brandbook for Vektor EGE",
+  "license": "MIT",
+  "main": "components/kit.js",
+  "files": [
+    "README.md",
+    "package.json",
+    "tokens.json",
+    "styles/*",
+    "components/*",
+    "brandbook/*"
+  ],
+  "exports": {
+    ".": "./components/kit.js",
+    "./tokens.json": "./tokens.json",
+    "./styles/base.css": "./styles/base.css",
+    "./styles/brandbook.css": "./styles/brandbook.css",
+    "./components/icons.js": "./components/icons.js",
+    "./components/hh-components.js": "./components/hh-components.js",
+    "./components/charts.js": "./components/charts.js",
+    "./components/kit.js": "./components/kit.js",
+    "./brandbook/brandbook.js": "./brandbook/brandbook.js"
+  },
+  "keywords": [
+    "vektor-ege",
+    "ui-kit",
+    "design-system",
+    "brandbook",
+    "zero-api"
+  ]
+}

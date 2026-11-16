@@ -1270,4 +1270,224 @@ button.rt-status-pill:hover { border-color: var(--accent); transform: translateY
   background: color-mix(in srgb, var(--notif-soft) 42%, var(--surface));
 }
 
+/* Admin UI Kit (.adm-kpi-grid, .adm-kpi-card, .adm-mod-badge, .arch-boundary-card, .role-switch-banner) */
+.adm-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+  min-width: 0;
+}
+.adm-kpi-card {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: var(--r);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  min-width: 0;
+  align-content: start;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .05);
+  transition: transform .14s ease, border-color .16s ease, box-shadow .16s ease;
+}
+.adm-kpi-card.is-clickable { cursor: pointer; }
+.adm-kpi-card.is-clickable:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+  box-shadow: var(--shadow);
+}
+.adm-kpi-card.is-accent { border-top: 3px solid var(--accent); }
+.adm-kpi-card.is-confirm { border-top: 3px solid var(--confirm); }
+.adm-kpi-card.is-notif { border-top: 3px solid var(--notif); }
+.adm-kpi-card.is-pro { border-top: 3px solid var(--pro); }
+.adm-kpi-card.is-gold { border-top: 3px solid var(--gold, #c59b5f); }
+.adm-kpi-card.is-bad { border-top: 3px solid var(--bad); }
+.adm-kpi-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.adm-kpi-lbl {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.adm-kpi-delta {
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.adm-kpi-card.is-confirm .adm-kpi-delta { background: var(--confirm-soft); color: var(--confirm); }
+.adm-kpi-card.is-notif .adm-kpi-delta { background: var(--notif-soft); color: var(--notif); }
+.adm-kpi-card.is-accent .adm-kpi-delta { background: var(--accent-soft); color: var(--accent); }
+.adm-kpi-card.is-pro .adm-kpi-delta { background: var(--pro-soft); color: var(--pro); }
+.adm-kpi-card.is-gold .adm-kpi-delta { background: var(--gold-soft); color: var(--gold-ink); }
+.adm-kpi-card.is-bad .adm-kpi-delta { background: var(--bad-soft); color: var(--bad); }
+.adm-kpi-val {
+  font-size: 24px;
+  line-height: 1.12;
+  letter-spacing: -0.025em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.adm-kpi-note {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.adm-mod-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  width: fit-content;
+}
+.adm-mod-badge.is-verified,
+.adm-mod-badge.is-paid {
+  background: var(--confirm-soft);
+  color: var(--confirm);
+}
+.adm-mod-badge.is-pending,
+.adm-mod-badge.is-flagged {
+  background: var(--notif-soft);
+  color: var(--notif);
+}
+.adm-mod-badge.is-flagged {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--notif) 45%, transparent);
+}
+.adm-mod-badge.is-frozen {
+  background: var(--gold-soft);
+  color: var(--gold-ink);
+}
+.adm-mod-badge.is-published {
+  background: var(--pro-soft);
+  color: var(--pro);
+}
+.adm-mod-badge.is-declined {
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+
+.arch-boundary-card {
+  display: grid;
+  gap: 10px;
+  padding: 15px 16px;
+  border-radius: var(--r);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  min-width: 0;
+  align-content: start;
+}
+.arch-boundary-card.is-ui-kit { border-left: 3px solid var(--gold, #c59b5f); }
+.arch-boundary-card.is-headless-api { border-left: 3px solid var(--accent); }
+.arch-boundary-card.is-spa-shell { border-left: 3px solid var(--pro); }
+.arch-boundary-card.is-postgresql { border-left: 3px solid var(--confirm); }
+.arch-boundary-card.is-polars,
+.arch-boundary-card.is-airflow,
+.arch-boundary-card.is-grafana { border-left: 3px solid var(--notif); }
+.arch-boundary-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.arch-boundary-repo {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.arch-endpoints {
+  margin: 0;
+  padding: 8px 10px;
+  list-style: none;
+  display: grid;
+  gap: 5px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  min-width: 0;
+}
+.arch-endpoints li { min-width: 0; overflow-wrap: anywhere; }
+.arch-endpoints code {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--accent);
+  overflow-wrap: anywhere;
+}
+
+.role-switch-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border-radius: var(--r);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  min-width: 0;
+}
+.role-switch-meta {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.role-switch-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.role-switch-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color .14s ease, background-color .14s ease, color .14s ease, transform .12s ease;
+}
+.role-switch-pill:hover {
+  border-color: var(--accent);
+  color: var(--ink);
+  transform: translateY(-1px);
+}
+.role-switch-pill.is-active {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--accent-ink);
+}
+.role-switch-pill.is-active .badge {
+  background: rgba(255, 255, 255, .2);
+  color: #ffffff;
+}
+@media (max-width: 480px) {
+  .adm-kpi-grid { grid-template-columns: minmax(0, 1fr); }
+  .role-switch-banner { padding: 10px 12px; }
+}
+
+
 

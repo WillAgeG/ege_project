@@ -1,19 +1,21 @@
-# REPOSITORIES.md — Карта 5 независимых репозиториев экосистемы «Вектор ЕГЭ»
+# REPOSITORIES.md — Карта 7 независимых репозиториев экосистемы «Вектор ЕГЭ»
 
 > [!NOTE]
-> Вся платформа разделена на **5 независимых Git-репозиториев** в каталоге `/Users/aleksej/Documents/my_projects/`. Основной веб-репозиторий (`Preparation`) поддерживает как автономный zero-config запуск на SQLite WAL, так и **живой режим Dual-Write (`DB_MODE="dual"`) в PostgreSQL 17 (`vektor-postgres :5432`)** с транзакционным аутбоксом `outbox.kafka_outbox`, Realtime-хабом (`SSE` / `WebSocket`) и двусторонней синхронизацией календарей `.ics` / Google Calendar (`Asia/Yakutsk UTC+9` ↔ `Europe/Moscow UTC+3`).
+> Вся платформа разделена на **7 независимых Git-репозиториев** в каталоге `/Users/aleksej/Documents/my_projects/`: к пяти базовым сервисам (`Preparation :8770`, `vektor-postgres :5432`, `vektor-polars-engine`, `vektor-airflow :8085`, `vektor-grafana :3000`) добавлены обособленный **Headless API сервер (`vektor-api :8771`)** и автономный **Zero-API UI Kit & Brandbook (`vektor-ui-kit :8772`)**. Основной веб-репозиторий (`Preparation`) поддерживает как автономный zero-config запуск на SQLite WAL, так и **живой режим Dual-Write (`DB_MODE="dual"`) в PostgreSQL 17 (`vektor-postgres :5432`)** с транзакционным аутбоксом `outbox.kafka_outbox`, Admin REST API (`/api/admin/*`), Realtime-хабом (`SSE` / `WebSocket`) и двусторонней синхронизацией календарей `.ics` / Google Calendar (`Asia/Yakutsk UTC+9` ↔ `Europe/Moscow UTC+3`).
 
 ---
 
-## 1. Сводный реестр 5 репозиториев
+## 1. Сводный реестр 7 репозиториев
 
 | № | Репозиторий | Абсолютный путь | Порт / Режим | Назначение, схемы и ключевой стек |
 |---|---|---|---|---|
-| **1** | **`Preparation`**<br>*(Web SPA + FastAPI + UI Kit + Live Dual-Write & Realtime)* | `/Users/aleksej/Documents/my_projects/Preparation` | **`8770`**<br>(HTTP Web / API / SSE / WS) | Основное веб-приложение «Вектор ЕГЭ»: изолированный UI Kit (`ux-ui/`), Vanilla JS SPA (`frontend/`), FastAPI сервер (`backend/main.py`, `backend/realtime.py`, `backend/calendar_sync.py`), хранилища SQLite (`databases/sqlite/store.py`) + PostgreSQL 17 Dual-Write (`databases/postgres/store.py`) и базовые ETL-контракты (`etl/`). |
-| **2** | **`vektor-postgres`**<br>*(PostgreSQL 17 OLTP + Outbox + Gold Marts)* | `/Users/aleksej/Documents/my_projects/vektor-postgres` | **`5432`**<br>(PostgreSQL 17, БД `vektor_ege` + `airflow_meta`) | Серверная реляционная СУБД PostgreSQL 17 со схемами: `oltp.*` (пользователи, сессии, `docs JSONB`, репетиторы, слоты `10:00–20:00`, заявки `±100 ₽`, эскроу `95%/5%`, выплаты), `telemetry.user_events` (кликстрим), `outbox.kafka_outbox` (конверты событий Kafka), `bronze.*`, `silver.*` и `gold.*` (аналитические витрины). |
-| **3** | **`vektor-polars-engine`**<br>*(Bare-Metal Polars Lakehouse on Apple M4 Pro)* | `/Users/aleksej/Documents/my_projects/vektor-polars-engine` | **Bare-metal CLI**<br>(`arm64`, без сетевого порта) | Нативный высокопроизводительный движок обработки данных на Apple M4 Pro (`polars` `LazyFrame` + `pyarrow` + `duckdb` + `psycopg`): слои `warehouse/bronze/*.parquet` → `warehouse/silver/*.parquet` → `warehouse/gold/*.parquet`, синхронизация витрин в PostgreSQL (`silver.*`, `gold.*`) и замер throughput в `gold.engine_benchmarks`. |
-| **4** | **`vektor-airflow`**<br>*(Apache Airflow Orchestrator)* | `/Users/aleksej/Documents/my_projects/vektor-airflow` | **`8085`**<br>(Airflow Webserver & Scheduler) | Оркестратор расписаний и DAG-пайплайнов (метабаза `airflow_meta` в PostgreSQL `:5432`): запуск bare-metal задач `vektor-polars-engine`, расчёт эскроу/выплат `95%/5%`, обработка очереди `outbox.kafka_outbox` и логирование запусков в `gold.pipeline_runs`. |
-| **5** | **`vektor-grafana`**<br>*(Grafana BI & Data Platform Observability)* | `/Users/aleksej/Documents/my_projects/vektor-grafana` | **`3000`**<br>(Grafana HTTP Server) | Провижининг datasource `vektor-postgres` (`127.0.0.1:5432`) и двух живых дашбордов: **«Вектор ЕГЭ · Бизнес и Clickstream аналитика»** (`vektor_super_analytics.json`) и **«Вектор ЕГЭ · Data Platform (Polars M4 Pro, Airflow, Kafka Outbox)»** (`vektor_data_platform.json`). |
+| **1** | **`Preparation`**<br>*(SPA Shell + Админ-панель + Full-Stack)* | `/Users/aleksej/Documents/my_projects/Preparation` | **`8770`**<br>(HTTP Web / API / SSE / WS) | Основная SPA-оболочка «Вектор ЕГЭ»: централизованный клиент `frontend/core/api.js` (`EGE.api`), экраны Ученика/Преподавателя (табличные `#student-bookings-table`, `#student-leads-table`, `#study-schedule-table`, `#study-chats-table`, `#tc-requests-table`, `#tc-students-table`, `#tc-leads-table`), Админ-панель (`frontend/views/admin.js`, `/admin`), FastAPI-компоновщик (`backend/main.py`, `backend/shell.py`, `backend/api/*`), хранилища SQLite + PG17 Dual-Write (`databases/`), тесты `tests/check_app.js` и `tests/test_admin_api.py`. |
+| **2** | **`vektor-api`**<br>*(Headless FastAPI REST / SSE / WS / Admin API)* | `/Users/aleksej/Documents/my_projects/vektor-api` | **`8771`**<br>(Headless JSON / SSE / WS) | Чистый headless API-сервер (`backend/api/{__init__,auth_docs,realtime_calendar,admin}.py`, `create_api_app`) без HTML и статики UI Kit: авторизация OAuth/scrypt, документы прогресса, Realtime SSE/WS, `.ics`/GCal синк, Admin API (`/api/admin/{architecture,overview,users,tutors,requests,payouts,outbox}`) и OpenAPI `/docs` с CORS для `:8770` и `:8772`. |
+| **3** | **`vektor-ui-kit`**<br>*(Standalone Zero-API Design System & Brandbook)* | `/Users/aleksej/Documents/my_projects/vektor-ui-kit` | **`8772`**<br>(Static / Brandbook стенд) | Обособленная дизайн-система `@vektor-ege/ui-kit` (`ux-ui/package.json` v1.2.0, zero `fetch`/`EventSource`/`WebSocket`/`EGE.api`): дизайн-токены (`tokens.json`), `27` карточек каталога Brandbook (`#bb-admin-kit`, `#bb-arch-split` и др.), `5` пресетов `EGE.charts.dataTableHTML` (`requests`, `students`, `payouts`, `exams`, `admin`), Admin UI Kit компоненты (`adminKpiGridHTML`, `adminModerationBadgeHTML`, `serviceBoundaryCardHTML`, `roleSwitchBannerHTML`) и стенд `tests/check_uikit.js`. |
+| **4** | **`vektor-postgres`**<br>*(PostgreSQL 17 OLTP + Outbox + Gold Marts)* | `/Users/aleksej/Documents/my_projects/vektor-postgres` | **`5432`**<br>(PostgreSQL 17, БД `vektor_ege` + `airflow_meta`) | Серверная реляционная СУБД PostgreSQL 17 со схемами: `oltp.*` (пользователи, сессии, `docs JSONB`, репетиторы, слоты `10:00–20:00`, заявки `±100 ₽`, эскроу `95%/5%`, выплаты), `telemetry.user_events` (кликстрим), `outbox.kafka_outbox` (конверты событий Kafka), `bronze.*`, `silver.*` и `gold.*` (аналитические витрины). |
+| **5** | **`vektor-polars-engine`**<br>*(Bare-Metal Polars Lakehouse on Apple M4 Pro)* | `/Users/aleksej/Documents/my_projects/vektor-polars-engine` | **Bare-metal CLI**<br>(`arm64`, без сетевого порта) | Нативный высокопроизводительный движок обработки данных на Apple M4 Pro (`polars` `LazyFrame` + `pyarrow` + `duckdb` + `psycopg`): слои `warehouse/bronze/*.parquet` → `warehouse/silver/*.parquet` → `warehouse/gold/*.parquet`, синхронизация витрин в PostgreSQL (`silver.*`, `gold.*`) и замер throughput в `gold.engine_benchmarks`. |
+| **6** | **`vektor-airflow`**<br>*(Apache Airflow Orchestrator)* | `/Users/aleksej/Documents/my_projects/vektor-airflow` | **`8085`**<br>(Airflow Webserver & Scheduler) | Оркестратор расписаний и DAG-пайплайнов (метабаза `airflow_meta` в PostgreSQL `:5432`): запуск bare-metal задач `vektor-polars-engine`, расчёт эскроу/выплат `95%/5%`, обработка очереди `outbox.kafka_outbox` и логирование запусков в `gold.pipeline_runs`. |
+| **7** | **`vektor-grafana`**<br>*(Grafana BI & Data Platform Observability)* | `/Users/aleksej/Documents/my_projects/vektor-grafana` | **`3000`**<br>(Grafana HTTP Server) | Провижининг datasource `vektor-postgres` (`127.0.0.1:5432`) и живых дашбордов (включая **«Вектор ЕГЭ · Бизнес и Clickstream аналитика»** `vektor_super_analytics.json` и **«Вектор ЕГЭ · Data Platform (Polars M4 Pro, Airflow, Kafka Outbox)»** `vektor_data_platform.json`). |
 
 ---
 
@@ -21,8 +23,10 @@
 
 ```text
 +-----------------------------------------------------------------------------------+
-| 1. BROWSER / SPA (Preparation :8770)                                              |
-|    - Vanilla JS SPA (window.EGE) + изолированный UI Kit (ux-ui/)                  |
+| 1. BROWSER / SPA SHELL (Preparation :8770)  <-- UI-Kit & Brandbook (:8772)        |
+|    - Vanilla JS SPA (window.EGE) + @vektor-ege/ui-kit (ux-ui/, 27 каталогов)      |
+|    - Централизованный HTTP-клиент EGE.api (frontend/core/api.js)                  |
+|    - Админ-панель (/admin, frontend/views/admin.js) + табличные вьюхи ролей       |
 |    - Realtime-клиент (frontend/core/realtime.js): SSE + WebSocket + BroadcastChan |
 |    - Календарь .ics / Google Calendar (Якутск UTC+9 <-> Москва UTC+3)             |
 +-----------------------------------------+-----------------------------------------+
@@ -30,8 +34,11 @@
                                           | HTTP / JSON / SSE / WS (/api/*)
                                           v
 +-----------------------------------------------------------------------------------+
-| 2. WEB API (Preparation / FastAPI :8770)                                          |
+| 2. HEADLESS API (vektor-api :8771 / Preparation backend/api/*)                    |
+|    - backend/api/{auth_docs,realtime_calendar,admin}.py + CORS (:8770, :8772)     |
 |    - Auth (OAuth 2.0 + PKCE, scrypt), Docs JSONB, AI-прокси (/api/ai)             |
+|    - LIVE Admin REST (/api/admin/{architecture,overview,users,tutors,requests,    |
+|      payouts,outbox})                                                             |
 |    - LIVE Realtime Hub (/api/realtime/{stream,ws,publish,recent})                 |
 |    - LIVE Calendar Sync (/api/calendar/{state,sync,{feed_token}.ics,import-ics})  |
 |    - LIVE DualWriteDatabase (databases/postgres/store.py, DB_MODE="dual")         |
@@ -99,10 +106,28 @@ cd /Users/aleksej/Documents/my_projects/Preparation
 DATABASE_URL="postgresql://postgres@127.0.0.1:5432/vektor_ege" DB_MODE="dual" \
   .venv/bin/uvicorn backend.main:app --host 127.0.0.1 --port 8770
 
-# Проверка статуса хранилища, тестов бэкенда/Dual-Write/Realtime/Calendar и фронтенда
+# Проверка статуса хранилища, тестов бэкенда/Admin API/Dual-Write/Realtime/Calendar и фронтенда
 curl -sf http://127.0.0.1:8770/api/health/storage
 .venv/bin/pytest -q
 /System/Library/Frameworks/JavaScriptCore.framework/Versions/A/Helpers/jsc tests/check_app.js
+```
+
+### 3.1a `vektor-api` — Headless FastAPI (`127.0.0.1:8771`)
+
+```bash
+cd /Users/aleksej/Documents/my_projects/vektor-api
+./scripts/api_ctl.sh start
+curl -sf http://127.0.0.1:8771/api/admin/architecture
+/Users/aleksej/Documents/my_projects/Preparation/.venv/bin/pytest -q tests/test_admin_api.py
+```
+
+### 3.1b `vektor-ui-kit` — Standalone UI Kit & Brandbook (`127.0.0.1:8772`)
+
+```bash
+cd /Users/aleksej/Documents/my_projects/vektor-ui-kit
+./scripts/uikit_ctl.sh start
+curl -sf http://127.0.0.1:8772/ | head -n 5
+/System/Library/Frameworks/JavaScriptCore.framework/Versions/A/Helpers/jsc tests/check_uikit.js
 ```
 
 ### 3.2 `vektor-postgres` — PostgreSQL 17 (`127.0.0.1:5432`)

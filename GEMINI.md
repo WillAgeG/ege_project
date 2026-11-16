@@ -11,12 +11,13 @@
 ### Публичные и внутренние экраны (`VIEWS` в [frontend/app.js](frontend/app.js))
 
 - **Лендинг** (`/landing`, `landing`) — герой-секция с баннером Ленских столбов (`/assets/lena-pillars.jpg`), интерактивный калькулятор ставки `±100 ₽`, витрина репетиторов, бегущая строка тарифов, FAQ, блок с якутскими узорами «Оһуор».
-- **Брендбук / UI Kit** (`/brandbook`, `brandbook`) — живая документация дизайн-системы (`25` карточек каталога `EGE.kit.CATALOG_ITEMS`): 40 анимируемых SVG-иконок, 6 видов графиков + линейные/круговые графики, супер-адаптивные schema-driven таблицы (`EGE.charts.dataTableHTML` с `@container`-карточками), интерактивные селекты и паттерны кабинета, живой тренажёр масок контактов (`#bb-mask-trainer`), экраны эквайринга и выплат (`#bb-payments`), единые Shell-виджеты сайта (`#bb-ui-kit-shells`), Data & Observability UI Kit для ETL/ELT-стадий и потока логов (`#bb-telemetry-etl`), таймеры ЕГЭ-2027 с ИИ-разбором задания 27 (`#bb-ege-timers`) и доступность (`#bb-a11y`, карта `:focus-visible`, горячие клавиши и `reduced-motion`).
+- **Брендбук / UI Kit** (`/brandbook`, `brandbook`) — живая документация дизайн-системы (`27` карточек каталога `EGE.kit.CATALOG_ITEMS`, включая `#bb-admin-kit` и `#bb-arch-split`): 40 анимируемых SVG-иконок, 6 видов графиков + линейные/круговые графики, супер-адаптивные schema-driven таблицы (`EGE.charts.dataTableHTML` с `5` пресетами `requests | students | payouts | exams | admin` и `@container`-карточками), интерактивные селекты и паттерны кабинета, живой тренажёр масок контактов (`#bb-mask-trainer`), экраны эквайринга и выплат (`#bb-payments`), единые Shell-виджеты сайта (`#bb-ui-kit-shells`), Data & Observability UI Kit для ETL/ELT-стадий и потока логов (`#bb-telemetry-etl`), Admin UI Kit (`#bb-admin-kit`), границы слоёв UI-Kit/API (`#bb-arch-split`), таймеры ЕГЭ-2027 с ИИ-разбором задания 27 (`#bb-ege-timers`) и доступность (`#bb-a11y`, карта `:focus-visible`, горячие клавиши и `reduced-motion`).
 - **Оплата и комиссия** (`/fees`, `fees`) — правила пополнения баланса ученика, тарифов, сервисного сбора `5%` (не показывается на этапе подбора, только на `/fees` и при оплате), а в режиме преподавателя — раздел **«Выплаты»** с KPI кошелька и адаптивной историей выводов (`#tc-payout-history`).
+- **Админ-панель** (`/admin`, `admin`) — роль `admin` (`5` пунктов бокового меню на desktop + ссылка `Брендбук`, `5` вкладок в мобильном таббаре, пилюля `.side-admin-pill` в сайдбаре и выбор в `/profile`): вкладки `overview` (KPI GMV / 95% / 5% / Заявки / Outbox + графики + таблица пользователей `adm-overview-users` со сменой роли), `requests` (`adm-requests-table` с модерацией статусов + открытые запросы учеников), `tutors` (`adm-tutors-table` с `adminModerationBadgeHTML`, верификацией и поднятием анкет), `payouts` (`adm-payouts-table` СБП / Карта Мир `>= 500 ₽` + НПД) и `system` (`7` карточек границ сервисов `serviceBoundaryCardHTML`, `pipelineStageCardHTML` и лента `outbox.kafka_outbox` в `eventLogFeedHTML`).
 - **Правовая информация** (`/privacy`) — статическая HTML-страница политики конфиденциальности, отдаваемая напрямую FastAPI.
 - **Учебный и маркетплейс-контуры**:
-  - `Ученик` (`5` пунктов бокового меню + блок 3 предметов слева): `tests` (Тесты), `tutor` (Справочник), `market` (Репетиторы), `study` (Учёба), `stats` (Показатели), плюс `subject`, `topic`, `quiz`, `essay`, `plan`, `profile`. Виджет баланса закреплён внизу левого сайдбара на desktop и справа в топбаре (`28 px` кнопка `+`) на mobile; первое пополнение от `5 000 ₽`, последующие от `100 ₽`.
-  - `Преподаватель` (`7` пунктов бокового меню на desktop, `5` вкладок в мобильном таббаре, без блока предметов и студенческого баланса): `cabinet` (вкладки `requests` + кликабельный бейдж, `calendar`, `students`, `leads`, `profile`), `fees` (Выплаты) и `tutor` (Справочник). Виджет баланса преподавателя закреплён **справа снизу** на desktop (`#tutor-balance-dock`) и **справа сверху** в топбаре на mobile (`#top-balance-slot`), с модалкой вывода средств (СБП по телефону + выбор банка или Карта РФ/Мир, опциональный чек НПД, от `500 ₽`, через `EGE.payments.createPayoutIntent`). Поддерживает поднятие анкеты (кулдаун `4` часа, автопродвижение каждые `24` часа), мультиканальные контакты (`WhatsApp`, `Telegram` с телефоном или `@login`, `MAX`), город (`Якутск` / `Москва`, по умолчанию `UTC+9`) и загрузку/отключение фото («Без фото»).
+  - `Ученик` (`5` пунктов бокового меню + блок 3 предметов слева): `tests` (Тесты), `tutor` (Справочник), `market` (Репетиторы — табличные заявки `#student-bookings-table` и `#student-leads-table`), `study` (Учёба — табличное расписание `#study-schedule-table` и чаты `#study-chats-table`), `stats` (Показатели), плюс `subject`, `topic`, `quiz`, `essay`, `plan`, `profile`. Виджет баланса закреплён внизу левого сайдбара на desktop и справа в топбаре (`28 px` кнопка `+`) на mobile; первое пополнение от `5 000 ₽`, последующие от `100 ₽`.
+  - `Преподаватель` (`7` пунктов бокового меню на desktop, `5` вкладок в мобильном таббаре, без блока предметов и студенческого баланса): `cabinet` (вкладки `requests` + кликабельный бейдж с таблицей `#tc-requests-table`, `calendar`, `students` с `#tc-students-table`, `leads` с `#tc-leads-table`, `profile`), `fees` (Выплаты) и `tutor` (Справочник). Виджет баланса преподавателя закреплён **справа снизу** на desktop (`#tutor-balance-dock`) и **справа сверху** в топбаре на mobile (`#top-balance-slot`), с модалкой вывода средств (СБП по телефону + выбор банка или Карта РФ/Мир, опциональный чек НПД, от `500 ₽`, через `EGE.payments.createPayoutIntent`). Поддерживает поднятие анкеты (кулдаун `4` часа, автопродвижение каждые `24` часа), мультиканальные контакты (`WhatsApp`, `Telegram` с телефоном или `@login`, `MAX`), город (`Якутск` / `Москва`, по умолчанию `UTC+9`) и загрузку/отключение фото («Без фото»).
 
 ---
 
@@ -24,8 +25,8 @@
 
 | Слой | Технологии и версии | Назначение и ключевые файлы |
 |---|---|---|
-| **Backend API** | Python `3.13`, `fastapi>=0.115,<1`, `uvicorn[standard]>=0.32,<1`, `httpx>=0.27,<1`, `psycopg[binary]>=3.2,<4`, `psycopg-pool>=3.2,<4` | HTTP API, SSR-инъекция `window.EGE_HOST`, OAuth 2.0 + PKCE (`S256`), `scrypt`-аутентификация, Realtime SSE/WS хаб, `.ics`/Google Calendar синк (`UTC+9` ↔ `UTC+3`), SSE/JSON ИИ-прокси, allowlist статики ([backend/main.py](backend/main.py), [backend/config.py](backend/config.py), [backend/realtime.py](backend/realtime.py), [backend/calendar_sync.py](backend/calendar_sync.py), [backend/ai.py](backend/ai.py)) |
-| **Frontend SPA** | Vanilla JS (ES2020+ IIFE, zero-bundler), HTML5, CSS Custom Properties | Одностраничное приложение без сборки и фреймворков; единый неймспейс `window.EGE`; офлайн-режим `localStorage`, облачная очередь синка и Realtime SSE/WS/BroadcastChannel клиент ([frontend/index.html](frontend/index.html), [frontend/core/realtime.js](frontend/core/realtime.js), [frontend/app.js](frontend/app.js)) |
+| **Backend API** | Python `3.13`, `fastapi>=0.115,<1`, `uvicorn[standard]>=0.32,<1`, `httpx>=0.27,<1`, `psycopg[binary]>=3.2,<4`, `psycopg-pool>=3.2,<4` | Модульный Headless API (`backend/api/{auth_docs,realtime_calendar,admin}.py`) + SSR-оболочка SPA (`backend/shell.py`, `backend/main.py`): OAuth 2.0 + PKCE (`S256`), `scrypt`-аутентификация, Realtime SSE/WS хаб, `.ics`/Google Calendar синк (`UTC+9` ↔ `UTC+3`), Admin REST (`/api/admin/*`), SSE/JSON ИИ-прокси, allowlist статики ([backend/main.py](backend/main.py), [backend/api/](backend/api/), [backend/shell.py](backend/shell.py), [backend/config.py](backend/config.py), [backend/realtime.py](backend/realtime.py), [backend/calendar_sync.py](backend/calendar_sync.py), [backend/ai.py](backend/ai.py)) |
+| **Frontend SPA** | Vanilla JS (ES2020+ IIFE, zero-bundler), HTML5, CSS Custom Properties | Одностраничное приложение без сборки и фреймворков; единый неймспейс `window.EGE`; централизованный HTTP-клиент `EGE.api` ([frontend/core/api.js](frontend/core/api.js)), офлайн-режим `localStorage`, облачная очередь синка, Realtime SSE/WS/BroadcastChannel клиент и `/admin` вьюха ([frontend/index.html](frontend/index.html), [frontend/core/realtime.js](frontend/core/realtime.js), [frontend/views/admin.js](frontend/views/admin.js), [frontend/app.js](frontend/app.js)) |
 | **UI Kit (`ux-ui/`)** | JSON Design Tokens + чистый CSS + модульные SVG/DOM/DataViz компоненты | Изолированная дизайн-система (`EGE.ui`, `EGE.hh`, `EGE.charts`, `EGE.kit`, `EGE.views.brandbook`), не зависящая от данных репетиторов и бизнес-вьюх |
 | **OLTP База данных** | SQLite 3 (`WAL`) + PostgreSQL 17 (`oltp.*`, `outbox.kafka_outbox` в режиме `DualWriteDatabase`) | Хранение пользователей, OAuth-идентичностей, сессий, PKCE-состояний, JSONB-документов прогресса и транзакционного аутбокса ([databases/sqlite/store.py](databases/sqlite/store.py), [databases/postgres/store.py](databases/postgres/store.py), [databases/migrations/001_initial_sqlite.sql](databases/migrations/001_initial_sqlite.sql)) |
 | **OLAP & ETL (`etl/`)** | Python, `polars>=1.9,<2` (`LazyFrame`), `pyarrow>=18,<20`, `duckdb>=1.1,<2` (+ zero-dep fallback) | Medallion-пайплайн (`Bronze → Silver → Gold Parquet`) нормализации анкет из Ykt/TG/WA/MAX и расчёт unit-экономики/GMV ([etl/](etl/)) |
@@ -41,34 +42,36 @@ Preparation/
 ├── GEMINI.md                     # Этот документ (полный архитектурный справочник)
 ├── ARCHITECTURE.md               # Краткая схема слоёв, HTTP-потока и инвариантов
 ├── ROADMAP_UNCONNECTED.md        # Бэклог из 12 неподключённых к живому сайту систем, JSON-конверт и 5 Kafka-топиков
-├── REPOSITORIES.md               # Карта всех 5 независимых репозиториев, порты, скрипты запуска и поток данных
+├── REPOSITORIES.md               # Карта всех 7 независимых репозиториев, порты, скрипты запуска и поток данных
 ├── README.md                     # Быстрый старт и переменные окружения
 ├── Dockerfile                    # python:3.13-slim; копирует ux-ui, frontend, backend, databases; 1 worker
-├── requirements.txt              # Web-зависимости контейнера (fastapi, uvicorn, httpx)
+├── requirements.txt              # Web-зависимости контейнера (fastapi, uvicorn, httpx, psycopg)
 ├── pyproject.toml                # Конфигурация pytest (pythonpath = ["."], testpaths = ["tests"])
 ├── .env.example                  # Шаблон ENV-переменных (БД, инвайт, лимиты, AI, Google OAuth)
 ├── .github/workflows/ci.yml      # CI: pytest -q + node tests/check_app.js
 │
-├── ux-ui/                        # Отдельный независимый UI Kit и дизайн-система
+├── ux-ui/                        # Отдельный независимый UI Kit и дизайн-система (@vektor-ege/ui-kit, :8772)
 │   ├── README.md
+│   ├── package.json              # Манифест @vektor-ege/ui-kit v1.2.0 (zero-API дизайн-система)
 │   ├── tokens.json               # Токены светлой/тёмной тем, Саха, типографика, zIndex, правила
 │   ├── styles/
-│   │   ├── base.css              # Базовые стили сетки, сайдбара, карточек, форм, контролов
+│   │   ├── base.css              # Базовые стили сетки, сайдбара, карточек, форм, Admin UI Kit
 │   │   └── brandbook.css         # Стили брендбука, лендинга, графиков, таблиц, мессенджеров
 │   ├── components/
 │   │   ├── icons.js              # EGE.ui — 53 SVG-иконки, логотипы, якутские узоры, каталог 40 плиток
 │   │   ├── hh-components.js      # EGE.hh — селекты, мультиселект, теги разницы ставок, аватар, тики
-│   │   ├── charts.js             # EGE.charts — DataViz (6 типов баров, Безье-тренд, линии, пончики) и DataTable
-│   │   └── kit.js                # EGE.kit — реестр компонентов, блоки лендинга, маски и ссылки WA/TG/MAX
+│   │   ├── charts.js             # EGE.charts — DataViz и DataTable (5 пресетов: requests, students, payouts, exams, admin)
+│   │   └── kit.js                # EGE.kit — 27 элементов каталога, Shell-виджеты, Admin UI Kit, маски WA/TG/MAX
 │   └── brandbook/
-│       └── brandbook.js          # EGE.views.brandbook — интерактивная страница /brandbook
+│       └── brandbook.js          # EGE.views.brandbook — интерактивная страница /brandbook (+ handleAction/handleInput)
 │
 ├── frontend/                     # Прикладное SPA (зависит от ux-ui/, но не наоборот)
 │   ├── README.md
 │   ├── index.html                # HTML-оболочка SPA, CSS-переменные, порядок <script>-подключений
-│   ├── app.js                    # Оркестратор: роутинг, store/sync, VIEWS, ACTIONS, EGE.payments (CRLF!)
+│   ├── app.js                    # Оркестратор: роутинг (/admin, /cabinet, /market...), VIEWS, ACTIONS, EGE.payments (CRLF!)
 │   ├── bank-core.js              # EGE.hash, EGE.qSig, EGE.loadBank — сборка и дедупликация банка
 │   ├── core/utils.js             # EGE.utils — esc, rich, clone, deepMerge, даты, plural, norm
+│   ├── core/api.js               # EGE.api — централизованный HTTP-клиент (auth, docs, calendar, realtime, admin)
 │   ├── core/realtime.js          # EGE.realtime — SSE/WebSocket/BroadcastChannel клиент + RFC 5545 .ics парсер
 │   ├── assets/lena-pillars.jpg   # Локальный hero-баннер (Ленские столбы)
 │   ├── styles/
@@ -81,8 +84,9 @@ Preparation/
 │   ├── subjects/                 # Банк заданий по биологии, химии, русскому + table.js (правки CSV)
 │   └── views/
 │       ├── landing.js            # EGE.views.landing — лендинг, калькулятор цены, моушен-пресеты, бегущая строка
-│       ├── marketplace.js        # EGE.views.marketplace — витрина подбора, модалка отклика ±100 ₽, раздел «Учёба»
-│       └── tutor-cabinet.js      # EGE.views.tutorCabinet — кабинет преподавателя, выплаты, анкета, ученики
+│       ├── marketplace.js        # EGE.views.marketplace — витрина подбора, табличные заявки/учёба, модалка ±100 ₽
+│       ├── tutor-cabinet.js      # EGE.views.tutorCabinet — кабинет преподавателя, табличные заявки/ученики/лиды, выплаты
+│       └── admin.js              # EGE.views.admin — админ-панель (/admin) на UI-Kit + EGE.api.admin
 │
 ├── backend/                      # Серверный слой (FastAPI)
 │   ├── README.md
@@ -90,13 +94,19 @@ Preparation/
 │   ├── ai.py                     # Адаптер Gemini / OpenAI / Anthropic / OpenRouter (SSE + JSON)
 │   ├── realtime.py               # RealtimeHub: SSE (/api/realtime/stream), WebSocket (/api/realtime/ws), publish, recent + PG outbox
 │   ├── calendar_sync.py          # CalendarSyncService: двусторонний .ics / Google Calendar синк (Asia/Yakutsk UTC+9 ↔ Europe/Moscow UTC+3)
-│   └── main.py                   # create_app(): API, OAuth, rate limiter, realtime, calendar, SPA shell, static allowlist
+│   ├── shell.py                  # SSR-оболочка SPA (/, /landing, /brandbook, /fees, /admin, /privacy) + allowlist статики
+│   ├── api/                      # Чистый Headless API пакет (используется и в Preparation, и в vektor-api :8771)
+│   │   ├── __init__.py           # create_api_app(), create_api_router(), CORS (:8770, :8772)
+│   │   ├── auth_docs.py          # Health, OAuth 2.0 PKCE, scrypt auth, docs CRUD, AI proxy
+│   │   ├── realtime_calendar.py  # Realtime SSE/WS/publish/recent + Calendar .ics/sync/import
+│   │   └── admin.py              # Admin REST (/api/admin/{architecture,overview,users,tutors,requests,payouts,outbox})
+│   └── main.py                   # create_app(): объединяет create_api_app + register_shell_routes
 │
 ├── databases/                    # Слой баз данных
 │   ├── README.md
 │   ├── migrations/001_initial_sqlite.sql  # Базовая DDL-схема SQLite
-│   ├── sqlite/store.py           # Database: WAL, потокобезопасный RLock, scrypt, сессии, docs CRUD
-│   ├── postgres/store.py         # PostgresDatabase, DualWriteDatabase, create_store (oltp.* + outbox.kafka_outbox)
+│   ├── sqlite/store.py           # Database: WAL, потокобезопасный RLock, scrypt, сессии, docs, admin_*
+│   ├── postgres/store.py         # PostgresDatabase, DualWriteDatabase, create_store (oltp.* + outbox.kafka_outbox + admin_*)
 │   └── analytics/.gitkeep        # Место для аналитических витрин/Parquet
 │
 ├── etl/                          # Изолированная Big Data / Analytics подсистема
@@ -113,10 +123,11 @@ Preparation/
 ├── bank/                         # Исходные табличные материалы банка заданий (bank.csv и т.п.)
 │
 └── tests/                        # Автотесты
-    ├── check_app.js              # Frontend + банк + UI Kit + DataViz + Realtime/Calendar + кабинет репетитора (jsc / node)
+    ├── check_app.js              # Frontend + банк + UI Kit + DataViz + Realtime/Calendar + кабинет репетитора + /admin (jsc / node)
     ├── test_server.py            # FastAPI endpoints, auth, docs, AI mock, static allowlist
     ├── test_dualwrite_pg.py      # DualWriteDatabase, PostgresDatabase, /api/health/storage, outbox.kafka_outbox
     ├── test_realtime_calendar.py # Realtime SSE/WS/publish и двусторонний .ics/Google Calendar синк (UTC+9 ↔ UTC+3)
+    ├── test_admin_api.py         # Headless API изоляция + /api/admin/* (SQLite & PG17 Dual-Write)
     └── test_etl.py               # Схема ETL, Polars/fallback витрины, sales_metrics, tokens.json
 ```
 
@@ -152,16 +163,17 @@ UI Kit полностью отделён от домена ЕГЭ и марке�
    - Вынесенный независимый модуль визуализации данных:
    - `CHART_STYLE_META` — 6 вариантов (`sticks`, `candles`, `range`, `stacked`, `dual`, `segmented`), активная колонка выделяется капсульной обводкой `.tc-bar-col.is-active`.
    - `chartDatasetBars(dsId)`, `smoothTrendPath(pts)` (кубическая кривая Безье для комбо-тренда `.tc-combo-line`).
-   - `stickChartHTML`, `lineChartHTML` (линейный + area SVG), `DONUT_DATASETS`, `donutChartHTML` (`stroke-linecap="butt"`, без лишних штрихов и с внешним кольцом-индикатором `.bb-donut-outer-ring`), `TABLE_ROWS`, `TABLE_PRESETS` (`requests`, `payouts`, `exams`), `dataTableHTML(opts)` (универсальная schema-driven таблица: 3/5/7 колонок или кастомные `columns`/`rows`, поиск и фильтрация, `cardWrap: false`, подтверждение строк и автоматическая `@container`/`@media`-трансформация в мобильные карточки с `td[data-label]`).
+   - `stickChartHTML`, `lineChartHTML` (линейный + area SVG), `DONUT_DATASETS`, `donutChartHTML` (`stroke-linecap="butt"`, без лишних штрихов и с внешним кольцом-индикатором `.bb-donut-outer-ring`), `TABLE_ROWS`, `STUDENT_ROWS`, `ADMIN_ROWS`, `TABLE_PRESETS` (`requests`, `students`, `payouts`, `exams`, `admin`), `dataTableHTML(opts)` (универсальная schema-driven таблица: 3/5/7 колонок или кастомные `columns`/`rows`, поиск и фильтрация, `filterAction`/`colsAction`/`presetAction`/`searchAction`, `rowAttrs`, `toolbarExtraHTML`, `cardWrap: false`, подтверждение строк и автоматическая `@container`/`@media`-трансформация в мобильные карточки с `td[data-label]`).
 4. **[ux-ui/components/kit.js](ux-ui/components/kit.js) → `window.EGE.kit`**
-   - Реестр `CATALOG_CATEGORIES` / `CATALOG_ITEMS` (`25` элементов), переиспользуемые лендинг-блоки (`heroBannerHTML`, `searchStripHTML`, `sentNoticeHTML`, `sakhaButtonsHTML`, `marqueePillsHTML`, `rateBenchCardHTML`, `trustStripHTML`, `reviewCardHTML`, `faqListHTML`, `blueBannerHTML`).
-   - Единые Shell-виджеты сайта и системных состояний (используются в `frontend/app.js`, `frontend/views/marketplace.js`, `frontend/views/tutor-cabinet.js` и `/brandbook`): `topBalanceWidgetHTML` (`student` / `tutor`), `tutorBalanceDockHTML` (с `inlinePreview` для стендов), `walletSummaryBarHTML`, `sideToastInnerHTML`, `emptyStateHTML`, `skeletonCardHTML`, `realtimeStatusPillHTML` (`.rt-status-pill` для `sse | ws | local | connecting`) и `calendarSyncCardHTML` (`.cal-sync-card` для двустороннего `.ics` / Google Calendar синка `UTC+9` ↔ `UTC+3`).
+   - Реестр `CATALOG_CATEGORIES` / `CATALOG_ITEMS` (`27` элементов, включая `admin-kit` и `arch-split`), переиспользуемые лендинг-блоки (`heroBannerHTML`, `searchStripHTML`, `sentNoticeHTML`, `sakhaButtonsHTML`, `marqueePillsHTML`, `rateBenchCardHTML`, `trustStripHTML`, `reviewCardHTML`, `faqListHTML`, `blueBannerHTML`).
+   - Единые Shell-виджеты сайта и системных состояний (используются в `frontend/app.js`, `frontend/views/marketplace.js`, `frontend/views/tutor-cabinet.js`, `frontend/views/admin.js` и `/brandbook`): `topBalanceWidgetHTML` (`student` / `tutor`), `tutorBalanceDockHTML` (с `inlinePreview` для стендов), `walletSummaryBarHTML`, `sideToastInnerHTML`, `emptyStateHTML`, `skeletonCardHTML`, `realtimeStatusPillHTML` (`.rt-status-pill` для `sse | ws | local | connecting`) и `calendarSyncCardHTML` (`.cal-sync-card` для двустороннего `.ics` / Google Calendar синка `UTC+9` ↔ `UTC+3`).
+   - Admin UI Kit компоненты: `adminKpiGridHTML`, `adminModerationBadgeHTML` (`7` статусов: `verified`, `pending`, `flagged`, `paid`, `frozen`, `published`, `declined`), `serviceBoundaryCardHTML`, `roleSwitchBannerHTML`.
    - Data & Observability UI Kit компоненты для витрины пайплайнов и кликстрима: `pipelineStageCardHTML` (`PostgreSQL 17`, `Polars M4 Pro`, `Airflow DAG`, `Kafka Clickstream`, `Grafana BI`) и `eventLogFeedHTML`.
    - Единая каноническая логика контактов и мессенджеров (WA / TG / MAX): `normalizePhoneDigits`, `formatPhoneMask` (`+7 (XXX) XXX-XX-XX`), `formatTelegramContact` (телефон или `@login`), `entitySlug`, `whatsappUrl`, `telegramUrl`, `maxUrl`, `resolveMessengerUrls`, `messengerLinksHTML`.
    - Ре-экспортирует `EGE.charts` хэлперы и `TABLE_PRESETS` без дублирования кода.
 5. **[ux-ui/brandbook/brandbook.js](ux-ui/brandbook/brandbook.js) → `window.EGE.views.brandbook`**
-   - Рендерит `/brandbook` (передаваемый опционально `{ inside: true }`), включая разделы `#bb-mask-trainer`, `#bb-payments`, `#bb-ui-kit-shells`, `#bb-telemetry-etl`, `#bb-ege-timers` и `#bb-a11y`, и обрабатывает интерактивные состояния (типы графиков, датасеты, пресеты и подтверждение строк таблицы, тренажёр масок, эскроу/пороги оплаты, переключение роли Shell-виджетов `bb-shell-role`, фильтр стадий ETL `bb-pipe-filter`, переключение часового пояса календаря `bb-cal-tz`, вкладки разбора сочинения, мультиселект, анимации и `reduced-motion`).
-   - Дорожная карта дальнейших интеграций и мульти-репозиторная карта описаны в [ROADMAP_UNCONNECTED.md](ROADMAP_UNCONNECTED.md) и [REPOSITORIES.md](REPOSITORIES.md).
+   - Рендерит `/brandbook` (передаваемый опционально `{ inside: true }`), включая разделы `#bb-mask-trainer`, `#bb-payments`, `#bb-ui-kit-shells`, `#bb-telemetry-etl`, `#bb-admin-kit`, `#bb-arch-split`, `#bb-ege-timers` и `#bb-a11y`, и экспортирует `handleAction` и `handleInput` для интерактивных состояний (типы графиков, датасеты, `5` пресетов и подтверждение строк таблицы, тренажёр масок, эскроу/пороги оплаты, переключение роли Shell-виджетов `bb-shell-role`, фильтр стадий ETL `bb-pipe-filter`, переключение часового пояса календаря `bb-cal-tz`, вкладки `#bb-admin-kit` `bb-admin-tab`, dual-role таблица `bb-dual-role`, вкладки разбора сочинения, мультиселект, анимации и `reduced-motion`).
+   - Дорожная карта дальнейших интеграций и карта **7 независимых репозиториев** описаны в [ROADMAP_UNCONNECTED.md](ROADMAP_UNCONNECTED.md) и [REPOSITORIES.md](REPOSITORIES.md).
 
 ---
 
@@ -190,8 +202,15 @@ UI Kit полностью отделён от домена ЕГЭ и марке�
 | `PUT /api/calendar/sync` | Опц. кука | Сохранение/синхронизация слотов и уроков репетитора с записью в PostgreSQL (`oltp.calendar_sync_tokens`, `oltp.calendar_events`) и `outbox.kafka_outbox` |
 | `GET /api/calendar/{feed_token}.ics` | По токену фида | Экспорт расписания репетитора в формате RFC 5545 `text/calendar` (`UTC` + `VTIMEZONE` `Asia/Yakutsk` / `Europe/Moscow`) |
 | `POST /api/calendar/import-ics` | Опц. кука | Двусторонний импорт внешнего `.ics` (Google Calendar) с вычислением занятых окон и конфликтов в часовом поясе репетитора |
+| `GET /api/admin/architecture` | Нет | Границы 7 репозиториев (`uiKit`, `headlessApi`, `spaShell`, `postgres`, `polars`, `airflow`, `grafana`) и статус хранилища |
+| `GET /api/admin/overview` | Нет | Сводка KPI админ-панели (`gmvRub`, `payoutRub` 95%, `feeRub` 5%, `pendingRequestsCount`, `outboxPending`), доли каналов и серия по дням |
+| `GET /api/admin/users` / `POST /api/admin/users/{id}/role` | Нет | Реестр пользователей и смена роли (`student \| tutor \| admin`) с записью события в `outbox.kafka_outbox` |
+| `GET /api/admin/tutors` / `POST /api/admin/tutors/{id}/moderate` | Нет | Реестр преподавателей и модерация (`verified`, `bumped`, `tariffId`) |
+| `GET /api/admin/requests` / `POST /api/admin/requests/{id}/status` | Нет | Реестр заявок и модерация статуса (`accepted \| pending \| declined \| refunded`) с обновлением эскроу |
+| `GET /api/admin/payouts` / `POST /api/admin/payouts/{id}/status` | Нет | Очередь выплат СБП / Карта Мир и переводы статусов (`succeeded \| processing \| rejected`) |
+| `GET /api/admin/outbox` | Нет | Лента транзакционного аутбокса `outbox.kafka_outbox` / `admin_outbox_events` |
 | `POST /api/ai` | `require_user` + `50/ч` | Прокси к LLM: `mode: "stream"` (SSE `text/event-stream`) или `mode: "json"` |
-| `GET /`, `/index.html`, `/landing`, `/brandbook`, `/fees` | Нет | Отдача SPA с инъекцией `window.EGE_HOST = {"backend": true}` перед `app.js` (`Cache-Control: no-store`) |
+| `GET /`, `/index.html`, `/landing`, `/brandbook`, `/fees`, `/admin` | Нет | Отдача SPA с инъекцией `window.EGE_HOST = {"backend": true}` перед `app.js` (`Cache-Control: no-store`) |
 | `GET /privacy` | Нет | Статическая HTML-страница политики конфиденциальности |
 | `GET /{file_path}` | Нет | Allowlist статических ассетов (`ux-ui/*`, `frontend/*` через `static_assets`) с защитой от `..` |
 
@@ -235,11 +254,11 @@ UI Kit полностью отделён от домена ЕГЭ и марке�
 1. `bank-core.js` → `EGE.hash`, `EGE.qSig`, `EGE.loadBank`
 2. `subjects/*.js` → `EGE.subjects.{bio,chem,rus}`, `EGE.chemLib`, `EGE.table`
 3. `data/plan.js`, `data/essay.js` → `EGE.exams`, `EGE.plan`, `EGE.essay`
-4. `core/utils.js` → `EGE.utils` (`esc`, `rich`, `clone`, `deepMerge`, `norm`, `plural`, даты) и `core/realtime.js` → `EGE.realtime` (`connect`, `connectWS`, `publish`, `syncCalendar`, `importIcs`, `parseIcsBusySlots`, `buildIcsText`)
+4. `core/utils.js` → `EGE.utils` (`esc`, `rich`, `clone`, `deepMerge`, `norm`, `plural`, даты), `core/api.js` → `EGE.api` (изолированный HTTP-клиент с `configure({ baseUrl, onUnauthorized })`, `health`, `storageHealth`, `auth`, `docs`, `calendar`, `realtime`, `admin`) и `core/realtime.js` → `EGE.realtime` (`connect`, `connectWS`, `publish`, `syncCalendar`, `importIcs`, `parseIcsBusySlots`, `buildIcsText`)
 5. UI Kit: `ux-ui/components/icons.js` (`EGE.ui`) → `hh-components.js` (`EGE.hh`) → `charts.js` (`EGE.charts`) → `kit.js` (`EGE.kit`) → `ux-ui/brandbook/brandbook.js` (`EGE.views.brandbook`)
 6. `data/tutors.js` → `EGE.tutors` (в runtime использует `EGE.kit` для масок и мессенджер-ссылок; обратная зависимость отсутствует)
-7. `views/landing.js` (`EGE.views.landing`), `views/marketplace.js` (`EGE.views.marketplace`), `views/tutor-cabinet.js` (`EGE.views.tutorCabinet`)
-8. `app.js` → инициализация состояния, связывание `configure(...)` всех вьюх, роутер, `EGE.payments` (`provider: "demo"`, `createTopupIntent`, `createPayoutIntent`, `setGatewayHandler`).
+7. `views/landing.js` (`EGE.views.landing`), `views/marketplace.js` (`EGE.views.marketplace`), `views/tutor-cabinet.js` (`EGE.views.tutorCabinet`), `views/admin.js` (`EGE.views.admin`)
+8. `app.js` → инициализация состояния, связывание `configure(...)` всех вьюх, роутер (`student | tutor | admin`), делегирование в `EGE.api` и `EGE.views.*`, `EGE.payments` (`provider: "demo"`, `createTopupIntent`, `createPayoutIntent`, `setGatewayHandler`).
 
 ---
 

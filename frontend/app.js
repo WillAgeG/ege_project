@@ -278,6 +278,9 @@
     scheduleRender();
   }
   async function backendReq(path, opts) {
+    if (EGE.api && typeof EGE.api.request === "function") {
+      return await EGE.api.request(path, opts);
+    }
     opts = opts || {};
     const headers = Object.assign({}, opts.headers || {});
     if (opts.body != null && !headers["Content-Type"]) headers["Content-Type"] = "application/json";
@@ -795,14 +798,14 @@
   // ---------- роль на платформе (по умолчанию ученик) ----------
   const ROLE_LS = "vektor-ege:role";
   function readRolePref() {
-    try { const v = localStorage.getItem(ROLE_LS); if (v === "tutor" || v === "student") return v; } catch (e) { /* недоступно */ }
+    try { const v = localStorage.getItem(ROLE_LS); if (v === "tutor" || v === "student" || v === "admin") return v; } catch (e) { /* недоступно */ }
     return "student";
   }
   function setRolePref(role, silent) {
-    const next = role === "tutor" ? "tutor" : "student";
+    const next = role === "tutor" ? "tutor" : role === "admin" ? "admin" : "student";
     ui.role = next;
     try { localStorage.setItem(ROLE_LS, next); } catch (e) { /* недоступно */ }
-    if (!silent) toast(next === "tutor" ? "Включён кабинет преподавателя" : "Включён режим ученика");
+    if (!silent) toast(next === "tutor" ? "Включён кабинет преподавателя" : next === "admin" ? "Включена админ-панель" : "Включён режим ученика");
   }
 
   // ---------- состояние интерфейса ----------
@@ -898,6 +901,13 @@
     "tutor-leads": "leads",
     "tutor-profile": "profile"
   };
+  const ADMIN_TAB_VIEWS = {
+    "admin-overview": "overview",
+    "admin-requests": "requests",
+    "admin-tutors": "tutors",
+    "admin-payouts": "payouts",
+    "admin-system": "system"
+  };
 
   function go(v, opts) {
     opts = opts || {};
@@ -906,6 +916,11 @@
       v = "cabinet";
     } else if (v === "cabinet" && opts.fromNav) {
       if (EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.setTab === "function") EGE.views.tutorCabinet.setTab("requests");
+    } else if (ADMIN_TAB_VIEWS[v]) {
+      if (EGE.views.admin && typeof EGE.views.admin.setTab === "function") EGE.views.admin.setTab(ADMIN_TAB_VIEWS[v]);
+      v = "admin";
+    } else if (v === "admin" && opts.fromNav) {
+      if (EGE.views.admin && typeof EGE.views.admin.setTab === "function") EGE.views.admin.setTab("overview");
     }
     if (ui.view === "quiz" && v !== "quiz") {
       abortAI();
@@ -935,6 +950,9 @@
     ui.view = v;
     ui.confirm = null; ui.confirmDel = null; ui.exportText = ""; ui.auth.error = "";
     writeHash();
+    if (v === "admin" && store.backend && EGE.views.admin && typeof EGE.views.admin.loadData === "function") {
+      EGE.views.admin.loadData(false);
+    }
     scheduleRender(true);
   }
   function readHash() {
@@ -948,22 +966,33 @@
         ui.view = "cabinet";
         return;
       }
-      if (["home", "tests", "study", "plan", "stats", "tutor", "cabinet", "market", "landing", "brandbook", "fees", "profile"].includes(h)) { ui.view = h; return; }
+      if (ADMIN_TAB_VIEWS[h]) {
+        ui.role = "admin";
+        if (EGE.views.admin && typeof EGE.views.admin.setTab === "function") EGE.views.admin.setTab(ADMIN_TAB_VIEWS[h]);
+        ui.view = "admin";
+        return;
+      }
+      if (h === "admin") { ui.role = "admin"; ui.view = "admin"; return; }
+      if (["home", "tests", "study", "plan", "stats", "tutor", "cabinet", "market", "landing", "brandbook", "fees", "admin", "profile"].includes(h)) { ui.view = h; return; }
     }
     try {
       if (!h && typeof location !== "undefined") {
         if (location.pathname === "/brandbook") { ui.view = "brandbook"; return; }
         if (location.pathname === "/fees") { ui.view = "fees"; return; }
         if (location.pathname === "/landing") { ui.view = "landing"; return; }
+        if (location.pathname === "/admin") { ui.role = "admin"; ui.view = "admin"; return; }
       }
     } catch (e) { /* игнор */ }
     if (!h && typeof window !== "undefined" && window.EGE_HOST && window.EGE_HOST.landing) ui.view = "landing";
   }
   function writeHash() {
     const tcTab = ui.view === "cabinet" && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.getTab === "function" ? EGE.views.tutorCabinet.getTab() : "";
+    const admTab = ui.view === "admin" && EGE.views.admin && typeof EGE.views.admin.getTab === "function" ? EGE.views.admin.getTab() : "";
     const tok = ui.view === "cabinet"
       ? ("tutor-" + (tcTab || "requests"))
-      : (ui.view === "topic" ? ui.topicId : ui.view === "subject" ? ui.sid : ui.view === "quiz" ? null : ui.view);
+      : (ui.view === "admin"
+        ? ("admin-" + (admTab || "overview"))
+        : (ui.view === "topic" ? ui.topicId : ui.view === "subject" ? ui.sid : ui.view === "quiz" ? null : ui.view));
     if (!tok) return;
     try { history.replaceState(null, "", "#" + tok); } catch (e) { /* адрес не меняется в просмотрщике */ }
   }
@@ -976,7 +1005,7 @@
     renderQueued = true;
     Promise.resolve().then(() => { renderQueued = false; render(); });
   }
-  const VIEWS = { home: viewHome, tests: viewTests, study: viewStudy, subject: viewSubject, topic: viewTopic, quiz: viewQuiz, essay: viewEssay, plan: viewPlan, stats: viewStats, tutor: viewTutor, cabinet: viewCabinet, market: viewMarket, landing: viewLanding, brandbook: () => viewBrandbook({ inside: true }), fees: () => viewFees({ inside: true }), profile: viewProfile };
+  const VIEWS = { home: viewHome, tests: viewTests, study: viewStudy, subject: viewSubject, topic: viewTopic, quiz: viewQuiz, essay: viewEssay, plan: viewPlan, stats: viewStats, tutor: viewTutor, cabinet: viewCabinet, market: viewMarket, landing: viewLanding, brandbook: () => viewBrandbook({ inside: true }), fees: () => viewFees({ inside: true }), admin: viewAdmin, profile: viewProfile };
   function setAuthLayout(on) {
     try {
       if (document.body && document.body.dataset) {
@@ -1346,6 +1375,7 @@
   }
   function renderChrome() {
     const isTutor = ui.role === "tutor";
+    const isAdmin = ui.role === "admin";
     const inTests = ["tests", "subject", "topic", "quiz", "essay", "home"].includes(ui.view);
     const inMarket = ui.view === "market" || ui.view === "landing";
     const inStudy = ui.view === "study" || ui.view === "plan";
@@ -1356,23 +1386,35 @@
     const tcTab = EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.getTab === "function"
       ? EGE.views.tutorCabinet.getTab()
       : "requests";
-    const sideNav = isTutor
+    const admTab = EGE.views.admin && typeof EGE.views.admin.getTab === "function"
+      ? EGE.views.admin.getTab()
+      : "overview";
+    const sideNav = isAdmin
       ? [
-          ["tutor-requests", "Заявки", "chat", ui.view === "cabinet" && tcTab === "requests", tcPending, "tc-jump-pending"],
-          ["tutor-calendar", "Календарь учеников", "cal", ui.view === "cabinet" && tcTab === "calendar", 0, ""],
-          ["tutor-students", "Мои ученики", "users", ui.view === "cabinet" && tcTab === "students", 0, ""],
-          ["tutor-leads", "Ученики ищут", "search", ui.view === "cabinet" && tcTab === "leads", 0, ""],
-          ["tutor-profile", "Профиль", "sliders", ui.view === "cabinet" && tcTab === "profile", 0, ""],
-          ["fees", "Выплаты", "wallet", ui.view === "fees", 0, ""],
-          ["tutor", "Справочник", "book", ui.view === "tutor", 0, ""]
+          ["admin-overview", "Обзор", "chart", ui.view === "admin" && admTab === "overview", 0, ""],
+          ["admin-requests", "Заявки и ученики", "list", ui.view === "admin" && admTab === "requests", 0, ""],
+          ["admin-tutors", "Репетиторы", "users", ui.view === "admin" && admTab === "tutors", 0, ""],
+          ["admin-payouts", "Выплаты НПД", "wallet", ui.view === "admin" && admTab === "payouts", 0, ""],
+          ["admin-system", "Система и API", "shield", ui.view === "admin" && admTab === "system", 0, ""],
+          ["brandbook", "Брендбук", "spark", ui.view === "brandbook", 0, ""]
         ]
-      : [
-          ["tests", "Тесты", "list", inTests, 0, ""],
-          ["tutor", "Справочник", "book", ui.view === "tutor", 0, ""],
-          ["market", "Репетиторы", "search", inMarket, 0, ""],
-          ["study", "Учёба", "cal", inStudy, bkCount, ""],
-          ["stats", "Показатели", "chart", ui.view === "stats", 0, ""]
-        ];
+      : isTutor
+        ? [
+            ["tutor-requests", "Заявки", "chat", ui.view === "cabinet" && tcTab === "requests", tcPending, "tc-jump-pending"],
+            ["tutor-calendar", "Календарь учеников", "cal", ui.view === "cabinet" && tcTab === "calendar", 0, ""],
+            ["tutor-students", "Мои ученики", "users", ui.view === "cabinet" && tcTab === "students", 0, ""],
+            ["tutor-leads", "Ученики ищут", "search", ui.view === "cabinet" && tcTab === "leads", 0, ""],
+            ["tutor-profile", "Профиль", "sliders", ui.view === "cabinet" && tcTab === "profile", 0, ""],
+            ["fees", "Выплаты", "wallet", ui.view === "fees", 0, ""],
+            ["tutor", "Справочник", "book", ui.view === "tutor", 0, ""]
+          ]
+        : [
+            ["tests", "Тесты", "list", inTests, 0, ""],
+            ["tutor", "Справочник", "book", ui.view === "tutor", 0, ""],
+            ["market", "Репетиторы", "search", inMarket, 0, ""],
+            ["study", "Учёба", "cal", inStudy, bkCount, ""],
+            ["stats", "Показатели", "chart", ui.view === "stats", 0, ""]
+          ];
     $("#side-nav").innerHTML = sideNav.map(([v, l, ic, cur, badge, badgeAct]) => {
       const btn = `<button type="button" class="nav-btn" data-a="go" data-v="${v}"${cur ? ' aria-current="page"' : ""}>${icon(ic)}<span style="flex:1">${l}</span>${badge && !badgeAct ? `<span class="chip ${isTutor ? "notif" : "accent"} num">${badge}</span>` : ""}</button>`;
       if (badge && badgeAct) {
@@ -1381,8 +1423,8 @@
       return btn;
     }).join("");
     const subjWrap = $("#side-subjects-wrap");
-    if (subjWrap) subjWrap.hidden = isTutor;
-    $("#side-subjects").innerHTML = isTutor ? "" : SUBJECTS.map((s) => {
+    if (subjWrap) subjWrap.hidden = isTutor || isAdmin;
+    $("#side-subjects").innerHTML = (isTutor || isAdmin) ? "" : SUBJECTS.map((s) => {
       const cur = ["subject", "topic", "quiz", "essay"].includes(ui.view) && ui.sid === s.id && s.content;
       const right = s.content ? (store.ready ? subjectStats(s.id).pct + "%" : "") : "скоро";
       return `<button type="button" class="subj-btn" ${s.content ? `data-a="go" data-v="subject" data-sid="${s.id}"` : "disabled"}${cur ? ' aria-current="page"' : ""}><i class="dot" style="background:var(--c-${s.id})"></i><span>${esc(s.name)}</span><span class="small muted num">${right}</span></button>`;
@@ -1391,11 +1433,12 @@
     const nm = (store.user ? (prof.name || store.user.displayName || store.user.username) : "") || prof.name || (me && me.name) || (store.mode === "local" ? (store.backend ? "Гость" : "Этот браузер") : "");
     const dark = effectiveDark();
     const themeLabel = dark ? "Светлая тема" : "Тёмная тема";
-    $("#side-foot").innerHTML = `<div id="side-balance-slot" class="side-bal-slot"${isTutor ? " hidden" : ""}>${isTutor ? "" : balanceTopWidgetHTML(true)}</div>
+    $("#side-foot").innerHTML = `<div id="side-balance-slot" class="side-bal-slot"${isTutor || isAdmin ? " hidden" : ""}>${isTutor || isAdmin ? "" : balanceTopWidgetHTML(true)}</div>
       <div class="hh-seg side-role-seg" role="group" aria-label="Роль на платформе" style="margin-bottom:2px">
-        <button type="button" data-a="role-set" data-role="student" aria-pressed="${!isTutor}">Ученик</button>
+        <button type="button" data-a="role-set" data-role="student" aria-pressed="${!isTutor && !isAdmin}">Ученик</button>
         <button type="button" data-a="role-set" data-role="tutor" aria-pressed="${isTutor}">Преподаватель</button>
       </div>
+      <button type="button" class="side-admin-pill${isAdmin ? " is-on" : ""}" data-a="role-set" data-role="${isAdmin ? "student" : "admin"}" aria-pressed="${isAdmin}">${icon("shield")}<span>Админ-панель</span></button>
       <div class="side-user">
         <div class="me">${avatarHTML(me && me.avatarUrl, nm, false)}<div style="min-width:0"><div class="me-name">${esc(nm)}</div><span class="sync" hidden><i></i><span></span></span></div></div>
         <div class="row" style="gap:6px">
@@ -1423,9 +1466,9 @@
       else topProf.removeAttribute("aria-current");
     }
     const sideBrand = $("#side-brand");
-    const roleLogoTag = isTutor ? "tutor" : "student";
+    const roleLogoTag = isAdmin ? "admin" : isTutor ? "tutor" : "student";
     if (sideBrand && sideBrand.dataset && sideBrand.dataset.logoReady !== roleLogoTag) {
-      sideBrand.innerHTML = brandLockupHTML({ sub: isTutor ? "Кабинет преподавателя" : "ЕГЭ 2027 · 3 предмета" });
+      sideBrand.innerHTML = brandLockupHTML({ sub: isAdmin ? "Админ-панель · Dual PG17" : isTutor ? "Кабинет преподавателя" : "ЕГЭ 2027 · 3 предмета" });
       sideBrand.dataset.logoReady = roleLogoTag;
     }
     const topLockup = $("#top-brand-lockup");
@@ -1441,7 +1484,12 @@
     const tcMod = EGE.views.tutorCabinet;
     const topBalSlot = $("#top-balance-slot");
     if (topBalSlot) {
-      if (isTutor && tcMod && typeof tcMod.mobileTopWidgetHTML === "function") {
+      if (isAdmin) {
+        topBalSlot.hidden = false;
+        topBalSlot.innerHTML = (EGE.kit && typeof EGE.kit.realtimeStatusPillHTML === "function")
+          ? EGE.kit.realtimeStatusPillHTML({ mode: store.backend ? "sse" : "local", label: "Админ · Dual PG17", action: "go", title: "Админ-панель · Система и API" }).replace('data-a="go"', 'data-a="go" data-v="admin-system"')
+          : `<button type="button" class="top-bal-pill is-tutor" data-a="go" data-v="admin-system">Админ · Dual PG17</button>`;
+      } else if (isTutor && tcMod && typeof tcMod.mobileTopWidgetHTML === "function") {
         topBalSlot.hidden = false;
         topBalSlot.innerHTML = tcMod.mobileTopWidgetHTML();
       } else if (isTutor) {
@@ -1454,7 +1502,7 @@
     }
     const tutorDock = $("#tutor-balance-dock");
     if (tutorDock) {
-      const showDock = !!(isTutor && ui.view !== "landing" && tcMod && typeof tcMod.desktopDockHTML === "function");
+      const showDock = !!(isTutor && !isAdmin && ui.view !== "landing" && tcMod && typeof tcMod.desktopDockHTML === "function");
       if (showDock) {
         tutorDock.hidden = false;
         tutorDock.innerHTML = tcMod.desktopDockHTML();
@@ -1463,15 +1511,23 @@
         tutorDock.innerHTML = "";
       }
     }
-    const mobileNav = isTutor
+    const mobileNav = isAdmin
       ? [
-          ["tutor-requests", "Заявки", "chat", ui.view === "cabinet" && (tcTab === "requests" || tcTab === "leads"), tcPending],
-          ["tutor-calendar", "Календарь", "cal", ui.view === "cabinet" && tcTab === "calendar", 0],
-          ["tutor-students", "Ученики", "users", ui.view === "cabinet" && tcTab === "students", 0],
-          ["tutor-profile", "Профиль", "sliders", ui.view === "cabinet" && tcTab === "profile", 0],
-          ["fees", "Выплаты", "wallet", ui.view === "fees", 0]
+          ["admin-overview", "Обзор", "chart", ui.view === "admin" && admTab === "overview", 0],
+          ["admin-requests", "Заявки", "list", ui.view === "admin" && admTab === "requests", 0],
+          ["admin-tutors", "Репетиторы", "users", ui.view === "admin" && admTab === "tutors", 0],
+          ["admin-payouts", "Выплаты", "wallet", ui.view === "admin" && admTab === "payouts", 0],
+          ["admin-system", "API", "shield", ui.view === "admin" && admTab === "system", 0]
         ]
-      : sideNav;
+      : isTutor
+        ? [
+            ["tutor-requests", "Заявки", "chat", ui.view === "cabinet" && (tcTab === "requests" || tcTab === "leads"), tcPending],
+            ["tutor-calendar", "Календарь", "cal", ui.view === "cabinet" && tcTab === "calendar", 0],
+            ["tutor-students", "Ученики", "users", ui.view === "cabinet" && tcTab === "students", 0],
+            ["tutor-profile", "Профиль", "sliders", ui.view === "cabinet" && tcTab === "profile", 0],
+            ["fees", "Выплаты", "wallet", ui.view === "fees", 0]
+          ]
+        : sideNav;
     $("#tabbar").innerHTML = mobileNav.map(([v, l, ic, cur, badge]) =>
       `<button type="button" class="tab-btn" data-a="go" data-v="${v}"${cur ? ' aria-current="page"' : ""}>${icon(ic)}<span>${esc(l)}</span>${badge ? `<i class="tab-badge">${badge}</i>` : ""}</button>`
     ).join("");
@@ -1617,7 +1673,7 @@
     </form>`;
   }
   // ---------- модульные экраны (src/views/*) ----------
-  EGE.views.marketplace.configure({ ui, mkt, TDATA, viewPlan });
+  EGE.views.marketplace.configure({ ui, mkt, TDATA, viewPlan, scheduleRender });
   EGE.views.landing.configure({
     ui, effectiveDark, SUBJ, TOPICS, QS, CONTENT, firstSubject,
     BUG_EMAIL, TDATA, tablesHTML, scheduleRender
@@ -1625,6 +1681,11 @@
   if (EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.configure === "function") {
     EGE.views.tutorCabinet.configure({
       ui, mkt, saveMkt, TDATA, store, profile, toast, notifySide, scheduleRender, go, copyText: copyTextSafe
+    });
+  }
+  if (EGE.views.admin && typeof EGE.views.admin.configure === "function") {
+    EGE.views.admin.configure({
+      ui, mkt, TDATA, store, toast, notifySide, scheduleRender, go
     });
   }
 
@@ -1637,6 +1698,12 @@
   const MOTION_PRESETS = EGE.views.landing.MOTION_PRESETS;
   function viewMarket() { return EGE.views.marketplace.viewMarket(); }
   function viewCabinet() { return EGE.views.tutorCabinet ? EGE.views.tutorCabinet.viewCabinet() : viewTests(); }
+  function viewAdmin() {
+    if (store.backend && EGE.views.admin && typeof EGE.views.admin.loadData === "function") {
+      EGE.views.admin.loadData(false);
+    }
+    return EGE.views.admin ? EGE.views.admin.viewAdmin() : viewTests();
+  }
   function viewStudy() { return EGE.views.marketplace.viewStudy(); }
   function viewBrandbook(opts) { return EGE.views.brandbook.viewBrandbook(opts, { ui, dark: effectiveDark(), TDATA }); }
   function viewFees(opts) {
@@ -3353,16 +3420,18 @@
   function viewProfile() {
     const prof = profile();
     const isTutor = ui.role === "tutor";
+    const isAdmin = ui.role === "admin";
     return `<div class="head"><div class="eyebrow">Настройки</div><h1 class="h1">Профиль и данные</h1></div>
       ${store.backend ? accountCard() : ""}
       <section class="card pad-lg stack">
         <div class="row between" style="flex-wrap:wrap;gap:8px">
           <h2 class="h2">Режим кабинета</h2>
-          <span class="chip ${isTutor ? "gold" : "accent"}">${isTutor ? "Преподаватель" : "Ученик (по умолчанию)"}</span>
+          <span class="chip ${isAdmin ? "pro" : isTutor ? "gold" : "accent"}">${isAdmin ? "Администратор" : isTutor ? "Преподаватель" : "Ученик (по умолчанию)"}</span>
         </div>
-        <div class="hh-seg" role="group" aria-label="Выбор роли кабинета">
-          <button type="button" data-a="role-set" data-role="student" aria-pressed="${!isTutor}">${icon("book")}<span>Как ученик</span></button>
+        <div class="hh-seg" role="group" aria-label="Выбор роли кабинета" style="flex-wrap:wrap">
+          <button type="button" data-a="role-set" data-role="student" aria-pressed="${!isTutor && !isAdmin}">${icon("book")}<span>Как ученик</span></button>
           <button type="button" data-a="role-set" data-role="tutor" aria-pressed="${isTutor}">${icon("users")}<span>Как преподаватель</span></button>
+          <button type="button" data-a="role-set" data-role="admin" aria-pressed="${isAdmin}">${icon("shield")}<span>Как администратор</span></button>
         </div>
       </section>
       <section class="card pad-lg stack">
@@ -3751,13 +3820,20 @@
       else scheduleRender();
     },
     "role-set": (el) => {
-      const next = el.dataset.role === "tutor" ? "tutor" : "student";
+      const raw = el.dataset && (el.dataset.role || el.dataset.v);
+      const next = raw === "tutor" ? "tutor" : raw === "admin" ? "admin" : "student";
       setRolePref(next);
       if (next === "tutor" && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.setTab === "function") {
         EGE.views.tutorCabinet.setTab("requests");
       }
-      ui.view = next === "tutor" ? "cabinet" : "tests";
+      if (next === "admin" && EGE.views.admin && typeof EGE.views.admin.setTab === "function") {
+        EGE.views.admin.setTab("overview");
+      }
+      ui.view = next === "tutor" ? "cabinet" : next === "admin" ? "admin" : "tests";
       writeHash();
+      if (next === "admin" && store.backend && EGE.views.admin && typeof EGE.views.admin.loadData === "function") {
+        EGE.views.admin.loadData(false);
+      }
       scheduleRender(true);
     },
     "auth-guest": () => {
@@ -4938,7 +5014,7 @@
     "bb-tbl-preset": (el) => {
       const bb = bbState();
       const p = (el.dataset && (el.dataset.preset || el.dataset.v)) || "requests";
-      bb.tablePreset = ["requests", "payouts", "exams"].includes(p) ? p : "requests";
+      bb.tablePreset = ["requests", "students", "payouts", "exams", "admin"].includes(p) ? p : "requests";
       bb.tableFilter = "all";
       bb.tableSearch = "";
       scheduleRender();
@@ -5403,8 +5479,20 @@
     if (act && act.indexOf("tc-") === 0 && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.handleAction === "function") {
       if (EGE.views.tutorCabinet.handleAction(act, el)) { if (!isExtLink) e.preventDefault(); return; }
     }
+    if (act && act.indexOf("adm-") === 0 && EGE.views.admin && typeof EGE.views.admin.handleAction === "function") {
+      if (EGE.views.admin.handleAction(act, el)) { if (!isExtLink) e.preventDefault(); return; }
+    }
+    if (act && (act.indexOf("mkt-bk-") === 0 || act.indexOf("study-sched-") === 0 || act.indexOf("study-chats-") === 0) && EGE.views.marketplace && typeof EGE.views.marketplace.handleAction === "function") {
+      if (e.defaultPrevented) return;
+      if (EGE.views.marketplace.handleAction(act, el)) { if (!isExtLink) e.preventDefault(); return; }
+    }
     const h = ACTIONS[act];
-    if (h) { if (!isExtLink) e.preventDefault(); h(el, e); }
+    if (h) { if (!isExtLink) e.preventDefault(); h(el, e); return; }
+    if (act && act.indexOf("bb-") === 0 && EGE.views.brandbook && typeof EGE.views.brandbook.handleAction === "function") {
+      if (EGE.views.brandbook.handleAction(act, el, ui, { render: () => scheduleRender(), toast, notifySide, copy: copyTextSafe, copyText: copyTextSafe })) {
+        if (!isExtLink) e.preventDefault();
+      }
+    }
   });
   document.addEventListener("submit", (e) => {
     const f = e.target.closest("form[data-f]");
@@ -5418,6 +5506,19 @@
   });
   document.addEventListener("input", (e) => {
     const el = e.target;
+    const inpAct = (el && el.dataset && el.dataset.a) || "";
+    if (inpAct && inpAct.indexOf("adm-") === 0 && EGE.views.admin && typeof EGE.views.admin.handleInput === "function") {
+      if (EGE.views.admin.handleInput(el)) return;
+    }
+    if ((inpAct === "tc-req-tbl-q" || inpAct === "tc-st-tbl-q" || inpAct === "tc-leads-tbl-q") && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.handleInput === "function") {
+      if (EGE.views.tutorCabinet.handleInput(el)) return;
+    }
+    if ((inpAct === "mkt-bk-q" || inpAct === "study-sched-q" || inpAct === "study-chats-q") && EGE.views.marketplace && typeof EGE.views.marketplace.handleInput === "function") {
+      if (EGE.views.marketplace.handleInput(el)) return;
+    }
+    if ((inpAct === "bb-admin-tbl-q" || inpAct === "bb-dual-tbl-q" || el.id === "bb-admin-tbl-q" || el.id === "bb-dual-tbl-q") && EGE.views.brandbook && typeof EGE.views.brandbook.handleInput === "function") {
+      if (EGE.views.brandbook.handleInput(el, ui, { render: () => scheduleRender() })) return;
+    }
     if (el && el.dataset && (el.dataset.tc || el.dataset.tcStudent) && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.handleInput === "function") {
       if (EGE.views.tutorCabinet.handleInput(el)) return;
     }
