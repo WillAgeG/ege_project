@@ -57,7 +57,11 @@
       elements.set(id, makeEl(id));
     }
 
-    g.AbortController = function AbortController() {
+    function defGlobal(k, v) {
+      Object.defineProperty(g, k, { value: v, configurable: true, writable: true, enumerable: true });
+    }
+
+    defGlobal("AbortController", function AbortController() {
       const listeners = [];
       this.signal = {
         aborted: false,
@@ -72,9 +76,9 @@
         this.signal.aborted = true;
         listeners.slice().forEach((fn) => fn());
       };
-    };
+    });
 
-    g.TextDecoder = function TextDecoder() {
+    defGlobal("TextDecoder", function TextDecoder() {
       this.decode = function (bytes) {
         if (!bytes) return "";
         if (typeof bytes === "string") return bytes;
@@ -92,39 +96,39 @@
         }
         return outStr;
       };
-    };
+    });
 
-    g.TextEncoder = function TextEncoder() {
+    defGlobal("TextEncoder", function TextEncoder() {
       this.encode = function (str) {
         const s = unescape(encodeURIComponent(String(str)));
         const arr = new Uint8Array(s.length);
         for (let i = 0; i < s.length; i++) arr[i] = s.charCodeAt(i);
         return arr;
       };
-    };
+    });
 
-    g.localStorage = {
+    defGlobal("localStorage", {
       getItem(k) { return Object.prototype.hasOwnProperty.call(lsMap, k) ? lsMap[k] : null; },
       setItem(k, v) { lsMap[k] = String(v); },
       removeItem(k) { delete lsMap[k]; },
       _dump() { return lsMap; }
-    };
+    });
 
-    g.location = { hash: opts.hash || "", search: opts.search || "", pathname: "/" };
-    g.history = {
+    defGlobal("location", { hash: opts.hash || "", search: opts.search || "", pathname: "/" });
+    defGlobal("history", {
       replaceState(_s, _t, u) {
         if (typeof u === "string") {
           if (u.startsWith("#")) g.location.hash = u;
           else if (!u.includes("?")) g.location.search = "";
         }
       }
-    };
-    g.matchMedia = () => ({ matches: false, addEventListener() {} });
-    if (typeof g.clearTimeout === "undefined") g.clearTimeout = () => {};
-    if (typeof g.console === "undefined") g.console = { log: out, warn() {}, error: out };
+    });
+    defGlobal("matchMedia", () => ({ matches: false, addEventListener() {} }));
+    if (typeof g.clearTimeout === "undefined") defGlobal("clearTimeout", () => {});
+    if (typeof g.console === "undefined") defGlobal("console", { log: out, warn() {}, error: out });
 
     const rootClasses = new Set();
-    g.document = {
+    defGlobal("document", {
       visibilityState: "visible",
       activeElement: null,
       body: makeEl("body"),
@@ -156,15 +160,18 @@
       },
       getElementById(id) { return elements.get(id) || null; },
       addEventListener(ev, fn) { (docListeners[ev] || (docListeners[ev] = [])).push(fn); }
-    };
+    });
 
-    g.window = g;
+    defGlobal("window", g);
     g.window.scrollTo = () => {};
     g.window.addEventListener = (ev, fn) => { (winListeners[ev] || (winListeners[ev] = [])).push(fn); };
-    g.devicePixelRatio = 1;
-    g.EGE_HOST = opts.host;
-    g.claude = opts.claude;
-    g.fetch = opts.fetch;
+    defGlobal("devicePixelRatio", 1);
+    defGlobal("EGE_HOST", opts.host);
+    defGlobal("claude", opts.claude);
+    defGlobal("fetch", opts.fetch);
+    defGlobal("BroadcastChannel", undefined);
+    defGlobal("WebSocket", undefined);
+    defGlobal("EventSource", undefined);
 
     return {
       elements,
@@ -183,7 +190,7 @@
 
   function loadScripts(paths) {
     const g = typeof globalThis !== "undefined" ? globalThis : this;
-    g.EGE = { subjects: [], tableEdits: [], plan: null, essay: null };
+    Object.defineProperty(g, "EGE", { value: { subjects: [], tableEdits: [], plan: null, essay: null }, configurable: true, writable: true, enumerable: true });
     for (const p of paths) {
       const diskPath = resolveAssetPath(p);
       vmRun(readFileText(diskPath), diskPath);
@@ -2299,6 +2306,7 @@
     );
 
     out("APP_SMOKE_TESTS_OK");
+    if (isNode) process.exit(0);
   }
 
   main().catch((err) => {
