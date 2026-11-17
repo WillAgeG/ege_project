@@ -8,6 +8,7 @@ import uuid
 from fastapi.testclient import TestClient
 import psycopg
 from psycopg.rows import dict_row
+import pytest
 
 from backend.api import create_api_app
 from backend.config import AIConfig, GoogleOAuthConfig, Settings
