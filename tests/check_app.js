@@ -1889,9 +1889,9 @@
     const bbAllPipeHtml = env5.elements.get("main").innerHTML;
     assert(bbAllPipeHtml.includes("PostgreSQL 17 · OLTP + Outbox") && bbAllPipeHtml.includes("Grafana BI · Observability") && bbAllPipeHtml.includes("Kafka Clickstream"), "expected bb-pipe-filter=all to show all 5 Data & Observability stages");
     assert(
-      !read("ux-ui/brandbook/brandbook.js").includes("Вывести 95%") &&
-      !read("ux-ui/components/kit.js").includes("Вывести 95%") &&
-      !read("frontend/index.html").toLowerCase().includes("#13794b"),
+      !readFileText("ux-ui/brandbook/brandbook.js").includes("Вывести 95%") &&
+      !readFileText("ux-ui/components/kit.js").includes("Вывести 95%") &&
+      !readFileText("frontend/index.html").toLowerCase().includes("#13794b"),
       "expected zero occurrences of Вывести 95% in ux-ui and zero #13794b in index.html"
     );
 
