@@ -16,6 +16,7 @@
 - [`etl.md`](docs/context/etl.md) — `etl/`, `Polars M4 Pro`, Airflow, Grafana, 5 Kafka-топиков
 - [`token-economy.md`](docs/context/token-economy.md) — `tools/ctx.py` и MCP [`tools/ctx_mcp.py`](tools/ctx_mcp.py)
 - [`REPOSITORIES.md`](REPOSITORIES.md) / [`ROADMAP_UNCONNECTED.md`](ROADMAP_UNCONNECTED.md)
+- План запуска и СБП (`docs/business/`): [`vektor_ege_pitch_300k_yakutsk.pdf`](docs/business/vektor_ege_pitch_300k_yakutsk.pdf) (старт `30.11.2026`, Якутск), [`vektor_ege_unit_economics_v2_sbp_low_fee.docx`](docs/business/vektor_ege_unit_economics_v2_sbp_low_fee.docx), [`vektor_ege_unit_economics_yakutsk.docx`](docs/business/vektor_ege_unit_economics_yakutsk.docx) — тарифы `390 / 990 / 2 190 / 4 590 / 8 900 ₽`, `PRO 1 490 ₽/мес`.
 
 ## Жёсткие инварианты
 1. В `ux-ui/` запрещены `fetch(`, `EventSource`, `WebSocket`, `EGE.api`, `EGE.tutors`.

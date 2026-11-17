@@ -12,6 +12,7 @@
   const VALID_TABS = ["overview", "requests", "tutors", "payouts", "system"];
   const VALID_REQ_STATUSES = ["pending", "accepted", "declined", "refunded"];
   const VALID_ROLES = ["student", "tutor", "admin"];
+  const ROLE_LABELS = { student: "Ученик", tutor: "Преподаватель", admin: "Админ" };
 
   let _ctx = {};
   const state = {
@@ -452,6 +453,7 @@
       },
       channelShare,
       dailySeries: [
+        { date: "2026-11-10", gmvRub: 2900, feeRub: 145, payoutRub: 2755, requests: 2, accepted: 2 },
         { date: "2026-11-11", gmvRub: 2400, feeRub: 120, payoutRub: 2280, requests: 2, accepted: 2 },
         { date: "2026-11-12", gmvRub: 3600, feeRub: 180, payoutRub: 3420, requests: 3, accepted: 3 },
         { date: "2026-11-13", gmvRub: 2100, feeRub: 105, payoutRub: 1995, requests: 2, accepted: 1 },
@@ -534,7 +536,7 @@
 
   function renderDataTable(opts) {
     if (EGE.charts && typeof EGE.charts.dataTableHTML === "function") {
-      return EGE.charts.dataTableHTML(opts);
+      return EGE.charts.dataTableHTML(Object.assign({}, opts, { showColsSwitch: false, showPresetSwitch: false }));
     }
     return "";
   }
@@ -624,7 +626,20 @@
     const ov = state.overview || {};
     const kpi = ov.kpi || {};
     const users = Array.isArray(state.users) ? state.users : [];
-    const daily = Array.isArray(ov.dailySeries) ? ov.dailySeries : [];
+    const rawDaily = Array.isArray(ov.dailySeries) ? ov.dailySeries : [];
+    const daily = (() => {
+      if (!rawDaily.length) return [];
+      const slice = rawDaily.slice(-7);
+      if (slice.length >= 7) return slice;
+      const firstDate = String(slice[0] && slice[0].date || "").slice(0, 10);
+      const anchor = /^\d{4}-\d{2}-\d{2}$/.test(firstDate) ? new Date(firstDate + "T00:00:00Z") : new Date("2026-11-16T00:00:00Z");
+      const pad = [];
+      for (let i = 7 - slice.length; i >= 1; i--) {
+        const d = new Date(anchor.getTime() - i * 86400000);
+        pad.push({ date: d.toISOString().slice(0, 10), gmvRub: 0, feeRub: 0, payoutRub: 0, requests: 0, accepted: 0 });
+      }
+      return pad.concat(slice);
+    })();
 
     const kpiItems = [
       { label: "GMV ₽", value: fmtRub(kpi.gmvRub), delta: "+18% · 100%", tone: "accent", note: "Подтверждённые уроки (эскроу)", action: "adm-tab", actionVal: "requests" },
@@ -640,14 +655,17 @@
 
     const maxGmv = Math.max(1000, ...daily.map((d) => Number(d.gmvRub) || 0));
     const bars = daily.length
-      ? daily.slice(-7).map((d) => ({
-          wd: String(d.date || "").slice(5),
-          val: Math.round((Number(d.gmvRub) || 0) / 100) / 10 + "к",
-          num: Number(d.gmvRub) || 0,
-          detail: `${d.date}: GMV ${fmtRub(d.gmvRub)} · сбор 5% ${fmtRub(d.feeRub)}`,
-          pct: Math.max(14, Math.round(((Number(d.gmvRub) || 0) / maxGmv) * 100)),
-          gold: (Number(d.gmvRub) || 0) >= maxGmv * 0.8
-        }))
+      ? daily.slice(-7).map((d) => {
+          const gmv = Number(d.gmvRub) || 0;
+          return {
+            wd: String(d.date || "").slice(5),
+            val: gmv ? (Math.round(gmv / 100) / 10 + "к") : "0",
+            num: gmv,
+            detail: `${d.date}: GMV ${fmtRub(gmv)} · сбор 5% ${fmtRub(d.feeRub)}`,
+            pct: Math.max(14, Math.round((gmv / maxGmv) * 100)),
+            gold: gmv >= maxGmv * 0.8
+          };
+        })
       : (EGE.charts ? EGE.charts.chartDatasetBars("income") : []);
 
     const chartHtml = (EGE.charts && typeof EGE.charts.stickChartHTML === "function")
@@ -659,16 +677,15 @@
 
     const userCols = [
       { key: "displayName", label: "Пользователь", render: (u) => `<div class="stack" style="gap:2px"><b>${esc(u.displayName || u.username)}</b><span class="small muted">${esc(u.username)}</span></div>` },
-      { key: "email", label: "Контакт / Email", minCols: 5, render: (u) => `<span class="small">${esc(u.email || "—")}</span>` },
-      { key: "authProvider", label: "Провайдер", minCols: 7, render: (u) => `<span class="chip">${esc(u.authProvider || "local")}</span>` },
-      { key: "createdAt", label: "Создан", minCols: 7, num: true, render: (u) => `<span class="small num">${esc(String(u.createdAt || "").slice(0, 10))}</span>` },
-      { key: "role", label: "Текущая роль", render: (u) => modBadge(u.role === "admin" ? "published" : (u.role === "tutor" ? "verified" : "pending"), u.role === "admin" ? "Админ" : (u.role === "tutor" ? "Преподаватель" : "Ученик")) },
+      { key: "email", label: "Контакт / Email", render: (u) => `<span class="small">${esc(u.email || "—")}</span>` },
+      { key: "authProvider", label: "Провайдер", render: (u) => `<span class="chip">${esc(u.authProvider || "local")}</span>` },
+      { key: "role", label: "Текущая роль", render: (u) => modBadge(u.role === "admin" ? "published" : (u.role === "tutor" ? "verified" : "pending"), ROLE_LABELS[u.role] || "Ученик") },
       {
         key: "actions",
         label: "Смена роли",
         isActions: true,
         render: (u) => `<div class="row" style="gap:4px;flex-wrap:wrap">
-          ${VALID_ROLES.map((r) => `<button type="button" class="chip-btn${u.role === r ? " on" : ""}" data-a="adm-user-role" data-id="${esc(u.id)}" data-role="${r}">${esc(r)}</button>`).join("")}
+          ${VALID_ROLES.map((r) => `<button type="button" class="chip-btn${u.role === r ? " on" : ""}" data-a="adm-user-role" data-id="${esc(u.id)}" data-role="${r}">${esc(ROLE_LABELS[r] || r)}</button>`).join("")}
         </div>`
       }
     ];
@@ -679,10 +696,8 @@
       showPresetSwitch: false,
       eyebrow: "Пользователи и RBAC-роли",
       title: "Реестр аккаунтов платформы",
-      cols: state.cols,
       filter: state.filter,
       query: state.query,
-      colsAction: "adm-tbl-cols",
       filterAction: "adm-tbl-filter",
       searchAction: "adm-tbl-q",
       searchId: "adm-tbl-q",
@@ -740,7 +755,6 @@
       {
         key: "slot",
         label: "Слот (10–20 ч)",
-        minCols: 5,
         num: true,
         render: (r) => `<span class="num">${esc(r.slotDate)} · ${esc(r.hourSlot)}</span>`
       },
@@ -756,13 +770,11 @@
       {
         key: "escrow",
         label: "Эскроу и канал",
-        minCols: 7,
         render: (r) => `<div class="row" style="gap:6px;flex-wrap:wrap"><span class="chip">${esc(r.escrowStatus || "frozen")}</span><span class="small muted">${esc(r.messengerChannel || "whatsapp")}</span></div>`
       },
       {
         key: "tariff",
         label: "Тариф",
-        minCols: 7,
         render: (r) => `<span class="small">${esc(r.tariffId || "trial5k")}</span>`
       },
       {
@@ -788,10 +800,8 @@
       showPresetSwitch: false,
       eyebrow: "Единый поток заявок · Торг ±100 ₽ и эскроу",
       title: "Заявки на занятия и статусы учеников",
-      cols: state.cols,
       filter: state.filter,
       query: state.query,
-      colsAction: "adm-tbl-cols",
       filterAction: "adm-tbl-filter",
       searchAction: "adm-tbl-q",
       searchId: "adm-tbl-q",
@@ -826,7 +836,6 @@
             showSearch: false,
             eyebrow: "Лента «Ученики ищут»",
             title: `Открытые запросы учеников (${leads.length})`,
-            cols: 5,
             columns: leadsCols,
             rows: leads
           })}
@@ -852,7 +861,6 @@
       {
         key: "city",
         label: "Город и пояс",
-        minCols: 5,
         render: (t) => `<span class="small">${esc(t.city)} · ${esc(t.timezone)}</span>`
       },
       {
@@ -864,13 +872,11 @@
       {
         key: "source",
         label: "Источник",
-        minCols: 7,
         render: (t) => `<span class="chip">${esc(t.sourceChannel || "doska_ykt")}</span>`
       },
       {
         key: "tariff",
         label: "Тариф",
-        minCols: 7,
         render: (t) => `<span class="small">${esc(t.tariffId || "trial5k")}</span>`
       },
       {
@@ -896,10 +902,8 @@
         showPresetSwitch: false,
         eyebrow: "Модерация анкет · Ykt / TG / WA / MAX",
         title: "Реестр преподавателей платформы",
-        cols: state.cols,
         filter: state.filter,
         query: state.query,
-        colsAction: "adm-tbl-cols",
         filterAction: "adm-tbl-filter",
         searchAction: "adm-tbl-q",
         searchId: "adm-tbl-q",
@@ -929,7 +933,6 @@
       {
         key: "channel",
         label: "СБП / Карта Мир",
-        minCols: 5,
         render: (p) => `<div class="stack" style="gap:2px"><b>${esc(p.bank || (p.method === "card" ? "Карта Мир" : "СБП"))}</b><span class="small muted num">${esc(p.destinationMasked || "—")}</span></div>`
       },
       {
@@ -941,13 +944,11 @@
       {
         key: "npd",
         label: "Чек НПД",
-        minCols: 5,
         render: (p) => `<code class="small">${esc(p.npdReceipt || "Без чека")}</code>`
       },
       {
         key: "createdAt",
         label: "Создана",
-        minCols: 7,
         num: true,
         render: (p) => `<span class="small num">${esc(String(p.createdAt || "").slice(0, 10))}</span>`
       },
@@ -974,10 +975,8 @@
         showPresetSwitch: false,
         eyebrow: "Выплаты 95% · СБП и Карта Мир ≥ 500 ₽",
         title: "Очередь выплат преподавателям и чеки НПД",
-        cols: state.cols,
         filter: state.filter,
         query: state.query,
-        colsAction: "adm-tbl-cols",
         filterAction: "adm-tbl-filter",
         searchAction: "adm-tbl-q",
         searchId: "adm-tbl-q",
@@ -1133,7 +1132,7 @@
         if (isBackendLive()) {
           EGE.api.admin.setUserRole(uid, role).catch(() => {});
         }
-        notify("Роль обновлена", `${u.displayName || u.username} → ${role}`);
+        notify("Роль обновлена", `${u.displayName || u.username} → ${ROLE_LABELS[role] || role}`);
         renderLater();
       }
       return true;

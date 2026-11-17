@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -19,10 +20,45 @@ SHELL_PREFIX = (
 HOST_FLAG_SCRIPT = "<script>window.EGE_HOST={backend:true};</script>"
 
 
-def render_index_html(root_dir: Path = ROOT_DIR, *, landing: bool = False) -> str:
+SITE_TITLES = {
+    "student": "Вектор ЕГЭ — Ученик",
+    "tutor": "Вектор ЕГЭ — Преподаватель",
+    "admin": "Вектор ЕГЭ — Админ-панель",
+    "brandbook": "Вектор ЕГЭ — Брендбук",
+}
+
+
+def render_index_html(
+    root_dir: Path = ROOT_DIR,
+    *,
+    landing: bool = False,
+    site: str | None = None,
+    view: str | None = None,
+) -> str:
     frontend_dir = root_dir / "frontend"
     raw = (frontend_dir / "index.html").read_text(encoding="utf-8")
-    flag_script = "<script>window.EGE_HOST={backend:true,landing:true};</script>" if landing else HOST_FLAG_SCRIPT
+
+    if site == "tutor" and view == "fees":
+        page_title = "Вектор ЕГЭ — Выплаты преподавателя"
+    else:
+        page_title = SITE_TITLES.get(site or "")
+    if page_title:
+        raw = raw.replace("<title>Вектор ЕГЭ</title>", f"<title>{page_title}</title>", 1)
+
+    if site in {"student", "tutor"}:
+        raw = raw.replace('<script src="views/admin.js"></script>\r\n', "")
+        raw = raw.replace('<script src="views/admin.js"></script>\n', "")
+        raw = raw.replace('<script src="views/admin.js"></script>', "")
+
+    parts = ["backend:true"]
+    if landing:
+        parts.append("landing:true")
+    if site:
+        parts.append(f"site:{json.dumps(site)}")
+    if view:
+        parts.append(f"view:{json.dumps(view)}")
+    flag_script = "<script>window.EGE_HOST={" + ",".join(parts) + "};</script>"
+
     target = '<script src="app.js"></script>'
     if target in raw:
         raw = raw.replace(target, flag_script + "\n" + target, 1)
@@ -43,6 +79,22 @@ def register_shell_routes(app: FastAPI, root_dir: Path = ROOT_DIR) -> None:
             headers={"Cache-Control": "no-store"},
         )
 
+    @app.get("/student", response_class=HTMLResponse)
+    async def student_page() -> HTMLResponse:
+        return HTMLResponse(
+            content=render_index_html(root_dir, site="student"),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @app.get("/tutor", response_class=HTMLResponse)
+    @app.get("/teacher", response_class=HTMLResponse)
+    @app.get("/cabinet", response_class=HTMLResponse)
+    async def tutor_page() -> HTMLResponse:
+        return HTMLResponse(
+            content=render_index_html(root_dir, site="tutor"),
+            headers={"Cache-Control": "no-store"},
+        )
+
     @app.get("/landing", response_class=HTMLResponse)
     async def landing_page() -> HTMLResponse:
         return HTMLResponse(
@@ -53,21 +105,21 @@ def register_shell_routes(app: FastAPI, root_dir: Path = ROOT_DIR) -> None:
     @app.get("/brandbook", response_class=HTMLResponse)
     async def brandbook_page() -> HTMLResponse:
         return HTMLResponse(
-            content=render_index_html(root_dir, landing=True),
+            content=render_index_html(root_dir, site="brandbook"),
             headers={"Cache-Control": "no-store"},
         )
 
     @app.get("/fees", response_class=HTMLResponse)
     async def fees_page() -> HTMLResponse:
         return HTMLResponse(
-            content=render_index_html(root_dir, landing=True),
+            content=render_index_html(root_dir, site="tutor", view="fees"),
             headers={"Cache-Control": "no-store"},
         )
 
     @app.get("/admin", response_class=HTMLResponse)
     async def admin_page() -> HTMLResponse:
         return HTMLResponse(
-            content=render_index_html(root_dir, landing=True),
+            content=render_index_html(root_dir, site="admin"),
             headers={"Cache-Control": "no-store"},
         )
 

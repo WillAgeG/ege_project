@@ -258,8 +258,12 @@ def extract_py_symbols(text: str) -> list[ExtractedSymbol]:
 _JS_FUNC_RE = re.compile(r"^\s{0,8}(?:async\s+)?function\s+([A-Za-z_$][0-9A-Za-z_$]*)\s*\(([^)]*)\)\s*\{")
 _JS_NS_RE = re.compile(r"^\s{0,8}(?:window\.)?(EGE(?:\.[A-Za-z_$][0-9A-Za-z_$]*){1,4})\s*=\s*(?:async\s+function\b|\{|function\b)")
 _JS_EXPORT_PROP_RE = re.compile(r"^\s{2,6}([A-Za-z_$][0-9A-Za-z_$]*)\s*\(([^)]*)\)\s*\{")
-_JS_ACT_BLOCK_START_RE = re.compile(r"^\s{0,6}const\s+(ACTIONS|FORMS)\s*=\s*\{")
-_JS_OBJ_KEY_RE = re.compile(r'^\s{4,8}"?([a-z][0-9a-zA-Z_-]*)"?\s*:\s*(?:\([^)]*\)|[A-Za-z_$])')
+_JS_ACT_BLOCK_START_RE = re.compile(
+    r"^\s{0,8}(?:const\s+(ACTIONS|FORMS)\s*=\s*\{|Object\.assign\(\s*(ACTIONS|FORMS)\s*,\s*\{)"
+)
+_JS_OBJ_KEY_RE = re.compile(
+    r'^\s{4,10}"?([a-z][0-9a-zA-Z_-]*)"?\s*:\s*(?:async\s+)?(?:\([^)]*\)|[A-Za-z_$])'
+)
 _JS_ACT_IF_RE = re.compile(r'if\s*\(\s*act\s*===\s*"([^"]+)"')
 _JS_CATALOG_SEC_RE = re.compile(r"^\s{2,6}function\s+(render[A-Za-z0-9_]+|view[A-Za-z0-9_]+)\s*\(")
 
@@ -293,7 +297,7 @@ def extract_js_symbols(text: str, rel_path: str) -> list[ExtractedSymbol]:
 
         m_tbl = _JS_ACT_BLOCK_START_RE.match(line)
         if m_tbl:
-            tbl_name = m_tbl.group(1)
+            tbl_name = m_tbl.group(1) or m_tbl.group(2)
             end_tbl = _find_js_block_end(lines, idx, max_scan=2000)
             in_action_table_until = end_tbl
             key = ("class", tbl_name, ln)

@@ -17,6 +17,15 @@ from databases.postgres.store import PostgresDatabase
 PG_DSN = "postgresql://postgres@127.0.0.1:5432/vektor_ege"
 
 
+def _pg_available() -> bool:
+    try:
+        with psycopg.connect(PG_DSN, connect_timeout=1) as conn:
+            conn.execute("SELECT 1 FROM oltp.users LIMIT 1")
+        return True
+    except Exception:
+        return False
+
+
 def _sqlite_settings(tmp_path: Path, name: str = "admin_test.db") -> Settings:
     return Settings(
         db_path=tmp_path / name,
@@ -157,6 +166,8 @@ def test_admin_api_sqlite_full_flow(tmp_path: Path) -> None:
 
 
 def test_admin_api_pg17_dualwrite_and_outbox(tmp_path: Path) -> None:
+    if not _pg_available():
+        pytest.skip("PostgreSQL 17 (:5432/vektor_ege) not available in CI")
     suffix = uuid.uuid4().hex[:8]
     uname = f"adm_pg_{suffix}"
 

@@ -698,23 +698,23 @@
     const afterLeadHtml = env4.elements.get("main").innerHTML;
     assert(afterLeadHtml.includes("Опубликовано для преподавателей") && afterLeadHtml.includes('id="student-leads-table"') && afterLeadHtml.includes("bb-data-table") && afterLeadHtml.includes("data-label=") && afterLeadHtml.includes("Химия") && afterLeadHtml.includes("Биология"), "expected submitted multi-subject student lead to render in Brandbook #student-leads-table");
 
-    // Пробный урок 0 ₽ блокируется при балансе < 5000 ₽ -> открытие модалки пополнения -> пополнение -> успешная запись за 0 ₽ -> появление преподавателя в «Учёбе»
+    // Пробный урок 60 мин (990 ₽ · СБП-эскроу) блокируется при балансе < 990 ₽ -> открытие модалки СБП -> пополнение -> эскроу-бронь 990 ₽ -> появление в «Учёбе»
     clickAction(env4, { a: "go", v: "market" });
     await flushMicrotasks(4);
     clickAction(env4, { a: "trial-open", id: "tut-sokolova", hour: "10:00" });
     await flushMicrotasks(2);
     const balModalHtml = env4.elements.get("modal-root").innerHTML;
-    assert(balModalHtml.includes("Баланс и пополнение") && balModalHtml.includes("первый платёж от 5 000 ₽"), "expected trial action under 5000 ₽ balance to open Brandbook balance top-up modal requiring 5000 ₽ first payment");
-    env4.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "bal-custom" }, elements: { amount: { value: "1000" } } }) }, preventDefault() {} });
+    assert(balModalHtml.includes("Баланс и пополнение") && balModalHtml.includes("Только СБП") && balModalHtml.includes("первый платёж от 990 ₽"), "expected trial action under 990 ₽ balance to open Brandbook SBP top-up modal requiring 990 ₽ first payment");
+    env4.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "bal-custom" }, elements: { amount: { value: "500" } } }) }, preventDefault() {} });
     await flushMicrotasks(2);
-    assert(env4.elements.get("modal-root").innerHTML.includes("Первое пополнение — минимум 5 000 ₽"), "expected first top-up below 5000 ₽ to be rejected");
+    assert(env4.elements.get("modal-root").innerHTML.includes("Первое пополнение на занятия — минимум 990 ₽ по СБП"), "expected first top-up below 990 ₽ to be rejected");
     env4.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "bal-custom" }, elements: { amount: { value: "6500" } } }) }, preventDefault() {} });
     await flushMicrotasks(3);
     const afterTopupModal = env4.elements.get("modal-root").innerHTML;
-    assert(afterTopupModal.includes("Пробный урок · 0 ₽") && hasNum(env4.elements.get("side-foot").innerHTML, "6 500") && hasNum(env4.elements.get("top-balance-slot").innerHTML, "6 500"), "expected custom top-up to reach 6500 ₽ and sync both bottom-left & top-right student balance");
+    assert(afterTopupModal.includes("Пробный урок · 990 ₽") && hasNum(env4.elements.get("side-foot").innerHTML, "6 500") && hasNum(env4.elements.get("top-balance-slot").innerHTML, "6 500"), "expected custom top-up to reach 6500 ₽ and sync both bottom-left & top-right student balance");
     clickAction(env4, { a: "book-submit" });
     await flushMicrotasks(3);
-    assert(hasNum(env4.elements.get("side-foot").innerHTML, "6 500") && hasNum(env4.elements.get("top-balance-slot").innerHTML, "6 500"), "expected free trial 0 ₽ booking not to deduct balance");
+    assert(hasNum(env4.elements.get("side-foot").innerHTML, "5 510") && hasNum(env4.elements.get("top-balance-slot").innerHTML, "5 510"), "expected 990 ₽ trial escrow reservation to reduce available balance from 6500 to 5510");
     assert(env4.elements.get("main").innerHTML.includes('id="student-bookings-table"') && env4.elements.get("main").innerHTML.includes("bb-data-table") && env4.elements.get("main").innerHTML.includes("data-label="), "expected #student-bookings-table Brandbook table on /market after booking");
     clickAction(env4, { a: "mkt-bk-cols", cols: "3" });
     await flushMicrotasks(3);
@@ -729,10 +729,10 @@
     assert(env4.elements.get("main").innerHTML.includes("Соколова"), "expected mkt-bk-filter clearQ=1 to restore booking row");
     clickAction(env4, { a: "bal-open" });
     await flushMicrotasks(2);
-    assert(env4.elements.get("modal-root").innerHTML.includes("от 100 ₽"), "expected subsequent top-ups from 100 ₽ once initial 5000 ₽ is paid");
+    assert(env4.elements.get("modal-root").innerHTML.includes("от 100 ₽"), "expected subsequent top-ups from 100 ₽ once initial 990 ₽ is paid");
     env4.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "bal-custom" }, elements: { amount: { value: "100" } } }) }, preventDefault() {} });
     await flushMicrotasks(3);
-    assert(hasNum(env4.elements.get("side-foot").innerHTML, "6 600") && hasNum(env4.elements.get("top-balance-slot").innerHTML, "6 600"), "expected subsequent 100 ₽ custom top-up to succeed cleanly in both balance slots");
+    assert(hasNum(env4.elements.get("side-foot").innerHTML, "5 610") && hasNum(env4.elements.get("top-balance-slot").innerHTML, "5 610"), "expected subsequent 100 ₽ custom top-up to reach 5610 ₽ cleanly in both balance slots");
 
     clickAction(env4, { a: "go", v: "study" });
     await flushMicrotasks(4);
@@ -970,9 +970,9 @@
     assert(new Set(globalThis.EGE.tutors.LIST.map((t) => t.source)).size >= 3 && globalThis.EGE.tutors.LIST.every((t) => Boolean(t.source) && t.availableFrom && t.availableTo && (t.tier === "pro" ? (t.price > t.marketPrice && t.abovePct > 0 && t.aboveRub > 0) : (t.marketPrice > t.price && t.belowPct > 0 && t.belowRub > 0))), "expected multi-channel sources, window and below/above-market metadata on all tutors");
 
     const landHtml = env5.elements.get("main").innerHTML;
-    assert(!landHtml.includes("Бесплатная") && landHtml.includes("Пробник") && landHtml.includes("Месяц под ключ"), "expected minimum 5000 ₽ subscription plans without free tier on landing");
-    assert(landHtml.includes("Супер-подписка") && landHtml.includes("plan-card featured super"), "expected distinct super class and badge on 10k tariff");
-    assert(landHtml.includes("5 000 ₽") && landHtml.includes("10 000 ₽"), "expected 5k and 10k prices on landing");
+    assert(!landHtml.includes("Бесплатная") && landHtml.includes("ИИ-Старт ЕГЭ") && landHtml.includes("Пробный урок · 60 мин") && landHtml.includes("Мини-группа Саха") && landHtml.includes("Стандарт · 4 урока") && landHtml.includes("Интенсив · Месяц под ключ"), "expected 5-tier SBP subscription ladder without free tutor plan on landing");
+    assert(landHtml.includes("Супер-подписка") && landHtml.includes("plan-card featured super"), "expected distinct super class and badge on flagship tariff");
+    assert(landHtml.includes("390 ₽/мес") && landHtml.includes("990 ₽") && landHtml.includes("2 190 ₽") && landHtml.includes("4 590 ₽") && landHtml.includes("8 900 ₽") && landHtml.includes('id="sbp-escrow-explainer"') && landHtml.includes("Верхняя полоса PRO") && landHtml.includes("1 490 ₽/мес"), "expected 390/990/2190/4590/8900 prices, SBP escrow explainer and tutor PRO plan on landing");
     assert(landHtml.includes("Дмитрий Волков") && landHtml.includes("выше рынка") && landHtml.includes("diff-tag pro"), "expected above-market high-qualification expert tutor visible on default Любая filter");
     assert(landHtml.includes('data-a="mkt-day"') && landHtml.includes('id="mkt-hour-range"') && landHtml.includes('<span class="day-dot">7</span>') && !landHtml.includes(">7 дн<") && !landHtml.includes(">7д<"), "expected clean 7 number badge (without 7д/7 дн) and 10:00-20:00 hour range slider on landing");
     assert(landHtml.includes('id="land-demo"') && landHtml.includes("Доска Ykt") && landHtml.includes("Telegram") && landHtml.includes("MAX") && !landHtml.includes("Комиссия 5%") && !landHtml.includes("760 ₽") && landHtml.includes('data-v="fees"'), "expected interactive beta demo, multi-channel sources (Ykt/TG/WA/MAX), hidden 5% commission on landing and separate /fees link");
@@ -1027,7 +1027,7 @@
     clickAction(env5, { a: "mkt-reset" });
     clickAction(env5, { a: "mkt-plan", id: "trial5k" });
     await flushMicrotasks(4);
-    assert(env5.elements.get("main").innerHTML.includes("5\u00a0000 ₽") || env5.elements.get("main").innerHTML.includes("5 000 ₽"), "expected 5 000 ₽ wallet balance after trial5k");
+    assert(hasNum(env5.elements.get("main").innerHTML, "4 590 ₽"), "expected 4 590 ₽ wallet balance after trial5k (Стандарт · 4 урока)");
 
     clickAction(env5, { a: "book-open", id: "tut-sokolova", hour: "10:00" });
     await flushMicrotasks(2);
@@ -1062,7 +1062,7 @@
     const bookSideToast = env5.elements.get("toast");
     assert(bookSideToast.className === "toast is-side" && bookSideToast.innerHTML.includes("Предложение передано преподавателю"), "expected side notification after submitting booking bid");
     const afterBookHtml = env5.elements.get("main").innerHTML;
-    assert(afterBookHtml.includes("На рассмотрении · уведомим") && (afterBookHtml.includes("4\u00a0100 ₽") || afterBookHtml.includes("4 100 ₽")), "expected 900 ₽ reserved from 5 000 ₽ balance");
+    assert(afterBookHtml.includes("На рассмотрении · уведомим") && hasNum(afterBookHtml, "3 690 ₽"), "expected 900 ₽ reserved from 4 590 ₽ balance leaving 3 690 ₽");
 
     const acceptIdMatch = /data-a="mkt-sim-accept" data-id="([^"]+)"/.exec(afterBookHtml);
     assert(acceptIdMatch, "expected sim-accept button for pending booking");
@@ -1073,7 +1073,7 @@
     clickAction(env5, { a: "mkt-cancel-book", id: acceptIdMatch[1] });
     await flushMicrotasks(4);
     const afterCancelHtml = env5.elements.get("main").innerHTML;
-    assert(afterCancelHtml.includes("5\u00a0000 ₽") || afterCancelHtml.includes("5 000 ₽"), "expected balance restored to 5 000 ₽ on tutor cancel/switch");
+    assert(hasNum(afterCancelHtml, "4 590 ₽"), "expected balance restored to 4 590 ₽ on tutor cancel/switch");
 
     clickAction(env5, { a: "filter-open" });
     await flushMicrotasks(2);
@@ -1235,11 +1235,11 @@
     clickAction(env5, { a: "go", v: "fees" });
     await flushMicrotasks(4);
     const feesHtml = env5.elements.get("main").innerHTML;
-    assert(feesHtml.includes('id="fees-page"') && feesHtml.includes("5%") && hasNum(feesHtml, "760 ₽") && feesHtml.includes("40 ₽") && !feesHtml.includes("Открыть Брендбук"), "expected dedicated /fees page showing 5% system fee and 760/40 split without internal brandbook button");
+    assert(feesHtml.includes('id="fees-page"') && feesHtml.includes("5%") && feesHtml.includes("Только СБП") && feesHtml.includes("990 ₽") && feesHtml.includes("шлюз СБП") && feesHtml.includes("1 490 ₽/мес") && hasNum(feesHtml, "760 ₽") && feesHtml.includes("40 ₽") && !feesHtml.includes("Открыть Брендбук"), "expected dedicated /fees page showing SBP-only mechanics, 5% + 1% SBP split, PRO 1490 ₽/mo and 760/40 calculator without internal brandbook button");
     clickAction(env5, { a: "fees-rate", rate: "2000" });
     await flushMicrotasks(2);
     const feesUpdated = env5.elements.get("main").innerHTML;
-    assert(hasNum(feesUpdated, "1 900 ₽") && feesUpdated.includes("100 ₽"), "expected /fees calculator preset to recalculate 95%/5% split for 2000");
+    assert(hasNum(feesUpdated, "1 900 ₽") && feesUpdated.includes("100 ₽") && feesUpdated.includes("20 ₽"), "expected /fees calculator preset to recalculate 95%/5% + 1% SBP split for 2000");
 
     clickAction(env5, { a: "go", v: "brandbook" });
     await flushMicrotasks(4);
@@ -1480,19 +1480,32 @@
     const tutorMain1 = env5.elements.get("main").innerHTML;
     const tutorSideHtml = env5.elements.get("side-nav").innerHTML;
     const tutorTabHtml = env5.elements.get("tabbar").innerHTML;
-    assert(tutorMain1.includes("Личный кабинет преподавателя") && tutorMain1.includes('id="tc-requests-table"') && tutorMain1.includes("bb-data-table") && tutorMain1.includes('id="tc-first-pending"') && tutorMain1.includes("На руки 95%") && tutorMain1.includes("Поднять анкету (раз в 4 ч)"), "expected full Teacher Personal Cabinet view with Brandbook #tc-requests-table, 4h bump CTA and #tc-first-pending");
+    assert(
+      tutorMain1.includes("Личный кабинет преподавателя") &&
+      tutorMain1.includes('id="tc-requests-table"') &&
+      tutorMain1.includes("bb-data-table") &&
+      tutorMain1.includes('id="tc-first-pending"') &&
+      tutorMain1.includes("На руки 95%") &&
+      !tutorMain1.includes('data-a="tc-bump"') &&
+      !tutorMain1.includes("3 колонки") &&
+      !tutorMain1.includes("7 колонок") &&
+      (tutorMain1.match(/<th\b/g) || []).length === 5,
+      "expected clean 5-col Teacher Requests table without bump CTA or 3/7 cols switch"
+    );
     assert(!tutorMain1.includes("tc-role-bar") && tutorMain1.includes("is-gold-logo") && !tutorMain1.includes('role="tablist"'), "expected tc-role-bar and desktop tablist removed, keeping only gold line with centered emblem");
     assert(
       env5.elements.get("top-balance-slot").hidden === false &&
       env5.elements.get("top-balance-slot").innerHTML.includes("is-tutor") &&
       env5.elements.get("top-balance-slot").innerHTML.includes('data-a="tc-payout-open"') &&
-      env5.elements.get("tutor-balance-dock").hidden === false &&
-      env5.elements.get("tutor-balance-dock").innerHTML.includes("tutor-bal-dock") &&
-      env5.elements.get("tutor-balance-dock").innerHTML.includes('data-a="tc-payout-open"') &&
-      env5.elements.get("side-foot").innerHTML.includes('id="side-balance-slot" class="side-bal-slot" hidden') &&
+      env5.elements.get("tutor-balance-dock").hidden === true &&
+      env5.elements.get("tutor-balance-dock").innerHTML === "" &&
+      env5.elements.get("side-foot").innerHTML.includes('id="side-balance-slot" class="side-bal-slot">') &&
+      env5.elements.get("side-foot").innerHTML.includes("side-tutor-bal") &&
+      env5.elements.get("side-foot").innerHTML.includes('data-a="tc-payout-open"') &&
+      !env5.elements.get("side-foot").innerHTML.includes("Вывести 95%") &&
       !env5.elements.get("side-foot").innerHTML.includes(">Препод<") &&
       env5.elements.get("side-foot").innerHTML.includes("Преподаватель"),
-      "expected teacher balance shown in top-right mobile slot and bottom-right desktop dock, student sidebar balance hidden, and full Преподаватель label"
+      "expected teacher balance in #side-balance-slot bottom-left and mobile topbar, #tutor-balance-dock hidden, and full Преподаватель label"
     );
     assert(env5.elements.get("side-subjects-wrap").hidden === true && env5.elements.get("side-subjects").innerHTML === "", "expected student ПРЕДМЕТЫ list hidden in tutor mode sidebar");
     assert(!tutorSideHtml.includes("Каталог") && !tutorSideHtml.includes('data-v="market"'), "expected Каталог removed completely from teacher sidebar");
@@ -1508,13 +1521,6 @@
     clickAction(env5, { a: "tc-jump-pending" });
     await flushMicrotasks(3);
     assert(env5.elements.get("main").innerHTML.includes('id="tc-first-pending"') && env5.elements.get("side-nav").innerHTML.includes('data-v="tutor-requests" aria-current="page"'), "expected clicking pending count badge (2) to auto-jump straight to Заявки");
-
-    clickAction(env5, { a: "tc-bump" });
-    await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("✓ Поднята · через") && env5.elements.get("main").innerHTML.includes("data-tc-manual-countdown") && env5.elements.get("toast").innerHTML.includes("Анкета поднята в топ"), "expected tc-bump to enter 4h cooldown state with side toast");
-    clickAction(env5, { a: "tc-bump" });
-    await flushMicrotasks(2);
-    assert(env5.elements.get("toast").innerHTML.includes("Повторить можно через"), "expected immediate second manual bump within 4h to show cooldown message");
 
     clickAction(env5, { a: "tc-req-step", id: "tc-req-1", step: "100" });
     await flushMicrotasks(2);
@@ -1535,7 +1541,7 @@
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes('data-a="tc-slot-toggle" data-hour="13:00" aria-pressed="true"'), "expected tc-slot-toggle to toggle 13:00 availability slot");
 
-    // Профиль: прямой вход из левого сайдбара, единый мультивыбор с × внутри, фото/Без фото, Якутск/Москва + UTC, ручные навыки, до 2 плашек и публикация в /market
+    // Профиль: единственное место с «Поднять анкету» (tc-bump + авто-24ч), единый мультивыбор с × внутри, фото/Без фото, Якутск/Москва + UTC и публикация в /market
     clickAction(env5, { a: "go", v: "tutor-profile" });
     await flushMicrotasks(2);
     const tcProfHtml = env5.elements.get("main").innerHTML;
@@ -1543,6 +1549,9 @@
       !tcProfHtml.includes("Профиль hh") &&
       !tcProfHtml.includes("hh-multi-chips") &&
       !tcProfHtml.includes("tc-skill-toggle") &&
+      tcProfHtml.includes('data-a="tc-bump"') &&
+      tcProfHtml.includes("Поднять анкету (раз в 4 ч)") &&
+      tcProfHtml.includes("Автоподнятие 24 ч активно") &&
       tcProfHtml.includes("Заполненность профиля") &&
       tcProfHtml.includes("tc-hh-meter") &&
       tcProfHtml.includes("hh-multi-x") &&
@@ -1550,8 +1559,20 @@
       tcProfHtml.includes("Якутск") &&
       tcProfHtml.includes("Москва") &&
       tcProfHtml.includes("UTC+9"),
-      "expected unified Profile builder with single pill multi-select + internal ×, photo/no-photo, Якутск/Москва + UTC, and manual customSkills without presets"
+      "expected unified Profile builder with single tc-bump card, multi-select + internal ×, photo/no-photo, Якутск/Москва + UTC, and manual customSkills"
     );
+    clickAction(env5, { a: "tc-bump" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("✓ Поднята · через") && env5.elements.get("main").innerHTML.includes("data-tc-manual-countdown") && env5.elements.get("toast").innerHTML.includes("Анкета поднята в топ"), "expected tc-bump on profile tab to enter 4h cooldown state with side toast");
+    clickAction(env5, { a: "tc-bump" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("toast").innerHTML.includes("Повторить можно через"), "expected immediate second manual bump within 4h to show cooldown message");
+    clickAction(env5, { a: "tc-autobump-toggle" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("Автоподнятие на паузе"), "expected 24h auto-bump toggle on profile tab to pause");
+    clickAction(env5, { a: "tc-autobump-toggle" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("Автоподнятие 24 ч активно"), "expected 24h auto-bump toggle on profile tab to reactivate");
     clickAction(env5, { a: "tc-subj-toggle" });
     await flushMicrotasks(1);
     clickAction(env5, { a: "tc-subj-pick", v: "chem" });
@@ -1565,30 +1586,56 @@
     await flushMicrotasks(2);
     const publishedTutor = globalThis.EGE.tutors.LIST.find((t) => t.id === "tc-my-profile");
     assert(env5.elements.get("main").innerHTML.includes("Опубликована для учеников") && publishedTutor && publishedTutor.name === "Анна Соколова" && publishedTutor.city === "Москва" && publishedTutor.timezone === "UTC+3" && publishedTutor.subjects.includes("chem") && Array.isArray(publishedTutor.customBadges) && publishedTutor.customBadges.length === 2, "expected submitted profile to publish city/UTC, multi-subject & up to 2 custom badges live into EGE.tutors.LIST");
+    // Возвращаем часовой пояс Якутск UTC+9 для дальнейших календарных проверок UTC+9
+    clickAction(env5, { a: "tc-city-pick", v: "Якутск" });
+    clickAction(env5, { a: "tc-tz-pick", v: "UTC+9" });
+    await flushMicrotasks(2);
 
-    // Календарь записанных учеников (ТОЛЬКО подтверждённые ученики) + ручная запись ученика в слот
+    // Календарь записанных учеников (чистый вид без .cal-sync-card по умолчанию, без tc-bump, с кнопкой tc-cal-import-modal)
     clickAction(env5, { a: "go", v: "tutor-calendar" });
     await flushMicrotasks(2);
     const tcCalHtml = env5.elements.get("main").innerHTML;
-    assert(tcCalHtml.includes("Календарь записанных учеников") && tcCalHtml.includes("Алина С.") && !tcCalHtml.includes("Тимур К."), "expected calendar to show ONLY confirmed/accepted students (Алина С.) and exclude pending (Тимур К.)");
+    assert(
+      tcCalHtml.includes("Календарь записанных учеников") &&
+      tcCalHtml.includes("Алина С.") &&
+      !tcCalHtml.includes("Тимур К.") &&
+      !tcCalHtml.includes("cal-sync-card") &&
+      tcCalHtml.includes('data-a="tc-cal-import-modal"') &&
+      !tcCalHtml.includes('data-a="tc-bump"'),
+      "expected clean calendar without .cal-sync-card or tc-bump, showing ONLY confirmed students and tc-cal-import-modal CTA"
+    );
     clickAction(env5, { a: "tc-cal-open-add", hour: "11:00" });
     await flushMicrotasks(2);
     env5.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "tc-cal-add" }, elements: { studentName: { value: "Максим Р." }, hour: { value: "11:00" }, offerPrice: { value: "1300" }, note: { value: "Генетика №28" } } }) }, preventDefault() {} });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes("Максим Р.") && env5.elements.get("main").innerHTML.includes("Генетика №28"), "expected manually booked student to appear in hourly calendar");
 
-    // Вкладка преподавателя «Ученики ищут» (заявки учеников без дубля 11 предметных чипов + отклик)
+    // Вкладка преподавателя «Ученики ищут» (контр-цена ±100 ₽ tc-lead-step + tc-lead-offer, без tc-bump и без 3/7 колонок)
     clickAction(env5, { a: "go", v: "tutor-leads" });
     await flushMicrotasks(2);
     const tcLeadsHtml = env5.elements.get("main").innerHTML;
-    assert(tcLeadsHtml.includes("Заявки учеников, которые ищут преподавателя") && tcLeadsHtml.includes('id="tc-leads-table"') && tcLeadsHtml.includes("bb-data-table") && !tcLeadsHtml.includes('data-a="tc-leads-subj"') && tcLeadsHtml.includes('data-a="tc-leads-mode"') && tcLeadsHtml.includes("Химия"), "expected clean student requests tab in Ученики ищут using Brandbook #tc-leads-table without duplicate subject chip bar");
+    assert(
+      tcLeadsHtml.includes("Заявки учеников, которые ищут преподавателя") &&
+      tcLeadsHtml.includes('id="tc-leads-table"') &&
+      tcLeadsHtml.includes("bb-data-table") &&
+      !tcLeadsHtml.includes('data-a="tc-leads-subj"') &&
+      !tcLeadsHtml.includes('data-a="tc-bump"') &&
+      !tcLeadsHtml.includes("3 колонки") &&
+      !tcLeadsHtml.includes("7 колонок") &&
+      tcLeadsHtml.includes('data-a="tc-leads-mode"') &&
+      tcLeadsHtml.includes('data-a="tc-lead-step"') &&
+      tcLeadsHtml.includes("Химия"),
+      "expected clean student requests tab in Ученики ищут with tc-lead-step ±100 ₽ stepper and no bump/cols switch"
+    );
     const mLeadOffer = /data-a="tc-lead-offer" data-id="([^"]+)"/.exec(tcLeadsHtml);
-    assert(Boolean(mLeadOffer), "expected tc-lead-offer response CTA button on student lead card");
+    assert(Boolean(mLeadOffer), "expected tc-lead-offer response CTA button on student lead row");
+    clickAction(env5, { a: "tc-lead-step", id: mLeadOffer[1], step: "100" });
+    await flushMicrotasks(2);
     clickAction(env5, { a: "tc-lead-offer", id: mLeadOffer[1] });
     await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("✓ Отклик отправлен"), "expected teacher response to mark student lead as responded");
+    assert(env5.elements.get("main").innerHTML.includes("✓ Отклик "), "expected teacher counter-price response to mark student lead as responded");
 
-    // Мои ученики (трекер баллов ЕГЭ + автоформат +7 (914) + Telegram @логин/телефон + автоуведомления WA/TG/MAX)
+    // Мои ученики (ровно 5 колонок, трекер баллов ЕГЭ + автоформат +7 (914) + Telegram @логин/телефон + автоуведомления WA/TG/MAX, без tc-bump)
     clickAction(env5, { a: "go", v: "tutor-students" });
     await flushMicrotasks(2);
     const tcStudentsHtml = env5.elements.get("main").innerHTML;
@@ -1596,15 +1643,19 @@
       tcStudentsHtml.includes("Мои ученики и автоуведомления") &&
       tcStudentsHtml.includes('id="tc-students-table"') &&
       tcStudentsHtml.includes("bb-data-table") &&
+      (tcStudentsHtml.match(/<th\b/g) || []).length === 5 &&
+      !tcStudentsHtml.includes('data-a="tc-bump"') &&
+      !tcStudentsHtml.includes("3 колонки") &&
+      !tcStudentsHtml.includes("7 колонок") &&
       tcStudentsHtml.includes("+7 (914) 210-05-11") &&
       tcStudentsHtml.includes("@alina_bio") &&
       tcStudentsHtml.includes('data-tc-student="telegram"') &&
       tcStudentsHtml.includes('data-a="tc-student-autochannel"') &&
       tcStudentsHtml.includes('data-a="tc-wa-channel"') &&
-      tcStudentsHtml.includes("Напомнить: скоро урок (Воскресенье, 10:00)") &&
+      tcStudentsHtml.includes("Напомнить (Воскресенье, 10:00)") &&
       tcStudentsHtml.includes("tc-wa-global-toggle") &&
       tcStudentsHtml.includes("Тест в WhatsApp"),
-      "expected formatted phone, Telegram @login/phone, WA/TG/MAX auto-notification channels and reminder CTA in Мои ученики"
+      "expected 5-column Мои ученики table with formatted contacts, WA/TG/MAX channels, reminder CTA, and no bump/cols switch"
     );
     assert(
       globalThis.EGE.tutors.formatPhoneMask("79142100511") === "+7 (914) 210-05-11" &&
@@ -1639,7 +1690,7 @@
       "expected 999px pill radius on .btn-msg and capsule outline on .tc-bar-col.is-active without crooked track::after dash"
     );
 
-    // Выплаты и статистика: KPIs + Статистика преподавателя + Цель дохода + Автопродвижение 24ч + Последнее автопродвижение
+    // Выплаты и статистика: KPIs + Статистика преподавателя + Цель дохода (без дубля tc-bump и без переключателя 3/7 колонок)
     clickAction(env5, { a: "go", v: "fees" });
     await flushMicrotasks(3);
     const tcPayoutsHtml = env5.elements.get("main").innerHTML;
@@ -1648,12 +1699,12 @@
       tcPayoutsHtml.includes("Проведено уроков") &&
       tcPayoutsHtml.includes("Заработано за месяц") &&
       tcPayoutsHtml.includes("Ставка в анкете") &&
-      tcPayoutsHtml.includes("Автопродвижение каждые 24 часа") &&
-      tcPayoutsHtml.includes("Последнее автопродвижение") &&
-      tcPayoutsHtml.includes("data-tc-countdown") &&
       tcPayoutsHtml.includes("Статистика преподавателя") &&
-      tcPayoutsHtml.includes("Цель дохода на месяц"),
-      "expected Выплаты dashboard to show net income KPIs, 24h auto-bump + timestamp, 4h manual bump, stats chart and monthly goal"
+      tcPayoutsHtml.includes("Цель дохода на месяц") &&
+      !tcPayoutsHtml.includes('data-a="tc-bump"') &&
+      !tcPayoutsHtml.includes("3 колонки") &&
+      !tcPayoutsHtml.includes("7 колонок"),
+      "expected Выплаты dashboard to show net income KPIs, stats chart and monthly goal without duplicate tc-bump or 3/7 cols switch"
     );
     clickAction(env5, { a: "tc-stats-period", v: "30d" });
     await flushMicrotasks(2);
@@ -1663,12 +1714,6 @@
     assert(env5.elements.get("main").innerHTML.includes("tc-bar-chart is-lollipop"), "expected tc-chart-style=lollipop in Выплаты stats");
     clickAction(env5, { a: "tc-chart-style", v: "sticks" });
     await flushMicrotasks(1);
-    clickAction(env5, { a: "tc-autobump-toggle" });
-    await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("Автоподнятие на паузе"), "expected 24h auto-bump toggle to pause");
-    clickAction(env5, { a: "tc-autobump-toggle" });
-    await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("Автоподнятие 24 ч активно"), "expected 24h auto-bump toggle to reactivate");
 
     // Каталог /market фильтр городов: строго Якутск и Москва + Без фото
     clickAction(env5, { a: "go", v: "market" });
@@ -1749,6 +1794,35 @@
     clickAction(env5, { a: "bb-tbl-confirm", id: "tbl-4" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes('data-a="bb-tbl-confirm" data-id="tbl-4">Сбросить</button>'), "expected bb-tbl-confirm on tbl-4 to confirm row and flip button to Сбросить");
+
+    // Стресс-тест колонок таблицы (1 и 15 колонок) и multiLineChartHTML (20 линий × 30 точек) в /brandbook
+    clickAction(env5, { a: "bb-tbl-cols", cols: "1", v: "1" });
+    await flushMicrotasks(2);
+    const bbCols1Html = env5.elements.get("main").innerHTML;
+    assert(bbCols1Html.includes("cols-1") && bbCols1Html.includes("is-single-col"), "expected bb-tbl-cols=1 in /brandbook to render cols-1 single-column card layout");
+    clickAction(env5, { a: "bb-tbl-cols", cols: "15", v: "15" });
+    await flushMicrotasks(2);
+    const bbCols15Html = env5.elements.get("main").innerHTML;
+    assert(bbCols15Html.includes("cols-15") && bbCols15Html.includes("is-wide-cols") && bbCols15Html.includes("bb-tbl-wide-bar"), "expected bb-tbl-cols=15 in /brandbook to render cols-15 wide table with scroll helper bar");
+    clickAction(env5, { a: "bb-tbl-cols", cols: "5", v: "5" });
+    await flushMicrotasks(1);
+
+    assert(typeof globalThis.EGE.charts.multiLineChartHTML === "function" && typeof globalThis.EGE.charts.buildMultiSeriesDemo === "function", "expected multiLineChartHTML and buildMultiSeriesDemo in EGE.charts");
+    const direct20x30 = globalThis.EGE.charts.multiLineChartHTML({
+      linesCount: 20,
+      pointsCount: 30,
+      dataset: "gmv",
+      series: globalThis.EGE.charts.buildMultiSeriesDemo(20, 30, "gmv")
+    });
+    assert((direct20x30.match(/class="bb-line-path"/g) || []).length === 20 && !direct20x30.includes("NaN"), "expected EGE.charts.multiLineChartHTML(20x30) to render 20 crisp line paths without NaN");
+    clickAction(env5, { a: "bb-chart-lines", lines: "20", v: "20" });
+    clickAction(env5, { a: "bb-chart-pts", pts: "30", v: "30" });
+    await flushMicrotasks(2);
+    const bb20x30Html = env5.elements.get("main").innerHTML;
+    assert((bb20x30Html.match(/class="bb-line-path"/g) || []).length === 20 && !bb20x30Html.includes("NaN"), "expected /brandbook interactive 20-line x 30-point stress test to render 20 paths");
+    clickAction(env5, { a: "bb-chart-lines", lines: "1", v: "1" });
+    clickAction(env5, { a: "bb-chart-pts", pts: "7", v: "7" });
+    await flushMicrotasks(1);
 
     // Секции #bb-admin-kit и #bb-arch-split в /brandbook: вкладки админ-стенда и dual-role таблицы
     assert(env5.elements.get("main").innerHTML.includes('id="bb-admin-kit"') && env5.elements.get("main").innerHTML.includes('id="bb-arch-split"'), "expected #bb-admin-kit and #bb-arch-split in /brandbook");
@@ -1865,21 +1939,23 @@
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes("Русский язык"), "expected bb-multi-pick to select additional subject in Brandbook");
 
-    // Преподаватель: баланс в правом нижнем доке + правом верхнем мобильном слоте + EGE.payments.createPayoutIntent + история выводов в /fees
+    // Преподаватель: баланс слева снизу в #side-balance-slot + справа сверху в мобильном слоте (#tutor-balance-dock всегда скрыт) + EGE.payments.createPayoutIntent + история выводов в /fees
     clickAction(env5, { a: "role-set", role: "tutor" });
     await flushMicrotasks(3);
     const wBefore = globalThis.EGE.views.tutorCabinet.getWalletSummary();
     const wBeforeLabel = wBefore.availableRub.toLocaleString("ru-RU") + " ₽";
     assert(
+      globalThis.EGE.views.tutorCabinet.sideBalanceWidgetHTML() === globalThis.EGE.kit.sideTutorBalanceHTML({ availableRub: wBefore.availableRub, escrowRub: wBefore.escrowRub, action: "tc-payout-open" }) &&
       globalThis.EGE.views.tutorCabinet.desktopDockHTML() === globalThis.EGE.kit.tutorBalanceDockHTML({ availableRub: wBefore.availableRub, escrowRub: wBefore.escrowRub, action: "tc-payout-open" }) &&
       globalThis.EGE.views.tutorCabinet.mobileTopWidgetHTML() === globalThis.EGE.kit.topBalanceWidgetHTML({ role: "tutor", amountRub: wBefore.availableRub, pillAction: "tc-payout-open", btnAction: "tc-payout-open" }),
-      "expected tutorCabinet desktopDockHTML() and mobileTopWidgetHTML() to delegate cleanly to EGE.kit"
+      "expected tutorCabinet sideBalanceWidgetHTML(), desktopDockHTML() and mobileTopWidgetHTML() to delegate cleanly to EGE.kit"
     );
     assert(
       wBefore.availableRub >= 5000 &&
-      hasNum(env5.elements.get("tutor-balance-dock").innerHTML, wBeforeLabel) &&
+      env5.elements.get("tutor-balance-dock").hidden === true &&
+      hasNum(env5.elements.get("side-foot").innerHTML, wBeforeLabel) &&
       hasNum(env5.elements.get("top-balance-slot").innerHTML, wBeforeLabel),
-      `expected teacher available balance (${wBeforeLabel}) in desktop dock and topbar widget`
+      `expected teacher available balance (${wBeforeLabel}) in #side-balance-slot and topbar widget with #tutor-balance-dock hidden`
     );
     let payoutIntentPayload = null;
     globalThis.EGE.payments.setGatewayHandler((intent) => {
@@ -1905,9 +1981,10 @@
     assert(!env5.elements.get("modal-root").innerHTML.trim() && env5.elements.get("toast").innerHTML.includes("Заявка на вывод оформлена"), "expected payout modal to close and show confirmation notification");
     assert(
       wAfter.availableRub === wBefore.availableRub - 5000 &&
-      hasNum(env5.elements.get("tutor-balance-dock").innerHTML, wAfterLabel) &&
+      env5.elements.get("tutor-balance-dock").hidden === true &&
+      hasNum(env5.elements.get("side-foot").innerHTML, wAfterLabel) &&
       hasNum(env5.elements.get("top-balance-slot").innerHTML, wAfterLabel),
-      `expected teacher balance to deduct 5 000 ₽ immediately (${wBeforeLabel} -> ${wAfterLabel})`
+      `expected teacher balance to deduct 5 000 ₽ immediately in sidebar and topbar (${wBeforeLabel} -> ${wAfterLabel})`
     );
     clickAction(env5, { a: "go", v: "fees" });
     await flushMicrotasks(3);
@@ -1967,21 +2044,29 @@
       "expected student book-submit to publish market.bid.created via EGE.realtime and increment tutorCabinet pendingCount live"
     );
 
-    // Переключаемся в кабинет преподавателя и проверяем live-пилюлю + календарь .ics / Занято в GCal
+    // Переключаемся в кабинет преподавателя и проверяем live-пилюлю + чистый календарь + импорт .ics / Занято в GCal
     clickAction(env5, { a: "role-set", role: "tutor" });
     await flushMicrotasks(3);
     const tutorCabHtml = env5.elements.get("main").innerHTML;
     assert(tutorCabHtml.includes("rt-status-pill"), "expected realtimeStatusPillHTML in tutor cabinet header");
     assert(env5.elements.get("side-nav").innerHTML.includes(`>${pendingBeforeBid + 1}<`), "expected updated Заявки badge count in tutor sidebar navigation");
-    clickAction(env5, { a: "tc-tab", tab: "calendar" });
+    clickAction(env5, { a: "go", v: "tutor-calendar" });
     await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("cal-sync-card"), "expected calendarSyncCardHTML inside tutor calendar tab");
+    const calDefaultHtml = env5.elements.get("main").innerHTML;
+    assert(!calDefaultHtml.includes("cal-sync-card") && calDefaultHtml.includes('data-a="tc-cal-import-modal"'), "expected clean default calendar without .cal-sync-card and with tc-cal-import-modal CTA");
+    clickAction(env5, { a: "tc-cal-import-modal" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes('data-f="tc-cal-import"') && env5.elements.get("main").innerHTML.includes('data-a="tc-cal-import-sample"'), "expected tc-cal-import-modal to reveal tc-cal-import form and sample CTA");
     clickAction(env5, { a: "tc-cal-import-sample" });
     await flushMicrotasks(3);
+    const calSatConflict = env5.elements.get("main").innerHTML;
+    assert(calSatConflict.includes("Конфликт GCal"), "expected tc-cal-import-sample on Saturday 16:00 (booked lesson) to flag Конфликт GCal");
+    clickAction(env5, { a: "tc-day", dow: "3" });
+    await flushMicrotasks(2);
     const calAfterSample = env5.elements.get("main").innerHTML;
     assert(
       calAfterSample.includes("is-gcal-busy") && calAfterSample.includes("Занято в GCal") && calAfterSample.includes("16:00"),
-      "expected tc-cal-import-sample to render 07:00 UTC event as 16:00 Занято в GCal slot in Yakutsk UTC+9"
+      "expected tc-cal-import-sample on Wednesday (dow: 3) to render 07:00 UTC event as 16:00 Занято в GCal slot in Yakutsk UTC+9"
     );
 
     // Проверка воскресного (dow === 0) слота из .ics (07:00Z в Вс 22 нояб. 2026) без потери 0 || ""
@@ -2044,6 +2129,7 @@
       "ux-ui/components/icons.js",
       "ux-ui/components/hh-components.js",
       "ux-ui/components/charts.js",
+      "ux-ui/components/tables.js",
       "ux-ui/components/kit.js",
       "ux-ui/brandbook/brandbook.js"
     ];
@@ -2079,13 +2165,22 @@
     for (const mLabel of ["Обзор", "Заявки", "Репетиторы", "Выплаты", "API"]) {
       assert(admTabBar.includes(mLabel), `expected admin mobile tabbar item: ${mLabel}`);
     }
+    const admUsersSlice = admOverviewHtml.slice(Math.max(0, admOverviewHtml.indexOf('id="adm-overview-users"')));
     assert(
       admOverviewHtml.includes("adm-kpi-grid") &&
+      admOverviewHtml.includes("tc-combo-svg-wrap") &&
+      (admOverviewHtml.match(/class="tc-combo-dot"/g) || []).length === 7 &&
       admOverviewHtml.includes('id="adm-overview-users"') &&
+      (admUsersSlice.match(/<th\b/g) || []).length === 5 &&
+      admUsersSlice.includes(">Ученик<") &&
+      admUsersSlice.includes(">Преподаватель<") &&
+      admUsersSlice.includes(">Админ<") &&
+      !admOverviewHtml.includes("3 колонки") &&
+      !admOverviewHtml.includes("7 колонок") &&
       admOverviewHtml.includes("GMV ₽") &&
       admOverviewHtml.includes("Выплаты 95% ₽") &&
       admOverviewHtml.includes("Сбор 5% ₽"),
-      "expected admin overview tab with KPI grid, charts and users table"
+      "expected admin overview tab with KPI grid, 7-day unified SVG combo chart, 5-col Russian-labeled users table, and zero cols switches"
     );
     clickAction(env5, { a: "adm-user-role", id: "3", role: "tutor" });
     await flushMicrotasks(2);
@@ -2137,6 +2232,71 @@
     clickAction(env5, { a: "role-set", role: "student" });
     await flushMicrotasks(3);
     assert(env5.elements.get("main").innerHTML.includes("Тесты ЕГЭ") && env5.elements.get("side-subjects-wrap").hidden === false, "expected role-set back to student from admin to restore Тесты ЕГЭ and student sidebar");
+
+    // Проверка отсутствия переключателя 3/7 колонок в таблицах ученика (/study и /market)
+    clickAction(env5, { a: "go", v: "study" });
+    await flushMicrotasks(3);
+    assert(!env5.elements.get("main").innerHTML.includes("3 колонки") && !env5.elements.get("main").innerHTML.includes("7 колонок"), "expected student /study tables to hide 3/7 cols switch");
+
+    // 10. Проверка разделения на 3 отдельных сайта (HOST_SITE: student / tutor / admin)
+    const mkAuthedFetch = () => async (url) => ({
+      ok: true,
+      status: 200,
+      headers: { get: () => "application/json" },
+      json: async () => {
+        if (url === "/api/me") return { user: { id: 1, username: "demo", displayName: "Демо", authProvider: "local" }, ai: { enabled: false }, inviteRequired: false, providers: { local: true, google: false } };
+        if (url === "/api/docs") return { docs: {} };
+        return { ok: true };
+      }
+    });
+
+    const envSiteStu = installGlobals({ host: { backend: true, site: "student" }, fetch: mkAuthedFetch() });
+    loadScripts(dataScripts);
+    vmRun(readFileText("frontend/app.js"), "frontend/app.js");
+    await flushMicrotasks(10);
+    assert(
+      envSiteStu.elements.get("main").innerHTML.includes("Тесты ЕГЭ") &&
+      envSiteStu.elements.get("side-foot").innerHTML.includes("side-site-links") &&
+      envSiteStu.elements.get("tutor-balance-dock").hidden === true,
+      "expected site=student to render Тесты ЕГЭ, .side-site-links, and hidden #tutor-balance-dock"
+    );
+
+    const envSiteTut = installGlobals({ host: { backend: true, site: "tutor" }, fetch: mkAuthedFetch() });
+    loadScripts(dataScripts.filter((s) => s !== "views/admin.js"));
+    vmRun(readFileText("frontend/app.js"), "frontend/app.js");
+    await flushMicrotasks(10);
+    assert(
+      envSiteTut.elements.get("main").innerHTML.includes("Личный кабинет преподавателя") &&
+      envSiteTut.elements.get("side-foot").innerHTML.includes("side-site-links") &&
+      envSiteTut.elements.get("side-foot").innerHTML.includes("side-tutor-bal") &&
+      envSiteTut.elements.get("tutor-balance-dock").hidden === true,
+      "expected site=tutor (even without views/admin.js) to render cabinet, .side-site-links, #side-balance-slot tutor balance, and hidden #tutor-balance-dock"
+    );
+
+    const envSiteAdmGuest = installGlobals({
+      host: { backend: true, site: "admin" },
+      fetch: async (url) => ({
+        ok: true,
+        status: 200,
+        headers: { get: () => "application/json" },
+        json: async () => (url === "/api/me" ? { user: null, ai: { enabled: false }, inviteRequired: false, providers: { local: true, google: false } } : { ok: true })
+      })
+    });
+    loadScripts(dataScripts);
+    vmRun(readFileText("frontend/app.js"), "frontend/app.js");
+    await flushMicrotasks(10);
+    clickAction(envSiteAdmGuest, { a: "auth-modal-open" });
+    await flushMicrotasks(2);
+    const admModalHtml = envSiteAdmGuest.elements.get("modal-root").innerHTML;
+    assert(admModalHtml.includes("Админ-панель (демо)") && !admModalHtml.includes('data-a="auth-role"'), "expected unauthenticated /admin auth modal to hide auth-role switcher and show Админ-панель (демо)");
+    clickAction(envSiteAdmGuest, { a: "auth-guest" });
+    await flushMicrotasks(6);
+    assert(
+      envSiteAdmGuest.elements.get("main").innerHTML.includes("adm-kpi-grid") &&
+      envSiteAdmGuest.elements.get("side-foot").innerHTML.includes("side-site-links") &&
+      envSiteAdmGuest.elements.get("tutor-balance-dock").hidden === true,
+      "expected auth-guest on site=admin to enter Админ-панель with .side-site-links"
+    );
 
     out("APP_SMOKE_TESTS_OK");
   }

@@ -127,6 +127,8 @@
     chartDataset: "income",
     chartActiveIdx: 3,
     linePtIdx: 3,
+    chartLines: 1,
+    chartPoints: 7,
     donutDataset: "channels",
     donutSliceIdx: 0,
     tableCols: 5,
@@ -161,7 +163,24 @@
       }
     }
     if (!bb.confirmedRows || typeof bb.confirmedRows !== "object") bb.confirmedRows = {};
+    bb.chartLines = Math.max(1, Math.min(20, Math.round(Number(bb.chartLines) || 1)));
+    bb.chartPoints = Math.max(5, Math.min(36, Math.round(Number(bb.chartPoints) || 7)));
+    bb.tableCols = Math.max(1, Math.min(15, Math.round(Number(bb.tableCols) || 5)));
     return bb;
+  }
+
+  function colsWordRu(n) {
+    const v = Math.abs(Math.round(Number(n) || 0));
+    const m100 = v % 100;
+    const m10 = v % 10;
+    if (m100 >= 11 && m100 <= 14) return `${v} колонок`;
+    if (m10 === 1) return `${v} колонка`;
+    if (m10 >= 2 && m10 <= 4) return `${v} колонки`;
+    return `${v} колонок`;
+  }
+
+  function chartsAPI() {
+    return (root.EGE && root.EGE.charts) || (root.EGE && root.EGE.kit) || {};
   }
 
   function filterCatalogItems(bb) {
@@ -536,8 +555,8 @@
   function cardsAndOverlaysSectionHTML(bb) {
     const picked = bb.pickedPlan || "month10k";
     const plans = [
-      ["trial5k", "5 000 ₽", "Пробник · мин. подписка", "Старт с балансом", ["Вся сумма падает на внутренний баланс", "Открывает бесплатный пробный урок (0 ₽) и отклики"], "featured"],
-      ["month10k", "10 000 ₽", "Месяц под ключ", "Супер-подписка", ["Особый оттенок .super", "Максимум приоритетных откликов и замена за 15 мин"], "featured super"]
+      ["trial5k", "4 590 ₽", "Стандарт · 4 урока (СБП)", "Абонемент 1-на-1", ["Поурочный СБП-эскроу без карточных наценок", "ИИ-Старт ЕГЭ бесплатно + доплаты от 100 ₽"], "featured"],
+      ["month10k", "8 900 ₽", "Интенсив · Месяц под ключ", "Супер-подписка", ["Особый оттенок .super + кэшбэк 2%", "8 уроков, замена за 15 мин и фиксация ставки"], "featured super"]
     ];
     return `<section class="land-sec" id="bb-cards-sys">
       <div class="land-sec-head">
@@ -979,9 +998,20 @@
     const pRate = Number(bb.price) || 1200;
     const cStyle = bb.chartStyle || "sticks";
     const cDataset = bb.chartDataset || "income";
-    const cIdx = Number.isInteger(bb.chartActiveIdx) ? Math.max(0, Math.min(6, bb.chartActiveIdx)) : 3;
     const bars = chartDatasetBars(cDataset);
-    const activeBar = bars[cIdx] || bars[3];
+    const ch = chartsAPI();
+    const comboPts = Math.max(5, Math.min(36, Math.round(Number(bb.chartPoints) || 7)));
+    const comboSeries = (cStyle === "combo" && comboPts > 7 && typeof ch.buildMultiSeriesDemo === "function")
+      ? (ch.buildMultiSeriesDemo(1, comboPts, cDataset) || [])[0]
+      : null;
+    const stickBars = (comboSeries && Array.isArray(comboSeries.points) && comboSeries.points.length)
+      ? comboSeries.points.map((pt) => ({ wd: pt.wd, val: pt.val, num: pt.num, detail: pt.detail }))
+      : bars;
+    const cIdx = Number.isInteger(bb.chartActiveIdx)
+      ? Math.max(0, Math.min(Math.max(0, stickBars.length - 1), bb.chartActiveIdx))
+      : Math.min(3, Math.max(0, stickBars.length - 1));
+    const activeBar = stickBars[cIdx] || stickBars[0] || { detail: "" };
+    const renderStick = ch.stickChartHTML || kitStickChartHTML || (() => "");
     return `<section class="land-sec" id="bb-cabinet">
       <div class="land-sec-head">
         <div>
@@ -1193,7 +1223,7 @@
               ["combo", "Тренд"]
             ].map(([vid, lbl]) => `<button type="button" class="chip-btn${cStyle === vid ? " on" : ""}" data-a="bb-chart-style" data-v="${vid}">${lbl}</button>`).join("")}
           </div>
-          ${(kitStickChartHTML || (() => ""))(cStyle, bars, cIdx, true, "Интерактивный график выплат по дням недели")}
+          ${renderStick(cStyle, stickBars, cIdx, true, "Интерактивный график выплат по дням недели")}
           <div class="row between small muted" style="gap:8px;flex-wrap:wrap;padding:6px 10px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line)">
             <span>${activeBar.detail}</span>
             <span class="num" style="color:var(--ink)">кликни столбик</span>
@@ -1279,7 +1309,7 @@
                 </div>
                 <p class="small muted">${desc}</p>
               </div>
-              ${(kitStickChartHTML || (() => ""))(vid, bars, cIdx, false, title)}
+              ${renderStick(vid, bars, Math.min(cIdx, Math.max(0, bars.length - 1)), false, title)}
               <button type="button" class="chip-btn${picked ? " on" : ""}" data-a="bb-chart-style" data-v="${vid}" style="justify-content:center">${picked ? "Применён в кабинете ✓" : "Выбрать этот вид"}</button>
             </article>`;
           }).join("")}
@@ -1379,22 +1409,49 @@
   }
 
   function dataVizSectionHTML(bb) {
+    const ch = chartsAPI();
+    const renderTable = ch.dataTableHTML || dataTableHTML;
+    const buildStressCols = typeof ch.buildStressColumns === "function" ? ch.buildStressColumns : null;
+    const renderMultiLine = typeof ch.multiLineChartHTML === "function" ? ch.multiLineChartHTML : null;
+    const buildMultiSeries = typeof ch.buildMultiSeriesDemo === "function" ? ch.buildMultiSeriesDemo : null;
+    const renderLine = ch.lineChartHTML || lineChartHTML;
+    const renderDonut = ch.donutChartHTML || donutChartHTML;
+
     const cDataset = bb.chartDataset || "income";
     const dDataset = bb.donutDataset || "channels";
-    const lineIdx = Number.isInteger(bb.linePtIdx) ? Math.max(0, Math.min(6, bb.linePtIdx)) : 3;
+    const chartLines = Math.max(1, Math.min(20, Math.round(Number(bb.chartLines) || 1)));
+    const chartPoints = Math.max(5, Math.min(36, Math.round(Number(bb.chartPoints) || 7)));
+    const lineIdx = Number.isInteger(bb.linePtIdx)
+      ? Math.max(0, Math.min(Math.max(6, chartPoints - 1), bb.linePtIdx))
+      : Math.min(3, chartPoints - 1);
     const donutIdx = Number.isInteger(bb.donutSliceIdx) ? Math.max(0, Math.min(3, bb.donutSliceIdx)) : 0;
-    const tblCols = [3, 5, 7].includes(Number(bb.tableCols)) ? Number(bb.tableCols) : 5;
+    const tblCols = Math.max(1, Math.min(15, Math.round(Number(bb.tableCols) || 5)));
+    const tblPreset = bb.tablePreset || "requests";
     const tblFilter = bb.tableFilter || "all";
     const tblQuery = bb.tableSearch || "";
     const bars = chartDatasetBars(cDataset);
+    const stressColumns = (tblCols > 7 || tblCols === 1) && buildStressCols
+      ? buildStressCols(tblCols, tblPreset)
+      : undefined;
+    const lineChartMarkup = (renderMultiLine && (chartLines > 1 || chartPoints > 7))
+      ? renderMultiLine({
+          linesCount: chartLines,
+          pointsCount: chartPoints,
+          dataset: cDataset,
+          activeIdx: lineIdx,
+          action: "bb-line-pt",
+          gradId: "bbLineGradMain",
+          series: buildMultiSeries ? buildMultiSeries(chartLines, chartPoints, cDataset) : undefined
+        })
+      : (renderLine ? renderLine({ dataset: cDataset, bars, activeIdx: lineIdx, gradId: "bbLineGradMain" }) : "");
 
     return `<section class="land-sec" id="bb-data-viz" aria-label="Линейные графики, круговая диаграмма и таблица данных">
       <div class="land-sec-head">
         <div>
-          <div class="eyebrow">08 · Линейные графики, Круговая диаграмма и Таблица с фильтрами</div>
-          <h2 class="h2">Аналитика динамики, распределения и интерактивная таблица (3 / 5 / 7 колонок)</h2>
+          <div class="eyebrow">08 · Линейные графики (до 20 линий × 30+ точек), Круговая диаграмма и Таблица 1–15 колонок</div>
+          <h2 class="h2">Аналитика динамики (до 20 линий), распределения и интерактивная таблица (1–15 колонок)</h2>
         </div>
-        <button type="button" class="bb-spec-pill" data-a="bb-copy-token" data-copy="EGE.kit.lineChartHTML() / donutChartHTML() / dataTableHTML()">Копировать EGE.kit DataViz</button>
+        <button type="button" class="bb-spec-pill" data-a="bb-copy-token" data-copy="EGE.charts.multiLineChartHTML() / donutChartHTML() / dataTableHTML()">Копировать EGE.charts DataViz</button>
       </div>
 
       <div class="bb-viz-grid">
@@ -1409,7 +1466,27 @@
               ].map(([did, dlbl]) => `<button type="button" data-a="bb-chart-data" data-v="${did}" aria-pressed="${cDataset === did}">${dlbl}</button>`).join("")}
             </div>
           </div>
-          ${lineChartHTML ? lineChartHTML({ dataset: cDataset, bars, activeIdx: lineIdx, gradId: "bbLineGradMain" }) : ""}
+          <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
+            <div class="row" style="gap:4px;flex-wrap:wrap;align-items:center" role="group" aria-label="Число линий на графике">
+              <span class="small muted">Линии:</span>
+              ${[
+                [1, "1 линия"],
+                [3, "3 линии"],
+                [8, "8 линий"],
+                [12, "12 линий"],
+                [20, "20 линий"]
+              ].map(([cnt, lbl]) => `<button type="button" class="chip-btn${chartLines === cnt ? " on" : ""}" data-a="bb-chart-lines" data-v="${cnt}" data-lines="${cnt}" aria-pressed="${chartLines === cnt}">${lbl}</button>`).join("")}
+            </div>
+            <div class="row" style="gap:4px;flex-wrap:wrap;align-items:center" role="group" aria-label="Число точек (спусков и заходов)">
+              <span class="small muted">Точки:</span>
+              ${[
+                [7, "7 точек"],
+                [18, "18 точек"],
+                [30, "30 точек"]
+              ].map(([pts, lbl]) => `<button type="button" class="chip-btn${chartPoints === pts ? " on" : ""}" data-a="bb-chart-pts" data-v="${pts}" data-pts="${pts}" aria-pressed="${chartPoints === pts}">${lbl}</button>`).join("")}
+            </div>
+          </div>
+          ${lineChartMarkup}
         </div>
 
         <div class="card pad stack" style="gap:10px">
@@ -1423,14 +1500,24 @@
               ].map(([did, dlbl]) => `<button type="button" data-a="bb-donut-ds" data-v="${did}" aria-pressed="${dDataset === did}">${dlbl}</button>`).join("")}
             </div>
           </div>
-          ${donutChartHTML ? donutChartHTML({ dataset: dDataset, activeIdx: donutIdx }) : ""}
+          ${renderDonut ? renderDonut({ dataset: dDataset, activeIdx: donutIdx }) : ""}
         </div>
       </div>
 
-      <div style="margin-top:14px">
-        ${dataTableHTML ? dataTableHTML({
-          preset: bb.tablePreset || "requests",
+      <div class="stack" style="margin-top:14px;gap:8px">
+        <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
+          <span class="small muted">Стресс-тест адаптивности таблиц (<code>1..15</code> колонок, авто-скролл и липкая 1-я колонка):</span>
+          <div class="hh-seg" role="group" aria-label="Переключатель числа колонок от 1 до 15">
+            ${[1, 3, 5, 7, 10, 12, 15].map((cnt) => `<button type="button" data-a="bb-tbl-cols" data-cols="${cnt}" aria-pressed="${tblCols === cnt}">${colsWordRu(cnt)}</button>`).join("")}
+          </div>
+        </div>
+        ${renderTable ? renderTable({
+          preset: tblPreset,
           cols: tblCols,
+          columns: stressColumns,
+          colsOptions: [1, 3, 5, 7, 10, 12, 15],
+          showColsSwitch: true,
+          showPresetSwitch: true,
           filter: tblFilter,
           query: tblQuery,
           confirmedIds: bb.confirmedRows || {}
@@ -1444,8 +1531,8 @@
     const payMethod = bb.payMethod || "sbp";
     const payState = bb.payState || "frozen";
     const initialDone = !!bb.payInitialDone;
-    const minTopup = initialDone ? 100 : 5000;
-    const topupSample = initialDone ? 1200 : 5000;
+    const minTopup = initialDone ? 100 : 990;
+    const topupSample = initialDone ? 1200 : 4590;
     const lessonAmount = 1200;
     const tutorNet = Math.round(lessonAmount * 0.95);
     const serviceFee = lessonAmount - tutorNet;
@@ -1454,35 +1541,35 @@
       frozen: {
         cls: "is-pending",
         badge: "Удержано на эскроу · 1 200 ₽",
-        desc: "Сумма заморожена на балансе ученика до завершения часового окна. При переносе или отмене ≥ 4 ч средства возвращаются мгновенно."
+        desc: "Оплата по СБП заморожена на балансе ученика до завершения часового окна (шлюз WA/TG/MAX открыт после брони). При переносе или отмене ≥ 4 ч — возврат 100%."
       },
       captured: {
         cls: "is-confirmed",
         badge: "Проведено · 95% / 5%",
-        desc: "Урок подтверждён: преподаватель получает 1 140 ₽ (95%), сервисный сбор 5% составляет 60 ₽ и уходит в платформу."
+        desc: "Урок подтверждён: базовый расчёт 95% / 5% (1 140 ₽ база выплаты и 60 ₽ сервис платформы) + 1% шлюз СБП-сплита при выводе с авточеком НПД без карточных 3,42%."
       },
       refunded: {
         cls: "is-refund",
         badge: "Отмена ≥ 4 ч · Возврат 100%",
-        desc: "Ученик отменил занятие заранее — 1 200 ₽ (100%) возвращаются на счёт без комиссий и штрафов."
+        desc: "Ученик отменил занятие заранее или воспользовался гарантией замены пробного 990 ₽ — сумма мгновенно возвращается на баланс без комиссий."
       }
     }[payState] || {
       cls: "is-pending",
       badge: "Удержано на эскроу · 1 200 ₽",
-      desc: "Средства заблокированы до завершения занятия."
+      desc: "Средства заблокированы на СБП-эскроу до завершения занятия."
     };
 
     const methodLabels = [
-      ["sbp", "СБП (мгновенно)"],
-      ["card", "Карта Мир"],
-      ["tpay", "T-Pay / SberPay"]
+      ["sbp", "СБП QR / АЭБ · Сбер · Т-Банк (основной)"],
+      ["tpay", "СБП-кнопка SberPay / T-Pay"],
+      ["card", "Выплаты СБП / Мир (НПД)"]
     ];
 
     return `<section class="land-sec" id="bb-payments" aria-label="Экраны эквайринга, статусов оплаты и выплат преподавателям">
       <div class="land-sec-head">
         <div>
-          <div class="eyebrow">09 · Эквайринг · Эскроу · Выплаты (EGE.payments)</div>
-          <h2 class="h2">Пополнение баланса, статусы удержания 95% / 5% и вывод средств на СБП / Мир</h2>
+          <div class="eyebrow">09 · Эквайринг СБП-only · Эскроу · Выплаты (EGE.payments)</div>
+          <h2 class="h2">СБП-пополнение от 990 ₽, статусы удержания 95% / 5% и вывод с авточеком НПД</h2>
         </div>
         <button type="button" class="bb-spec-pill" data-a="bb-copy-token" data-copy="EGE.payments.createTopupIntent">Копировать EGE.payments</button>
       </div>
@@ -1490,14 +1577,14 @@
       <div class="bb-pay-grid">
         <div class="card pad stack" style="gap:12px">
           <div class="row between" style="gap:8px;flex-wrap:wrap">
-            <b>01 · Пополнение баланса и статусы эскроу</b>
-            <span class="bb-spec-pill">${initialDone ? "Повторное от 100 ₽" : "Старт от 5 000 ₽"}</span>
+            <b>01 · Пополнение баланса по СБП и статусы эскроу</b>
+            <span class="bb-spec-pill">${initialDone ? "Повторное от 100 ₽" : "Старт СБП от 990 ₽"}</span>
           </div>
 
           <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
             <span class="small muted">Порог пополнения:</span>
             <div class="hh-seg" role="group" aria-label="Режим порога пополнения">
-              <button type="button" data-a="bb-pay-threshold" data-v="initial" aria-pressed="${!initialDone}">Первый депозит ≥ 5 000 ₽</button>
+              <button type="button" data-a="bb-pay-threshold" data-v="initial" aria-pressed="${!initialDone}">Первый платёж СБП ≥ 990 ₽</button>
               <button type="button" data-a="bb-pay-threshold" data-v="repeat" aria-pressed="${initialDone}">Повторный ≥ 100 ₽</button>
             </div>
           </div>
@@ -1528,14 +1615,14 @@
               <b class="num" style="color:var(--confirm)">${tutorNet.toLocaleString("ru-RU")} ₽</b>
             </div>
             <div class="bb-pay-split-cell">
-              <span class="small muted">Комиссия 5%</span>
-              <b class="num">${serviceFee.toLocaleString("ru-RU")} ₽</b>
+              <span class="small muted">Сервис 5% + СБП 1%</span>
+              <b class="num">${serviceFee.toLocaleString("ru-RU")} ₽ + ${Math.round(lessonAmount * 0.01)} ₽</b>
             </div>
           </div>
 
           <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
             <code class="small">EGE.payments.createTopupIntent({ amount: ${topupSample}, min: ${minTopup}, method: "${esc(payMethod)}" })</code>
-            <span class="bb-spec-pill confirm">сервисный сбор 5%</span>
+            <span class="bb-spec-pill confirm">5% сервис + 1% СБП · 8% группы</span>
           </div>
         </div>
 
@@ -1795,15 +1882,20 @@
   }
 
   function adminKitSectionHTML(bb) {
+    const ch = chartsAPI();
+    const renderTable = ch.dataTableHTML || dataTableHTML;
+    const buildStressCols = typeof ch.buildStressColumns === "function" ? ch.buildStressColumns : null;
     const adminTab = ["moderation", "payouts", "system"].includes(bb.adminTab) ? bb.adminTab : "moderation";
     const adminRole = ["student", "tutor", "admin"].includes(bb.adminRole) ? bb.adminRole : "admin";
-    const tblCols = [3, 5, 7].includes(Number(bb.tableCols)) ? Number(bb.tableCols) : 5;
+    const tblCols = Math.max(1, Math.min(15, Math.round(Number(bb.tableCols) || 5)));
     const tblQuery = bb.tableSearch || "";
-    const presets = (root.EGE && root.EGE.charts && root.EGE.charts.TABLE_PRESETS) || {};
+    const presets = ch.TABLE_PRESETS || {};
     const adminPreset = presets.admin || {};
     const allAdminRows = Array.isArray(adminPreset.rows) ? adminPreset.rows : [];
     const tabRows = allAdminRows.filter((r) => !r.category || r.category === adminTab);
-    const adminCols = typeof adminPreset.getColumns === "function" ? adminPreset.getColumns(tblCols) : null;
+    const adminCols = (tblCols > 7 || tblCols === 1) && buildStressCols
+      ? buildStressCols(tblCols, "admin")
+      : (typeof adminPreset.getColumns === "function" ? adminPreset.getColumns(tblCols) : null);
 
     const kpiItems = [
       { label: "Оборот (GMV 30 дн)", value: "184 500 ₽", delta: "+18%", tone: "accent", note: "Подтверждённые уроки 95% / 5%", action: "bb-admin-tab", actionVal: "payouts" },
@@ -1854,13 +1946,15 @@
         </div>
 
         <div class="card pad stack" style="gap:12px">
-          ${dataTableHTML ? dataTableHTML({
+          ${renderTable ? renderTable({
             preset: "admin",
             eyebrow: "Реестр · " + (tabMeta[adminTab] ? tabMeta[adminTab].label : "Админ"),
             title: tabMeta[adminTab] ? tabMeta[adminTab].sub : "Управление платформой",
             rows: tabRows,
             columns: adminCols || undefined,
             cols: tblCols,
+            colsOptions: [1, 3, 5, 7, 10, 12, 15],
+            showColsSwitch: true,
             query: tblQuery,
             confirmedIds: bb.confirmedRows || {},
             cardWrap: false,
@@ -1874,8 +1968,15 @@
   }
 
   function archSplitSectionHTML(bb) {
+    const ch = chartsAPI();
+    const renderTable = ch.dataTableHTML || dataTableHTML;
+    const buildStressCols = typeof ch.buildStressColumns === "function" ? ch.buildStressColumns : null;
     const dualRole = bb.dualRole === "tutor" ? "tutor" : "student";
-    const tblCols = [3, 5, 7].includes(Number(bb.tableCols)) ? Number(bb.tableCols) : 5;
+    const dualPreset = dualRole === "tutor" ? "students" : "requests";
+    const tblCols = Math.max(1, Math.min(15, Math.round(Number(bb.tableCols) || 5)));
+    const dualCols = (tblCols > 7 || tblCols === 1) && buildStressCols
+      ? buildStressCols(tblCols, dualPreset)
+      : undefined;
     const tblQuery = bb.tableSearch || "";
 
     const layers = [
@@ -1945,9 +2046,12 @@
           </div>
           <span class="bb-spec-pill">${dualRole === "tutor" ? "preset: students" : "preset: requests"}</span>
         </div>
-        ${dataTableHTML ? dataTableHTML({
-          preset: dualRole === "tutor" ? "students" : "requests",
+        ${renderTable ? renderTable({
+          preset: dualPreset,
           cols: tblCols,
+          columns: dualCols,
+          colsOptions: [1, 3, 5, 7, 10, 12, 15],
+          showColsSwitch: true,
           filter: "all",
           query: tblQuery,
           confirmedIds: bb.confirmedRows || {},
@@ -3041,9 +3145,10 @@
     const ui = ctx.ui || {};
     const rate = Math.max(600, Math.min(3500, Number(ui.feesRate) || 800));
     const presets = [800, 1000, 1200, 1500, 2000];
+    const sbpGatewayRub = Math.round(rate * 0.01);
     return `<div class="land-page" id="fees-page">
       <header class="land-top">
-        ${brandLockupHTML({ tag: "Оплата", sub: "Условия оплаты и сервисный сбор" })}
+        ${brandLockupHTML({ tag: "Оплата · СБП", sub: "Только СБП · эскроу-защита и сервисный сбор" })}
         <div class="land-top-actions">
           <button type="button" class="btn ghost sm" data-a="go" data-v="${inside ? "market" : "landing"}">${inside ? "← К репетиторам" : "← На главную"}</button>
           <button type="button" class="icon-btn sm" data-a="theme-toggle" aria-label="Сменить тему" title="Сменить тему">${icon(dark ? "sun" : "moon")}</button>
@@ -3051,35 +3156,73 @@
         </div>
       </header>
 
-      <section class="card pad-lg stack" style="gap:16px">
-        <div class="stack" style="gap:6px">
-          <div class="eyebrow">Оплата занятий · Сервисный сбор системы</div>
-          <h1 class="h1">Условия оплаты и комиссия за систему</h1>
-          <p class="lead">При выборе репетитора ученик ориентируется только на удобное время и свою цену за урок. Комиссия системы 5% учитывается на этапе расчёта оплаты — никаких скрытых доплат сверх ставки ученика нет.</p>
+      <section class="card pad-lg stack" style="gap:18px">
+        <div class="stack" style="gap:8px">
+          <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
+            <span class="chip confirm">Только СБП · 0% за карты</span>
+            <span class="chip">АЭБ · СберБанк · Т-Банк · ВТБ</span>
+            <span class="chip pro">Авточек НПД · Вывод от 500 ₽</span>
+          </div>
+          <div class="eyebrow">Оплата занятий · СБП-сплит и эскроу</div>
+          <h1 class="h1">Как устроена СБП-платёжка, эскроу-защита и сервисный сбор</h1>
+          <p class="lead">Мы отказались от дорогого карточного эквайринга (3,42%) и работаем <b>только через СБП</b> — по QR-коду или кнопке вашего банка за 5 секунд. Базовый расчёт индивидуального урока фиксированный (5% сервис системы + 1% шлюз СБП-сплита с авточеком «Мой налог»), без скрытых доплат сверх ставки ученика.</p>
         </div>
 
-        <div class="grid-3">
+        <div class="grid-2" style="gap:12px">
           <div class="card pad stack" style="gap:6px;box-shadow:none">
-            <span class="chip accent" style="justify-self:start">01 · Старт от 5 000 ₽</span>
-            <b>Минимальная подписка 5 000 ₽</b>
-            <p class="small ink2">Первый платёж или подписка — от 5 000 ₽ на баланс; затем пополнение открыто от 100 ₽ на любую удобную сумму.</p>
+            <span class="chip confirm" style="justify-self:start">01 · Только СБП без наценок</span>
+            <b>Прямая оплата по СБП вместо карт (3,42%)</b>
+            <p class="small ink2">Принимаем оплату напрямую через Систему быстрых платежей (АЭБ, СберБанк, Т-Банк, ВТБ). Ученик и родитель платят ровно по тарифу или выбранной ставке — никаких скрытых комиссий сверху.</p>
           </div>
           <div class="card pad stack" style="gap:6px;box-shadow:none">
-            <span class="chip confirm" style="justify-self:start">02 · Защита оплаты</span>
-            <b>Заморозка после ответа</b>
-            <p class="small ink2">Пока преподаватель не подтвердил время и предложенную ставку, деньги не списываются с вашего баланса.</p>
+            <span class="chip accent" style="justify-self:start">02 · Старт от 990 ₽ или 390 ₽ ИИ</span>
+            <b>Пробный 60 мин с 100% гарантией замены</b>
+            <p class="small ink2">Старт занятий с репетитором — от <b>990 ₽</b> за полный 60-минутный урок-диагностику (вместо «пустых» 15 минут; видео-визитку можно посмотреть заранее). После первого платежа любые доплаты открыты от <b>100 ₽</b>, а самостоятельный тренажёр «ИИ-Старт ЕГЭ» стоит <b>390 ₽/мес</b>.</p>
           </div>
           <div class="card pad stack" style="gap:6px;box-shadow:none">
-            <span class="chip pro" style="justify-self:start">03 · Фиксированно 5%</span>
-            <b>Сервисный сбор системы</b>
-            <p class="small ink2">С проведённого занятия 95% получает преподаватель, а 5% составляет сервисный сбор системы.</p>
+            <span class="chip gold" style="justify-self:start">03 · Эскроу и шлюз контактов</span>
+            <b>Поурочный холд + открытие WA / TG / MAX</b>
+            <p class="small ink2">Деньги замораживаются на счёте и списываются только после подтверждённого урока. Сразу после бронирования слота в «Учёбе» открываются прямые чаты WhatsApp, Telegram и MAX. Отмена за ≥ 4 ч или замена преподавателя возвращают 100% на баланс.</p>
+          </div>
+          <div class="card pad stack" style="gap:6px;box-shadow:none">
+            <span class="chip pro" style="justify-self:start">04 · Прозрачный сбор 5% + 1% СБП</span>
+            <b>Низкий сбор 5% сервис + 1% шлюз СБП (8% группы)</b>
+            <p class="small ink2">С каждого индивидуального урока 95% составляет базовая выплата (5% — сервис платформы и +1% — банковский шлюз СБП-сплита с авточеком НПД «Мой налог»). Для «Мини-групп 3–5 чел.» действует единый мягкий сбор 8%.</p>
+          </div>
+        </div>
+
+        <div class="grid-2" style="gap:12px">
+          <div class="card pad stack" style="gap:8px;box-shadow:none;background:var(--surface-2)">
+            <div class="row between" style="gap:6px;flex-wrap:wrap">
+              <b>Тарифы для учеников и родителей (СБП)</b>
+              <span class="chip accent">От 390 до 8 900 ₽</span>
+            </div>
+            <ul class="plan-feats">
+              <li><span><b>ИИ-Старт ЕГЭ — 390 ₽/мес</b> · безлимитный тренажёр ЕГЭ-2027 и ИИ-сочинения К1–К12</span></li>
+              <li><span><b>Пробный урок 60 мин — 990 ₽</b> · диагностика + 100% гарантия бесплатной замены и открытие WA/TG/MAX</span></li>
+              <li><span><b>Мини-группа Саха (3–5 чел.) — 2 190 ₽</b> · 4 живых урока (~548 ₽/урок) + ИИ-Старт бесплатно</span></li>
+              <li><span><b>Стандарт 1-на-1 (4 урока) — 4 590 ₽</b> · эскроу по урокам + автоотчёт родителю + доплаты от 100 ₽</span></li>
+              <li><span><b>Интенсив (8 уроков под ключ) — 8 900 ₽</b> · замена за 15 мин, фиксация ставки и кэшбэк 2%</span></li>
+            </ul>
+          </div>
+          <div class="card pad stack" style="gap:8px;box-shadow:none;background:var(--surface-2)">
+            <div class="row between" style="gap:6px;flex-wrap:wrap">
+              <b>Тарифы и выплаты для преподавателей</b>
+              <span class="chip pro">PRO 1 490 ₽/мес</span>
+            </div>
+            <ul class="plan-feats">
+              <li><span><b>Свободный старт — 0 ₽/мес</b> · видео-визитка 60 сек, ежедневный топ и готовые ученики с оплаченным пробным 990 ₽</span></li>
+              <li><span><b>Верхняя полоса PRO — 1 490 ₽/мес (3 900 ₽ / 3 мес.)</b> · закрепление в верхней карусели предмета в часы пик и скидка 50% на сбор подбора</span></li>
+              <li><span><b>Мини-группы 3–5 чел.</b> · доступно на PRO: 4–5 учеников в одном слоте дают до ~2 015 ₽/ч чистыми под сбор 8%</span></li>
+              <li><span><b>Быстрый вывод на СБП</b> · мгновенно от 500 ₽ с автоматической фискализацией чека НПД</span></li>
+            </ul>
           </div>
         </div>
 
         <div class="card pad-lg stack" style="gap:12px;background:var(--surface-2);box-shadow:none">
           <div class="row between" style="gap:10px;flex-wrap:wrap;align-items:center">
             <div class="stack" style="gap:2px">
-              <b>Калькулятор при оплате урока</b>
+              <b>Калькулятор расчёта урока (индивидуальный формат · 5% сервис + 1% шлюз СБП)</b>
               <span class="small muted">Выбери стоимость часа для точного расчёта:</span>
             </div>
             <div class="row" style="gap:6px;flex-wrap:wrap">
@@ -3087,7 +3230,7 @@
             </div>
           </div>
           <div class="bid-fee-row">${feeSplitHTML(rate, ctx.TDATA)}</div>
-          <p class="small muted">С каждой подтверждённой ставки <b class="num">${rate.toLocaleString("ru-RU")} ₽/ч</b> расчёт происходит автоматически при оплате урока.</p>
+          <p class="small muted">При ставке <b class="num">${rate.toLocaleString("ru-RU")} ₽/ч</b> расчёт 95%/5% (сервис 5%) формируется автоматически, а банковский шлюз СБП-сплита с авточеком НПД добавляет лишь 1% (<b class="num">${sbpGatewayRub.toLocaleString("ru-RU")} ₽</b>) вместо 3,42% у обычных карт.</p>
         </div>
 
         <div class="row" style="gap:10px;flex-wrap:wrap">
@@ -3386,12 +3529,26 @@
       return true;
     }
     if (act === "bb-chart-bar") {
-      bb.chartActiveIdx = Math.max(0, Math.min(6, Number(ds.idx) || 0));
+      bb.chartActiveIdx = Math.max(0, Math.min(59, Math.round(Number(ds.idx) || 0)));
       render();
       return true;
     }
     if (act === "bb-line-pt") {
-      bb.linePtIdx = Math.max(0, Math.min(6, Number(ds.idx) || 0));
+      bb.linePtIdx = Math.max(0, Math.min(59, Math.round(Number(ds.idx) || 0)));
+      render();
+      return true;
+    }
+    if (act === "bb-chart-lines") {
+      const n = Math.round(Number(ds.lines != null ? ds.lines : ds.v) || 1);
+      bb.chartLines = Math.max(1, Math.min(20, n));
+      render();
+      return true;
+    }
+    if (act === "bb-chart-pts") {
+      const n = Math.round(Number(ds.pts != null ? ds.pts : ds.v) || 7);
+      bb.chartPoints = Math.max(5, Math.min(36, n));
+      if ((Number(bb.linePtIdx) || 0) >= bb.chartPoints) bb.linePtIdx = bb.chartPoints - 1;
+      if ((Number(bb.chartActiveIdx) || 0) >= bb.chartPoints) bb.chartActiveIdx = bb.chartPoints - 1;
       render();
       return true;
     }
@@ -3407,8 +3564,8 @@
       return true;
     }
     if (act === "bb-tbl-cols") {
-      const c = Number(ds.cols);
-      bb.tableCols = [3, 5, 7].includes(c) ? c : 5;
+      const c = Math.round(Number(ds.cols != null ? ds.cols : ds.v));
+      bb.tableCols = Number.isFinite(c) ? Math.max(1, Math.min(15, c)) : 5;
       render();
       return true;
     }

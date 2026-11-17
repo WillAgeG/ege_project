@@ -55,16 +55,16 @@ def test_ctx_cli_routes_actions_symbols_outline_punctuation_and_bank_exclusion(t
         assert route in routes_out, f"Missing route {route}"
 
     act_book = _run_cli("actions", "book-submit", db_path=db_path)
-    assert "frontend/app.js:" in act_book and "book-submit" in act_book
+    assert "frontend/core/market-bb-actions.js:" in act_book and "book-submit" in act_book
 
     act_req = _run_cli("actions", "tc-req-accept", db_path=db_path)
     assert "frontend/views/tutor-cabinet.js:" in act_req and "tc-req-accept" in act_req
 
     sym_dw = _run_cli("symbol", "DualWriteDatabase", db_path=db_path)
-    assert "databases/postgres/store.py:" in sym_dw
+    assert "databases/postgres/dual_write.py:" in sym_dw
 
     sym_dt = _run_cli("symbol", "dataTableHTML", "--slice", "--max-lines", "25", db_path=db_path)
-    assert "ux-ui/components/charts.js:" in sym_dt
+    assert "ux-ui/components/tables.js:" in sym_dt
     assert "function dataTableHTML" in sym_dt
 
     outline_out = _run_cli("outline", "frontend/app.js", db_path=db_path)

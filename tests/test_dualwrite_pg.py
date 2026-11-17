@@ -13,6 +13,15 @@ from databases.sqlite.store import Database, StorageError, hash_token
 
 PG_DSN = "postgresql://postgres@127.0.0.1:5432/vektor_ege"
 
+
+def _pg_available() -> bool:
+    try:
+        with psycopg.connect(PG_DSN, connect_timeout=1) as conn:
+            conn.execute("SELECT 1 FROM oltp.users LIMIT 1")
+        return True
+    except Exception:
+        return False
+
 ENVELOPE_KEYS = {
     "event_id",
     "event_type",
@@ -108,17 +117,18 @@ def test_settings_and_create_store_modes(tmp_path: Path, monkeypatch: pytest.Mon
     finally:
         store_forced_sqlite.close()
 
-    store_dual = create_store(Settings(db_path=tmp_path / "s3.db", database_url=PG_DSN, db_mode="auto"))
-    try:
-        assert isinstance(store_dual, DualWriteDatabase)
-    finally:
-        store_dual.close()
+    if _pg_available():
+        store_dual = create_store(Settings(db_path=tmp_path / "s3.db", database_url=PG_DSN, db_mode="auto"))
+        try:
+            assert isinstance(store_dual, DualWriteDatabase)
+        finally:
+            store_dual.close()
 
-    store_pg = create_store(Settings(db_path=tmp_path / "s4.db", database_url=PG_DSN, db_mode="postgres"))
-    try:
-        assert isinstance(store_pg, PostgresDatabase)
-    finally:
-        store_pg.close()
+        store_pg = create_store(Settings(db_path=tmp_path / "s4.db", database_url=PG_DSN, db_mode="postgres"))
+        try:
+            assert isinstance(store_pg, PostgresDatabase)
+        finally:
+            store_pg.close()
 
 
 def test_sqlite_calendar_realtime_and_extended_docs(tmp_path: Path) -> None:
@@ -219,6 +229,8 @@ def test_sqlite_calendar_realtime_and_extended_docs(tmp_path: Path) -> None:
 
 
 def test_dual_write_no_user_id_collision_and_outbox(tmp_path: Path) -> None:
+    if not _pg_available():
+        pytest.skip("PostgreSQL 17 (:5432/vektor_ege) not available in CI")
     suffix = uuid.uuid4().hex[:10]
     uname_local = f"dw_local_{suffix}"
     uname_oauth = f"dw_oauth_{suffix}"
@@ -379,6 +391,8 @@ def test_dual_write_no_user_id_collision_and_outbox(tmp_path: Path) -> None:
 
 
 def test_postgres_only_mode_full_crud() -> None:
+    if not _pg_available():
+        pytest.skip("PostgreSQL 17 (:5432/vektor_ege) not available in CI")
     suffix = uuid.uuid4().hex[:10]
     uname = f"pg_only_{suffix}"
     slug = f"pg-tutor-{suffix}"

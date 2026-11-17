@@ -75,11 +75,23 @@ def test_static_asset_allowlist(tmp_path: Path) -> None:
             "/app.js",
             "/bank-core.js",
             "/core/utils.js",
+            "/core/api.js",
+            "/core/realtime.js",
+            "/core/market-bb-actions.js",
+            "/views/trainer.js",
+            "/views/essay-guide.js",
+            "/views/progress.js",
             "/views/landing.js",
             "/views/marketplace.js",
+            "/views/tutor-state.js",
+            "/views/tutor-schedule.js",
+            "/views/tutor-payouts.js",
+            "/views/tutor-cabinet.js",
+            "/views/admin.js",
             "/ux-ui/components/icons.js",
             "/ux-ui/components/hh-components.js",
             "/ux-ui/components/charts.js",
+            "/ux-ui/components/tables.js",
             "/ux-ui/components/kit.js",
             "/ux-ui/brandbook/brandbook.js",
             "/data/plan.js",
@@ -95,6 +107,7 @@ def test_static_asset_allowlist(tmp_path: Path) -> None:
         for css_path in (
             "/ux-ui/styles/base.css",
             "/ux-ui/styles/brandbook.css",
+            "/ux-ui/styles/tables.css",
             "/styles/study.css",
             "/styles/marketplace.css",
         ):
@@ -646,6 +659,33 @@ def test_legacy_sqlite_migration(tmp_path: Path) -> None:
 def test_landing_and_tutors_catalog(tmp_path: Path) -> None:
     app = create_app(_make_settings(tmp_path))
     with TestClient(app) as client:
+        r_root = client.get("/")
+        assert r_root.status_code == 200
+        assert "<title>Вектор ЕГЭ</title>" in r_root.text
+        assert "window.EGE_HOST={backend:true};" in r_root.text
+        assert 'href="ux-ui/styles/tables.css"' in r_root.text
+        assert 'src="ux-ui/components/tables.js"' in r_root.text
+
+        r_stu = client.get("/student")
+        assert r_stu.status_code == 200
+        assert "<title>Вектор ЕГЭ — Ученик</title>" in r_stu.text
+        assert 'window.EGE_HOST={backend:true,site:"student"};' in r_stu.text
+        assert 'src="views/admin.js"' not in r_stu.text
+
+        for tutor_route in ("/tutor", "/teacher", "/cabinet"):
+            r_tut = client.get(tutor_route)
+            assert r_tut.status_code == 200, tutor_route
+            assert "<title>Вектор ЕГЭ — Преподаватель</title>" in r_tut.text
+            assert 'window.EGE_HOST={backend:true,site:"tutor"};' in r_tut.text
+            assert 'src="views/admin.js"' not in r_tut.text
+            assert 'src="subjects/biology.js"' in r_tut.text
+
+        r_adm = client.get("/admin")
+        assert r_adm.status_code == 200
+        assert "<title>Вектор ЕГЭ — Админ-панель</title>" in r_adm.text
+        assert 'window.EGE_HOST={backend:true,site:"admin"};' in r_adm.text
+        assert 'src="views/admin.js"' in r_adm.text
+
         r_land = client.get("/landing")
         assert r_land.status_code == 200
         assert '<meta name="viewport"' in r_land.text
@@ -654,12 +694,20 @@ def test_landing_and_tutors_catalog(tmp_path: Path) -> None:
 
         r_bb = client.get("/brandbook")
         assert r_bb.status_code == 200
+        assert "<title>Вектор ЕГЭ — Брендбук</title>" in r_bb.text
+        assert 'window.EGE_HOST={backend:true,site:"brandbook"};' in r_bb.text
         assert 'src="app.js"' in r_bb.text
 
         r_fees = client.get("/fees")
         assert r_fees.status_code == 200
-        assert "window.EGE_HOST={backend:true,landing:true}" in r_fees.text
+        assert "<title>Вектор ЕГЭ — Выплаты преподавателя</title>" in r_fees.text
+        assert 'window.EGE_HOST={backend:true,site:"tutor",view:"fees"};' in r_fees.text
+        assert 'src="views/admin.js"' not in r_fees.text
         assert 'src="app.js"' in r_fees.text
+
+        r_priv = client.get("/privacy")
+        assert r_priv.status_code == 200
+        assert "Политика конфиденциальности" in r_priv.text
 
         r_js = client.get("/data/tutors.js")
         assert r_js.status_code == 200

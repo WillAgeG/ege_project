@@ -7,7 +7,7 @@
   const { esc, plural, initials } = EGE.utils;
   const { icon } = EGE.ui;
   const { isValidHHMM, bidBtnLabelHTML, sakhaBidInnerHTML, priceHeadlineHTML, priceDiffTagsHTML, sliderTicksHTML, hhSelectHTML, hhMultiSelectHTML, tutorAvatarHTML } = EGE.hh;
-  const MIN_ACTION_BALANCE = 5000;
+  const MIN_ACTION_BALANCE = 990;
 
   function hasMinBalance(st) {
     return (Number(st && st.balance) || 0) >= MIN_ACTION_BALANCE;
@@ -34,7 +34,7 @@
 
   function renderDataTable(opts) {
     if (EGE.charts && typeof EGE.charts.dataTableHTML === "function") {
-      return EGE.charts.dataTableHTML(opts);
+      return EGE.charts.dataTableHTML(Object.assign({}, opts, { showColsSwitch: false, showPresetSwitch: false }));
     }
     return "";
   }
@@ -48,13 +48,19 @@
     const cards = TDATA.PLANS.map((p) => {
       const picked = st.planId === p.id;
       const lessons = p.balance > 0 ? Math.max(1, Math.floor(p.balance / rate)) : 0;
-      const note = p.balance > 0
-        ? `≈ ${lessons} ${plural(lessons, "урок", "урока", "уроков")} по ${rate} ₽/ч с баланса`
-        : "Тесты, конспекты и огромная база репетиторов";
+      const note = p.kind === "ai"
+        ? "Безлимит тренажёра ЕГЭ и ИИ-сочинений К1–К12"
+        : (p.id === "trial990"
+          ? "Полноценный урок 60 мин + 100% гарантия замены"
+          : (p.id === "minigroup"
+            ? "4 урока в группе 3–5 чел. (~548 ₽/урок) + ИИ"
+            : (p.balance > 0
+              ? `≈ ${lessons} ${plural(lessons, "урок", "урока", "уроков")} по ${rate} ₽/ч с баланса`
+              : "Тесты, конспекты и огромная база репетиторов")));
       return `<article class="card pad-lg plan-card${p.featured ? " featured" : ""}${p.super ? " super" : ""}${picked ? " picked" : ""}">
         <div class="stack" style="gap:10px">
           <div class="row between" style="gap:8px;flex-wrap:wrap">
-            <span class="chip ${p.super || p.featured ? "accent" : p.balance ? "leaf" : ""}">${esc(p.badge)}</span>
+            <span class="chip ${p.super || p.featured ? "accent" : (p.kind === "ai" ? "pro" : (p.balance ? "leaf" : ""))}">${esc(p.badge)}</span>
             ${picked ? '<span class="chip good">Выбран сейчас</span>' : ""}
           </div>
           <div>
@@ -67,17 +73,25 @@
           <ul class="plan-feats">${p.features.map((f) => `<li><span>${esc(f)}</span></li>`).join("")}</ul>
         </div>
         <div class="stack" style="gap:8px">
-          <button type="button" class="btn${picked && hasMinBalance(st) ? " is-confirmed" : (p.featured || p.super ? "" : " soft")}" data-a="mkt-plan" data-id="${p.id}"${picked && hasMinBalance(st) ? ' aria-current="true"' : ""}>${picked && hasMinBalance(st) ? "✓ Баланс активен · " + st.balance.toLocaleString("ru-RU") + " ₽" : esc(p.cta)}</button>
-          ${p.balance > 0 ? `<button type="button" class="link-btn small muted" data-a="go" data-v="fees" style="justify-self:start">Условия оплаты и сервисный сбор →</button>` : ""}
+          <button type="button" class="btn${picked && hasMinBalance(st) ? " is-confirmed" : (p.featured || p.super ? "" : " soft")}" data-a="mkt-plan" data-id="${p.id}"${picked && hasMinBalance(st) ? ' aria-current="true"' : ""}>${picked && hasMinBalance(st) ? "✓ СБП-баланс активен · " + st.balance.toLocaleString("ru-RU") + " ₽" : esc(p.cta)}</button>
+          ${p.balance > 0 ? `<button type="button" class="link-btn small muted" data-a="go" data-v="fees" style="justify-self:start">Как работает СБП-эскроу и сборы →</button>` : ""}
         </div>
       </article>`;
     }).join("");
-    return `<section class="land-sec" id="land-plans" aria-label="Тарифы и баланс">
+
+    const sbpSteps = [
+      ["01", "Оплата только через СБП", "QR-код или кнопка вашего банка (АЭБ, Сбер, Т-Банк, ВТБ) за 5 секунд — без привязки карт и карточных наценок."],
+      ["02", "Поурочный эскроу-холд", "Деньги не уходят репетитору авансом за месяц: резервируется только сумма ближайшего урока до его завершения."],
+      ["03", "Шлюз контактов (WA · TG · MAX)", "До оплаты открыта видео-визитка 60 сек; сразу после бронирования слота от 990 ₽ в «Учёбе» открываются чаты в мессенджерах."],
+      ["04", "100% гарантия замены или возврат", "Если на пробном 990 ₽ не совпал темп или занятие отменено за ≥ 4 ч — бесплатная замена репетитора либо возврат 100%."]
+    ];
+
+    return `<section class="land-sec" id="land-plans" aria-label="Тарифы и СБП-баланс">
       <div class="land-sec-head">
         <div>
-          <div class="eyebrow">Минимальная подписка 5 000 ₽ · баланс на занятия</div>
-          <h2 class="h2">Баланс 5 000 или 10 000 ₽ на репетиторов</h2>
-          <p class="small muted">Первый платёж — от 5 000 ₽, далее можно пополнять на любую сумму от 100 ₽. Средства списываются только после согласия преподавателя. <a href="/fees" data-a="go" data-v="fees" style="color:var(--accent)">Подробнее об оплате и правилах сервиса →</a></p>
+          <div class="eyebrow">Только СБП · 0% карточных наценок · Поурочный эскроу</div>
+          <h2 class="h2">Гибкая линейка: от ИИ-тренажёра 390 ₽ до Интенсива 8 900 ₽</h2>
+          <p class="small muted">Оплата напрямую через СБП (АЭБ, СберБанк, Т-Банк, ВТБ) без карточных наценок. Старт с репетитором — от <b>990 ₽</b> (полноценный пробный урок 60 мин с 100% гарантией замены), далее любые пополнения от <b>100 ₽</b>. <a href="/fees" data-a="go" data-v="fees" style="color:var(--accent)">Подробнее о платёжке и правилах →</a></p>
         </div>
         <div class="row" style="gap:6px;flex-wrap:wrap">
           <span class="small muted">Ставка для расчёта:</span>
@@ -85,6 +99,26 @@
         </div>
       </div>
       <div class="plan-grid">${cards}</div>
+      <div class="card pad-lg stack sbp-explainer-box" id="sbp-escrow-explainer" aria-label="Как работает СБП-платёжка и эскроу">
+        <div class="row between" style="gap:10px;flex-wrap:wrap;align-items:center">
+          <div class="stack" style="gap:2px">
+            <div class="eyebrow">Прозрачная платёжка · СБП-эскроу</div>
+            <h3 class="h3">Как проходят оплата по СБП и защита депозита</h3>
+          </div>
+          <div class="sbp-bank-pills">
+            <span class="chip confirm">Только СБП QR</span>
+            <span class="chip">АЭБ · Сбер · Т-Банк · ВТБ</span>
+            <button type="button" class="btn soft sm" data-a="go" data-v="fees">Полная схема расчётов →</button>
+          </div>
+        </div>
+        <div class="sbp-step-grid">
+          ${sbpSteps.map(([num, title, desc]) => `<div class="sbp-step-card">
+            <span class="how-num">${num}</span>
+            <b>${esc(title)}</b>
+            <p class="small ink2">${esc(desc)}</p>
+          </div>`).join("")}
+        </div>
+      </div>
     </section>`;
   }
 
@@ -104,6 +138,8 @@
     const customBadges = Array.isArray(t.customBadges)
       ? t.customBadges.map((b) => String(b || "").trim()).filter(Boolean).slice(0, 2)
       : [];
+    const showTopPro = (aboveRub > 0 || (t.verified && Number(t.rating) >= 4.9)) && !customBadges.some((b) => b.includes("PRO"));
+    const trialPrice = (TDATA && TDATA.TRIAL_PRICE) || 990;
     return `<article class="card tutor-card">
       <div class="stack" style="gap:10px">
         <div class="tutor-head">
@@ -115,6 +151,7 @@
                 : `${t.marketPrice ? `<s class="hh-price-old num">${t.marketPrice.toLocaleString("ru-RU")} ₽</s>` : ""}<div class="tutor-rate num">${t.price.toLocaleString("ru-RU")} ₽/ч</div>`}
             </div>
             <div class="hh-diff-strip" style="margin-top:6px">
+              ${showTopPro ? `<span class="diff-tag pro">Верхняя полоса PRO</span>` : ""}
               ${belowRub > 0 ? `<span class="diff-tag save-cool num">на ${belowRub.toLocaleString("ru-RU")} ₽ ниже рынка</span>` : ""}
               ${t.belowPct ? `<span class="diff-tag save-cyan num">−${t.belowPct}%</span>` : ""}
               ${aboveRub > 0 ? `<span class="diff-tag pro num">на +${aboveRub.toLocaleString("ru-RU")} ₽ выше рынка</span>` : ""}
@@ -132,6 +169,7 @@
           <span class="small muted">· ${esc(t.city)}${t.tzLabel ? " (" + esc(t.tzLabel) + ")" : ""} · ★ ${t.rating.toFixed(1)} (${t.reviews})</span>
         </div>
         <div class="tutor-tags">
+          <span class="tutor-tag-pill">▶ Видео-визитка 60 сек</span>
           <span class="tutor-tag-pill">${esc(t.source || "Доска Ykt")} · ${esc(winTxt)}</span>
           <span class="tutor-tag-pill">${esc(t.exams.join(" и "))}</span>
           <span class="tutor-tag-pill">${esc(t.exp)}</span>
@@ -150,7 +188,7 @@
       </div>
       <div class="tutor-actions">
         <button type="button" class="btn sakha-pattern" data-a="book-open" data-id="${esc(t.id)}" data-hour="${esc(pickHour)}">${sakhaBidInnerHTML(false, t.price)}</button>
-        <button type="button" class="btn soft" data-a="trial-open" data-id="${esc(t.id)}" data-hour="${esc(pickHour)}">${icon("spark")}<span>Пробный · 0 ₽</span></button>
+        <button type="button" class="btn soft" data-a="trial-open" data-id="${esc(t.id)}" data-hour="${esc(pickHour)}">${icon("spark")}<span>Пробный 60 мин · ${trialPrice} ₽</span></button>
       </div>
     </article>`;
   }
@@ -163,18 +201,20 @@
     const bkFilter = ["all", "pending", "accepted"].includes(ui.mktBkFilter) ? ui.mktBkFilter : "all";
     const pendingCnt = st.bookings.filter((b) => b.status !== "accepted").length;
     const acceptedCnt = st.bookings.filter((b) => b.status === "accepted").length;
+    const trialDefault = (TDATA && TDATA.TRIAL_PRICE) || 990;
 
     const bkColumns = [
       {
         key: "tutor",
         label: "Преподаватель и предмет",
         render: (bk, h) => {
-          const isTrial = !!bk.isTrial || Number(bk.offerPrice) === 0;
+          const isTrial = !!bk.isTrial;
+          const trialRub = Number(bk.offerPrice) > 0 ? Number(bk.offerPrice) : trialDefault;
           return `<div class="stack" style="gap:4px;min-width:0">
             <div class="row" style="gap:6px;flex-wrap:wrap">
               <b>${esc(bk.tutorName)}</b>
               <span class="chip">${esc(bk.exam)} · ${esc(bk.subjectName)}</span>
-              ${isTrial ? '<span class="chip gold">Пробный · 0 ₽</span>' : ""}
+              ${isTrial ? `<span class="chip gold">Пробный · ${trialRub.toLocaleString("ru-RU")} ₽</span>` : ""}
             </div>
             ${h.cols === 3 ? `<span class="small muted">${esc(bk.dayLabel)} в ${esc(bk.hour)} (${esc(bk.format)})</span>` : ""}
           </div>`;
@@ -194,9 +234,10 @@
         label: "Ваша ставка",
         num: true,
         render: (bk) => {
-          const isTrial = !!bk.isTrial || Number(bk.offerPrice) === 0;
+          const isTrial = !!bk.isTrial;
+          const trialRub = Number(bk.offerPrice) > 0 ? Number(bk.offerPrice) : trialDefault;
           return isTrial
-            ? `<b class="num">Пробный 0 ₽</b>`
+            ? `<b class="num">Пробный ${trialRub.toLocaleString("ru-RU")} ₽</b>`
             : `<div class="stack" style="gap:2px"><b class="num">${Number(bk.offerPrice).toLocaleString("ru-RU")} ₽/ч</b><span class="small muted num">вместо ${Number(bk.tutorPrice).toLocaleString("ru-RU")} ₽</span></div>`;
         }
       },
@@ -212,7 +253,7 @@
       {
         key: "note",
         label: "Пожелание",
-        minCols: 7,
+        minCols: 5,
         render: (bk) => `<span class="small ink2">${esc(bk.note || "Без комментария")}</span>`
       },
       {
@@ -310,14 +351,15 @@
     const curHourPct = Math.round(((curHourNum - 10) / 10) * 100);
     const sig = TDATA.offerSignal(tutor.price, b.offerPrice);
     const st = getMkt();
-    const isTrial = !!b.isTrial;
+    const isTrial = b.mode === "trial" || !!b.isTrial;
+    const trialPrice = (TDATA && TDATA.TRIAL_PRICE) || 990;
     const minOk = hasMinBalance(st);
-    const n5 = b.offerPrice > 0 ? Math.floor(5000 / b.offerPrice) : 0;
-    const n10 = b.offerPrice > 0 ? Math.floor(10000 / b.offerPrice) : 0;
+    const n5 = b.offerPrice > 0 ? Math.max(1, Math.floor(4590 / b.offerPrice)) : 0;
+    const n10 = b.offerPrice > 0 ? Math.max(1, Math.floor(8900 / b.offerPrice)) : 0;
     const winTxt = tutor.windowLabel || ("с " + tutor.availableFrom + " до " + tutor.availableTo);
     const inWin = typeof TDATA.tutorInWindow === "function" ? TDATA.tutorInWindow(tutor, curHour) : true;
     const preview = isTrial
-      ? `Запрос на бесплатный пробный урок (0 ₽) · ${b.exam}, ${tutor.subjectName}, ${b.format.toLowerCase()}, ${dayObj.fullLabel} в ${curHour}. Баланс подтверждён.`
+      ? `Запрос на пробный урок 60 мин (${trialPrice} ₽ · СБП-эскроу, 100% гарантия замены) · ${b.exam}, ${tutor.subjectName}, ${b.format.toLowerCase()}, ${dayObj.fullLabel} в ${curHour}.`
       : TDATA.botPreviewText({
           exam: b.exam,
           subjectName: tutor.subjectName,
@@ -344,16 +386,16 @@
         </div>
         <div class="row between small muted" style="flex-wrap:wrap;gap:6px">
           <span>${esc(tutor.subjectName)} · ${esc(tutor.source)} · окно <b>${esc(winTxt)}</b></span>
-          <span>Баланс: <b class="num">${st.balance.toLocaleString("ru-RU")} ₽</b></span>
+          <span>Баланс (СБП): <b class="num">${st.balance.toLocaleString("ru-RU")} ₽</b></span>
         </div>
         <div class="hh-seg equal" role="group" aria-label="Формат первого урока">
           <button type="button" data-a="book-mode" data-v="paid" aria-pressed="${!isTrial}"><span>Обычный урок (своя ставка)</span></button>
-          <button type="button" data-a="book-mode" data-v="trial" aria-pressed="${isTrial}">${icon("spark")}<span>Пробный урок · 0 ₽</span></button>
+          <button type="button" data-a="book-mode" data-v="trial" aria-pressed="${isTrial}">${icon("spark")}<span>Пробный урок · ${trialPrice} ₽</span></button>
         </div>
         ${isTrial && !minOk ? `<div class="notice warn">
-          <b>Нужно пополнение от 5 000 ₽</b>
-          <span class="small">Чтобы запросить бесплатный пробный урок (0 ₽), на балансе должно быть минимум 5 000 ₽ — деньги не спишутся.</span>
-          <div><button type="button" class="btn sm" data-a="bal-open" data-reason="trial">${icon("wallet")}<span>Пополнить баланс от 5 000 ₽</span></button></div>
+          <b>Нужно от ${trialPrice} ₽ на балансе (СБП)</b>
+          <span class="small">Для записи на пробный урок 60 мин (990 ₽) пополните счёт через СБП — сумма заморозится на эскроу и защищена 100% гарантией замены.</span>
+          <div><button type="button" class="btn sm" data-a="bal-open" data-reason="trial">${icon("wallet")}<span>Пополнить по СБП от ${trialPrice} ₽</span></button></div>
         </div>` : ""}
         <div class="fields">
           <div class="field">
@@ -402,9 +444,9 @@
           </div>
         </div>
         <div class="field">
-          <label for="bid-price">${isTrial ? "Стоимость пробного урока" : "Твоя цена за занятие (₽/ч)"}</label>
+          <label for="bid-price">${isTrial ? "Стоимость пробного урока (60 мин)" : "Твоя цена за занятие (₽/ч)"}</label>
           ${isTrial
-            ? `<div class="hh-notice-card" style="padding:12px 14px"><b class="num">0 ₽ — бесплатный пробный урок</b><span class="small ink2">При подтверждении преподавателем с баланса <b>${st.balance.toLocaleString("ru-RU")} ₽</b> средства не списываются.</span></div>`
+            ? `<div class="hh-notice-card" style="padding:12px 14px"><b class="num">${trialPrice} ₽ — полноценный пробный урок 60 мин (СБП-эскроу)</b><span class="small ink2">Сумма ${trialPrice} ₽ замораживается на балансе <b>${st.balance.toLocaleString("ru-RU")} ₽</b> до конца урока: сразу открываются WhatsApp / Telegram / MAX, а если темп не подошёл — 100% бесплатная замена репетитора.</span></div>`
             : `<div class="hh-price-row" id="bid-price-row" style="margin-bottom:4px">
                 ${priceHeadlineHTML(tutor.marketPrice, b.offerPrice, false)}
               </div>
@@ -425,14 +467,14 @@
         <div class="bot-preview">
           <b class="small">Детали заявки (уведомим о подтверждении):</b>
           <span id="bot-preview-txt">${esc(preview)}</span>
-          ${isTrial ? "" : `<span class="small muted" id="bid-plan-counts">На «Пробник» (5 000 ₽) хватит на <b>${n5} ур.</b> · на «Месяц» (10 000 ₽) на <b>${n10} ур.</b></span>`}
+          ${isTrial ? "" : `<span class="small muted" id="bid-plan-counts">На «Стандарт» (4 590 ₽) хватит на <b>${n5} ур.</b> · на «Интенсив» (8 900 ₽) на <b>${n10} ур.</b></span>`}
         </div>
         <div class="row between" style="flex-wrap:wrap;gap:8px;align-items:center">
           <div class="row" style="flex-wrap:wrap;gap:8px">
-            <button type="button" class="btn sakha-pattern" id="bid-submit-btn" data-a="book-submit">${isTrial ? `<span>Сөп · Попросить пробный 0 ₽</span>` : sakhaBidInnerHTML(false, b.offerPrice, { attr: 'data-bid-lbl="1"' })}</button>
+            <button type="button" class="btn sakha-pattern" id="bid-submit-btn" data-a="book-submit">${isTrial ? `<span>Сөп · Записаться на пробный ${trialPrice} ₽</span>` : sakhaBidInnerHTML(false, b.offerPrice, { attr: 'data-bid-lbl="1"' })}</button>
             <button type="button" class="btn ghost" data-a="book-close">Отмена</button>
           </div>
-          <button type="button" class="link-btn small muted" data-a="go-fees">Условия оплаты и сбор системы →</button>
+          <button type="button" class="link-btn small muted" data-a="go-fees">Как работает СБП-эскроу и сборы →</button>
         </div>
       </div>
     </div>`;
@@ -489,9 +531,9 @@
     }
     const planEl = document.getElementById("bid-plan-counts");
     if (planEl && b.offerPrice > 0) {
-      const n5 = Math.floor(5000 / b.offerPrice);
-      const n10 = Math.floor(10000 / b.offerPrice);
-      planEl.innerHTML = `На «Пробник» (5 000 ₽) хватит на <b>${n5} ур.</b> · на «Месяц» (10 000 ₽) на <b>${n10} ур.</b>`;
+      const n5 = Math.max(1, Math.floor(4590 / b.offerPrice));
+      const n10 = Math.max(1, Math.floor(8900 / b.offerPrice));
+      planEl.innerHTML = `На «Стандарт» (4 590 ₽) хватит на <b>${n5} ур.</b> · на «Интенсив» (8 900 ₽) на <b>${n10} ур.</b>`;
     }
     const priceRowEl = document.getElementById("bid-price-row");
     if (priceRowEl) {
@@ -503,8 +545,9 @@
     }
     const subBtn = document.getElementById("bid-submit-btn");
     if (subBtn) {
-      if (b.isTrial) {
-        subBtn.innerHTML = `<span>Сөп · Попросить пробный 0 ₽</span>`;
+      if (b.isTrial || b.mode === "trial") {
+        const trialPrice = (TDATA && TDATA.TRIAL_PRICE) || 990;
+        subBtn.innerHTML = `<span>Сөп · Записаться на пробный ${trialPrice} ₽</span>`;
       } else {
         const subLbl = subBtn.querySelector && (subBtn.querySelector("[data-bid-lbl]") || subBtn.querySelector("span"));
         if (subLbl) subLbl.textContent = bidBtnLabelHTML(false, b.offerPrice);
@@ -706,9 +749,9 @@
         ? EGE.kit.walletSummaryBarHTML({
             labelHTML: `Тариф: <b style="color:var(--ink)">${esc(activePlan.name)}</b>`,
             amountRub: st.balance,
-            inlineNote: hasMinBalance(st) ? "доступны пробный урок 0 ₽ и отклики" : "минимум 5 000 ₽ на балансе для пробного урока и записи",
+            inlineNote: hasMinBalance(st) ? "доступны пробный 60 мин (990 ₽) и отклики по СБП" : "старт с репетитором от 990 ₽ по СБП (далее доплаты от 100 ₽)",
             actions: [
-              { label: "Пополнить баланс", action: "bal-open", icon: "wallet", cls: `btn ${hasMinBalance(st) ? "soft" : ""} sm` },
+              { label: "Пополнить по СБП", action: "bal-open", icon: "wallet", cls: `btn ${hasMinBalance(st) ? "soft" : ""} sm` },
               { label: "Ищу преподавателя", action: "go-student-lead", icon: "plus", cls: "btn soft sm" }
             ]
           })
@@ -717,11 +760,11 @@
           <span class="small muted">Тариф: <b style="color:var(--ink)">${esc(activePlan.name)}</b></span>
           <div class="row" style="gap:10px;align-items:baseline;flex-wrap:wrap">
             <span class="wallet-num num">${st.balance.toLocaleString("ru-RU")} ₽</span>
-            <span class="small muted">${hasMinBalance(st) ? "доступны пробный урок 0 ₽ и отклики" : "минимум 5 000 ₽ на балансе для пробного урока и записи"}</span>
+            <span class="small muted">${hasMinBalance(st) ? "доступны пробный 60 мин (990 ₽) и отклики по СБП" : "старт с репетитором от 990 ₽ по СБП (далее доплаты от 100 ₽)"}</span>
           </div>
         </div>
         <div class="row" style="gap:8px;flex-wrap:wrap">
-          <button type="button" class="btn ${hasMinBalance(st) ? "soft" : ""} sm" data-a="bal-open">${icon("wallet")}<span>Пополнить баланс</span></button>
+          <button type="button" class="btn ${hasMinBalance(st) ? "soft" : ""} sm" data-a="bal-open">${icon("wallet")}<span>Пополнить по СБП</span></button>
           <button type="button" class="btn soft sm" data-a="go-student-lead">${icon("plus")}<span>Ищу преподавателя</span></button>
         </div>
       </div>`}
@@ -958,12 +1001,14 @@
       }
       const sorted = bookedList.slice().sort((a, b) => (b.booking.status === "accepted" ? 1 : 0) - (a.booking.status === "accepted" ? 1 : 0));
       const chatRows = sorted.map(({ tutor: t, booking: bk }) => {
-        const isTrial = !!bk.isTrial || Number(bk.offerPrice) === 0;
+        const trialDefault = (TDATA && TDATA.TRIAL_PRICE) || 990;
+        const isTrial = !!bk.isTrial;
+        const trialRub = Number(bk.offerPrice) > 0 ? Number(bk.offerPrice) : trialDefault;
         const slot = `${bk.dayLabel}, ${bk.hour}`;
-        const msgTxt = `Здравствуйте, ${t.name}! Пишу по поводу занятия ${bk.dayLabel} в ${bk.hour} (${bk.subjectName}, ${isTrial ? "пробный урок 0 ₽" : "ставка " + bk.offerPrice + " ₽/ч"}).`;
+        const msgTxt = `Здравствуйте, ${t.name}! Пишу по поводу занятия ${bk.dayLabel} в ${bk.hour} (${bk.subjectName}, ${isTrial ? `пробный урок 60 мин (${trialRub} ₽)` : "ставка " + bk.offerPrice + " ₽/ч"}).`;
         const statusTxt = bk.status === "accepted"
           ? "Подтверждён · выберите мессенджер"
-          : (isTrial ? "Запрос на пробный 0 ₽" : `Отклик ${bk.offerPrice} ₽/ч`);
+          : (isTrial ? `Запрос на пробный · ${trialRub} ₽` : `Отклик ${bk.offerPrice} ₽/ч`);
         return {
           id: "chat-" + String(t.id || bk.id),
           tutor: t,
@@ -1012,7 +1057,7 @@
             minCols: 5,
             render: (row) => `<div class="stack" style="gap:2px">
               <span>${esc(row.subjectName)}</span>
-              <span class="small muted num">${row.isTrial ? "пробный 0 ₽" : `от ${row.tutor.price} ₽/ч`}</span>
+              <span class="small muted num">${row.isTrial ? `пробный · ${(Number(row.booking && row.booking.offerPrice) || 990).toLocaleString("ru-RU")} ₽` : `от ${row.tutor.price} ₽/ч`}</span>
             </div>`
           },
           {
@@ -1024,7 +1069,6 @@
           {
             key: "slot",
             label: "Ближайший слот",
-            minCols: 7,
             num: true,
             render: (row) => `<span class="small num">${esc(row.slot)}</span>`
           },
@@ -1064,17 +1108,17 @@
         <b>${st.bookings.length ? `Ваших записей к преподавателям: ${st.bookings.length}` : "В разделе «Учёба» только ваши преподаватели"}</b>
         <span class="chip accent num">Баланс: ${st.balance.toLocaleString("ru-RU")} ₽</span>
       </div>
-      <span class="small ink2">${st.bookings.length ? "Здесь показаны только преподаватели, к которым у вас есть заявка или подтверждённый урок." : "После записи в «Репетиторах» здесь появятся ваше расписание, статус подтверждения и быстрый чат в WhatsApp."}</span>
+      <span class="small ink2">${st.bookings.length ? "Здесь показаны только преподаватели, к которым у вас есть заявка или подтверждённый урок." : "После записи в «Репетиторах» здесь появятся ваше расписание, статус подтверждения и прямые контакты WhatsApp, Telegram и MAX."}</span>
       <div class="row" style="gap:8px;flex-wrap:wrap">
         <button type="button" class="btn sm" data-a="go" data-v="market">Подобрать репетитора</button>
-        ${!hasMinBalance(st) ? `<button type="button" class="btn soft sm" data-a="bal-open">${icon("wallet")}<span>Пополнить от 5 000 ₽</span></button>` : ""}
+        ${!hasMinBalance(st) ? `<button type="button" class="btn soft sm" data-a="bal-open">${icon("wallet")}<span>Пополнить по СБП от 990 ₽</span></button>` : ""}
       </div>
     </div>`;
 
     const enrolledSection = !st.bookings.length
       ? `<div class="empty">
           <b>Вы пока не записаны ни к одному преподавателю</b>
-          <span>Откройте «Репетиторы», пополните счёт от 5 000 ₽ и отправьте заявку или запрос на бесплатный пробный урок.</span>
+          <span>Откройте «Репетиторы», пополните счёт по СБП от 990 ₽ и выберите обычный урок со ставкой или пробный урок 60 мин.</span>
           <button type="button" class="btn sm" data-a="go" data-v="market">Выбрать преподавателя</button>
         </div>`
       : (() => {
@@ -1097,7 +1141,7 @@
             const dayBookings = filteredBookings.filter((bk) => bk.dayIso === d.iso || (bk.dow != null && Number(bk.dow) === d.dow));
             dayBookings.forEach((bk) => {
               const tutor = TDATA.LIST.find((x) => x.id === bk.tutorId) || { id: bk.tutorId, name: bk.tutorName, subjectName: bk.subjectName, whatsapp: "79142100101", verified: true };
-              const isTrial = !!bk.isTrial || Number(bk.offerPrice) === 0;
+              const isTrial = !!bk.isTrial;
               weekRows.push({
                 id: `${bk.id}-${d.iso}`,
                 dayLabel: d.fullLabel,
@@ -1105,7 +1149,7 @@
                 format: bk.format || "Онлайн",
                 tutorName: bk.tutorName,
                 subjectName: bk.subjectName,
-                offerPrice: Number(bk.offerPrice) || 0,
+                offerPrice: Number(bk.offerPrice) || (isTrial ? 990 : 0),
                 isTrial,
                 status: bk.status || "pending",
                 tutor,
@@ -1154,7 +1198,7 @@
                     label: "Ставка",
                     minCols: 5,
                     num: true,
-                    render: (row) => `<b class="num">${row.isTrial ? "Пробный 0 ₽" : `${row.offerPrice.toLocaleString("ru-RU")} ₽/ч`}</b>`
+                    render: (row) => `<b class="num">${row.isTrial ? `Пробный ${row.offerPrice.toLocaleString("ru-RU")} ₽` : `${row.offerPrice.toLocaleString("ru-RU")} ₽/ч`}</b>`
                   },
                   {
                     key: "status",

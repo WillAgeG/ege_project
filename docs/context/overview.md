@@ -1,23 +1,24 @@
 # Контекст: Обзор системы, экраны и карта 7 репозиториев
 
 > [!NOTE]
-> Полная карта команд запуска 7 репозиториев: [REPOSITORIES.md](../../REPOSITORIES.md). Бэклог будущих интеграций: [ROADMAP_UNCONNECTED.md](../../ROADMAP_UNCONNECTED.md).
+> Полная карта команд запуска 7 репозиториев: [REPOSITORIES.md](../../REPOSITORIES.md). Бэклог будущих интеграций: [ROADMAP_UNCONNECTED.md](../../ROADMAP_UNCONNECTED.md). План запуска (`30.11.2026`, Якутск) и СБП-монетизация: [vektor_ege_pitch_300k_yakutsk.pdf](../../docs/business/vektor_ege_pitch_300k_yakutsk.pdf) и [vektor_ege_unit_economics_v2_sbp_low_fee.docx](../../docs/business/vektor_ege_unit_economics_v2_sbp_low_fee.docx).
 
 ## 1. Назначение «Вектор ЕГЭ»
 Веб-платформа подготовки к **ЕГЭ-2027** (биология, химия, русский язык) с адаптивным банком заданий, тренажёром сочинения Задания 27, планом поступления и встроенным маркетплейсом репетиторов с механикой торга `±100 ₽` и часовыми окнами `10:00–20:00` (`UTC+9` Якутск ↔ `UTC+3` Москва).
 
-## 2. Продуктовые режимы и экраны (`VIEWS` в `frontend/app.js`)
+## 2. Три сайта одного домена (`backend/shell.py` + `HOST_SITE` в `frontend/app.js`)
+Платформа разделена на 3 отдельных входа одного домена `:8770` через `render_index_html(..., site, view)` (плюс `/` для обратной совместимости) и публичные маршруты:
 - **Публичные**:
-  - `landing` (`/landing`) — hero с `/assets/lena-pillars.jpg`, калькулятор `±100 ₽`, витрина репетиторов, тарифы `0 / 5 000 / 10 000 ₽`, FAQ.
-  - `brandbook` (`/brandbook`) — живая документация дизайн-системы (`27` карточек `EGE.kit.CATALOG_ITEMS`, `40` анимируемых иконок, `6` видов графиков, `dataTableHTML` с `5` пресетами, разделы `#bb-mask-trainer`, `#bb-payments`, `#bb-ui-kit-shells`, `#bb-telemetry-etl`, `#bb-admin-kit`, `#bb-arch-split`, `#bb-ege-timers`, `#bb-a11y`).
-  - `fees` (`/fees`) — условия комиссии `5%` и порогов пополнения (`>= 5 000 ₽` первый платёж, от `100 ₽` далее); для преподавателя — раздел **«Выплаты»** с `#tc-payout-history`.
-  - `/privacy` — статическая HTML-страница политики конфиденциальности на Light-токенах брендбука (`backend/shell.py`).
-- **Ученик (`role="student"`, 5 пунктов меню + 3 предмета слева)**:
-  - `tests`, `tutor` (офлайн-справочник), `market` (подбор, табличные заявки `#student-bookings-table` и `#student-leads-table`), `study` (`#study-schedule-table`, `#study-chats-table`), `stats`, плюс `subject`, `topic`, `quiz`, `essay`, `plan`, `profile`. Виджет баланса: слева снизу на desktop, справа в топбаре на mobile.
-- **Преподаватель (`role="tutor"`, 7 пунктов меню desktop / 5 mobile)**:
-  - `cabinet` (`requests` `#tc-requests-table` + бейдж `tc-jump-pending`, `calendar` с `.ics`/Google Calendar `UTC+9`/`UTC+3`, `students` `#tc-students-table` + маски WA/TG/MAX, `leads` `#tc-leads-table`, `profile`), `fees` (Выплаты), `tutor` (Справочник). Виджет баланса: `#tutor-balance-dock` (справа снизу, скрыт `< 900 px`) и `#top-balance-slot` (mobile) с кнопкой **«Вывести»** (СБП / Мир от `500 ₽` + НПД).
-- **Админ-панель (`role="admin"`, `/admin`, `#admin`, пилюля `.side-admin-pill`)**:
-  - 5 вкладок: `overview` (KPI GMV / 95% / 5% / Заявки / Outbox + графики + `adm-overview-users`), `requests` (`#adm-requests-table`), `tutors` (`#adm-tutors-table`), `payouts` (`#adm-payouts-table`), `system` (`7` `serviceBoundaryCardHTML`, `pipelineStageCardHTML`, лента `outbox.kafka_outbox`).
+  - `landing` (`/landing`) — hero с `/assets/lena-pillars.jpg`, прямые ссылки на `/student` и `/tutor`, калькулятор `±100 ₽`, витрина репетиторов (`Верхняя полоса PRO 1 490 ₽/мес`), 5 СБП-тарифов `390 / 990 / 2 190 / 4 590 / 8 900 ₽`, СБП-эскроу, FAQ.
+  - `brandbook` (`/brandbook`) — живая документация дизайн-системы (`27` карточек `EGE.kit.CATALOG_ITEMS`, `40` анимируемых иконок, `6` видов графиков, `multiLineChartHTML` до `20` линий × `30+` точек, `dataTableHTML` `1–15` колонок с `showColsSwitch: true` и `5` пресетами, разделы `#bb-mask-trainer` .. `#bb-a11y`).
+  - `fees` (`/fees`, `site="tutor", view="fees"`) — условия СБП (`>= 990 ₽` первый платёж на уроки / `390 ₽` ИИ-Старт, от `100 ₽` далее), формула `95%/5%` (`8%` мини-группы) и «Выплаты» с `#tc-payout-history`.
+  - `/privacy` — статическая HTML-страница политики конфиденциальности на Light-токенах (`backend/shell.py`).
+- **Сайт Ученика (`/student` + `/`, `role="student"`, 5 пунктов меню + 3 предмета)**:
+  - `tests`, `tutor`, `market` (`#student-bookings-table`, `#student-leads-table`), `study` (`#study-schedule-table`, `#study-chats-table`), `stats`, `subject`, `topic`, `quiz`, `essay`, `plan`, `profile`. Виджет баланса: `#side-balance-slot` (desktop) / `#top-balance-slot` (mobile).
+- **Сайт Преподавателя (`/tutor`, `/teacher`, `/cabinet`, `role="tutor"`)**:
+  - `cabinet` (`requests` 5-кол. `#tc-requests-table`, чистый `calendar` 10:00–20:00 + модалка `tc-cal-import-modal`, 5-кол. `students` `#tc-students-table` с WA/TG/MAX, `leads` `#tc-leads-table` с контр-ценой `±100 ₽`, `profile` с единственным блоком «Поднять анкету»), `fees`, `tutor`. Баланс: `#side-balance-slot` слева снизу (`EGE.kit.sideTutorBalanceHTML`, `#tutor-balance-dock` отключён) и `#top-balance-slot` (mobile) с кнопкой **«Вывести»**.
+- **Админ-панель (`/admin`, `role="admin"`, `#admin`)**:
+  - 5 вкладок: `overview` (KPI GMV / 95% / 5% / Заявки / Outbox + 7-дневный `combo`-график + русифицированный 5-кол. `#adm-overview-users`), `requests` (`#adm-requests-table`), `tutors` (`#adm-tutors-table`), `payouts` (`#adm-payouts-table`), `system` (`serviceBoundaryCardHTML`, `pipelineStageCardHTML`, `outbox.kafka_outbox`).
 
 ## 3. Карта 7 независимых репозиториев (`/Users/aleksej/Documents/my_projects/`)
 

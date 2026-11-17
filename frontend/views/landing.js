@@ -543,8 +543,8 @@
     } else if (dm.tab === "calc") {
       const rate = Math.max(500, Math.min(3000, Number(dm.bidRate) || 1000));
       const rates = [800, 1000, 1200, 1400];
-      const n5 = Math.max(1, Math.floor(5000 / rate));
-      const n10 = Math.max(1, Math.floor(10000 / rate));
+      const n5 = Math.max(1, Math.floor(4590 / rate));
+      const n10 = Math.max(1, Math.floor(8900 / rate));
       const sampleTut = TDATA && TDATA.LIST[0];
       const tutorBase = sampleTut ? sampleTut.price : 1200;
       const marketEx = sampleTut && sampleTut.marketPrice ? sampleTut.marketPrice : 1550;
@@ -582,10 +582,10 @@
             <div class="fee-split-box">
               <div class="fee-pill"><span>Цена часа</span><b class="num" data-dc="rate">${rate.toLocaleString("ru-RU")} ₽/ч</b></div>
               <div class="fee-pill"><span>Ниже рынка (${marketEx.toLocaleString("ru-RU")} ₽)</span><b class="num" data-dc="save" style="color:var(--confirm)">${saveRub > 0 ? "−" + saveRub.toLocaleString("ru-RU") + " ₽" : "По рынку"}</b></div>
-              <div class="fee-pill"><span>На «Пробнике» 5 000 ₽</span><b class="num" data-dc="n5">${n5} ${plural(n5, "урок", "урока", "уроков")}</b></div>
+              <div class="fee-pill"><span>На «Стандарте» 4 590 ₽</span><b class="num" data-dc="n5">${n5} ${plural(n5, "урок", "урока", "уроков")}</b></div>
             </div>
           </div>
-          <p class="small muted">На тарифе 10 000 ₽ выйдет примерно <b data-dc="n10">${n10} ${plural(n10, "урок", "урока", "уроков")}</b>. Оплата замораживается только после согласия преподавателя. <a href="/fees" class="link-btn small" data-a="go" data-v="fees">Правила оплаты →</a></p>
+          <p class="small muted">На «Интенсиве» 8 900 ₽ выйдет примерно <b data-dc="n10">${n10} ${plural(n10, "урок", "урока", "уроков")}</b>. Оплата по СБП замораживается на эскроу только после согласия преподавателя. <a href="/fees" class="link-btn small" data-a="go" data-v="fees">Как работает СБП и правила оплаты →</a></p>
         </div>
         <div class="card pad demo-calc-card">
           <div class="stack" style="gap:10px">
@@ -667,8 +667,8 @@
     const ui = getUi();
     const dm = ui.demo || {};
     const rate = Math.max(500, Math.min(3000, Number(dm.bidRate) || 1000));
-    const n5 = Math.max(1, Math.floor(5000 / rate));
-    const n10 = Math.max(1, Math.floor(10000 / rate));
+    const n5 = Math.max(1, Math.floor(4590 / rate));
+    const n10 = Math.max(1, Math.floor(8900 / rate));
     const sampleTut = TDATA && TDATA.LIST[0];
     const tutorBase = sampleTut ? sampleTut.price : 1200;
     const marketEx = sampleTut && sampleTut.marketPrice ? sampleTut.marketPrice : 1550;
@@ -739,28 +739,28 @@
 
   const LAND_FAQ_ITEMS = [
     {
-      q: "Когда реально списываются деньги с баланса 5 000 ₽ или 10 000 ₽?",
-      a: "Баланс лежит на вашем счёте. Когда вы нажимаете «Предложить» и выбираете час 10:00–20:00, сумма урока только бронируется на время ожидания. Если преподаватель отклонит ставку или вы отмените заявку — бронь сразу возвращается на баланс.",
+      q: "Как работает СБП-платёжка и когда реально списываются деньги с баланса?",
+      a: "Мы принимаем оплату только через СБП (АЭБ, СберБанк, Т-Банк, ВТБ) — без привязки банковских карт и карточных наценок. Пополненный баланс (990 / 2 190 / 4 590 / 8 900 ₽) хранится на защищённом эскроу-счёте: деньги бронируются на ближайший урок и переводятся преподавателю только после проведённого занятия.",
       hasFeesLink: true
     },
     {
-      q: "Что делать, если преподаватель не согласился на −100 ₽ или −200 ₽?",
-      a: "Он может предложить встречное время или свою цену, а вы — в один клик отправить заявку соседнему репетитору из выдачи на тот же час без повторного ввода формы.",
+      q: "Почему первый пробный урок стоит 990 ₽ за 60 минут, а не «бесплатные 15 минут»?",
+      a: "Короткие 15-минутные созвоны часто превращаются в формальность без результата. Вместо этого в каждой анкете есть видео-визитка 60 сек до оплаты, а за 990 ₽ по СБП ученик получает полноценный часовой урок-диагностику ЕГЭ со 100% гарантией бесплатной замены преподавателя, если не совпал темп.",
       hasFeesLink: false
     },
     {
-      q: "Как вы проверяете анкеты с Доски Ykt, Telegram, WhatsApp и MAX?",
-      a: "Алгоритм убирает дубли по контактам и предмету, сверяет реальную нижнюю границу цены торга и требует подтверждения активности — преподаватель нажимает «Актуален сегодня», чтобы свежие окна были наверху каталога.",
+      q: "Когда открываются прямые кнопки WhatsApp, Telegram и MAX преподавателя?",
+      a: "Прямые контакты защищены шлюзом (Contact Escrow) и открываются автоматически в разделе «Учёба» сразу после бронирования слота (от 990 ₽). Так мы защищаем и родителей от спама, и преподавателей от пустых откликов без намерения учиться.",
       hasFeesLink: false
     },
     {
-      q: "Почему у некоторых репетиторов ставка выше средней по рынку?",
-      a: "Такие карточки помечены фиолетовым бейджем Профи («Высокая квалификация»): это эксперты ЕГЭ, кандидаты наук и педагоги с учениками на 90+ баллов или олимпиадными разборами.",
+      q: "Чем отличается «Мини-группа Саха» (2 190 ₽) от тарифа «ИИ-Старт ЕГЭ» (390 ₽/мес)?",
+      a: "«ИИ-Старт ЕГЭ» за 390 ₽/мес даёт безлимитный тренажёр ЕГЭ-2027 и ИИ-проверку сочинений К1–К12 без живого репетитора. «Мини-группа Саха» за 2 190 ₽ — это 4 живых урока в группе 3–5 учеников одного уровня (~548 ₽/ч), куда тариф ИИ-Старт уже включён бесплатно.",
       hasFeesLink: false
     },
     {
-      q: "Можно ли готовиться к ЕГЭ бесплатно без покупки подписки на уроки?",
-      a: "Да. Тариф 0 ₽ навсегда открывает тренажёр ЕГЭ, конспекты по темам, план подготовки и поиск по базе анкет. Платный баланс нужен только для регулярных занятий с репетиторами.",
+      q: "Что делать, если преподаватель не согласился на −100 ₽ или не подошёл по темпу?",
+      a: "Преподаватель может предложить встречное время или свою цену, а вы — в 1 клик перенести бронь на соседнего репетитора на тот же час без потери средств на балансе. При отмене ≥ 4 ч до урока 100% суммы мгновенно возвращается на ваш счёт.",
       hasFeesLink: true
     }
   ];
@@ -931,7 +931,10 @@
   }
 
   function trustUnderPlansHTML() {
-    return trustStripHTML();
+    return trustStripHTML({
+      title: "СБП-эскроу без карточных наценок · 100% гарантия замены на пробном 990 ₽",
+      desc: "Оплата по QR или кнопке банка (АЭБ, Сбер, Т-Банк, ВТБ) лежит на защищённом балансе и списывается поурочно. Контакты WA / TG / MAX открываются сразу после бронирования слота."
+    });
   }
 
   function reviewsSectionHTML() {
@@ -994,7 +997,10 @@
           <a href="#land-match" data-a="land-scroll" data-target="land-match">Подбор</a>
           <a href="#land-rates" data-a="land-scroll" data-target="land-rates">Ставки</a>
           <a href="#land-market" data-a="land-scroll" data-target="land-market">Репетиторы</a>
+          <a href="#land-plans" data-a="land-scroll" data-target="land-plans">Тарифы и СБП</a>
           <a href="#land-faq" data-a="land-scroll" data-target="land-faq">FAQ</a>
+          <a href="/student">Для ученика</a>
+          <a href="/tutor">Для преподавателя</a>
         </nav>
         <div class="land-top-actions">
           <button type="button" class="icon-btn sm" data-a="theme-toggle" aria-label="Сменить тему" title="Сменить тему">${icon(dark ? "sun" : "moon")}</button>
@@ -1022,6 +1028,8 @@
             <div class="land-hero-ctas">
               <button type="button" class="btn" data-a="land-scroll" data-target="land-market">К каталогу анкет</button>
               <button type="button" class="btn gold" data-a="land-scroll" data-target="land-demo">${icon("spark")}<span>Попробовать бета-тест</span></button>
+              <a class="btn soft" href="/student">Для ученика</a>
+              <a class="btn soft" href="/tutor">Для преподавателя</a>
               ${inside ? `<button type="button" class="btn ghost" data-a="go" data-v="${ui.role === "tutor" ? "cabinet" : "tests"}">В кабинет</button>` : ""}
             </div>
             <div class="land-stats">
@@ -1042,14 +1050,14 @@
         <div class="land-sec-head">
           <div>
             <div class="eyebrow">Как это устроено</div>
-            <h2 class="h2">От выбора часа до подтверждения преподавателя — в пару кликов</h2>
+            <h2 class="h2">От видео-визитки и выбора часа до урока по СБП — без лишних созвонов</h2>
           </div>
         </div>
         <div class="how-grid">
-          <div class="card how-card"><span class="how-num">01</span><b>Единая база из 5+ источников</b><p class="small ink2">Собираем анкеты с Доски Ykt, Telegram, WhatsApp, MAX и других сервисов по всем предметам и навыкам.</p></div>
-          <div class="card how-card"><span class="how-num">02</span><b>Ползунок времени 10:00–20:00</b><p class="small ink2">Двигай удобный час с 10:00 до 20:00 и сразу видишь свободных репетиторов в нужный интервал.</p></div>
-          <div class="card how-card"><span class="how-num">03</span><b>Ставка кнопками ±100 ₽</b><p class="small ink2">Выбирай удобную цену без лишних форм и нажимай «Сөп · Предложить» — запрос сразу уходит преподавателю.</p></div>
-          <div class="card how-card"><span class="how-num">04</span><b>Уведомление и расписание</b><p class="small ink2">Когда преподаватель подтвердит время и ставку, придёт уведомление — всё расписание в «Учёбе».</p></div>
+          <div class="card how-card"><span class="how-num">01</span><b>Видео-визитка 60 сек в анкете</b><p class="small ink2">Собираем анкеты с Доски Ykt, Telegram, WhatsApp и MAX: смотришь подачу педагога до оплаты без пустых 15-минутных созвонов.</p></div>
+          <div class="card how-card"><span class="how-num">02</span><b>Слот 10:00–20:00 и шаг ±100 ₽</b><p class="small ink2">Выбираешь удобный час и предлагаешь свою ставку либо полноценный пробный урок 60 мин за 990 ₽ с гарантией замены.</p></div>
+          <div class="card how-card"><span class="how-num">03</span><b>Оплата по СБП в защищённый эскроу</b><p class="small ink2">Пополняешь баланс по СБП без карточных наценок — бронь слота сразу открывает WhatsApp, Telegram и MAX в «Учёбе».</p></div>
+          <div class="card how-card"><span class="how-num">04</span><b>Поурочное списание и отчёт родителю</b><p class="small ink2">Деньги переводятся преподавателю только после занятия, маме уходит отчёт в мессенджер, а замена работает в 1 клик.</p></div>
         </div>
       </section>
 
@@ -1065,27 +1073,43 @@
           <div class="land-sec-head">
             <div>
               <div class="eyebrow">Для преподавателей</div>
-              <h2 class="h2">Анкеты с Доски Ykt, Telegram, WhatsApp, MAX без наценок школ</h2>
+              <h2 class="h2">Готовые ученики по СБП, видео-визитка 60 сек и «Верхняя полоса PRO»</h2>
             </div>
             <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
-              <a href="/fees" class="btn soft sm" data-a="go" data-v="fees">Условия оплаты →</a>
+              <a href="/tutor" class="btn ghost sm">Кабинет преподавателя →</a>
+              <a href="/fees" class="btn soft sm" data-a="go" data-v="fees">Условия оплаты и СБП →</a>
               <button type="button" class="btn sm${tutorApplied ? " is-confirmed" : ""}" data-a="tutor-apply-open">${tutorApplied ? "✓ Анкета отправлена (" + esc(tutorApplied.name) + ")" : "Разместить анкету за 1 минуту"}</button>
             </div>
           </div>
           <div class="tutor-perks-grid">
             <div class="tutor-perk-card">
               <span class="tutor-perk-ico" aria-hidden="true">${icon("clock")}</span>
-              <div class="stack" style="gap:4px"><b>Готовые заявки по времени и цене</b><p class="small ink2">Ученик выбирает час и ставку — сервис аккуратно передаёт предложение и уведомляет при ответе.</p></div>
+              <div class="stack" style="gap:4px"><b>Ученики после пробного 990 ₽</b><p class="small ink2">Никаких случайных контактов: заявки приходят с оплаченным балансом (990 / 2 190 / 4 590 / 8 900 ₽) и выбранным часом 10:00–20:00.</p></div>
             </div>
             <div class="tutor-perk-card">
               <span class="tutor-perk-ico" aria-hidden="true">${icon("flame")}</span>
-              <div class="stack" style="gap:4px"><b>Бесплатный топ каждый день</b><p class="small ink2">Раз в сутки нажимаете «Актуален сегодня» — ваша анкета сразу поднимается вверх каталога.</p></div>
+              <div class="stack" style="gap:4px"><b>«Верхняя полоса PRO» и мини-группы</b><p class="small ink2">Закрепление наверху предмета в часы пик Якутска + право набирать мини-группы 3–5 чел. с доходом до ~2 015 ₽/ч чистыми.</p></div>
             </div>
             <div class="tutor-perk-card">
               <span class="tutor-perk-ico" aria-hidden="true">${icon("shield")}</span>
-              <div class="stack" style="gap:4px"><b>Безопасный баланс и расчёты</b><p class="small ink2">Ученик пополняет баланс 5 000 или 10 000 ₽ — средства бронируются только после вашего подтверждения. <a href="/fees" data-a="go" data-v="fees" style="color:var(--accent);font-weight:600">Подробнее об оплате →</a></p></div>
+              <div class="stack" style="gap:4px"><b>Поурочный СБП-эскроу и чек НПД</b><p class="small ink2">Вывод средств на СБП от 500 ₽ с автоматическим чеком НПД («Мой налог»). <a href="/fees" data-a="go" data-v="fees" style="color:var(--accent);font-weight:600">Подробнее об оплате →</a></p></div>
             </div>
           </div>
+          ${(() => {
+            const tPlans = (TDATA && Array.isArray(TDATA.TUTOR_PLANS) && TDATA.TUTOR_PLANS) || [];
+            if (!tPlans.length) return "";
+            return `<div class="grid-2">${tPlans.map((tp) => `<div class="card pad stack${tp.pro ? " plan-card featured" : ""}" style="gap:10px;box-shadow:none">
+              <div class="row between" style="gap:8px;flex-wrap:wrap">
+                <b>${esc(tp.name)}</b>
+                <span class="chip ${tp.pro ? "pro" : ""}">${esc(tp.badge)}</span>
+              </div>
+              <div class="row" style="gap:8px;align-items:baseline;flex-wrap:wrap">
+                <b class="num" style="font-size:22px">${esc(tp.priceLabel)}</b>
+                <span class="small muted">${esc(tp.subLabel)}</span>
+              </div>
+              <ul class="plan-feats">${(tp.features || []).map((f) => `<li><span>${esc(f)}</span></li>`).join("")}</ul>
+            </div>`).join("")}</div>`;
+          })()}
         </div>
       </section>
 
@@ -1096,6 +1120,10 @@
       <footer class="land-footer small muted">
         <span>Вектор ЕГЭ · тесты, конспекты и маркетплейс репетиторов</span>
         <div class="land-footer-links">
+          <a href="/student" class="land-foot-link">${icon("book")}<span>Для ученика</span></a>
+          <a href="/tutor" class="land-foot-link">${icon("users")}<span>Для преподавателя</span></a>
+          <a href="/admin" class="land-foot-link">${icon("shield")}<span>Админ-панель</span></a>
+          <a href="/brandbook" class="land-foot-link">${icon("spark")}<span>UI Kit / Brandbook</span></a>
           <a href="/fees" class="land-foot-link" data-a="go" data-v="fees">${icon("shield")}<span>Условия оплаты и сбор системы</span></a>
           <a href="/privacy" class="land-foot-link is-sakha">${icon("ohyorCross")}<span>Политика конфиденциальности</span></a>
           <button type="button" class="land-foot-link" data-a="bug-site">${icon("bug")}<span>Сообщить о баге (${esc(_ctx.BUG_EMAIL || "willagegg@gmail.com")})</span></button>

@@ -401,6 +401,23 @@
     </div>`;
   }
 
+  function sideTutorBalanceHTML(opts) {
+    opts = opts || {};
+    const available = Math.max(0, Math.round(Number(opts.availableRub != null ? opts.availableRub : opts.available) || 0));
+    const escrow = Math.max(0, Math.round(Number(opts.escrowRub != null ? opts.escrowRub : opts.escrow) || 0));
+    const action = opts.action || "tc-payout-open";
+    const widget = topBalanceWidgetHTML({
+      role: "tutor",
+      amountRub: available,
+      compact: true,
+      pillAction: action,
+      btnAction: action,
+      btnLabel: "Вывести",
+      ariaLabel: opts.ariaLabel || "Баланс преподавателя"
+    });
+    return `<div class="side-tutor-bal">${widget}<div class="small muted num" style="padding:2px 4px 0">В резерве: ${escrow.toLocaleString("ru-RU")} ₽</div></div>`;
+  }
+
   function walletSummaryBarHTML(opts) {
     opts = opts || {};
     const amount = Math.max(0, Math.round(Number(opts.amountRub != null ? opts.amountRub : opts.amount) || 0));
@@ -842,6 +859,7 @@
     sideToastInnerHTML,
     topBalanceWidgetHTML,
     tutorBalanceDockHTML,
+    sideTutorBalanceHTML,
     walletSummaryBarHTML,
     emptyStateHTML,
     skeletonCardHTML,

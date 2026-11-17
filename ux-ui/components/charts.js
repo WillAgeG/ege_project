@@ -1,4 +1,4 @@
-/* Визуализация данных UI Kit (EGE.charts): палочные графики (6 стилей + тренд), линейный график, кольцевая диаграмма и таблица. */
+/* Визуализация данных UI Kit (EGE.charts): палочные графики (6 стилей + единый SVG тренд), multi-line до 20×30+ и кольцевая диаграмма. */
 (function () {
   "use strict";
 
@@ -12,7 +12,15 @@
     ["capsule", "Капсулы", "03 · Капсульные палочки в колбе (.is-capsule)", "Градусники-колбы 14 px в обводке для прогресса недели, загрузки часов и квот преподавателя."],
     ["dual", "Парные", "04 · Парные палочки «Рынок vs Ставка» (.is-dual)", "Две палочки рядом на одном делении: фиолетовый ориентир рынка против синей/золотой ставки."],
     ["range", "Диапазон", "05 · Диапазонные палочки «Мин–Макс» (.is-range)", "Плавающий отрезок между минимумом и максимумом дня — разброс цен и коридор баллов ЕГЭ."],
-    ["combo", "Тренд", "06 · Палочки + линия тренда (.is-combo)", "Сочетание 5 px палочек с плавной линией тренда и опорными узлами динамики."]
+    ["combo", "Тренд", "06 · Палочки + линия тренда (.is-combo)", "Единый SVG: палочки, монотонная кривая Фрича–Карлсона с градиентом и точные узлы без рассинхрона."]
+  ];
+
+  /* Палитра из 20 контрастных различимых цветов брендбука Вектор ЕГЭ. */
+  const CHART_PALETTE_20 = [
+    "#0070ff", "#c59b5f", "#7c3aed", "#16a34a", "#f97316",
+    "#0284c7", "#e11d48", "#0d9488", "#d97706", "#6366f1",
+    "#db2777", "#65a30d", "#2563eb", "#9333ea", "#dc2626",
+    "#0891b2", "#ca8a04", "#4f46e5", "#ea580c", "#059669"
   ];
 
   function chartDatasetBars(dsId) {
@@ -49,54 +57,191 @@
     ];
   }
 
-  let _comboGradSeq = 0;
+  let _gradSeq = 0;
 
-  /* Монотонная гладкая кривая Безье по контрольным узлам графика. */
-  function smoothTrendPath(pts) {
+  /* Монотонная кубическая интерполяция Фрича–Карлсона: проходит через каждый (x, y) без вылетов. */
+  function monotoneCubicPath(pts) {
     if (!pts || !pts.length) return "";
-    let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
-    for (let i = 0; i < pts.length - 1; i++) {
-      const p0 = pts[i];
-      const p1 = pts[i + 1];
-      const cx = ((p0.x + p1.x) / 2).toFixed(1);
-      d += ` C ${cx} ${p0.y.toFixed(1)}, ${cx} ${p1.y.toFixed(1)}, ${p1.x.toFixed(1)} ${p1.y.toFixed(1)}`;
+    const n = pts.length;
+    if (n === 1) return `M ${pts[0].x.toFixed(2)} ${pts[0].y.toFixed(2)}`;
+    if (n === 2) {
+      return `M ${pts[0].x.toFixed(2)} ${pts[0].y.toFixed(2)} L ${pts[1].x.toFixed(2)} ${pts[1].y.toFixed(2)}`;
     }
-    return d;
+    const dx = new Array(n - 1);
+    const d = new Array(n - 1);
+    for (let i = 0; i < n - 1; i++) {
+      dx[i] = pts[i + 1].x - pts[i].x;
+      const dy = pts[i + 1].y - pts[i].y;
+      d[i] = dx[i] > 1e-6 ? dy / dx[i] : 0;
+    }
+    const m = new Array(n);
+    m[0] = d[0];
+    m[n - 1] = d[n - 2];
+    for (let i = 1; i < n - 1; i++) {
+      m[i] = d[i - 1] * d[i] <= 0 ? 0 : (d[i - 1] + d[i]) / 2;
+    }
+    for (let i = 0; i < n - 1; i++) {
+      if (Math.abs(d[i]) < 1e-9) {
+        m[i] = 0;
+        m[i + 1] = 0;
+      } else {
+        const alpha = m[i] / d[i];
+        const beta = m[i + 1] / d[i];
+        const hypot2 = alpha * alpha + beta * beta;
+        if (hypot2 > 9) {
+          const tau = 3 / Math.sqrt(hypot2);
+          m[i] = tau * alpha * d[i];
+          m[i + 1] = tau * beta * d[i];
+        }
+      }
+    }
+    let path = `M ${pts[0].x.toFixed(2)} ${pts[0].y.toFixed(2)}`;
+    for (let i = 0; i < n - 1; i++) {
+      const h = dx[i] / 3;
+      const c1x = pts[i].x + h;
+      const c1y = pts[i].y + m[i] * h;
+      const c2x = pts[i + 1].x - h;
+      const c2y = pts[i + 1].y - m[i + 1] * h;
+      path += ` C ${c1x.toFixed(2)} ${c1y.toFixed(2)}, ${c2x.toFixed(2)} ${c2y.toFixed(2)}, ${pts[i + 1].x.toFixed(2)} ${pts[i + 1].y.toFixed(2)}`;
+    }
+    return path;
+  }
+
+  function smoothTrendPath(pts) {
+    return monotoneCubicPath(pts);
+  }
+
+  /* Равномерное прореживание индексов оси X с гарантированным показом первого и последнего. */
+  function buildTickIndices(n, maxTicks) {
+    if (n <= 0) return [];
+    const cap = Math.max(2, Number(maxTicks) || 8);
+    if (n <= cap) return Array.from({ length: n }, (_, i) => i);
+    const step = Math.ceil((n - 1) / (cap - 1));
+    const list = [0];
+    for (let i = step; i < n - 1; i += step) {
+      if (n - 1 - i >= Math.max(1, Math.ceil(step * 0.5))) {
+        list.push(i);
+      }
+    }
+    list.push(n - 1);
+    return list;
+  }
+
+  /* Единая SVG-отрисовка combo-графика (сетка, подписи, палочки, узлы и монотонная кривая без рассинхрона). */
+  function comboSvgHTML(bars, activeIdx, interactive, action) {
+    const n = bars.length;
+    if (!n) return "";
+    const W = 640;
+    const H = 206;
+    const padL = 22;
+    const padR = 22;
+    const padT = 28;
+    const padB = 28;
+    const plotW = W - padL - padR;
+    const plotH = H - padT - padB;
+    const plotBottom = padT + plotH;
+    const slotW = plotW / n;
+    const clampPct = (v) => Math.max(10, Math.min(96, Number(v) || 0));
+
+    const coords = bars.map((b, idx) => {
+      const pct = clampPct(b.pct);
+      const cx = padL + (idx + 0.5) * slotW;
+      const cy = plotBottom - (pct / 100) * plotH;
+      return { cx, cy, pct, b, idx };
+    });
+
+    const pts = coords.map((c) => ({ x: c.cx, y: c.cy }));
+    const lineD = monotoneCubicPath(pts);
+    const areaD = `${lineD} L ${pts[pts.length - 1].x.toFixed(2)} ${plotBottom.toFixed(2)} L ${pts[0].x.toFixed(2)} ${plotBottom.toFixed(2)} Z`;
+    const gradId = `tc-combo-grad-${++_gradSeq}`;
+
+    const tickStep = n > 10 ? Math.ceil(n / 8) : 1;
+    const showTick = (idx) =>
+      n <= 10 ||
+      idx === 0 ||
+      idx === n - 1 ||
+      (idx % tickStep === 0 && n - 1 - idx >= Math.max(1, Math.ceil(tickStep * 0.5)));
+
+    const stickW = n > 20 ? 3.5 : n > 12 ? 4.5 : 5;
+    const dotR = n > 18 ? 3.5 : 4.6;
+
+    const gridSvg = [0.25, 0.5, 0.75, 1]
+      .map((f) => {
+        const gy = (plotBottom - f * plotH).toFixed(1);
+        return `<line class="tc-combo-grid" x1="${padL}" y1="${gy}" x2="${W - padR}" y2="${gy}"/>`;
+      })
+      .join("");
+
+    const sticksSvg = coords
+      .map((c) => {
+        const fill = c.b.gold ? "#c59b5f" : "var(--accent)";
+        const h = Math.max(2, plotBottom - c.cy);
+        return `<rect class="tc-combo-stick" x="${(c.cx - stickW / 2).toFixed(2)}" y="${c.cy.toFixed(2)}" width="${stickW}" height="${h.toFixed(2)}" rx="${(stickW / 2).toFixed(2)}" fill="${fill}" opacity="0.86"/>`;
+      })
+      .join("");
+
+    const colsSvg = coords
+      .map((c) => {
+        const isAct = interactive && activeIdx === c.idx;
+        const fill = c.b.gold ? "#c59b5f" : "var(--accent)";
+        const showX = showTick(c.idx);
+        const showVal = showX || isAct;
+        const interactAttr = interactive
+          ? ` data-a="${esc(action)}" data-idx="${c.idx}" tabindex="0" role="button" aria-pressed="${isAct}" aria-label="${esc(c.b.detail || `${c.b.wd}: ${c.b.val}`)}"`
+          : "";
+        return `<g class="tc-combo-col${isAct ? " is-active" : ""}"${interactAttr}>
+          <rect x="${(c.cx - slotW / 2).toFixed(2)}" y="0" width="${slotW.toFixed(2)}" height="${H}" fill="transparent"/>
+          ${isAct ? `<circle cx="${c.cx.toFixed(2)}" cy="${c.cy.toFixed(2)}" r="10.5" fill="${fill}" opacity="0.22"/>` : ""}
+          <circle class="tc-combo-dot" cx="${c.cx.toFixed(2)}" cy="${c.cy.toFixed(2)}" r="${isAct ? 5.6 : dotR}" fill="${fill}" stroke="var(--surface)" stroke-width="${n > 18 ? 1.5 : 2}"/>
+          ${showVal ? `<text class="tc-combo-val" x="${c.cx.toFixed(2)}" y="${Math.max(12, c.cy - 10).toFixed(2)}" text-anchor="middle">${esc(c.b.val)}</text>` : ""}
+          ${showX ? `<text class="tc-combo-lbl" x="${c.cx.toFixed(2)}" y="${H - 7}" text-anchor="middle">${esc(c.b.wd)}</text>` : ""}
+        </g>`;
+      })
+      .join("");
+
+    return `<div class="tc-combo-svg-wrap">
+      <svg class="tc-combo-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="presentation">
+        <defs>
+          <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="var(--gold)" stop-opacity="0.26"/>
+            <stop offset="100%" stop-color="var(--gold)" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        ${gridSvg}
+        <line class="tc-combo-baseline" x1="${padL}" y1="${plotBottom}" x2="${W - padR}" y2="${plotBottom}"/>
+        <path class="tc-combo-area" d="${areaD}" fill="url(#${gradId})"/>
+        ${sticksSvg}
+        <path class="tc-combo-line" d="${lineD}" fill="none" stroke="var(--gold)" stroke-width="${n > 20 ? 2 : 2.4}" stroke-linecap="round" stroke-linejoin="round"/>
+        ${colsSvg}
+      </svg>
+    </div>`;
   }
 
   /* Универсальный график с палочками (sticks, lollipop, capsule, dual, range, combo, classic). */
   function stickChartHTML(styleId, bars, activeIdx, interactive, ariaLabel, opts) {
     opts = opts || {};
+    bars = Array.isArray(bars) ? bars : [];
     const action = opts.action || "bb-chart-bar";
     const modCls = styleId && styleId !== "classic" ? ` is-${styleId}` : "";
-    const isCombo = styleId === "combo";
-    const clampPct = (v) => Math.max(10, Math.min(96, Math.round(Number(v) || 0)));
-    let comboSvg = "";
-    if (isCombo && bars && bars.length) {
-      const n = bars.length;
-      const pts = bars.map((b, i) => {
-        const pct = clampPct(b.pct);
-        return {
-          x: ((i + 0.5) / n) * 280,
-          y: 92 * (1 - pct / 100)
-        };
-      });
-      const lineD = smoothTrendPath(pts);
-      const areaD = `${lineD} L ${pts[pts.length - 1].x.toFixed(1)} 92 L ${pts[0].x.toFixed(1)} 92 Z`;
-      const gradId = `tc-combo-grad-${++_comboGradSeq}`;
-      comboSvg = `<svg class="tc-combo-svg" viewBox="0 0 280 92" preserveAspectRatio="none" aria-hidden="true">
-        <defs>
-          <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="var(--gold)" stop-opacity="0.24"/>
-            <stop offset="100%" stop-color="var(--gold)" stop-opacity="0"/>
-          </linearGradient>
-        </defs>
-        <path class="tc-combo-area" d="${areaD}" fill="url(#${gradId})"/>
-        <path class="tc-combo-line" d="${lineD}" fill="none" stroke="var(--gold)" stroke-width="2.2" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>`;
+    const denseCls = bars.length > 10 ? " is-dense" : "";
+    const label = esc(ariaLabel || "Диаграмма с палочками");
+
+    if (styleId === "combo") {
+      return `<div class="tc-bar-chart is-combo${denseCls}" style="--bar-count:${bars.length}" role="img" aria-label="${label}">
+        ${comboSvgHTML(bars, activeIdx, interactive, action)}
+      </div>`;
     }
-    return `<div class="tc-bar-chart${modCls}" role="img" aria-label="${esc(ariaLabel || "Диаграмма с палочками")}">
-      ${comboSvg}
+
+    const n = bars.length;
+    const clampPct = (v) => Math.max(10, Math.min(96, Math.round(Number(v) || 0)));
+    const tickStep = n > 10 ? Math.ceil(n / 8) : 1;
+    const showTick = (idx) =>
+      n <= 10 ||
+      idx === 0 ||
+      idx === n - 1 ||
+      (idx % tickStep === 0 && n - 1 - idx >= Math.max(1, Math.ceil(tickStep * 0.5)));
+
+    return `<div class="tc-bar-chart${modCls}${denseCls}" style="--bar-count:${n}" role="img" aria-label="${label}">
       ${bars.map((b, idx) => {
         const isAct = interactive && activeIdx === idx;
         const pct = clampPct(b.pct);
@@ -108,8 +253,11 @@
           : (isRange
             ? `<div class="tc-bar-fill${b.gold ? " is-gold" : ""}" style="--low:${b.low}%;height:${b.span}%"></div>`
             : `<div class="tc-bar-fill${b.gold ? " is-gold" : ""}" style="height:${pct}%"></div>`);
-        const minRow = isRange && b.minVal ? `<span class="tc-bar-min num">${esc(b.minVal)}</span>` : "";
-        const body = `<span class="tc-bar-val num">${esc(topVal)}</span><div class="tc-bar-track">${inner}</div>${minRow}<span class="tc-bar-lbl">${esc(b.wd)}</span>`;
+        const showLbl = showTick(idx);
+        const valText = (showLbl || isAct) ? esc(topVal) : "";
+        const lblText = showLbl ? esc(b.wd) : "";
+        const minRow = isRange && b.minVal ? `<span class="tc-bar-min num">${showLbl || isAct ? esc(b.minVal) : ""}</span>` : "";
+        const body = `<span class="tc-bar-val num">${valText}</span><div class="tc-bar-track">${inner}</div>${minRow}<span class="tc-bar-lbl">${lblText}</span>`;
         if (interactive) {
           return `<button type="button" class="tc-bar-col${isAct ? " is-active" : ""}" data-a="${esc(action)}" data-idx="${idx}" aria-pressed="${isAct}">${body}</button>`;
         }
@@ -118,12 +266,297 @@
     </div>`;
   }
 
-  /* Линейный график с областью и интерактивными узлами (.bb-line-chart). */
-  function lineChartHTML(opts) {
+  const DEMO_SERIES_NAMES = {
+    income: [
+      "Биология ЕГЭ · 95%", "Химия Медвуз · 95%", "Русский Зад. 27", "Математика Профиль",
+      "Информатика КЕГЭ", "Мини-группы 2–4", "Интенсив ФИПИ", "Автоподнятие 24ч",
+      "СБП Т-Банк", "Якутск (UTC+9)", "Москва (UTC+3)", "Олимпиадная подг.",
+      "Пробник с разбором", "ОГЭ 9 класс", "Физика ЕГЭ", "Обществознание",
+      "Английский ЕГЭ", "Абонемент 8 ур.", "Срочный слот ±100", "Вечерний слот 19ч"
+    ],
+    scores: [
+      "Биология · Медвуз", "Химия · Органика", "Русский · Зад. 27", "Математика профиль",
+      "Информатика КЕГЭ", "Физика · Механика", "Обществознание", "История · Вторая ч.",
+      "Английский язык", "Литература", "География", "Биология · Линия 28",
+      "Химия · Задача 34", "Русский · Орфография", "Математика · Параметры", "КЕГЭ · Python 27",
+      "Физика · Оптика", "Право и экономика", "Олимпиадная химия", "Пробник ФИПИ ср."
+    ],
+    slots: [
+      "Якутск · Биология", "Якутск · Химия", "Якутск · Русский", "Москва · Профиль",
+      "Telegram-бот", "MAX мессенджер", "Доска Ykt", "WhatsApp",
+      "Слот 16:00", "Слот 18:00", "Слот 14:00", "Слот 20:00",
+      "Слот 10:00", "Мини-группы 2–4", "Пробные 0 ₽", "Автоподнятие 24 ч",
+      "Повторные ученики", "Казань · КЕГЭ", "Новосибирск · Физ", "Питер · Медвуз"
+    ]
+  };
+
+  function formatPointLabel(ds, idx, total) {
+    if (total <= 7) {
+      const base = chartDatasetBars(ds);
+      if (base[idx]) return base[idx].wd;
+    }
+    if (ds === "scores") return `Т${idx + 1}`;
+    if (ds === "slots") return `${10 + (idx % 11)}ч`;
+    const day = (idx % 30) + 1;
+    const month = 5 + Math.floor(idx / 30);
+    return `${String(day).padStart(2, "0")}.${String(month).padStart(2, "0")}`;
+  }
+
+  /* Генератор детерминированных стресс-данных: 1..20 серий × 5..36+ точек со спусками и заходами. */
+  function buildMultiSeriesDemo(linesCount, pointsCount, datasetId) {
+    const lines = Math.max(1, Math.min(20, Math.round(Number(linesCount) || 1)));
+    const pts = Math.max(2, Math.min(48, Math.round(Number(pointsCount) || 7)));
+    const ds = datasetId === "scores" || datasetId === "slots" ? datasetId : "income";
+    const names = DEMO_SERIES_NAMES[ds];
+    const series = [];
+
+    for (let li = 0; li < lines; li++) {
+      const name = names[li % names.length];
+      const color = CHART_PALETTE_20[li % CHART_PALETTE_20.length];
+      const phase = li * 0.63;
+      const dipCenter = 0.28 + ((li * 7) % 10) * 0.02;
+      const surgeCenter = 0.72 + ((li * 5) % 8) * 0.018;
+      const points = [];
+
+      for (let pi = 0; pi < pts; pi++) {
+        const t = pts > 1 ? pi / (pts - 1) : 0;
+        const base = 44 + ((li * 11) % 24);
+        const wave1 = 18 * Math.sin(t * Math.PI * (2.4 + (li % 3) * 0.45) + phase);
+        const wave2 = 9 * Math.cos(t * Math.PI * (5.2 + (li % 4) * 0.5) - phase * 0.7);
+        const dip = -18 * Math.exp(-Math.pow((t - dipCenter) / 0.11, 2));
+        const surge = 22 * Math.exp(-Math.pow((t - surgeCenter) / 0.12, 2));
+        const pct = Math.max(10, Math.min(97, Math.round(base + wave1 + wave2 + dip + surge)));
+        const wd = formatPointLabel(ds, pi, pts);
+
+        let num = pct;
+        let val = String(pct);
+        if (ds === "slots") {
+          num = Math.max(2, Math.round((pct / 100) * 28));
+          val = String(num);
+        } else if (ds === "income") {
+          num = Math.round(((pct / 100) * 9600) / 100) * 100;
+          val = `${(num / 1000).toFixed(1)}к`;
+        }
+        points.push({
+          wd,
+          val,
+          num,
+          pct,
+          gold: pct >= 82,
+          detail: `${name} · ${wd}: ${val}${ds === "income" ? " ₽" : ds === "scores" ? " б." : " откл."}`
+        });
+      }
+      series.push({ name, color, points });
+    }
+    return series;
+  }
+
+  /* Линейный график до 20 серий и 40+ точек с адаптивной толщиной, прореживанием оси X и легендой. */
+  function multiLineChartHTML(opts) {
     opts = opts || {};
     const ds = opts.dataset || "income";
+    let rawSeries = Array.isArray(opts.series) && opts.series.length ? opts.series : null;
+    if (!rawSeries) {
+      if (Array.isArray(opts.bars) && opts.bars.length && !(Number(opts.linesCount) > 1)) {
+        rawSeries = [{ name: opts.seriesName || "Динамика", color: CHART_PALETTE_20[0], points: opts.bars }];
+      } else {
+        const lCount = opts.linesCount || 1;
+        const pCount = opts.pointsCount || (Array.isArray(opts.bars) && opts.bars.length ? opts.bars.length : 7);
+        rawSeries = buildMultiSeriesDemo(lCount, pCount, ds);
+      }
+    }
+
+    const lines = rawSeries.slice(0, 20).map((s, idx) => ({
+      name: s.name || `Серия ${idx + 1}`,
+      color: s.color || CHART_PALETTE_20[idx % CHART_PALETTE_20.length],
+      points: Array.isArray(s.points) ? s.points : []
+    })).filter((s) => s.points.length > 0);
+
+    if (!lines.length) return "";
+
+    const n = Math.max(...lines.map((s) => s.points.length));
+    const activeIdx = Number.isInteger(opts.activeIdx)
+      ? Math.max(0, Math.min(n - 1, opts.activeIdx))
+      : Math.min(n - 1, Math.floor(n / 2));
+    const action = opts.action || "bb-line-pt";
+    const gradId = esc(opts.gradId || `bbMultiGrad-${++_gradSeq}`);
+
+    const w = 640;
+    const h = lines.length > 1 ? 216 : 194;
+    const padL = 38;
+    const padR = 18;
+    const padT = 20;
+    const padB = 26;
+    const plotW = w - padL - padR;
+    const plotH = h - padT - padB;
+    const plotBottom = padT + plotH;
+
+    const strokeWidth = lines.length > 8 ? 1.7 : 2.4;
+    const nodeRadius = lines.length > 6 ? 2.4 : n > 18 ? 3 : 4.2;
+    const isDensePoints = n > 12 || lines.length > 3;
+
+    const seriesCoords = lines.map((s) => {
+      const coords = s.points.map((pt, i) => {
+        const x = padL + (i * plotW) / Math.max(1, n - 1);
+        const pct = Math.max(6, Math.min(100, Number(pt.pct) || 0));
+        const y = plotBottom - (pct / 100) * plotH;
+        return { x: Number(x.toFixed(2)), y: Number(y.toFixed(2)), pt, idx: i };
+      });
+      return {
+        name: s.name,
+        color: s.color,
+        coords,
+        pathD: monotoneCubicPath(coords)
+      };
+    });
+
+    const goalPct = ds === "scores" ? 80 : ds === "slots" ? 72 : 68;
+    const goalY = (plotBottom - (goalPct / 100) * plotH).toFixed(1);
+    const goalLabel = ds === "scores" ? "Цель 80 б." : ds === "slots" ? "Норма спроса" : "Ориентир 5.4к ₽";
+    const yTicks = ds === "scores" ? ["100", "75", "50", "25"] : ds === "slots" ? ["24", "18", "12", "6"] : ["8к", "6к", "4к", "2к"];
+
+    const tickIndices = buildTickIndices(n, 8);
+    const refPoints = lines[0].points;
+    const actRefPt = refPoints[activeIdx] || refPoints[0];
+    const actX = padL + (activeIdx * plotW) / Math.max(1, n - 1);
+
+    const gridSvg = [0, 0.25, 0.5, 0.75]
+      .map((f, yi) => {
+        const gy = (padT + f * plotH).toFixed(1);
+        return `<line class="bb-line-grid" x1="${padL}" y1="${gy}" x2="${w - padR}" y2="${gy}"/>
+          <text x="${padL - 6}" y="${Number(gy) + 4}" text-anchor="end" font-size="10.5" fill="var(--muted)" font-family="var(--font-mono)">${esc(yTicks[yi] || "")}</text>`;
+      })
+      .join("");
+
+    const xTicksSvg = tickIndices
+      .map((idx) => {
+        const pt = refPoints[idx];
+        if (!pt) return "";
+        const tx = (padL + (idx * plotW) / Math.max(1, n - 1)).toFixed(2);
+        const anchor = idx === 0 ? "start" : idx === n - 1 ? "end" : "middle";
+        return `<text class="bb-line-svg-xtick${idx === activeIdx ? " is-active" : ""}" x="${tx}" y="${h - 6}" text-anchor="${anchor}">${esc(pt.wd)}</text>`;
+      })
+      .join("");
+
+    let singleAreaSvg = "";
+    if (lines.length === 1 && seriesCoords[0].coords.length) {
+      const sc0 = seriesCoords[0].coords;
+      const areaD = `${seriesCoords[0].pathD} L ${sc0[sc0.length - 1].x} ${plotBottom.toFixed(2)} L ${sc0[0].x} ${plotBottom.toFixed(2)} Z`;
+      singleAreaSvg = `<defs>
+        <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${esc(lines[0].color)}" stop-opacity="0.26"/>
+          <stop offset="100%" stop-color="${esc(lines[0].color)}" stop-opacity="0.01"/>
+        </linearGradient>
+      </defs>
+      <path d="${areaD}" fill="url(#${gradId})"/>`;
+    }
+
+    const pathsSvg = seriesCoords
+      .map((sc) => `<path class="bb-line-path" d="${sc.pathD}" style="stroke:${esc(sc.color)};stroke-width:${strokeWidth}"/>`)
+      .join("");
+
+    let nodesSvg = "";
+    if (lines.length === 1) {
+      const sc = seriesCoords[0];
+      nodesSvg = sc.coords
+        .map((c) => {
+          const isAct = c.idx === activeIdx;
+          const fill = c.pt.gold ? "#c59b5f" : sc.color;
+          const showBaseCircle = !isDensePoints || isAct;
+          return `<g class="bb-line-node" data-a="${esc(action)}" data-idx="${c.idx}" tabindex="0" role="button" aria-label="${esc(c.pt.detail || `${c.pt.wd}: ${c.pt.val}`)}">
+            <circle cx="${c.x}" cy="${c.y}" r="${isDensePoints ? 9 : 11}" fill="transparent"/>
+            ${isAct ? `<circle cx="${c.x}" cy="${c.y}" r="11" fill="${esc(fill)}" opacity="0.22"/>` : ""}
+            ${showBaseCircle ? `<circle class="is-core" cx="${c.x}" cy="${c.y}" r="${isAct ? Math.max(5, nodeRadius + 1.6) : nodeRadius}" fill="${isAct ? esc(fill) : "var(--surface)"}" stroke="${esc(fill)}" stroke-width="2.2"/>` : ""}
+            ${isAct ? `<g transform="translate(${Math.max(padL + 24, Math.min(w - padR - 24, c.x))}, ${Math.max(18, c.y - 14)})">
+              <rect x="-24" y="-12" width="48" height="20" rx="10" fill="var(--ink)"/>
+              <text x="0" y="2" text-anchor="middle" font-size="11" font-weight="700" fill="var(--bg)" font-family="var(--font-mono)">${esc(c.pt.val)}</text>
+            </g>` : ""}
+          </g>`;
+        })
+        .join("");
+    } else {
+      const colW = plotW / Math.max(1, n);
+      const hitCols = Array.from({ length: n }, (_, idx) => {
+        const cx = padL + (idx * plotW) / Math.max(1, n - 1);
+        return `<rect class="bb-line-col-hit" x="${(cx - colW / 2).toFixed(2)}" y="${padT}" width="${colW.toFixed(2)}" height="${plotH}" fill="transparent" data-a="${esc(action)}" data-idx="${idx}"/>`;
+      }).join("");
+      const dotsSvg = seriesCoords
+        .map((sc) =>
+          sc.coords
+            .map((c) => {
+              const isAct = c.idx === activeIdx;
+              if (isDensePoints && !isAct) return "";
+              return `<circle cx="${c.x}" cy="${c.y}" r="${isAct ? Math.max(3.6, nodeRadius + 1.2) : nodeRadius}" fill="${isAct ? esc(sc.color) : "var(--surface)"}" stroke="${esc(sc.color)}" stroke-width="${isAct ? 2 : 1.5}" pointer-events="none"/>`;
+            })
+            .join("")
+        )
+        .join("");
+      nodesSvg = `${hitCols}<line class="bb-line-guide" x1="${actX.toFixed(2)}" y1="${padT}" x2="${actX.toFixed(2)}" y2="${plotBottom}"/>${dotsSvg}`;
+    }
+
+    const legendHtml = lines.length > 1
+      ? `<div class="bb-line-legend" role="list" aria-label="Легенда линий">
+          ${lines.map((s) => {
+            const pt = s.points[activeIdx] || s.points[s.points.length - 1];
+            return `<span class="bb-line-legend-item" role="listitem">
+              <i class="bb-line-legend-dot" style="background:${esc(s.color)}"></i>
+              <span class="bb-line-legend-name">${esc(s.name)}</span>
+              <b class="bb-line-legend-val num">${esc(pt ? pt.val : "")}</b>
+            </span>`;
+          }).join("")}
+        </div>`
+      : "";
+
+    const axisHtml = `<div class="bb-line-axis" style="--tick-count:${tickIndices.length}">
+      ${tickIndices.map((idx) => {
+        const pt = refPoints[idx];
+        if (!pt) return "";
+        const label = lines.length > 1 ? esc(pt.wd) : `${esc(pt.wd)} · ${esc(pt.val)}`;
+        return `<button type="button" class="bb-line-tick${idx === activeIdx ? " is-active" : ""}" data-a="${esc(action)}" data-idx="${idx}" aria-pressed="${idx === activeIdx}">${label}</button>`;
+      }).join("")}
+    </div>`;
+
+    const footerHtml = lines.length === 1
+      ? `<div class="row between small" style="padding-top:2px">
+          <span class="muted">Выбранный узел:</span>
+          <b class="num">${esc((actRefPt && actRefPt.detail) || "")}</b>
+        </div>`
+      : `<div class="row between small" style="padding-top:2px">
+          <span class="muted">Серий: <b class="num">${lines.length}</b> · Точек: <b class="num">${n}</b></span>
+          <b class="num">Срез: ${esc((actRefPt && actRefPt.wd) || "")}</b>
+        </div>`;
+
+    return `<div class="bb-line-chart${lines.length > 1 ? " is-multi" : ""}" role="group" aria-label="${esc(opts.ariaLabel || "Линейный график")}">
+      <svg class="bb-line-svg${lines.length > 1 ? " is-multi" : ""}" viewBox="0 0 ${w} ${h}">
+        ${singleAreaSvg}
+        ${gridSvg}
+        <line class="bb-line-goal" x1="${padL}" y1="${goalY}" x2="${w - padR}" y2="${goalY}"/>
+        <text x="${w - padR}" y="${Number(goalY) - 5}" text-anchor="end" font-size="10.5" font-weight="600" fill="var(--gold-ink)">${esc(goalLabel)}</text>
+        ${pathsSvg}
+        ${nodesSvg}
+        ${xTicksSvg}
+      </svg>
+      ${axisHtml}
+      ${legendHtml}
+      ${footerHtml}
+    </div>`;
+  }
+
+  /* Линейный график с областью и интерактивными узлами (.bb-line-chart), поддерживает multiLineChartHTML. */
+  function lineChartHTML(opts) {
+    opts = opts || {};
+    if (
+      Array.isArray(opts.series) ||
+      Number(opts.linesCount) > 1 ||
+      Number(opts.pointsCount) > 12 ||
+      (Array.isArray(opts.bars) && opts.bars.length > 12)
+    ) {
+      return multiLineChartHTML(opts);
+    }
+
+    const ds = opts.dataset || "income";
     const bars = opts.bars || chartDatasetBars(ds);
-    const activeIdx = Number.isInteger(opts.activeIdx) ? Math.max(0, Math.min(bars.length - 1, opts.activeIdx)) : 3;
+    const activeIdx = Number.isInteger(opts.activeIdx) ? Math.max(0, Math.min(bars.length - 1, opts.activeIdx)) : Math.min(3, Math.max(0, bars.length - 1));
     const action = opts.action || "bb-line-pt";
     const gradId = esc(opts.gradId || "bbLineGrad");
     const w = 520;
@@ -139,7 +572,7 @@
       const y = padT + plotH - (Math.max(8, Math.min(100, b.pct)) / 100) * plotH;
       return { x: Number(x.toFixed(1)), y: Number(y.toFixed(1)), b };
     });
-    const lineD = coords.map((c, i) => (i === 0 ? `M${c.x} ${c.y}` : `L${c.x} ${c.y}`)).join(" ");
+    const lineD = monotoneCubicPath(coords);
     const areaD = `${lineD} L${coords[coords.length - 1].x} ${(padT + plotH).toFixed(1)} L${coords[0].x} ${(padT + plotH).toFixed(1)} Z`;
     const goalPct = ds === "scores" ? 80 : (ds === "slots" ? 72 : 68);
     const goalY = (padT + plotH - (goalPct / 100) * plotH).toFixed(1);
@@ -177,7 +610,7 @@
           </g>`;
         }).join("")}
       </svg>
-      <div class="bb-line-axis">
+      <div class="bb-line-axis" style="--tick-count:${bars.length}">
         ${bars.map((b, idx) => `<button type="button" class="bb-line-tick${idx === activeIdx ? " is-active" : ""}" data-a="${esc(action)}" data-idx="${idx}" aria-pressed="${idx === activeIdx}">${esc(b.wd)} · ${esc(b.val)}</button>`).join("")}
       </div>
       <div class="row between small" style="padding-top:2px">
@@ -285,670 +718,17 @@
     </div>`;
   }
 
-  const TABLE_ROWS = [
-    { id: "tbl-1", student: "Алёна Егорова", subjectId: "bio", subject: "Биология · ЕГЭ", city: "Якутск (UTC+9)", slot: "Сб · 14:00", rate: 1100, net: 1045, status: "accepted", statusLabel: "Подтверждено ✓", whatsapp: "79142100102", telegram: "alena_bio_ykt", maxHandle: "alena_ykt" },
-    { id: "tbl-2", student: "Дамир Осипов", subjectId: "chem", subject: "Химия · ЕГЭ", city: "Якутск (UTC+9)", slot: "Вс · 10:00", rate: 1200, net: 1140, status: "accepted", statusLabel: "Подтверждено ✓", whatsapp: "79142100104", telegram: "damir_chem", maxHandle: "damir_osipov" },
-    { id: "tbl-3", student: "Саяна Кычкина", subjectId: "bio", subject: "Биология · Пробный 0 ₽", city: "Москва (UTC+3)", slot: "Пн · 18:00", rate: 950, net: 903, status: "trial", statusLabel: "Пробный · старт 5к", whatsapp: "79142100106", telegram: "sayana_msk", maxHandle: "sayana_k" },
-    { id: "tbl-4", student: "Тимур Платонов", subjectId: "chem", subject: "Химия · Медвуз", city: "Якутск (UTC+9)", slot: "Вт · 16:00", rate: 1400, net: 1330, status: "pending", statusLabel: "Ждёт ответа", whatsapp: "79142100108", telegram: "timur_med", maxHandle: "timur_p" },
-    { id: "tbl-5", student: "Мария Фёдорова", subjectId: "bio", subject: "Биология · ОГЭ 9 кл.", city: "Якутск (UTC+9)", slot: "Чт · 17:00", rate: 1000, net: 950, status: "accepted", statusLabel: "Подтверждено ✓", whatsapp: "79142100110", telegram: "maria_oge", maxHandle: "maria_f" },
-    { id: "tbl-6", student: "Ньургун Иванов", subjectId: "chem", subject: "Химия · Олимпиада", city: "Москва (UTC+3)", slot: "Пт · 19:00", rate: 1500, net: 1425, status: "pending", statusLabel: "Ждёт ответа", whatsapp: "79142100112", telegram: "nyurgun_chem", maxHandle: "nyurgun_i" }
-  ];
-
-  const PAYOUT_ROWS = [
-    { id: "pay-1", date: "14.05.2026", channel: "sbp", method: "СБП · Т-Банк", requisites: "+7 (914) 210-••-11", gross: 12000, fee: 600, amount: 11400, receipt: "Чек № 88412-НПД", status: "accepted", statusLabel: "Выплачено ✓" },
-    { id: "pay-2", date: "10.05.2026", channel: "card", method: "Карта Мир · Сбер", requisites: "2200 70•• •••• 4812", gross: 8000, fee: 400, amount: 7600, receipt: "Чек № 88305-НПД", status: "accepted", statusLabel: "Выплачено ✓" },
-    { id: "pay-3", date: "15.05.2026", channel: "sbp", method: "СБП · АЭБ (Якутск)", requisites: "+7 (914) 210-••-11", gross: 5000, fee: 250, amount: 4750, receipt: "Ожидает чек НПД", status: "pending", statusLabel: "На проверке" },
-    { id: "pay-4", date: "03.05.2026", channel: "sbp", method: "СБП · ВТБ", requisites: "+7 (914) 210-••-11", gross: 2400, fee: 0, amount: 2400, receipt: "Сторно отмены 100%", status: "refund", statusLabel: "Возврат ученику" },
-    { id: "pay-5", date: "12.05.2026", channel: "sbp", method: "СБП · Озон Банк", requisites: "+7 (924) 550-••-90", gross: 3600, fee: 180, amount: 3420, receipt: "Сформирован НПД", status: "info", statusLabel: "Готов к выводу" }
-  ];
-
-  const EXAM_ROWS = [
-    { id: "ex-1", date: "14.05", subjectId: "bio", subject: "Биология · ЕГЭ-2027", variant: "Вариант № 12 · Генетика", score: 86, maxScore: 100, essayNote: "Линия 28 без ошибок", examDate: "15 июн 2027", status: "accepted", statusLabel: "Зачтено ✓" },
-    { id: "ex-2", date: "12.05", subjectId: "rus", subject: "Русский язык · Зад. 27", variant: "Сочинение · Текст Лихачёва", score: 21, maxScore: 22, essayNote: "21 / 22 б. (К1–К10)", examDate: "4 июн 2027", status: "accepted", statusLabel: "ИИ проверено ✓" },
-    { id: "ex-3", date: "11.05", subjectId: "chem", subject: "Химия · ЕГЭ-2027", variant: "Задача 34 + ОВР блок", score: 78, maxScore: 100, essayNote: "Повторить расчёт примесей", examDate: "1 июн 2027", status: "trial", statusLabel: "Доработка" },
-    { id: "ex-4", date: "15.05", subjectId: "rus", subject: "Русский язык · Зад. 27", variant: "Сочинение · Текст Паустовского", score: 19, maxScore: 22, essayNote: "19 / 22 б. · доработать К3", examDate: "4 июн 2027", status: "pending", statusLabel: "Ждёт проверки" },
-    { id: "ex-5", date: "08.05", subjectId: "bio", subject: "Биология · Линия 28", variant: "Синтез белка и митоз", score: 91, maxScore: 100, essayNote: "Рекомендация ИИ: тайминг", examDate: "15 июн 2027", status: "info", statusLabel: "Рекомендация ИИ" }
-  ];
-
-  const STUDENT_ROWS = [
-    { id: "st-1", student: "Алёна Егорова", subjectId: "bio", subject: "Биология · ЕГЭ", city: "Якутск (UTC+9)", nextSlot: "Вс · 10:00", scoreStart: 58, scoreCur: 84, scoreTarget: 90, autoNotify: "Авто: WA · TG · MAX · за 24 ч", status: "accepted", statusLabel: "Активен ✓", whatsapp: "79142100511", telegram: "@alina_bio", maxHandle: "alena_ege" },
-    { id: "st-2", student: "Дамир Осипов", subjectId: "chem", subject: "Химия · ЕГЭ", city: "Якутск (UTC+9)", nextSlot: "Ср · 16:00", scoreStart: 52, scoreCur: 76, scoreTarget: 85, autoNotify: "Авто: TG · за 2 ч", status: "accepted", statusLabel: "Активен ✓", whatsapp: "79142100104", telegram: "@damir_chem", maxHandle: "damir_osipov" },
-    { id: "st-3", student: "Саяна Кычкина", subjectId: "bio", subject: "Биология · Линия 28", city: "Москва (UTC+3)", nextSlot: "Пн · 18:00", scoreStart: 46, scoreCur: 68, scoreTarget: 82, autoNotify: "Авто: WA · MAX · за 24 ч", status: "pending", statusLabel: "Ждёт урока", whatsapp: "79142100106", telegram: "@sayana_msk", maxHandle: "sayana_k" },
-    { id: "st-4", student: "Тимур Платонов", subjectId: "chem", subject: "Химия · Медвуз", city: "Якутск (UTC+9)", nextSlot: "Чт · 14:00", scoreStart: 64, scoreCur: 88, scoreTarget: 95, autoNotify: "Авто: WA · TG · за 1 ч", status: "accepted", statusLabel: "Активен ✓", whatsapp: "79142100108", telegram: "@timur_med", maxHandle: "timur_p" },
-    { id: "st-5", student: "Мария Фёдорова", subjectId: "rus", subject: "Русский · Зад. 27", city: "Москва (UTC+3)", nextSlot: "Пт · 19:00", scoreStart: 61, scoreCur: 81, scoreTarget: 91, autoNotify: "Без авто · ручное напоминание", status: "trial", statusLabel: "Пробный этап", whatsapp: "79142100110", telegram: "@maria_rus", maxHandle: "maria_f" }
-  ];
-
-  const ADMIN_ROWS = [
-    { id: "adm-1", category: "moderation", entity: "Айтал Борисов · Биология", kind: "Анкета репетитора", subject: "Биология · ЕГЭ", city: "Якутск (UTC+9)", updatedAt: "14:42", amount: "1 200 ₽/ч", outbox: "vektor.market.bids.v1", modStatus: "pending", status: "pending", statusLabel: "На проверке" },
-    { id: "adm-2", category: "moderation", entity: "Анна Соколова · Химия", kind: "Верификация диплома", subject: "Химия · Медвуз", city: "Москва (UTC+3)", updatedAt: "14:28", amount: "1 600 ₽/ч", outbox: "vektor.market.bids.v1", modStatus: "verified", status: "accepted", statusLabel: "Проверен ✓" },
-    { id: "adm-3", category: "payouts", entity: "Выплата #4812 · СБП Т-Банк", kind: "Вывод НПД", subject: "Комиссия 5% · на руки 95%", city: "Якутск (UTC+9)", updatedAt: "14:15", amount: "11 400 ₽", outbox: "vektor.payments.ledger.v1", modStatus: "paid", status: "accepted", statusLabel: "Выплачено ✓" },
-    { id: "adm-4", category: "payouts", entity: "Эскроу #9031 · Артём И.", kind: "Резерв эскроу", subject: "Удержание до 16:00", city: "Якутск (UTC+9)", updatedAt: "13:55", amount: "1 140 ₽", outbox: "vektor.payments.ledger.v1", modStatus: "frozen", status: "info", statusLabel: "В резерве" },
-    { id: "adm-5", category: "system", entity: "Outbox #41820 · Clickstream", kind: "Событие Kafka", subject: "batch=18 · PG17 → Kafka", city: "Cluster · PG17", updatedAt: "13:40", amount: "0.8 ms", outbox: "vektor.user.clickstream.v1", modStatus: "published", status: "accepted", statusLabel: "Отправлено в Kafka" },
-    { id: "adm-6", category: "moderation", entity: "Иван К. · Дубликат Ykt/TG", kind: "Проверка жалобы", subject: "Физика · 800 ₽/ч", city: "Якутск (UTC+9)", updatedAt: "13:12", amount: "800 ₽/ч", outbox: "vektor.market.bids.v1", modStatus: "flagged", status: "pending", statusLabel: "Требует внимания" }
-  ];
-
-  function tableStatusClass(st) {
-    if (st === "accepted" || st === "paid" || st === "done") return "is-confirmed";
-    if (st === "trial") return "is-trial";
-    if (st === "refund" || st === "refunded" || st === "canceled") return "is-refund";
-    if (st === "info" || st === "ready") return "is-info";
-    return "is-pending";
-  }
-
-  function isRowConfirmed(id, confirmedIds) {
-    if (!id || !confirmedIds) return false;
-    if (Array.isArray(confirmedIds)) return confirmedIds.indexOf(id) >= 0;
-    return !!confirmedIds[id];
-  }
-
-  function buildRequestColumns(cols) {
-    return [
-      {
-        key: "studentCompact",
-        label: "Ученик и предмет",
-        maxCols: 3,
-        render: (r) => `<div class="stack" style="gap:2px"><b>${esc(r.student)}</b><span class="small muted">${esc(r.subject)} · ${esc(r.slot)}</span></div>`
-      },
-      {
-        key: "student",
-        label: "Ученик",
-        minCols: 5,
-        render: (r) => `<b>${esc(r.student)}</b>`
-      },
-      {
-        key: "subject",
-        label: "Предмет",
-        minCols: 5,
-        render: (r) => cols === 5
-          ? `<div class="stack" style="gap:2px"><span>${esc(r.subject)}</span><span class="small muted">${esc(r.city)}</span></div>`
-          : esc(r.subject)
-      },
-      {
-        key: "city",
-        label: "Город",
-        minCols: 7,
-        render: (r) => `<span class="small">${esc(r.city)}</span>`
-      },
-      {
-        key: "slot",
-        label: cols === 5 ? "Слот (UTC)" : "Слот",
-        minCols: 5,
-        num: true,
-        render: (r) => `<span class="num">${esc(r.slot)}</span>`
-      },
-      {
-        key: "rate",
-        label: "Ставка",
-        num: true,
-        render: (r) => `<b class="num">${Number(r.rate || 0).toLocaleString("ru-RU")} ₽/ч</b>`
-      },
-      {
-        key: "net",
-        label: "На руки (95%)",
-        minCols: 7,
-        num: true,
-        render: (r) => `<b class="num" style="color:var(--confirm)">${Number(r.net || 0).toLocaleString("ru-RU")} ₽</b>`
-      },
-      {
-        key: "contactOnly",
-        label: "Связь (WA · TG · MAX)",
-        maxCols: 3,
-        isActions: true,
-        render: (r, h) => h.messengerHTML(r)
-      },
-      {
-        key: "statusAndContact",
-        label: "Статус и связь",
-        minCols: 5,
-        isActions: true,
-        render: (r, h) => `<div class="stack" style="gap:6px">${h.statusHTML(r)}${h.messengerHTML(r)}</div>`
-      }
-    ];
-  }
-
-  function buildPayoutColumns() {
-    return [
-      {
-        key: "dateCompact",
-        label: "Дата и способ",
-        maxCols: 3,
-        render: (r) => `<div class="stack" style="gap:2px"><b class="num">${esc(r.date)}</b><span class="small muted">${esc(r.method)}</span></div>`
-      },
-      {
-        key: "date",
-        label: "Дата",
-        minCols: 5,
-        num: true,
-        render: (r) => `<span class="num">${esc(r.date)}</span>`
-      },
-      {
-        key: "method",
-        label: "Способ / Банк",
-        minCols: 5,
-        render: (r) => `<b>${esc(r.method)}</b>`
-      },
-      {
-        key: "requisites",
-        label: "Реквизиты",
-        minCols: 5,
-        num: true,
-        render: (r) => `<span class="small num">${esc(r.requisites)}</span>`
-      },
-      {
-        key: "gross",
-        label: "Списано (100%)",
-        minCols: 7,
-        num: true,
-        render: (r) => `<span class="num">${Number(r.gross || 0).toLocaleString("ru-RU")} ₽</span>`
-      },
-      {
-        key: "fee",
-        label: "Сбор (5%)",
-        minCols: 7,
-        num: true,
-        render: (r) => `<span class="num muted">${Number(r.fee || 0).toLocaleString("ru-RU")} ₽</span>`
-      },
-      {
-        key: "amount",
-        label: "Сумма / Чек НПД",
-        num: true,
-        render: (r) => `<div class="stack" style="gap:2px"><b class="num">${Number(r.amount || 0).toLocaleString("ru-RU")} ₽</b><span class="small muted">${esc(r.receipt)}</span></div>`
-      },
-      {
-        key: "status",
-        label: "Статус",
-        isActions: true,
-        render: (r, h) => h.statusHTML(r)
-      }
-    ];
-  }
-
-  function buildExamColumns() {
-    return [
-      {
-        key: "subjectCompact",
-        label: "Предмет и вариант",
-        maxCols: 3,
-        render: (r) => `<div class="stack" style="gap:2px"><b>${esc(r.subject)}</b><span class="small muted">${esc(r.date)} · ${esc(r.variant)}</span></div>`
-      },
-      {
-        key: "date",
-        label: "Дата",
-        minCols: 5,
-        num: true,
-        render: (r) => `<span class="num">${esc(r.date)}</span>`
-      },
-      {
-        key: "subject",
-        label: "Предмет",
-        minCols: 5,
-        render: (r) => `<b>${esc(r.subject)}</b>`
-      },
-      {
-        key: "variant",
-        label: "Вариант / Задание",
-        minCols: 5,
-        render: (r) => `<div class="stack" style="gap:2px"><span>${esc(r.variant)}</span><span class="small muted">${esc(r.essayNote)}</span></div>`
-      },
-      {
-        key: "score",
-        label: "Балл / Итог",
-        num: true,
-        render: (r) => `<b class="num">${r.score} / ${r.maxScore}</b>`
-      },
-      {
-        key: "essayNote",
-        label: "Разбор ИИ",
-        minCols: 7,
-        render: (r) => `<span class="small">${esc(r.essayNote)}</span>`
-      },
-      {
-        key: "examDate",
-        label: "Экзамен ЕГЭ",
-        minCols: 7,
-        num: true,
-        render: (r) => `<span class="small num">${esc(r.examDate)}</span>`
-      },
-      {
-        key: "status",
-        label: "Статус",
-        isActions: true,
-        render: (r, h) => h.statusHTML(r)
-      }
-    ];
-  }
-
-  function buildStudentColumns() {
-    return [
-      {
-        key: "studentCompact",
-        label: "Ученик и предмет",
-        maxCols: 3,
-        render: (r) => `<div class="stack" style="gap:2px"><b>${esc(r.student)}</b><span class="small muted">${esc(r.subject)} · ${esc(r.nextSlot)}</span></div>`
-      },
-      {
-        key: "student",
-        label: "Ученик",
-        minCols: 5,
-        render: (r) => `<b>${esc(r.student)}</b>`
-      },
-      {
-        key: "subject",
-        label: "Предмет",
-        minCols: 5,
-        render: (r) => esc(r.subject)
-      },
-      {
-        key: "city",
-        label: "Город",
-        minCols: 7,
-        render: (r) => `<span class="small">${esc(r.city)}</span>`
-      },
-      {
-        key: "nextSlot",
-        label: "Ближайший слот",
-        minCols: 5,
-        num: true,
-        render: (r) => `<span class="num">${esc(r.nextSlot)}</span>`
-      },
-      {
-        key: "progress",
-        label: "Прогресс ЕГЭ",
-        num: true,
-        render: (r) => {
-          const gain = Math.max(0, Number(r.scoreCur || 0) - Number(r.scoreStart || 0));
-          return `<div class="stack" style="gap:2px"><b class="num">${r.scoreStart} → ${r.scoreCur} / ${r.scoreTarget}</b><span class="small muted num">+${gain} б.</span></div>`;
-        }
-      },
-      {
-        key: "autoNotify",
-        label: "Автоуведомления",
-        minCols: 7,
-        render: (r) => `<span class="small">${esc(r.autoNotify)}</span>`
-      },
-      {
-        key: "contactOnly",
-        label: "Связь (WA · TG · MAX)",
-        maxCols: 3,
-        isActions: true,
-        render: (r, h) => h.messengerHTML(r)
-      },
-      {
-        key: "statusAndContact",
-        label: "Статус и связь",
-        minCols: 5,
-        isActions: true,
-        render: (r, h) => `<div class="stack" style="gap:6px">${h.statusHTML(r)}${h.messengerHTML(r)}</div>`
-      }
-    ];
-  }
-
-  function buildAdminColumns() {
-    const renderModBadge = (r, h) => {
-      const kit = root.EGE && root.EGE.kit;
-      const confirmed = h.isConfirmed(r);
-      if (kit && typeof kit.adminModerationBadgeHTML === "function") {
-        const modSt = confirmed ? "verified" : (r.modStatus || "pending");
-        const modLbl = confirmed ? "Проверен ✓" : r.statusLabel;
-        const badge = kit.adminModerationBadgeHTML(modSt, modLbl);
-        const canConfirm = r && r.id && (r.status === "pending" || r.status === "trial");
-        if (!canConfirm) return badge;
-        const btn = confirmed
-          ? `<button type="button" class="btn ghost sm bb-tbl-act-btn" data-a="${esc(h.confirmAction)}" data-id="${esc(r.id)}">Сбросить</button>`
-          : `<button type="button" class="btn confirm sm bb-tbl-act-btn" data-a="${esc(h.confirmAction)}" data-id="${esc(r.id)}">✓ Подтвердить</button>`;
-        return `<div class="bb-tbl-st-cell">${badge}${btn}</div>`;
-      }
-      return h.statusHTML(r);
-    };
-    return [
-      {
-        key: "entityCompact",
-        label: "Объект и раздел",
-        maxCols: 3,
-        render: (r) => `<div class="stack" style="gap:2px"><b>${esc(r.entity)}</b><span class="small muted">${esc(r.kind)} · ${esc(r.updatedAt)}</span></div>`
-      },
-      {
-        key: "entity",
-        label: "Объект / Событие",
-        minCols: 5,
-        render: (r) => `<div class="stack" style="gap:2px"><b>${esc(r.entity)}</b><span class="small muted">${esc(r.subject)}</span></div>`
-      },
-      {
-        key: "kind",
-        label: "Категория",
-        minCols: 5,
-        render: (r) => esc(r.kind)
-      },
-      {
-        key: "city",
-        label: "Контур / Город",
-        minCols: 7,
-        render: (r) => `<span class="small">${esc(r.city)}</span>`
-      },
-      {
-        key: "updatedAt",
-        label: "Время",
-        minCols: 5,
-        num: true,
-        render: (r) => `<span class="num">${esc(r.updatedAt)}</span>`
-      },
-      {
-        key: "amount",
-        label: "Сумма / Значение",
-        num: true,
-        render: (r) => `<b class="num">${esc(r.amount)}</b>`
-      },
-      {
-        key: "outbox",
-        label: "Топик аутбокса",
-        minCols: 7,
-        render: (r) => `<code class="small">${esc(r.outbox)}</code>`
-      },
-      {
-        key: "statusCompact",
-        label: "Статус",
-        maxCols: 3,
-        isActions: true,
-        render: renderModBadge
-      },
-      {
-        key: "statusFull",
-        label: "Модерация",
-        minCols: 5,
-        isActions: true,
-        render: renderModBadge
-      }
-    ];
-  }
-
-  const TABLE_PRESETS = {
-    requests: {
-      id: "requests",
-      label: "Заявки",
-      eyebrow: "Таблица с колонками 3 / 5 / 7 · .table-wrap + фильтры",
-      title: "Расписание и заявки учеников с мгновенной отправкой в WA · Telegram · MAX",
-      emptyLabel: "заявок",
-      rows: TABLE_ROWS,
-      filters: [
-        { id: "all", label: "Все (" + TABLE_ROWS.length + ")", match: () => true },
-        { id: "accepted", label: "Подтверждены ✓", match: (r, h) => h.effectiveStatus(r) === "accepted" },
-        { id: "pending", label: "Ждут ответа", match: (r, h) => h.effectiveStatus(r) === "pending" },
-        { id: "bio", label: "Биология", match: (r) => r.subjectId === "bio" },
-        { id: "chem", label: "Химия", match: (r) => r.subjectId === "chem" }
-      ],
-      getColumns: buildRequestColumns
-    },
-    students: {
-      id: "students",
-      label: "Ученики",
-      eyebrow: "Трекер учеников · Табличный реестр",
-      title: "Активные ученики и автоуведомления WA / TG / MAX",
-      emptyLabel: "учеников",
-      rows: STUDENT_ROWS,
-      filters: [
-        { id: "all", label: "Все (" + STUDENT_ROWS.length + ")", match: () => true },
-        { id: "accepted", label: "Активные ✓", match: (r, h) => h.effectiveStatus(r) === "accepted" },
-        { id: "pending", label: "Ждут урока", match: (r, h) => h.effectiveStatus(r) === "pending" },
-        { id: "bio", label: "Биология", match: (r) => r.subjectId === "bio" },
-        { id: "chem", label: "Химия", match: (r) => r.subjectId === "chem" }
-      ],
-      getColumns: buildStudentColumns
-    },
-    payouts: {
-      id: "payouts",
-      label: "Выплаты",
-      eyebrow: "Выплаты и чеки НПД · Адаптивная схема колонок",
-      title: "История выводов средств преподавателя (СБП и Карта Мир)",
-      emptyLabel: "выплат",
-      rows: PAYOUT_ROWS,
-      filters: [
-        { id: "all", label: "Все (" + PAYOUT_ROWS.length + ")", match: () => true },
-        { id: "accepted", label: "Выплачено ✓", match: (r, h) => h.effectiveStatus(r) === "accepted" },
-        { id: "pending", label: "На проверке", match: (r, h) => h.effectiveStatus(r) === "pending" },
-        { id: "sbp", label: "СБП", match: (r) => r.channel === "sbp" },
-        { id: "refund", label: "Возвраты", match: (r, h) => h.effectiveStatus(r) === "refund" }
-      ],
-      getColumns: buildPayoutColumns
-    },
-    exams: {
-      id: "exams",
-      label: "Пробники",
-      eyebrow: "Трекер ЕГЭ-2027 · Пробники и ИИ-сочинения",
-      title: "Прогресс пробников и разбора задания 27 по русскому языку",
-      emptyLabel: "результатов",
-      rows: EXAM_ROWS,
-      filters: [
-        { id: "all", label: "Все (" + EXAM_ROWS.length + ")", match: () => true },
-        { id: "bio", label: "Биология", match: (r) => r.subjectId === "bio" },
-        { id: "chem", label: "Химия", match: (r) => r.subjectId === "chem" },
-        { id: "rus", label: "Русский язык", match: (r) => r.subjectId === "rus" },
-        { id: "pending", label: "Ждёт проверки", match: (r, h) => h.effectiveStatus(r) === "pending" }
-      ],
-      getColumns: buildExamColumns
-    },
-    admin: {
-      id: "admin",
-      label: "Админ · Модерация",
-      eyebrow: "Админ-панель · Модерация и эскроу",
-      title: "Реестр анкет, выплат НПД и событий аутбокса",
-      emptyLabel: "записей",
-      rows: ADMIN_ROWS,
-      filters: [
-        { id: "all", label: "Все (" + ADMIN_ROWS.length + ")", match: () => true },
-        { id: "pending", label: "На проверке", match: (r, h) => h.effectiveStatus(r) === "pending" },
-        { id: "verified", label: "Проверены ✓", match: (r, h) => h.isConfirmed(r) || r.modStatus === "verified" || r.modStatus === "paid" },
-        { id: "flagged", label: "Требуют внимания", match: (r, h) => !h.isConfirmed(r) && r.modStatus === "flagged" },
-        { id: "payouts", label: "Выплаты и эскроу", match: (r) => r.category === "payouts" }
-      ],
-      getColumns: buildAdminColumns
-    }
-  };
-
-  /* Универсальная schema-driven таблица: 3/5/7 колонок, пресеты, подтверждение строк и @container карточки. */
-  function dataTableHTML(opts) {
-    opts = opts || {};
-    const hasCustomSchema = Array.isArray(opts.columns) || Array.isArray(opts.rows);
-    const presetId = TABLE_PRESETS[opts.preset] ? opts.preset : "requests";
-    const preset = TABLE_PRESETS[presetId];
-    const cols = [3, 5, 7].includes(Number(opts.cols)) ? Number(opts.cols) : 5;
-    const filter = opts.filter || "all";
-    const query = String(opts.query || "").trim().toLowerCase();
-    const confirmAction = opts.confirmAction || "bb-tbl-confirm";
-    const filterAction = opts.filterAction || "bb-tbl-filter";
-    const colsAction = opts.colsAction || "bb-tbl-cols";
-    const presetAction = opts.presetAction || "bb-tbl-preset";
-    const searchAction = opts.searchAction || "bb-tbl-q";
-    const confirmedIds = opts.confirmedIds || {};
-    const cardWrap = opts.cardWrap !== false;
-    const showPresetSwitch = opts.showPresetSwitch !== false && !hasCustomSchema;
-    const showColsSwitch = opts.showColsSwitch !== false;
-    const searchId = opts.searchId || "bb-tbl-q";
-    const rootId = opts.tableId || opts.id || "";
-    const toolbarExtraHTML = opts.toolbarExtraHTML || "";
-
-    const renderMessengerLinks =
-      (typeof opts.renderMessengerLinks === "function" && opts.renderMessengerLinks) ||
-      (root.EGE && root.EGE.kit && typeof root.EGE.kit.messengerLinksHTML === "function" && root.EGE.kit.messengerLinksHTML) ||
-      null;
-
-    const allRows = Array.isArray(opts.rows) ? opts.rows : preset.rows;
-    const allFilters = Array.isArray(opts.filters) ? opts.filters : (hasCustomSchema ? [] : preset.filters);
-    const rawColumns = Array.isArray(opts.columns) ? opts.columns : preset.getColumns(cols);
-
-    const visibleColumns = rawColumns.filter((c) => {
-      if (!c) return false;
-      if (typeof c.when === "function" && !c.when(cols)) return false;
-      if (c.minCols != null && cols < Number(c.minCols)) return false;
-      if (c.maxCols != null && cols > Number(c.maxCols)) return false;
-      return true;
-    });
-
-    const effectiveStatus = (r) => {
-      if (isRowConfirmed(r && r.id, confirmedIds)) return "accepted";
-      return r && r.status ? r.status : "pending";
-    };
-
-    const effectiveStatusLabel = (r) => {
-      if (isRowConfirmed(r && r.id, confirmedIds)) return "Подтверждено ✓";
-      return (r && r.statusLabel) || "Ждёт ответа";
-    };
-
-    const statusHTML = (r) => {
-      const confirmed = isRowConfirmed(r && r.id, confirmedIds);
-      const st = effectiveStatus(r);
-      const lbl = effectiveStatusLabel(r);
-      const badge = `<span class="bb-tbl-st ${tableStatusClass(st)}">${esc(lbl)}</span>`;
-      const canConfirm = r && r.id && (r.status === "pending" || r.status === "trial");
-      if (!canConfirm) return badge;
-      const btn = confirmed
-        ? `<button type="button" class="btn ghost sm bb-tbl-act-btn" data-a="${esc(confirmAction)}" data-id="${esc(r.id)}">Сбросить</button>`
-        : `<button type="button" class="btn confirm sm bb-tbl-act-btn" data-a="${esc(confirmAction)}" data-id="${esc(r.id)}">✓ Подтвердить</button>`;
-      return `<div class="bb-tbl-st-cell">${badge}${btn}</div>`;
-    };
-
-    const messengerHTML = (r) => renderMessengerLinks && r
-      ? renderMessengerLinks({
-          entity: { id: r.id, name: r.student, whatsapp: r.whatsapp, telegram: r.telegram, maxHandle: r.maxHandle },
-          message: `Здравствуйте, ${r.student || "коллега"}! Напоминаю о занятии (${r.subject || ""}, ${r.slot || r.nextSlot || ""}) через Вектор ЕГЭ.`,
-          primaryLabel: "WA",
-          compact: true
-        })
-      : "";
-
-    const helpers = {
-      cols,
-      esc,
-      confirmAction,
-      confirmedIds,
-      isConfirmed: (r) => isRowConfirmed(r && r.id, confirmedIds),
-      effectiveStatus,
-      effectiveStatusLabel,
-      statusBadgeHTML: statusHTML,
-      statusHTML,
-      messengerHTML
-    };
-
-    const activeFilterObj = allFilters.find((f) => f.id === filter);
-    const searchOf = (r) => {
-      if (typeof opts.searchFields === "function") return String(opts.searchFields(r) || "").toLowerCase();
-      if (Array.isArray(opts.searchFields)) {
-        return opts.searchFields.map((k) => (r && r[k] != null ? String(r[k]) : "")).join(" ").toLowerCase();
-      }
-      if (!r || typeof r !== "object") return "";
-      return Object.keys(r).map((k) => {
-        const v = r[k];
-        return (typeof v === "string" || typeof v === "number") ? String(v) : "";
-      }).join(" ").toLowerCase();
-    };
-
-    const filtered = allRows.filter((r) => {
-      if (activeFilterObj && typeof activeFilterObj.match === "function") {
-        if (!activeFilterObj.match(r, helpers)) return false;
-      } else if (filter === "accepted" && effectiveStatus(r) !== "accepted") {
-        return false;
-      } else if (filter === "pending" && effectiveStatus(r) !== "pending") {
-        return false;
-      }
-      if (query && !searchOf(r).includes(query)) return false;
-      return true;
-    });
-
-    const rowsHtml = filtered.length
-      ? filtered.map((r, rowIdx) => {
-          const extraAttr = typeof opts.rowAttrs === "function" ? String(opts.rowAttrs(r, rowIdx, helpers) || "").trim() : "";
-          return `<tr${extraAttr ? " " + extraAttr : ""}>${visibleColumns.map((col) => {
-            const valHtml = typeof col.render === "function"
-              ? col.render(r, helpers)
-              : esc(r && r[col.key] != null ? String(r[col.key]) : "");
-            const tdCls = [col.num ? "num" : "", col.isActions ? "bb-tbl-actions-cell" : ""].filter(Boolean).join(" ");
-            const alignStyle = col.align ? ` style="text-align:${esc(col.align)}"` : "";
-            return `<td data-label="${esc(col.label)}"${tdCls ? ` class="${tdCls}"` : ""}${alignStyle}>${valHtml}</td>`;
-          }).join("")}</tr>`;
-        }).join("")
-      : `<tr><td colspan="${Math.max(1, visibleColumns.length)}" data-label="Результат" class="small muted" style="text-align:center;padding:18px 10px">${esc(opts.emptyText || `По фильтру «${query || filter}» ${preset.emptyLabel || "записей"} не найдено — сбросьте фильтр.`)}</td></tr>`;
-
-    const eyebrowText = opts.eyebrow != null ? opts.eyebrow : preset.eyebrow;
-    const titleText = opts.title != null ? opts.title : preset.title;
-    const searchPlaceholder = opts.searchPlaceholder || (
-      presetId === "payouts" ? "Поиск: банк, чек НПД, сумма…" :
-      (presetId === "exams" ? "Поиск: предмет, вариант, балл…" :
-      (presetId === "students" ? "Поиск: ученик, предмет, канал…" :
-      (presetId === "admin" ? "Поиск: анкета, чек НПД, топик…" : "Поиск: имя, предмет, город…")))
-    );
-
-    const presetSwitchHtml = showPresetSwitch
-      ? `<div class="hh-seg" role="group" aria-label="Пресет таблицы">
-          ${Object.keys(TABLE_PRESETS).map((pid) => `<button type="button" data-a="${esc(presetAction)}" data-preset="${pid}" data-v="${pid}" aria-pressed="${presetId === pid}">${esc(TABLE_PRESETS[pid].label)}</button>`).join("")}
-        </div>`
-      : "";
-
-    const colsSwitchHtml = showColsSwitch
-      ? `<div class="hh-seg" role="group" aria-label="Количество колонок таблицы">
-          ${[3, 5, 7].map((c) => `<button type="button" data-a="${esc(colsAction)}" data-cols="${c}" aria-pressed="${cols === c}">${c === 3 ? "3 колонки" : `${c} колонок`}</button>`).join("")}
-        </div>`
-      : "";
-
-    const headerHtml = (eyebrowText || titleText || presetSwitchHtml || colsSwitchHtml)
-      ? `<div class="row between" style="gap:10px;flex-wrap:wrap;align-items:center">
-          ${(eyebrowText || titleText) ? `<div>
-            ${eyebrowText ? `<div class="eyebrow">${esc(eyebrowText)}</div>` : ""}
-            ${titleText ? `<h3 class="h3">${esc(titleText)}</h3>` : ""}
-          </div>` : ""}
-          ${(presetSwitchHtml || colsSwitchHtml) ? `<div class="bb-tbl-switches">${presetSwitchHtml}${colsSwitchHtml}</div>` : ""}
-        </div>`
-      : "";
-
-    const toolbarHtml = (allFilters.length || opts.showSearch !== false || toolbarExtraHTML)
-      ? `<div class="bb-tbl-toolbar">
-          ${allFilters.length ? `<div class="row" style="gap:6px;flex-wrap:wrap" role="group" aria-label="Фильтр строк таблицы">
-            ${allFilters.map((f) => `<button type="button" class="chip-btn${filter === f.id ? " on" : ""}" data-a="${esc(filterAction)}" data-v="${esc(f.id)}">${esc(f.label)}</button>`).join("")}
-          </div>` : ""}
-          ${opts.showSearch !== false ? `<label class="bb-tbl-search" for="${esc(searchId)}">
-            ${EGE.ui && typeof EGE.ui.icon === "function" ? EGE.ui.icon("search") : ""}
-            <input id="${esc(searchId)}" data-a="${esc(searchAction)}" type="search" value="${esc(opts.query || "")}" placeholder="${esc(searchPlaceholder)}" autocomplete="off" aria-label="Поиск по таблице">
-            ${query ? `<button type="button" class="btn ghost sm" data-a="${esc(filterAction)}" data-v="all" data-clear-q="1" aria-label="Сбросить поиск">×</button>` : ""}
-          </label>` : ""}
-          ${toolbarExtraHTML ? `<div class="bb-tbl-toolbar-extra">${toolbarExtraHTML}</div>` : ""}
-        </div>`
-      : "";
-
-    const shellHtml = `<div class="bb-table-shell">
-      <div class="table-wrap">
-        <table class="tbl bb-data-table cols-${cols} is-adaptive">
-          <thead>
-            <tr>${visibleColumns.map((col) => {
-              const thAlign = col.align ? ` style="text-align:${esc(col.align)}"` : "";
-              return `<th${thAlign}>${esc(col.label)}</th>`;
-            }).join("")}</tr>
-          </thead>
-          <tbody>${rowsHtml}</tbody>
-        </table>
-      </div>
-    </div>`;
-
-    if (!cardWrap) {
-      return `<div class="bb-tbl-inline"${rootId ? ` id="${esc(rootId)}"` : ""}>${headerHtml}${toolbarHtml}${shellHtml}</div>`;
-    }
-
-    return `<div class="card pad bb-data-table-card" id="${esc(rootId || "bb-table-demo")}">
-      ${headerHtml}
-      ${toolbarHtml}
-      ${shellHtml}
-    </div>`;
-  }
-
-  EGE.charts = {
+  root.EGE.charts = Object.assign(root.EGE.charts || {}, {
     CHART_STYLE_META,
+    CHART_PALETTE_20,
     chartDatasetBars,
+    buildMultiSeriesDemo,
     smoothTrendPath,
+    monotoneCubicPath,
     stickChartHTML,
     lineChartHTML,
+    multiLineChartHTML,
     DONUT_DATASETS,
-    donutChartHTML,
-    TABLE_ROWS,
-    STUDENT_ROWS,
-    ADMIN_ROWS,
-    TABLE_PRESETS,
-    dataTableHTML
-  };
+    donutChartHTML
+  });
 })();

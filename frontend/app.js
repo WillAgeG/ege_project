@@ -796,6 +796,19 @@
   } catch (e) { /* игнор */ }
 
   // ---------- роль на платформе (по умолчанию ученик) ----------
+  function resolveHostSite() {
+    const hostSite = typeof window !== "undefined" && window.EGE_HOST && window.EGE_HOST.site;
+    if (hostSite === "student" || hostSite === "tutor" || hostSite === "admin" || hostSite === "brandbook") return hostSite;
+    try {
+      const p = typeof location !== "undefined" && location.pathname ? location.pathname : "/";
+      if (p === "/student") return "student";
+      if (p === "/tutor" || p === "/teacher" || p === "/cabinet" || p === "/fees") return "tutor";
+      if (p === "/admin") return "admin";
+      if (p === "/brandbook") return "brandbook";
+    } catch (e) { /* игнор */ }
+    return "";
+  }
+  const HOST_SITE = resolveHostSite();
   const ROLE_LS = "vektor-ege:role";
   function readRolePref() {
     try { const v = localStorage.getItem(ROLE_LS); if (v === "tutor" || v === "student" || v === "admin") return v; } catch (e) { /* недоступно */ }
@@ -809,9 +822,15 @@
   }
 
   // ---------- состояние интерфейса ----------
+  const INITIAL_ROLE = (HOST_SITE === "student" || HOST_SITE === "tutor" || HOST_SITE === "admin")
+    ? HOST_SITE
+    : readRolePref();
+  const INITIAL_VIEW = HOST_SITE === "tutor"
+    ? (((typeof window !== "undefined" && window.EGE_HOST && window.EGE_HOST.view === "fees") || (typeof location !== "undefined" && location.pathname === "/fees")) ? "fees" : "cabinet")
+    : (HOST_SITE === "admin" ? "admin" : (HOST_SITE === "brandbook" ? "brandbook" : "tests"));
   const ui = {
-    view: "tests",
-    role: readRolePref(),
+    view: INITIAL_VIEW,
+    role: INITIAL_ROLE,
     sid: firstSubject.id,
     topicId: null,
     quiz: null,
@@ -849,7 +868,7 @@
     motion: { playing: true, preset: "design", step: 0, slot: "10:00", offer: 1200, sent: false, clicking: false, hitTarget: "" },
     savings: { freq: 2, marketRate: 1350, offerRate: 1000 },
     bbModal: false,
-    brandbook: { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, vpWidth: 390, chipOn: true, sent: false, fav: true, switchVal: "online", multiSubjs: ["bio", "chem"], multiMenuOpen: false, pickedPlan: "month10k", quizOpt: 1, marketDemoAccepted: false, reducedMotion: false, balFunded: true, chartStyle: "sticks", chartDataset: "income", chartActiveIdx: 3, linePtIdx: 3, donutDataset: "channels", donutSliceIdx: 0, tableCols: 5, tableFilter: "all", tableSearch: "", maskPhone: "+7 (914) 210-05-11", maskTg: "@aytal_bio", maskMax: "aytal_ege", payMethod: "sbp", payState: "frozen", payInitialDone: false, tablePreset: "requests", confirmedRows: {}, essayOpenIdx: 0 }
+    brandbook: { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, vpWidth: 390, chipOn: true, sent: false, fav: true, switchVal: "online", multiSubjs: ["bio", "chem"], multiMenuOpen: false, pickedPlan: "month10k", quizOpt: 1, marketDemoAccepted: false, reducedMotion: false, balFunded: true, chartStyle: "sticks", chartDataset: "income", chartActiveIdx: 3, chartLines: 1, chartPoints: 7, linePtIdx: 3, donutDataset: "channels", donutSliceIdx: 0, tableCols: 5, tableFilter: "all", tableSearch: "", maskPhone: "+7 (914) 210-05-11", maskTg: "@aytal_bio", maskMax: "aytal_ege", payMethod: "sbp", payState: "frozen", payInitialDone: false, tablePreset: "requests", confirmedRows: {}, essayOpenIdx: 0 }
   };
   const MARKET_LS_KEY = "vektor-ege:market";
   const TDATA = EGE.tutors || null;
@@ -881,7 +900,7 @@
       if (raw) saved = JSON.parse(raw);
     } catch (e) { /* игнор */ }
     ui.market = Object.assign(defaultMarketState(), saved && typeof saved === "object" ? saved : {});
-    ui.market.initialPaid = !!(ui.market.initialPaid || Number(ui.market.balance) >= 5000);
+    ui.market.initialPaid = !!(ui.market.initialPaid || Number(ui.market.balance) >= 990);
     if (!ui.market.planId || ui.market.planId === "free") ui.market.planId = "trial5k";
     if (!ui.market.city) ui.market.city = "all";
     if (!Array.isArray(ui.market.bookings)) ui.market.bookings = [];
@@ -957,6 +976,9 @@
   }
   function readHash() {
     const h = decodeURIComponent((location.hash || "").slice(1));
+    if (HOST_SITE === "student" || HOST_SITE === "tutor" || HOST_SITE === "admin") {
+      ui.role = HOST_SITE;
+    }
     if (h) {
       if (TOPICS[h]) { ui.view = "topic"; ui.topicId = h; ui.sid = TOPICS[h].sid; return; }
       if (SUBJ[h]) { ui.view = "subject"; ui.sid = h; return; }
@@ -977,13 +999,39 @@
     }
     try {
       if (!h && typeof location !== "undefined") {
-        if (location.pathname === "/brandbook") { ui.view = "brandbook"; return; }
-        if (location.pathname === "/fees") { ui.view = "fees"; return; }
+        if (location.pathname === "/brandbook" || HOST_SITE === "brandbook") { ui.view = "brandbook"; return; }
+        if (location.pathname === "/fees" || (typeof window !== "undefined" && window.EGE_HOST && window.EGE_HOST.view === "fees")) {
+          if (HOST_SITE === "tutor") ui.role = "tutor";
+          ui.view = "fees";
+          return;
+        }
         if (location.pathname === "/landing") { ui.view = "landing"; return; }
-        if (location.pathname === "/admin") { ui.role = "admin"; ui.view = "admin"; return; }
+        if (location.pathname === "/admin" || HOST_SITE === "admin") { ui.role = "admin"; ui.view = "admin"; return; }
+        if (HOST_SITE === "tutor") { ui.role = "tutor"; ui.view = "cabinet"; return; }
+        if (HOST_SITE === "student") { ui.role = "student"; ui.view = "tests"; return; }
       }
     } catch (e) { /* игнор */ }
     if (!h && typeof window !== "undefined" && window.EGE_HOST && window.EGE_HOST.landing) ui.view = "landing";
+  }
+  function applyPostAuthView() {
+    if (HOST_SITE === "student" || HOST_SITE === "tutor" || HOST_SITE === "admin") {
+      ui.role = HOST_SITE;
+    }
+    if (ui.role === "admin") {
+      ui.view = "admin";
+      writeHash();
+      if (store.backend && EGE.views.admin && typeof EGE.views.admin.loadData === "function") {
+        EGE.views.admin.loadData(false);
+      }
+      return;
+    }
+    if (ui.role === "tutor") {
+      if (!["cabinet", "fees", "tutor"].includes(ui.view)) ui.view = "cabinet";
+      writeHash();
+      return;
+    }
+    if (ui.view !== "market") ui.view = "tests";
+    writeHash();
   }
   function writeHash() {
     const tcTab = ui.view === "cabinet" && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.getTab === "function" ? EGE.views.tutorCabinet.getTab() : "";
@@ -1174,64 +1222,76 @@
     const bm = ui.balanceModal;
     if (!bm) return "";
     const st = mkt();
-    const minOk = (Number(st.balance) || 0) >= 5000;
-    const minTopup = st.initialPaid ? 100 : 5000;
-    const chipVals = st.initialPaid ? [100, 500, 1000, 5000] : [5000, 10000, 15000];
+    const trialRub = (TDATA && TDATA.TRIAL_PRICE) || 990;
+    const minOk = (Number(st.balance) || 0) >= trialRub;
+    const minTopup = st.initialPaid ? 100 : trialRub;
+    const chipVals = st.initialPaid ? [100, 500, 990, 4590] : [990, 2190, 4590, 8900];
     const plans = (TDATA && TDATA.PLANS) || [];
     const customVal = bm.customAmount != null ? String(bm.customAmount) : String(minTopup);
     const payProv = EGEPayments && EGEPayments.provider === "demo"
-      ? "Демо-режим · готово к подключению СБП / ЮKassa"
-      : `Провайдер: ${EGEPayments.provider}`;
+      ? "Только СБП (QR / банк без карт · 0% карточной наценки) · АЭБ, Сбер, Т-Банк, ВТБ"
+      : `СБП-шлюз (${EGEPayments.provider}) · без карточных переплат`;
     const walletSummaryHTML = (EGE.kit && typeof EGE.kit.walletSummaryBarHTML === "function")
       ? EGE.kit.walletSummaryBarHTML({
-          label: "Текущий баланс ученика",
+          label: "Текущий баланс ученика (СБП-эскроу)",
           amountRub: st.balance,
           subNote: payProv,
-          badge: { text: minOk ? "✓ Порог 5 000 ₽ открыт" : "Минимум 5 000 ₽", cls: minOk ? "confirm" : "gold" }
+          badge: { text: minOk ? "✓ СБП-баланс активен" : `Старт на уроки от ${trialRub} ₽`, cls: minOk ? "confirm" : "gold" }
         })
       : `<div class="wallet-bar">
           <div class="stack" style="gap:2px">
-            <span class="small muted">Текущий баланс ученика</span>
+            <span class="small muted">Текущий баланс ученика (СБП-эскроу)</span>
             <span class="wallet-num num">${st.balance.toLocaleString("ru-RU")} ₽</span>
             <span class="small muted">${esc(payProv)}</span>
           </div>
-          <span class="chip ${minOk ? "confirm" : "gold"}">${minOk ? "✓ Порог 5 000 ₽ открыт" : "Минимум 5 000 ₽"}</span>
+          <span class="chip ${minOk ? "confirm" : "gold"}">${minOk ? "✓ СБП-баланс активен" : `Старт на уроки от ${trialRub} ₽`}</span>
         </div>`;
     return `<div class="modal-back" role="dialog" aria-modal="true" aria-labelledby="bal-modal-title">
       <div class="modal-card">
         <div class="modal-head">
-          <div class="row" style="gap:8px">${icon("wallet")}<b id="bal-modal-title">Баланс и пополнение</b></div>
+          <div class="row" style="gap:8px">${icon("wallet")}<b id="bal-modal-title">Баланс и пополнение по СБП</b></div>
           <button type="button" class="icon-btn sm" data-a="bal-close" aria-label="Закрыть">${icon("x")}</button>
         </div>
         ${walletSummaryHTML}
-        ${bm.reason ? `<div class="notice warn"><b>Требуется минимум 5 000 ₽ на балансе</b><span class="small">${esc(bm.reason)}</span></div>` : `<p class="small ink2">${st.initialPaid ? "Подписка активна: далее можно пополнять счёт на любую сумму от <b>100 ₽</b>. Средства не списываются до подтверждения преподавателя." : "Минимальная подписка и первый платёж — от <b>5 000 ₽</b>. После первого пополнения откроются бесплатный пробный урок (0 ₽), отклики и любые доплаты от <b>100 ₽</b>."}</p>`}
+        <div class="hh-notice-card" style="padding:12px 14px;gap:8px">
+          <div class="row between" style="gap:6px;flex-wrap:wrap;align-items:center">
+            <b class="small">Как работает СБП-оплата и защита баланса</b>
+            <span class="chip confirm" style="font-size:11px">Только СБП · 0% за карты</span>
+          </div>
+          <span class="small ink2">Пополнение проходит напрямую по СБП (АЭБ, СберБанк, Т-Банк, ВТБ) и хранится на эскроу: преподаватель получает оплату только после занятия, контакты WA / TG / MAX открываются сразу после бронирования слота, а на пробном уроке 60 мин за 990 ₽ действует 100% гарантия бесплатной замены.</span>
+          <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
+            <span class="small muted">Базовый расчёт: 5% сервис + 1% шлюз СБП</span>
+            <button type="button" class="link-btn small" data-a="go-fees">Подробнее о СБП и сборе →</button>
+          </div>
+        </div>
+        ${bm.reason ? `<div class="notice warn"><b>Требуется от ${trialRub} ₽ на балансе (СБП)</b><span class="small">${esc(bm.reason)}</span></div>` : `<p class="small ink2">${st.initialPaid ? "Баланс открыт: далее можно пополнять счёт по СБП на любую сумму от <b>100 ₽</b>. Средства бронируются поурочно." : `Для пробного урока 60 мин и откликов репетиторов старт от <b>${trialRub} ₽</b> по СБП (или «ИИ-Старт ЕГЭ» за <b>390 ₽/мес</b>). После старта доплаты от <b>100 ₽</b>.`}</p>`}
         <div class="stack" style="gap:8px">
-          <span class="label">Минимальные тарифы и быстрая оплата</span>
+          <span class="label">Тарифы запуска · оплата по СБП</span>
           <div class="bal-plan-grid">
             ${plans.map((p) => {
               const picked = st.planId === p.id;
               return `<div class="card pad stack" style="gap:8px;box-shadow:none${p.super ? ";border-color:var(--accent)" : ""}">
                 <div class="row between" style="gap:4px">
                   <b class="small">${esc(p.name)}</b>
-                  <span class="chip ${p.super ? "accent" : (p.balance ? "gold" : "")}" style="font-size:11px">${esc(p.badge)}</span>
+                  <span class="chip ${p.super ? "accent" : (p.kind === "ai" ? "pro" : (p.balance ? "gold" : ""))}" style="font-size:11px">${esc(p.badge)}</span>
                 </div>
                 <b class="num" style="font-size:19px">${esc(p.priceLabel)}</b>
                 <span class="small muted">${esc(p.tagline)}</span>
-                <button type="button" class="btn ${p.super || p.featured ? "" : "soft"} sm" data-a="bal-topup-preset" data-amount="${p.balance}" data-plan="${esc(p.id)}"${picked && st.initialPaid ? ' aria-current="true"' : ""}>Пополнить +${p.balance.toLocaleString("ru-RU")} ₽</button>
+                <button type="button" class="btn ${p.super || p.featured ? "" : "soft"} sm" data-a="bal-topup-preset" data-amount="${p.balance}" data-plan="${esc(p.id)}"${picked && st.initialPaid ? ' aria-current="true"' : ""}>Пополнить по СБП +${p.balance.toLocaleString("ru-RU")} ₽</button>
               </div>`;
             }).join("")}
           </div>
         </div>
         <form class="stack" style="gap:10px" data-f="bal-custom">
           <div class="row between" style="gap:8px;flex-wrap:wrap">
-            <label for="bal-custom-amount" class="label">Любая сумма (${st.initialPaid ? "от 100 ₽" : "первый платёж от 5 000 ₽"})</label>
+            <label for="bal-custom-amount" class="label">Любая сумма по СБП (${st.initialPaid ? "от 100 ₽" : `первый платёж от ${trialRub} ₽`})</label>
             <div class="row" style="gap:6px;flex-wrap:wrap">
               ${chipVals.map((v) => `<button type="button" class="chip-btn" data-a="bal-chip" data-v="${v}">${v.toLocaleString("ru-RU")} ₽</button>`).join("")}
             </div>
           </div>
           <div class="row" style="gap:8px;flex-wrap:wrap">
-            <input class="input num" id="bal-custom-amount" name="amount" type="number" min="${minTopup}" max="200000" step="100" inputmode="numeric" value="${esc(customVal)}" placeholder="${st.initialPaid ? "От 100 ₽" : "От 5000 ₽"}" style="flex:1 1 160px">
-            <button type="submit" class="btn">${icon("wallet")}<span>Пополнить счёт</span></button>
+            <input class="input num" id="bal-custom-amount" name="amount" type="number" min="${minTopup}" max="200000" step="10" inputmode="numeric" value="${esc(customVal)}" placeholder="${st.initialPaid ? "От 100 ₽" : `От ${trialRub} ₽`}" style="flex:1 1 160px">
+            <button type="submit" class="btn">${icon("wallet")}<span>Оплатить по СБП</span></button>
           </div>
           ${bm.error ? `<div class="small" style="color:var(--bad);font-weight:600">${esc(bm.error)}</div>` : ""}
         </form>
@@ -1433,12 +1493,26 @@
     const nm = (store.user ? (prof.name || store.user.displayName || store.user.username) : "") || prof.name || (me && me.name) || (store.mode === "local" ? (store.backend ? "Гость" : "Этот браузер") : "");
     const dark = effectiveDark();
     const themeLabel = dark ? "Светлая тема" : "Тёмная тема";
-    $("#side-foot").innerHTML = `<div id="side-balance-slot" class="side-bal-slot"${isTutor || isAdmin ? " hidden" : ""}>${isTutor || isAdmin ? "" : balanceTopWidgetHTML(true)}</div>
-      <div class="hh-seg side-role-seg" role="group" aria-label="Роль на платформе" style="margin-bottom:2px">
+    const tcMod = EGE.views.tutorCabinet;
+    const hasHostSite = !!(HOST_SITE && ["student", "tutor", "admin", "brandbook"].includes(HOST_SITE));
+    const sideBalHTML = isAdmin
+      ? ""
+      : isTutor
+        ? ((tcMod && typeof tcMod.sideBalanceWidgetHTML === "function")
+            ? tcMod.sideBalanceWidgetHTML()
+            : (EGE.kit && typeof EGE.kit.sideTutorBalanceHTML === "function"
+                ? EGE.kit.sideTutorBalanceHTML({ availableRub: 0, escrowRub: 0, action: "tc-payout-open" })
+                : ""))
+        : balanceTopWidgetHTML(true);
+    const roleSwitcherHTML = hasHostSite
+      ? `<div class="side-site-links small muted" style="display:flex;gap:8px;flex-wrap:wrap;padding:4px 2px"><a href="/student" class="link-btn small"${!isTutor && !isAdmin ? ' aria-current="page" style="font-weight:700;color:var(--ink)"' : ""}>Ученик</a><span>·</span><a href="/tutor" class="link-btn small"${isTutor ? ' aria-current="page" style="font-weight:700;color:var(--ink)"' : ""}>Преподаватель</a><span>·</span><a href="/admin" class="link-btn small"${isAdmin ? ' aria-current="page" style="font-weight:700;color:var(--ink)"' : ""}>Админка</a></div>`
+      : `<div class="hh-seg side-role-seg" role="group" aria-label="Роль на платформе" style="margin-bottom:2px">
         <button type="button" data-a="role-set" data-role="student" aria-pressed="${!isTutor && !isAdmin}">Ученик</button>
         <button type="button" data-a="role-set" data-role="tutor" aria-pressed="${isTutor}">Преподаватель</button>
       </div>
-      <button type="button" class="side-admin-pill${isAdmin ? " is-on" : ""}" data-a="role-set" data-role="${isAdmin ? "student" : "admin"}" aria-pressed="${isAdmin}">${icon("shield")}<span>Админ-панель</span></button>
+      <button type="button" class="side-admin-pill${isAdmin ? " is-on" : ""}" data-a="role-set" data-role="${isAdmin ? "student" : "admin"}" aria-pressed="${isAdmin}">${icon("shield")}<span>Админ-панель</span></button>`;
+    $("#side-foot").innerHTML = `<div id="side-balance-slot" class="side-bal-slot"${isAdmin ? " hidden" : ""}>${sideBalHTML}</div>
+      ${roleSwitcherHTML}
       <div class="side-user">
         <div class="me">${avatarHTML(me && me.avatarUrl, nm, false)}<div style="min-width:0"><div class="me-name">${esc(nm)}</div><span class="sync" hidden><i></i><span></span></span></div></div>
         <div class="row" style="gap:6px">
@@ -1481,7 +1555,6 @@
     }
     const topLogout = $("#top-logout");
     if (topLogout) topLogout.hidden = !(store.backend && store.user);
-    const tcMod = EGE.views.tutorCabinet;
     const topBalSlot = $("#top-balance-slot");
     if (topBalSlot) {
       if (isAdmin) {
@@ -1502,14 +1575,8 @@
     }
     const tutorDock = $("#tutor-balance-dock");
     if (tutorDock) {
-      const showDock = !!(isTutor && !isAdmin && ui.view !== "landing" && tcMod && typeof tcMod.desktopDockHTML === "function");
-      if (showDock) {
-        tutorDock.hidden = false;
-        tutorDock.innerHTML = tcMod.desktopDockHTML();
-      } else {
-        tutorDock.hidden = true;
-        tutorDock.innerHTML = "";
-      }
+      tutorDock.hidden = true;
+      tutorDock.innerHTML = "";
     }
     const mobileNav = isAdmin
       ? [
@@ -1621,6 +1688,7 @@
     opts = opts || {};
     const a = ui.auth, reg = a.tab === "register";
     const isTutor = ui.role === "tutor";
+    const hasSiteRole = HOST_SITE === "student" || HOST_SITE === "tutor" || HOST_SITE === "admin";
     const hasGoogle = !!(store.authProviders && store.authProviders.google);
     return `<form class="card pad-lg form${opts.standalone ? " auth-card" : ""}${opts.modal ? " is-modal" : ""}" data-f="auth">
       <div class="row between" style="flex-wrap:wrap">
@@ -1654,17 +1722,17 @@
       </div>`}
       ${reg && store.inviteRequired ? `<div class="field"><label for="auth-invite">Код приглашения</label><input class="input" id="auth-invite" name="invite" type="text" autocomplete="off" maxlength="64" required data-d="auth.invite" value="${esc(draft("auth.invite", ""))}"></div>` : ""}
       ${reg && hasLocalProgress() ? `<label class="row" style="gap:8px;align-items:center"><input type="checkbox" class="check" id="auth-migrate" name="migrate" checked><span class="small">Перенести текущий прогресс из этого браузера в новый аккаунт</span></label>` : ""}
-      <div class="field">
+      ${hasSiteRole ? "" : `<div class="field">
         <span class="label">Кем войти <span class="muted">(по умолчанию — ученик)</span></span>
         <div class="hh-seg equal" role="group" aria-label="Роль входа">
           <button type="button" data-a="auth-role" data-role="student" aria-pressed="${!isTutor}">${icon("book")}<span>Как ученик</span></button>
           <button type="button" data-a="auth-role" data-role="tutor" aria-pressed="${isTutor}">${icon("users")}<span>Как преподаватель</span></button>
         </div>
-      </div>
+      </div>`}
       ${a.error ? `<div class="notice">${esc(a.error)}</div>` : ""}
       <div class="auth-actions-row">
         <button class="btn" type="submit"${a.busy ? " disabled" : ""}>${a.busy ? "Подожди…" : reg ? "Создать аккаунт" : "Войти"}</button>
-        ${!reg ? `<button type="button" class="btn soft" data-a="auth-guest">${isTutor ? "Кабинет преподавателя (демо)" : "Демо-вход ученика"}</button>` : ""}
+        ${!reg ? `<button type="button" class="btn soft" data-a="auth-guest">${ui.role === "admin" ? "Админ-панель (демо)" : isTutor ? "Кабинет преподавателя (демо)" : "Демо-вход ученика"}</button>` : ""}
       </div>
       <div class="auth-foot-row">
         <span class="small muted">${reg ? "Уже есть аккаунт?" : "Впервые на платформе?"}</span>
@@ -1713,60 +1781,6 @@
     return EGE.views.brandbook.viewFees(opts, { ui, dark: effectiveDark(), TDATA });
   }
   /** Вкладка «Тесты»: 3 предмета ЕГЭ, тренажёр, варианты КИМ и встроенный Справочник. */
-  function viewTests() {
-    const prof = profile();
-    const name = prof.name || (store.ready ? defaultName() : "");
-    const parts = [];
-    parts.push(`<div class="head"><div><div class="eyebrow">${name ? `Привет, ${esc(name)}! · ` : ""}ЕГЭ 2027 · Тренажёр</div><h1 class="h1">Тесты ЕГЭ</h1></div><p class="lead">Отработка заданий ФИПИ по трём предметам, полные варианты КИМ и быстрый поиск по правилам без нейросети.</p></div>`);
-    if (store.backend && store.ready && !store.user) parts.push(`<div class="notice"><b>Гостевой режим.</b><span>Прогресс хранится в этом браузере. <button type="button" class="link-btn" data-a="auth-modal-open">Войти или создать аккаунт</button>, чтобы синхронизировать.</span></div>`);
-    if (store.ready && !prof.exists && store.error !== "readonly" && (!store.backend || store.user || ui.guest)) parts.push(onboardingCard());
-    if (store.mode === "local" && !store.backend) parts.push(localNotice());
-    parts.push(staleNotice());
-
-    const subjCards = CONTENT.map((s) => {
-      const st = subjectStats(s.id);
-      const mis = store.ready ? mistakeQs(s.id).length : 0;
-      const due = store.ready ? dueQs(s.id).length : 0;
-      const target = (prof.targets && prof.targets[s.id]) || 80;
-      return `<article class="card stack" style="gap:12px">
-        <div class="row between" style="gap:8px;flex-wrap:wrap">
-          <div class="row" style="gap:8px"><i class="dot" style="background:var(--c-${s.id})"></i><h2 class="h2">${esc(s.name)}</h2></div>
-          <span class="chip num">готовность ${store.ready ? st.pct + "%" : "—"} · цель ${target}</span>
-        </div>
-        <div class="meter"><i style="width:${st.pct}%"></i></div>
-        <div class="row between small muted" style="flex-wrap:wrap;gap:6px">
-          <span>освоено ${st.mastered} из ${st.total} · тем ${st.started}/${st.topics}</span>
-          <span>${mis ? `ошибок: ${mis}` : due ? `повторить: ${due}` : "без долгов"}</span>
-        </div>
-        <div class="tutor-actions">
-          <button type="button" class="btn" data-a="go" data-v="subject" data-sid="${s.id}">Открыть темы</button>
-          <button type="button" class="btn soft" data-a="quiz-mixed" data-sid="${s.id}">Смешанный тест</button>
-        </div>
-        ${mis ? `<div><button type="button" class="link-btn small" data-a="quiz-mistakes" data-sid="${s.id}">Разобрать ошибки (${mis})</button></div>` : ""}
-      </article>`;
-    }).join("");
-    parts.push(`<div class="grid-3">${subjCards}</div>`);
-
-    parts.push(`<section class="card stack" style="gap:10px">
-      <div class="row between" style="gap:8px;flex-wrap:wrap">
-        <div>
-          <div class="eyebrow">Офлайн без нейросети</div>
-          <h2 class="h2">Справочник, формулы и сочинение</h2>
-        </div>
-        <div class="row" style="gap:8px;flex-wrap:wrap">
-          ${EGE.essay ? `<button type="button" class="btn soft sm" data-a="go" data-v="essay">Сочинение №27</button>` : ""}
-          <button type="button" class="btn sm" data-a="go" data-v="tutor">Открыть справочник</button>
-        </div>
-      </div>
-      <div class="chip-rail">
-        ${["митоз", "гидролиз", "задание 8", "клише"].map((q) => `<button type="button" class="chip-btn" data-a="tests-guide-chip" data-q="${esc(q)}">${esc(q)}</button>`).join("")}
-      </div>
-    </section>`);
-
-    parts.push(`<section class="section"><div class="section-head"><h2 class="h2">Рекомендуем сейчас</h2><button type="button" class="link-btn small" data-a="go" data-v="market">Нужен репетитор?</button></div><div class="steps">${nextSteps().map(stepBtn).join("")}</div></section>`);
-    parts.push(`<div class="grid-hero">${heroCard(prof)}${examsCard(prof)}</div>`);
-    return parts.join("");
-  }
 
   function viewLanding() {
     return landingPageHTML({ inside: true });
@@ -1795,1743 +1809,44 @@
       ${cf && cf.kind === "migrate" ? `<div class="confirm"><b>Перенести локальные данные в аккаунт «${esc(title)}»?</b><span class="small">Документы из памяти этого браузера перезапишут одноимённые разделы на сервере.</span><div class="row"><button type="button" class="btn sm" data-a="auth-migrate-do">Перенести</button><button type="button" class="btn ghost sm" data-a="confirm-cancel">Отмена</button></div></div>` : ""}
     </section>`;
   }
+  // ---------- модульные делегаты (views/trainer, essay-guide, progress, market-bb-actions) ----------
+  function viewHome() { return EGE.views.trainer.viewHome(); }
+  function viewTests() { return EGE.views.trainer.viewTests(); }
+  function viewSubject(sid) { return EGE.views.trainer.viewSubject(sid); }
+  function viewTopic(id) { return EGE.views.trainer.viewTopic(id); }
+  function viewQuiz() { return EGE.views.trainer.viewQuiz(); }
+  function tablesHTML(q) { return EGE.views.trainer.tablesHTML(q); }
+  function curItem() { return EGE.views.trainer.curItem(); }
+  function canCheck(it) { return EGE.views.trainer.canCheck(it); }
+  function grade(it) { return EGE.views.trainer.grade(it); }
+  function correctText(q) { return EGE.views.trainer.correctText(q); }
+  function doCheck() { return EGE.views.trainer.doCheck(); }
+  function doNext() { return EGE.views.trainer.doNext(); }
+  function saveVariantMock(qz, silent) { return EGE.views.trainer.saveVariantMock(qz, silent); }
+  function abortAI() { return EGE.views.trainer.abortAI(); }
+  function sendChat(text) { return EGE.views.trainer.sendChat(text); }
+  function weight(st, today) { return EGE.views.trainer.weight(st, today); }
 
-  // ---------- главная ----------
-  function viewHome() {
-    const prof = profile();
-    const name = prof.name || (store.ready ? defaultName() : "");
-    const parts = [];
-    parts.push(`<div class="head"><div class="eyebrow">${esc(capitalize(fmtWeekday.format(new Date())))}</div><h1 class="h1">${name ? "Привет, " + esc(name) + "!" : "Привет!"}</h1><p class="lead">Подготовка к ЕГЭ по трём предметам: ${esc(CONTENT.map((s) => s.name.toLowerCase()).join(", "))}. Здесь темы и тесты, план подготовки и твои показатели.</p></div>`);
-    if (store.backend && store.ready && !store.user) parts.push(`<div class="notice"><b>Гостевой режим.</b><span>Прогресс сохраняется только в этом браузере. <button type="button" class="link-btn" data-a="auth-screen">Войти или создать аккаунт</button>, чтобы синхронизировать с сервером.</span></div>`);
-    if (store.ready && !prof.exists && store.error !== "readonly" && (!store.backend || store.user || ui.guest)) parts.push(onboardingCard());
-    if (store.mode === "local" && !store.backend) parts.push(localNotice());
-    parts.push(staleNotice());
-    parts.push(`<div class="grid-hero">${heroCard(prof)}${readinessCard(prof)}</div>`);
-    const stMkt = mkt();
-    const balTxt = stMkt.balance
-      ? "Активный баланс: " + stMkt.balance.toLocaleString("ru-RU") + " ₽ · выбери кружочек времени и предложи ставку"
-      : "Задания и справочник бесплатны всегда · или открой баланс 5 000 / 10 000 ₽ на уроки с выбором времени в кружочках";
-    parts.push(`<section class="section"><div class="card" style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><div class="stack" style="gap:3px"><b>Маркетплейс репетиторов (ЕГЭ / ОГЭ)</b><span class="small muted">${esc(balTxt)}</span></div><div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="btn soft sm" data-a="go" data-v="landing">Тарифы 0 / 5к / 10к</button><button type="button" class="btn sm" data-a="go" data-v="market">Подобрать репетитора</button></div></div></section>`);
-    parts.push(`<section class="section"><div class="section-head"><h2 class="h2">Что дальше</h2><span class="small muted">по твоему прогрессу</span></div><div class="steps">${nextSteps().map(stepBtn).join("")}</div></section>`);
-    parts.push(`<div class="grid-2">${upcomingCard()}${examsCard(prof)}</div>`);
-    parts.push(activityCard());
-    return parts.join("");
-  }
-  function onboardingCard() {
-    const cloudText = store.mode === "cloud"
-      ? (store.backend
-          ? "Прогресс сохраняется на сервере и привязан к твоему аккаунту: открой сайт с любого устройства под своим логином, и всё будет на месте."
-          : "Прогресс сохраняется в облаке claude.ai: открой эту страницу на любом компьютере под своим аккаунтом, и всё будет на месте.")
-      : "Сейчас данные сохраняются только в этом браузере.";
-    return `<form class="card pad-lg form" data-f="onboard" style="border-color:var(--accent)">
-      <div class="eyebrow">Первый вход</div>
-      <h2 class="h2">Давай настроим подготовку</h2>
-      <p class="ink2">${cloudText}</p>
-      ${store.user ? "" : `<div class="field"><label for="ob-name">Как к тебе обращаться</label><input class="input" id="ob-name" data-d="ob.name" value="${esc(draft("ob.name", defaultName()))}" maxlength="40"></div>`}
-      <div class="label">Целевые баллы ЕГЭ</div>
-      <div class="fields">${SUBJECT_META.map((s) => `<div class="field"><label for="ob-${s.id}">${esc(s.name)}</label><input class="input num" type="number" min="0" max="100" inputmode="numeric" id="ob-${s.id}" data-d="ob.${s.id}" value="${esc(draft("ob." + s.id, DEFAULT_TARGETS[s.id]))}"></div>`).join("")}</div>
-      <p class="hint">Ориентир: сумма по трём предметам — до 300 баллов (обычно цель ставят от 220+). Целевые баллы можно поменять позже в настройках.</p>
-      <div><button class="btn" type="submit">Начать подготовку</button></div>
-    </form>`;
-  }
-  function heroMetaRow() {
-    const tot = totals();
-    if (!tot.streak && !tot.today) return "";
-    return `<div class="row" style="gap:6px">${tot.streak ? `<span class="chip good">Серия: ${days(tot.streak)}</span>` : ""}${tot.today ? `<span class="chip accent">Сегодня: ${minutesText(tot.today)}</span>` : ""}</div>`;
-  }
-  function heroCard(prof) {
-    const apply = planItems().find((i) => i.id === "ege-apply");
-    const meta = heroMetaRow();
-    const goSubjBtn = CONTENT.length ? `<button type="button" class="btn ghost" data-a="go" data-v="subject" data-sid="${ui.sid}">К тренировкам</button>` : "";
-    if (apply && !apply.done && validISO(apply.due) && daysUntil(apply.due) >= 0) {
-      const n = daysUntil(apply.due);
-      return `<section class="hero" aria-label="Главный срок">
-        <div class="row between"><span class="eyebrow">Главный срок</span>${meta}</div>
-        <div class="hero-figure">${n === 0 ? '<span class="hero-num">Сегодня</span>' : `<span class="hero-num num">${n}</span><span class="hero-unit">${plural(n, "день", "дня", "дней")}</span>`}</div>
-        <p class="hero-text">${n === 0 ? "последний день" : "до " + dateDay(apply.due) + ", последнего дня"} подачи заявления на ЕГЭ по химии, биологии и русскому языку. Возьми паспорт и аттестат.</p>
-        <div class="row"><button type="button" class="btn" data-a="go" data-v="plan">Открыть план</button>${goSubjBtn}</div>
-      </section>`;
-    }
-    const ex = nextExam(prof);
-    if (ex) {
-      const n = daysUntil(ex.date);
-      return `<section class="hero" aria-label="Ближайший экзамен">
-        <div class="row between"><span class="eyebrow">Ближайший экзамен</span>${meta}</div>
-        <div class="hero-figure">${n === 0 ? '<span class="hero-num">Сегодня</span>' : `<span class="hero-num num">${n}</span><span class="hero-unit">${plural(n, "день", "дня", "дней")}</span>`}</div>
-        <p class="hero-text">${n === 0 ? "экзамен" : "до экзамена"} по предмету «${esc(ex.name)}», ${dateLong(ex.date)}. Цель — ${prof.targets[ex.subject]} баллов.</p>
-        <div class="row"><button type="button" class="btn" data-a="go" data-v="plan">Открыть план</button>${goSubjBtn}</div>
-      </section>`;
-    }
-    return `<section class="hero"><div class="row between"><span class="eyebrow">Экзамены позади</span>${meta}</div><p class="hero-text">Теперь главное — заявление в вуз, конкурсные списки и согласие на зачисление.</p><div class="row"><button type="button" class="btn" data-a="go" data-v="plan">Открыть план</button></div></section>`;
-  }
-  function readinessCard(prof) {
-    if (!CONTENT.length) return "";
-    const rows = CONTENT.map((s) => {
-      const st = subjectStats(s.id);
-      const mis = store.ready ? mistakeQs(s.id).length : 0;
-      const due = store.ready ? dueQs(s.id).length : 0;
-      return `<div class="stack" style="gap:6px">
-        <div class="row between"><button type="button" class="link-btn row" style="gap:8px" data-a="go" data-v="subject" data-sid="${s.id}"><i class="dot" style="background:var(--c-${s.id})"></i>${esc(s.name)}</button><span class="row" style="gap:8px"><b class="num">${store.ready ? st.pct + "%" : "—"}</b><span class="chip">цель ${prof.targets[s.id]}</span></span></div>
-        <div class="meter"><i style="width:${st.pct}%"></i></div>
-        <div class="row between small muted"><span>освоено ${st.mastered} из ${st.total} · начато ${st.started} из ${st.topics} тем</span>${mis ? `<span class="chip warn">ошибок: ${mis}</span>` : due ? `<span class="chip leaf">повторить: ${due}</span>` : ""}</div>
-      </div>`;
-    }).join("");
-    return `<section class="card pad-lg stack" aria-label="Готовность по предметам">
-      <div class="eyebrow">Готовность по предметам</div>
-      ${rows}
-      <div class="hint">Вопрос считается освоенным после двух верных ответов подряд.</div>
-    </section>`;
-  }
-  function nextSteps() {
-    const steps = [];
-    if (ui.quiz && !ui.quiz.done) steps.push({ a: "go", v: "quiz", ico: "arrow", tone: "leaf", title: "Вернуться к тесту", sub: `${ui.quiz.title} · вопрос ${ui.quiz.i + 1} из ${ui.quiz.items.length}` });
-    if (store.ready) {
-      const pd = planDoc();
-      CONTENT.forEach((s) => {
-        if (subjectStats(s.id).seen === 0 && !pd.done[DIAG_PLAN_ID[s.id]]) steps.push({ a: "quiz-mixed", sid: s.id, ico: "spark", tone: "leaf", title: "Пройди диагностический тест " + SUBJ[s.id].po, sub: QUIZ_SIZE + " вопросов по всем разделам — результат сразу отметится в плане" });
-      });
-    }
-    CONTENT.forEach((s) => {
-      const due = dueQs(s.id).length;
-      if (due) steps.push({ a: "quiz-review", sid: s.id, ico: "repeat", title: `Повтори ${due} ${plural(due, "вопрос", "вопроса", "вопросов")} · ${s.name}`, sub: "Интервальное повторение: пора закрепить пройденное" });
-    });
-    CONTENT.forEach((s) => {
-      const mis = mistakeQs(s.id).length;
-      if (mis) steps.push({ a: "quiz-mistakes", sid: s.id, ico: "alert", tone: "warn", title: `Работа над ошибками · ${s.name} · ${mis}`, sub: "Вопросы, где ответ был неверным" });
-    });
-    // Следующая тема — в предмете, где готовность ниже.
-    const order = CONTENT.slice().sort((a, b) => subjectStats(a.id).pct - subjectStats(b.id).pct);
-    for (const s of order) {
-      const nt = SUBJ[s.id].topicList.find((t) => topicStats(t).pct < 90);
-      if (!nt) continue;
-      const ts = topicStats(nt);
-      steps.push({ a: "open-topic", id: nt.id, ico: "book", tone: "good", title: (ts.pct ? "Продолжи: " : "Начни: ") + nt.title, sub: `${s.name} · ${codeLabel(nt).toLowerCase()} · освоено ${ts.mastered} из ${ts.total}` });
-      break;
-    }
-    const todo = planItems().filter((i) => !i.done && validISO(i.due)).sort(byDue)[0];
-    if (todo) {
-      const n = daysUntil(todo.due);
-      steps.push({ a: "go", v: "plan", ico: "list", title: todo.title, sub: n < 0 ? "срок прошёл " + dateLong(todo.due) : n === 0 ? "срок сегодня" : "срок — " + dateLong(todo.due) + ", через " + days(n) });
-    }
-    return steps.slice(0, 6);
-  }
-  function upcomingCard() {
-    const all = planItems();
-    const list = all.filter((i) => !i.done && validISO(i.due)).sort(byDue).slice(0, 4);
-    const done = all.filter((i) => i.done).length;
-    return `<section class="card stack">
-      <div class="row between"><h2 class="h2">Ближайшие дела</h2><button type="button" class="link-btn" data-a="go" data-v="plan">Весь план</button></div>
-      <div class="small muted">Сделано ${done} из ${all.length}</div>
-      <div class="stack">${list.map((it) => todoItem(it, true)).join("") || '<div class="empty">Все дела выполнены.</div>'}</div>
-    </section>`;
-  }
-  function examsCard(prof) {
-    const rows = (EGE.exams || []).map((e) => ({ subject: e.subject, name: e.name, date: prof.exams[e.subject] || e.date }))
-      .filter((r) => validISO(r.date)).sort((a, b) => (a.date < b.date ? -1 : 1));
-    const sum = SUBJECT_META.reduce((n, s) => n + (Number(prof.targets[s.id]) || 0), 0);
-    return `<section class="card stack">
-      <div class="row between"><h2 class="h2">Экзамены</h2><button type="button" class="link-btn" data-a="go" data-v="profile">Изменить даты</button></div>
-      <div>${rows.map((r) => {
-        const n = daysUntil(r.date);
-        const chip = n < 0 ? '<span class="chip">прошёл</span>' : n === 0 ? '<span class="chip bad">сегодня</span>' : `<span class="chip${n <= 30 ? " warn" : ""}">через ${days(n)}</span>`;
-        return `<div class="exam-row"><i class="dot" style="background:var(--c-${r.subject})"></i><div><div class="entry-title">${esc(r.name)}</div><div class="small muted">${dateLong(r.date)} · цель ${prof.targets[r.subject]}</div></div>${chip}</div>`;
-      }).join("")}</div>
-      <div class="hint">Даты по проекту расписания ЕГЭ-2027. Сумма целей — ${sum} из 300.</div>
-    </section>`;
-  }
-  function activityCard() {
-    const tot = totals();
-    return `<section class="card stack">
-      <div class="row between"><h2 class="h2">Занятия за 4 недели</h2><span class="small muted">минуты в день</span></div>
-      <div class="chart" data-chart="activity" style="height:170px"></div>
-      <div class="row between small"><span class="muted">Всего за 28 дней — ${minutesText(tot.d28)}</span><button type="button" class="link-btn" data-a="go" data-v="stats">Все показатели</button></div>
-    </section>`;
-  }
+  function viewPlan() { return EGE.views.progress.viewPlan(); }
+  function viewStats() { return EGE.views.progress.viewStats(); }
+  function viewProfile() { return EGE.views.progress.viewProfile(); }
+  function toggleTodo(id, custom, checked) { return EGE.views.progress.toggleTodo(id, custom, checked); }
+  function drawCharts() { return EGE.views.progress.drawCharts(); }
+  function readImport(file) { return EGE.views.progress.readImport(file); }
+  function copyText(text, sel) { return EGE.views.progress.copyText(text, sel); }
 
-  // ---------- предмет и темы ----------
-  function viewSubject() {
-    const sid = SUBJ[ui.sid] ? ui.sid : firstSubject.id;
-    const s = SUBJ[sid];
-    if (!s) return `<div class="empty">Предмет пока не добавлен.</div>`;
-    const st = subjectStats(sid), prof = profile();
-    const ex = prof.exams[sid], n = validISO(ex) ? daysUntil(ex) : null;
-    const due = dueQs(sid).length, mis = mistakeQs(sid).length;
-    const soon = SUBJECTS.filter((x) => !x.content);
-    const switcher = CONTENT.length > 1
-      ? `<div class="switch" role="group" aria-label="Предмет">${SUBJECTS.map((x) => x.content
-        ? `<button type="button" data-a="go" data-v="subject" data-sid="${x.id}" aria-pressed="${x.id === sid}"><i class="dot" style="background:var(--c-${x.id})"></i><span>${esc(x.name)}</span><span class="small num" style="opacity:.75">${subjectStats(x.id).pct}%</span></button>`
-        : `<button type="button" disabled>${esc(x.name)} · скоро</button>`).join("")}</div>`
-      : "";
-    const qNorm = norm(ui.subjQ);
-    const totalTopics = s.topicList.length;
-    const filteredSecs = s.sections.map((sec) => {
-      const secMatch = qNorm && norm(sec.title).includes(qNorm);
-      const topics = sec.topics.filter((t) => {
-        if (qNorm && !secMatch && !norm(t.title).includes(qNorm) && !norm(t.code).includes(qNorm)) return false;
-        if (ui.subjFilter === "todo") return topicStats(t).pct < 90;
-        if (ui.subjFilter === "mistakes") return mistakeQs(sid, t.id).length > 0;
-        return true;
-      });
-      return { sec, topics };
-    }).filter((x) => x.topics.length);
-    const shownTopics = filteredSecs.reduce((n, x) => n + x.topics.length, 0);
-    return `${switcher}<div class="head">
-        <div class="eyebrow">Предмет · ЕГЭ 2027</div>
-        <div class="head-row"><h1 class="h1">${esc(s.name)}</h1><span class="chip leaf">готовность ${st.pct}%</span></div>
-        <p class="lead">${validISO(ex) ? `Экзамен по проекту расписания — ${dateLong(ex)}${n > 0 ? ", через " + days(n) : ""}. ` : ""}${esc(s.about || "")} Вопрос считается освоенным после двух верных ответов подряд.</p>
-      </div>
-      <div class="facts">${s.exam.facts.map((f) => `<div class="fact"><b>${esc(f[0])}</b><span>${esc(f[1])}</span></div>`).join("")}</div>
-      <p class="hint">${esc(s.exam.note)}</p>
-      ${s.fullVariant ? `<section class="card stack"><h2 class="h2">Пробные варианты ЕГЭ</h2><p class="small muted">${esc(s.fullVariant.sub)}</p>
-        <div class="row" style="flex-wrap:wrap">${range(s.fullVariant.count).map((i) => `<button type="button" class="btn ghost sm" data-a="quiz-fullvariant" data-sid="${sid}" data-k="${i + 1}">Вариант ${i + 1}</button>`).join("")}<button type="button" class="btn sm" data-a="quiz-fullvariant" data-sid="${sid}" data-k="0">Случайный</button></div></section>` : ""}
-      <section class="card stack"><h2 class="h2">Тренировка</h2><div class="steps">
-        ${stepBtn({ a: "quiz-mixed", sid, ico: "spark", tone: "leaf", title: "Смешанный тест", sub: QUIZ_SIZE + " вопросов из разных тем: сначала новые и трудные" })}
-        ${stepBtn({ a: "quiz-review", sid, ico: "repeat", title: "Повторение" + (due ? " · " + due : ""), sub: due ? "Вопросы, которые пора закрепить" : "Сейчас повторять нечего: вопросы появятся здесь по расписанию" })}
-        ${stepBtn({ a: "quiz-mistakes", sid, ico: "alert", tone: "warn", title: "Работа над ошибками" + (mis ? " · " + mis : ""), sub: mis ? "Вопросы с неверным ответом" : "Ошибок пока нет" })}
-        ${s.variant ? stepBtn({ a: "quiz-variant", sid, ico: "list", title: s.variant.label || "Пробный вариант ЕГЭ · часть 1", sub: s.variant.sub || "Задания 1–26 подряд, баллы как на экзамене, ответы — в конце" }) : ""}
-        ${s.part2 ? stepBtn({ a: "quiz-part2", sid, ico: "book", title: s.part2.label, sub: s.part2.sub }) : ""}
-        ${sid === "rus" && EGE.essay ? stepBtn({ a: "go", v: "essay", ico: "book", title: "Тренажёр сочинения", sub: "Задание 27: тексты, план, клише, аргументы и проверка по критериям" }) : ""}
-      </div></section>
-      <section class="section">
-        <div class="section-head"><h2 class="h2">Темы предмета</h2><span class="small muted">${qNorm || ui.subjFilter !== "all" ? `показано ${shownTopics} из ${totalTopics}` : `всего тем: ${totalTopics}`}</span></div>
-        <div class="toolbar">
-          <div class="search-wrap">
-            <input class="input" id="subj-q" type="text" autocomplete="off" spellcheck="false" value="${esc(ui.subjQ)}" placeholder="Поиск по теме или номеру задания…">
-            ${ui.subjQ ? `<button type="button" class="search-clear" data-a="subj-clear" aria-label="Очистить поиск">${icon("x")}</button>` : ""}
-          </div>
-          <div class="switch" role="group" aria-label="Фильтр тем">
-            <button type="button" data-a="subj-filter" data-filter="all" aria-pressed="${ui.subjFilter === "all"}">Все</button>
-            <button type="button" data-a="subj-filter" data-filter="todo" aria-pressed="${ui.subjFilter === "todo"}">Не освоенные</button>
-            <button type="button" data-a="subj-filter" data-filter="mistakes" aria-pressed="${ui.subjFilter === "mistakes"}">С ошибками</button>
-          </div>
-        </div>
-      </section>
-      ${filteredSecs.length ? filteredSecs.map((x) => `<section class="section-block"><div class="section-title"><span class="section-num">Раздел ${x.sec.n}</span><h2 class="h2">${esc(x.sec.title)}</h2></div><div class="slides">${x.topics.map(slide).join("")}</div></section>`).join("") : `<div class="empty"><b>Темы не найдены</b><span>В этом фильтре тем нет — попробуй другой запрос.</span><button type="button" class="btn ghost sm" data-a="subj-clear">Сбросить фильтр</button></div>`}
-      <section class="card stack"><h2 class="h2">Где ещё тренироваться</h2><div class="stack">${s.links.map((l) => `<a href="${esc(l.href)}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join("")}</div></section>
-      ${soon.length ? `<div class="empty"><b>${esc(soon.map((x) => x.name).join(", "))}</b><span>Появится здесь позже — с такими же темами, тестами и прогрессом. Пока записывай занятия в «Показатели».</span></div>` : ""}`;
-  }
-  function sectionBlock(sec) {
-    return `<section class="section-block"><div class="section-title"><span class="section-num">Раздел ${sec.n}</span><h2 class="h2">${esc(sec.title)}</h2></div><div class="slides">${sec.topics.map(slide).join("")}</div></section>`;
-  }
-  function slide(t) {
-    const ts = topicStats(t), p = prog(t.sid);
-    const dots = t.qids.map((id) => { const st = p.q[id]; return `<i class="qdot" data-s="${st && st.n ? st.last : -1}"></i>`; }).join("");
-    const chipCls = ts.pct >= 90 ? "good" : ts.pct > 0 ? "leaf" : "";
-    return `<button type="button" class="slide" data-a="open-topic" data-id="${t.id}">
-      <span class="slide-label">${esc(t.code)}<small>${esc((SUBJ[t.sid].codeName || "Тема").toUpperCase())}</small></span>
-      <span class="slide-body">
-        <span class="slide-top"><span class="slide-title">${esc(t.title)}</span><span class="chip ${chipCls} num">${ts.pct}%</span></span>
-        <span class="meter thin"><i style="width:${ts.pct}%"></i></span>
-        <span class="slide-meta"><span>освоено ${ts.mastered} из ${ts.total}</span>${ts.read ? "<span>теория прочитана</span>" : ""}<span class="qdots" aria-hidden="true">${dots}</span></span>
-      </span>
-    </button>`;
-  }
-  function viewTopic() {
-    const t = TOPICS[ui.topicId];
-    if (!t) { ui.view = "subject"; return viewSubject(); }
-    const ts = topicStats(t), p = prog(t.sid);
-    const mis = mistakeQs(t.sid, t.id).length;
-    const gen = ui.gen && ui.gen.topicId === t.id ? ui.gen : null;
-    const aiBtn = ai.state !== "ready" || t.noGen ? "" : gen && gen.status === "busy"
-      ? `<button type="button" class="btn soft" data-a="gen-stop">${icon("stop")}Остановить</button>`
-      : `<button type="button" class="btn soft" data-a="gen-ai" data-id="${t.id}">${icon("spark")}Ещё 5 вопросов от ИИ</button>`;
-    return `<div><button type="button" class="link-btn" data-a="go" data-v="subject" data-sid="${t.sid}">← ${esc(SUBJ[t.sid].name)}</button></div>
-      <div class="head"><div class="eyebrow">${esc(codeLabel(t))} · ${esc(t.sec.title)}</div><h1 class="h1">${esc(t.title)}</h1></div>
-      <section class="card stack">
-        <div class="row between"><span class="tile-label">Прогресс темы</span><span class="chip ${ts.pct >= 90 ? "good" : "leaf"} num">${ts.pct}%</span></div>
-        <div class="meter"><i style="width:${ts.pct}%"></i></div>
-        <div class="row small ink2"><span>Освоено ${ts.mastered} из ${ts.total}</span><span>·</span><span>${ts.read ? "теория прочитана" : "теория не отмечена"}</span>${mis ? `<span>·</span><span>ошибок: ${mis}</span>` : ""}</div>
-        <div class="row">
-          ${ts.total > TOPIC_QUIZ + 5
-            ? `<button type="button" class="btn" data-a="quiz-topic" data-id="${t.id}">Тест · ${TOPIC_QUIZ} вопросов</button><button type="button" class="btn ghost" data-a="quiz-topic" data-all="1" data-id="${t.id}">Все вопросы · ${ts.total}</button>`
-            : `<button type="button" class="btn" data-a="quiz-topic" data-all="1" data-id="${t.id}">Пройти тест · ${ts.total}</button>`}
-          ${mis ? `<button type="button" class="btn ghost" data-a="quiz-topic-mistakes" data-id="${t.id}">Только ошибки · ${mis}</button>` : ""}
-          ${aiBtn}
-        </div>
-        ${gen && gen.status === "busy" ? '<div class="hint">ИИ составляет новые задания по теме, это занимает до минуты.</div>' : ""}
-        ${gen && gen.status === "error" ? `<div class="notice">${esc(gen.error)}</div>` : ""}
-      </section>
-      <section class="card pad-lg stack">
-        <h2 class="h2">Конспект</h2>
-        ${t.tablesFirst ? tablesHTML(t) : ""}
-        <ul class="theory">${t.theory.map((x) => x.startsWith("## ") ? `<li class="th-h">${rich(x.slice(3))}</li>` : `<li>${rich(x)}</li>`).join("")}</ul>
-        ${t.tablesFirst ? "" : tablesHTML(t)}
-        <div class="row">
-          <button type="button" class="btn ${ts.read ? "ghost" : "soft"} sm" data-a="theory" data-id="${t.id}">${ts.read ? "Снять отметку «прочитано»" : icon("check") + "Отметить как прочитанное"}</button>
-          ${ai.state === "ready" ? `<button type="button" class="btn ghost sm" data-a="ask-tutor" data-id="${t.id}">${icon("chat")}Спросить репетитора</button>` : ""}
-        </div>
-      </section>
-      <section class="section">
-        <div class="section-head"><h2 class="h2">Вопросы темы</h2><span class="small muted">нажми на вопрос, чтобы ответить только на него</span></div>
-        ${(() => {
-          const unseenCount = t.qids.filter((id) => !p.q[id] || !p.q[id].n).length;
-          const qFilter = t.qids.length > 6 ? `<div class="switch" role="group" aria-label="Фильтр вопросов">
-            <button type="button" data-a="topic-filter" data-filter="all" aria-pressed="${ui.topicFilter === "all"}">Все (${t.qids.length})</button>
-            <button type="button" data-a="topic-filter" data-filter="mistakes" aria-pressed="${ui.topicFilter === "mistakes"}">С ошибками (${mis})</button>
-            <button type="button" data-a="topic-filter" data-filter="unseen" aria-pressed="${ui.topicFilter === "unseen"}">Новые (${unseenCount})</button>
-          </div>` : "";
-          const listIds = t.qids.filter((id) => {
-            if (ui.topicFilter === "mistakes") { const st = p.q[id]; return st && st.n && st.last !== 2; }
-            if (ui.topicFilter === "unseen") return !p.q[id] || !p.q[id].n;
-            return true;
-          });
-          return qFilter + (listIds.length ? `<div class="stack">${listIds.map((id) => qRow(QS[id], p.q[id])).join("")}</div>` : `<div class="empty">В этом фильтре вопросов нет.</div>`);
-        })()}
-        <div class="qlegend"><span><i class="qdot" data-s="2"></i>верно</span><span><i class="qdot" data-s="1"></i>одна ошибка</span><span><i class="qdot" data-s="0"></i>неверно</span><span><i class="qdot" data-s="-1"></i>ещё не было</span></div>
-      </section>`;
-  }
-  // Справочные таблицы темы (t.tables): первая строка — заголовок, head1 — первый столбец тоже заголовок.
-  function tablesHTML(t) {
-    return (t.tables || []).map((tb) => `<div class="small muted">${rich(tb.title)}</div><div class="qtbl-wrap"><table class="qtbl">${tb.rows.map((r, i) => `<tr>${r.map((c, j) => (i === 0 || (tb.head1 && j === 0) ? `<th>${esc(c)}</th>` : `<td>${esc(c)}</td>`)).join("")}</tr>`).join("")}</table></div>${tb.note ? `<div class="small muted">${rich(tb.note)}</div>` : ""}`).join("");
-  }
-  function qRow(q, st) {
-    const s = st && st.n ? st.last : -1;
-    const txt = q.q.length > 130 ? q.q.slice(0, 128) + "…" : q.q;
-    return `<button type="button" class="step-btn" data-a="quiz-one" data-id="${esc(q.id)}" style="grid-template-columns:20px minmax(0,1fr) auto"><i class="qdot big" data-s="${s}"></i><span style="min-width:0"><span style="display:block">${esc(txt)}</span><span class="step-sub" style="display:block">${esc(typeLabel(q))}${st && st.n ? ` · ответов ${st.n}, верных ${st.k}` : ""}</span></span><span class="arrow">${icon("arrow")}</span></button>`;
-  }
+  function viewGuide() { return EGE.views.essayGuide.viewGuide(); }
+  function viewTutor() { return EGE.views.essayGuide.viewTutor(); }
+  function viewEssay() { return EGE.views.essayGuide.viewEssay(); }
+  function essayState() { return EGE.views.essayGuide.essayState(); }
+  function essayDraftLater() { return EGE.views.essayGuide.essayDraftLater(); }
+  function essays() { return EGE.views.essayGuide.essays(); }
+  function paintEssayCount() { return EGE.views.essayGuide.paintEssayCount(); }
 
-  // ---------- тесты ----------
-  function typeLabel(q) {
-    if (q.t === "multi") return q.open ? "Несколько верных ответов" : "Выбери " + q.a.length + " " + plural(q.a.length, "ответ", "ответа", "ответов");
-    if (q.t === "input" && q.d) return "Ответ — цифры";
-    if (q.t === "input" && q.num) return "Ответ — число";
-    return { single: "Один верный ответ", match: "Соответствие", order: "Последовательность", input: "Краткий ответ", self: "Развёрнутый ответ · самопроверка" }[q.t] || "";
-  }
-  function makeItem(q) {
-    const it = { q, key: !q.ai, resp: null, res: null, view: null, hinted: false, hintOpen: false };
-    if (q.t === "single" || q.t === "multi") it.view = shuffle(range(q.o.length));
-    if (q.t === "match") it.view = q.fixed ? range(q.l.length) : shuffle(range(q.l.length)); // fixed — буквы А–Г как в рецензии
-    if (q.t === "order") {
-      let v = shuffle(range(q.o.length));
-      for (let k = 0; k < 6 && v.every((x, i) => x === i); k++) v = shuffle(range(q.o.length));
-      it.view = v;
-    }
-    it.resp = q.t === "single" ? -1 : q.t === "multi" || q.t === "order" ? [] : q.t === "match" ? q.l.map(() => -1) : "";
-    if (q.t === "self") it.resp = { text: "", sel: [] }; // развёрнутый ответ: текст и отмеченные элементы эталона
-    return it;
-  }
-  function startQuiz(opts) {
-    const qs = (opts.qs || []).filter(Boolean);
-    if (!qs.length) { toast("Здесь пока нет вопросов."); return; }
-    abortAI();
-    ui.quiz = {
-      title: opts.title, sid: opts.sid, mode: opts.mode, topicId: opts.topicId || null,
-      items: qs.map((q, i) => Object.assign(makeItem(q), opts.ns ? { n: opts.ns[i] } : {})), i: 0, checked: false, done: false,
-      sessionId: newId(), startDay: todayISO(), started: Date.now(), qStart: Date.now(), pausedAt: null,
-      spent: 0, answered: 0, correct: 0, hints: 0, back: opts.back || { v: "subject", sid: opts.sid }, ai: null, cfg: opts.cfg || null,
-      planId: opts.planId || null, retry: !!opts.retry
-    };
-    saveActiveQuiz();
-    ui.focusNext = qs[0].t === "input" ? "ans" : null;
-    go("quiz");
-  }
-  function weight(st, today) {
-    if (!st || !st.n) return 3 + Math.random();
-    if (st.last !== 2) return 4 + Math.random();
-    if ((st.due || "") <= today) return 2 + Math.random();
-    return Math.random();
-  }
-  // По одному вопросу из каждой темы по кругу — так тест покрывает весь курс.
-  function pickMixed(sid, n) {
-    const s = SUBJ[sid], p = prog(sid), today = todayISO();
-    const w = {};
-    const lists = shuffle(s.topicList).map((t) => {
-      t.qids.forEach((id) => { w[id] = weight(p.q[id], today); });
-      return t.qids.slice().sort((a, b) => w[b] - w[a]);
-    });
-    lists.sort((a, b) => (w[b[0]] || 0) - (w[a[0]] || 0));
-    const out = [];
-    for (let round = 0; out.length < n; round++) {
-      let added = false;
-      for (const l of lists) { if (l[round] && out.length < n) { out.push(l[round]); added = true; } }
-      if (!added) break;
-    }
-    return shuffle(out);
-  }
-  // Тест по теме: сначала новые и трудные вопросы; вопросы к одному тексту идут подряд.
-  function pickTopic(t, n) {
-    const p = prog(t.sid), today = todayISO(), groups = {};
-    for (const id of shuffle(t.qids)) {
-      const k = QS[id].ctx ? "ctx:" + QS[id].ctx : id;
-      const g = (groups[k] = groups[k] || { w: 0, ids: [] });
-      g.ids.push(id); g.w = Math.max(g.w, weight(p.q[id], today));
-    }
-    const out = [];
-    for (const g of Object.values(groups).sort((a, b) => b.w - a.w)) {
-      if (out.length >= n) break;
-      out.push(...g.ids);
-    }
-    return t.texts ? out : shuffle(out);
-  }
-  // Пробный вариант: по одному заданию на каждый номер ЕГЭ; задания к тексту — из одного текста.
-  function pickVariant(sid, cfg, seed) {
-    const p = prog(sid), today = todayISO(), out = [];
-    for (const sl of (cfg || SUBJ[sid].variant).slots) {
-      // slot.kim — задания с меткой kim (номер КИМ) из любых тем; slot.topic — все задания одной темы
-      const t = sl.topic ? TOPICS[sl.topic] : { qids: SUBJ[sid].topicList.reduce((a, x) => a.concat(x.qids), []).filter((id) => [].concat(QS[id].kim || []).includes(sl.kim)) };
-      if (!t || !t.qids || !t.qids.length) continue;
-      const W = {};
-      const w = (id) => (id in W ? W[id] : (W[id] = weight(p.q[id], today) + (sl.prefer && sl.prefer(QS[id]) ? 10 : 0)));
-      const ns = [].concat(sl.n);
-      if (sl.byText) {
-        const best = Object.keys(t.texts || {}).map((k) => {
-          const ids = t.qids.filter((id) => QS[id].ctx === k);
-          const pick = sl.byText.map((re) => ids.filter((id) => re.test(QS[id].q)).sort((a, b) => w(b) - w(a))[0]);
-          return { pick, w: pick.every(Boolean) ? pick.reduce((s, id) => s + w(id), 0) : -1 };
-        }).filter((x) => x.w >= 0).sort((a, b) => b.w - a.w)[0];
-        if (best) best.pick.forEach((id, i) => out.push({ id, n: ns[i] }));
-      } else {
-        const pool = t.qids.filter((id) => !sl.like || sl.like.test(QS[id].q));
-        // с номером варианта (seed) берём задание по порядку в банке, иначе — новые и слабые вперёд
-        // slot.prefer (например, задания с рисунком) идут в порядке банка первыми
-        const ordered = seed && sl.prefer ? pool.filter((id) => sl.prefer(QS[id])).concat(pool.filter((id) => !sl.prefer(QS[id]))) : pool;
-        const pick = seed ? ns.map((_, i) => ordered[(seed - 1 + i) % ordered.length]) : pool.sort((a, b) => w(b) - w(a)).slice(0, ns.length);
-        pick.forEach((id, i) => out.push({ id, n: ns[i] }));
-      }
-    }
-    return out;
-  }
-  // Баллы как в ЕГЭ: двухбалльные задания — 2 или 1 за одну ошибку, остальные — 1 только за полностью верный ответ.
-  function variantScore(qz) {
-    const two = (qz.cfg || SUBJ[qz.sid].variant || {}).two || [];
-    let pts = 0, max = 0;
-    const cells = qz.items.map((it) => {
-      const self = it.q.t === "self"; // развёрнутый ответ: баллы по отмеченным элементам эталона
-      const m = self ? it.q.els.length : two.includes(it.n) ? 2 : 1;
-      const p = !it.res ? 0 : self ? it.res.pts : m === 2 ? it.res.r : it.res.r === 2 ? 1 : 0;
-      pts += p; max += m;
-      return { it, n: it.n, p, m };
-    });
-    return { pts, max, cells };
-  }
-  function curItem() { return ui.quiz && !ui.quiz.done ? ui.quiz.items[ui.quiz.i] : null; }
-  // Текст, к которому относится задание (задания 1–3 и 22 по русскому языку).
-  function passageOf(q) { const t = TOPICS[q.topic]; return (q.ctx && t && t.texts && t.texts[q.ctx]) || ""; }
-  // Таблица к заданию (q.tbl — строки, первая — заголовок): задания 1, 20 и 21 по биологии.
-  function tableHTML(q) {
-    const fig = q.svg ? `<div class="qfig">${q.svg}</div>` : ""; // рисунок к заданию (свой SVG из файлов сайта)
-    if (!q.tbl) return fig;
-    return fig + `<div class="qtbl-wrap"><table class="qtbl">${q.tbl.map((r, i) => `<tr>${r.map((c) => (i === 0 ? `<th>${esc(c)}</th>` : `<td>${esc(c)}</td>`)).join("")}</tr>`).join("")}</table></div>`;
-  }
-  function canCheck(it) {
-    const q = it.q, r = it.resp;
-    if (q.t === "single") return r >= 0;
-    if (q.t === "multi") return r.length > 0;
-    if (q.t === "match") return r.every((x) => x >= 0);
-    if (q.t === "order") return r.length === q.o.length;
-    if (q.t === "self") return true;
-    return String(r || "").trim() !== "";
-  }
-  // Оценка как в ЕГЭ: 2 балла без ошибок, 1 — за одну ошибку в сложных заданиях.
-  function grade(it) {
-    const q = it.q, r = it.resp;
-    // развёрнутый ответ: 1 балл за каждый отмеченный элемент эталона
-    if (q.t === "self") { const pts = r.sel.length, max = q.els.length; return { r: pts === max ? 2 : pts >= Math.ceil(max / 2) ? 1 : 0, pts, max }; }
-    if (q.t === "single") { const ok = r === q.a; return { r: ok ? 2 : 0, pts: ok ? 1 : 0, max: 1 }; }
-    if (q.t === "input") {
-      if (q.num) {
-        const v = parseNum(r);
-        const ok = v !== null && q.a.some((x) => Math.abs(parseNum(x) - v) <= (q.tol || 0.001));
-        return { r: ok ? 2 : 0, pts: ok ? 1 : 0, max: 1 };
-      }
-      // d — цифры в любом порядке, x — пробелы и дефисы важны, иначе сравниваем без них.
-      const f =q.d ? (s) => String(s || "").replace(/\D/g, "").split("").sort().join("") : q.x ? norm : normTight;
-      const v = f(r);
-      const ok = !!v && q.a.some((x) => f(x) === v);
-      return { r: ok ? 2 : 0, pts: ok ? 1 : 0, max: 1 };
-    }
-    let err = 0;
-    if (q.t === "multi") {
-      const sel = new Set(r), cor = new Set(q.a);
-      let extra = 0, miss = 0;
-      sel.forEach((x) => { if (!cor.has(x)) extra++; });
-      cor.forEach((x) => { if (!sel.has(x)) miss++; });
-      err = Math.max(extra, miss);
-    } else if (q.t === "match") {
-      err = q.a.reduce((n, a, i) => n + (r[i] === a ? 0 : 1), 0);
-    } else if (q.t === "order") {
-      const wrong = range(q.o.length).reduce((n, i) => n + (r[i] === i ? 0 : 1), 0);
-      err = wrong === 0 ? 0 : wrong === 2 ? 1 : 2; // одна перестановка двух элементов — одна ошибка
-    }
-    const res = err === 0 ? 2 : err === 1 ? 1 : 0;
-    return { r: res, pts: res, max: 2 };
-  }
-  function correctText(q) {
-    if (q.t === "self") return q.ref;
-    if (q.t === "single") return q.o[q.a];
-    if (q.t === "multi") return q.a.map((i) => q.o[i]).join("; ");
-    if (q.t === "match") return q.l.map((l, i) => l + " — " + q.r[q.a[i]]).join("; ");
-    if (q.t === "order") return q.o.join(" → ");
-    return q.num ? String(q.a[0]).replace(".", ",") : q.a[0];
-  }
-  function userText(it) {
-    const q = it.q, r = it.resp;
-    if (q.t === "self") return r.text.trim() || "ответ не записан";
-    if (q.t === "single") return r >= 0 ? q.o[r] : "нет ответа";
-    if (q.t === "multi") return r.length ? r.map((i) => q.o[i]).join("; ") : "нет ответа";
-    if (q.t === "match") return q.l.map((l, i) => l + " — " + (r[i] >= 0 ? q.r[r[i]] : "?")).join("; ");
-    if (q.t === "order") return r.map((i) => q.o[i]).join(" → ") || "нет ответа";
-    return r || "нет ответа";
-  }
-  function optionsText(q) {
-    if (q.t === "single" || q.t === "multi") return "Варианты: " + q.o.map((o, i) => i + 1 + ") " + o).join("; ");
-    if (q.t === "match") return "Левый столбец: " + q.l.join("; ") + ". Правый столбец: " + q.r.join("; ");
-    if (q.t === "order") return "Элементы: " + q.o.join("; ");
-    return "";
-  }
-  function doCheck() {
-    const qz = ui.quiz, it = curItem();
-    if (!it || qz.checked || !canCheck(it)) return;
-    const g = grade(it);
-    it.res = g; qz.checked = true;
-    qz.spent += Math.min(Date.now() - qz.qStart, MAX_Q_MS);
-    qz.answered++;
-    if (it.q.t !== "self") { if (g.r === 2) qz.correct++; if (it.key) recordAnswer(it.q, g.r); } // у развёрнутого ответа итог известен после отметок — см. doNext
-    logQuizSession(qz);
-    saveActiveQuiz();
-    if (qz.mode === "variant") { doNext(); return; } // в пробном варианте ответы показываем в конце
-    ui.focusNext = "next-btn";
-    scheduleRender();
-  }
-  function recordAnswer(q, r) {
-    const prev = prog(q.sid).q[q.id] || {};
-    const b = r === 2 ? Math.min((prev.b || 0) + 1, INTERVALS.length - 1) : r === 1 ? Math.max(0, (prev.b || 0) - 1) : 0;
-    const st = { n: (prev.n || 0) + 1, k: (prev.k || 0) + (r === 2 ? 1 : 0), b, last: r, at: Date.now(), due: addDays(todayISO(), INTERVALS[b]) };
-    patchDoc("prog-" + q.sid, { q: { [q.id]: st } });
-  }
-  function logQuizSession(qz) {
-    patchDoc("log-" + qz.startDay.slice(0, 7), { s: { [qz.sessionId]: {
-      d: qz.startDay, sub: qz.sid, m: qz.answered ? Math.max(1, Math.round(qz.spent / 60000)) : 0, q: qz.answered, c: qz.correct,
-      h: qz.hints || 0, k: "quiz", t: qz.topicId || qz.mode, at: qz.started
-    } } });
-  }
-  function saveVariantMock(qz, silent) {
-    if (!qz || !qz.done || qz.mode !== "variant") return;
-    const cfg = qz.cfg || (SUBJ[qz.sid] && SUBJ[qz.sid].variant);
-    if (!cfg || !cfg.goal || !cfg.goal.scale) return;
-    const sc = variantScore(qz), scale = cfg.goal.scale;
-    if (!qz.mockId) qz.mockId = newId();
-    qz.items.forEach((it) => { if (it.q.t === "self" && it.res && !it.fin) { it.fin = true; if (it.key) recordAnswer(it.q, it.res.r); } });
-    const testScore = scale[Math.min(sc.pts, scale.length - 1)] || 0;
-    patchDoc("mocks", { m: { [qz.mockId]: { d: qz.startDay || todayISO(), sub: qz.sid, sc: testScore, p: sc.pts, n: qz.title, at: qz.started || Date.now(), auto: 1 } } });
-    qz.saved = true;
-    if (!silent) toast("Результат записан в «Показатели»");
-  }
-  function doNext() {
-    const qz = ui.quiz;
-    if (!qz || !qz.checked) return;
-    const cur = qz.items[qz.i];
-    if (cur.q.t === "self" && cur.res && !cur.fin && qz.mode !== "variant") { // развёрнутый ответ засчитываем, когда отметки расставлены (в варианте — после итогов)
-      cur.fin = true;
-      if (cur.res.r === 2) qz.correct++;
-      if (cur.key) recordAnswer(cur.q, cur.res.r);
-      logQuizSession(qz);
-    }
-    abortAI(); qz.ai = null;
-    if (qz.i + 1 >= qz.items.length) {
-      qz.done = true;
-      completePlanFromQuiz(qz);
-      if (qz.mode === "variant" && qz.answered > 0) saveVariantMock(qz, true);
-      clearActiveQuiz();
-    }
-    else {
-      qz.i++; qz.checked = false; qz.qStart = Date.now();
-      saveActiveQuiz();
-      ui.focusNext = qz.items[qz.i].q.t === "input" ? "ans" : null;
-    }
-    scheduleRender(true);
-  }
-  function exitQuiz() {
-    const qz = ui.quiz;
-    abortAI();
-    const back = qz ? qz.back : { v: "home" };
-    ui.quiz = null;
-    clearActiveQuiz();
-    go(back.v || "home", { id: back.id, sid: back.sid });
-  }
-  function renderQuestion(it, checked) {
-    const q = it.q;
-    if (q.t === "single" || q.t === "multi") {
-      return `<div class="opts" role="group" aria-label="Варианты ответа">${it.view.map((oi, pos) => {
-        const sel = q.t === "single" ? it.resp === oi : it.resp.includes(oi);
-        let cls = "", mark = "";
-        if (checked) {
-          const cor = q.t === "single" ? q.a === oi : q.a.includes(oi);
-          if (cor && sel) { cls = "ok"; mark = "верно"; }
-          else if (sel) { cls = "bad"; mark = "ошибка"; }
-          else if (cor) { cls = "miss"; mark = q.t === "single" ? "верный ответ" : "пропущено"; }
-        }
-        return `<button type="button" class="opt ${cls}" data-a="pick" data-i="${oi}" aria-pressed="${sel}"${checked ? " disabled" : ""}><span class="opt-key">${pos + 1}</span><span>${esc(q.o[oi])}</span><span class="opt-mark">${mark}</span></button>`;
-      }).join("")}</div>`;
-    }
-    if (q.t === "match") {
-      const legend = `<div class="legend-r${q.r.some((r) => r.length > 40) ? " long" : ""}">${q.r.map((r, i) => `<span><b>${i + 1}</b>${esc(r)}</span>`).join("")}</div>`;
-      const rows = it.view.map((li, pos) => {
-        const v = it.resp[li];
-        let cls = "", fix = "";
-        if (checked) {
-          const ok = v === q.a[li];
-          cls = ok ? "ok" : "bad";
-          if (!ok) fix = `<div class="mrow-fix">Верно: ${q.a[li] + 1} — ${esc(q.r[q.a[li]])}</div>`;
-        }
-        const btns = q.r.map((r, ri) => `<button type="button" data-a="match" data-l="${li}" data-r="${ri}" aria-pressed="${v === ri}" aria-label="${esc(r)}" title="${esc(r)}"${checked ? " disabled" : ""}>${ri + 1}</button>`).join("");
-        return `<div class="mrow ${cls}"><div><span class="mono muted">${LETTERS[pos]}</span> ${esc(q.l[li])}</div><div class="seg" role="group">${btns}</div>${fix}</div>`;
-      }).join("");
-      return legend + `<div class="mrows">${rows}</div>`;
-    }
-    if (q.t === "order") {
-      const items = it.view.map((oi) => {
-        const pos = it.resp.indexOf(oi);
-        let cls = "", extra = "";
-        if (checked) { cls = pos === oi ? "ok" : "bad"; if (pos !== oi) extra = ` <span class="small muted">— должно быть на месте ${oi + 1}</span>`; }
-        return `<button type="button" class="ord ${cls}" data-a="ord" data-i="${oi}"${pos >= 0 ? ` data-n="${pos + 1}"` : ""}${checked ? " disabled" : ""}><span class="opt-key">${pos >= 0 ? pos + 1 : ""}</span><span>${esc(q.o[oi])}${extra}</span></button>`;
-      }).join("");
-      return `${checked ? "" : '<div class="hint">Нажимай на элементы по порядку. Повторное нажатие убирает элемент из последовательности.</div>'}<div class="order-pool">${items}</div>${!checked && it.resp.length ? '<div><button type="button" class="link-btn" data-a="ord-reset">Сбросить порядок</button></div>' : ""}`;
-    }
-    if (q.t === "self") {
-      if (!checked) return `<div class="field"><label for="self-text">Твой ответ</label><textarea id="self-text" class="essay-area" rows="8" spellcheck="false" placeholder="Напиши ответ так, как на экзамене. Потом откроешь эталон и отметишь, что совпало.">${esc(it.resp.text)}</textarea></div>`;
-      return `<div class="field"><label>Твой ответ</label><div class="passage"><p>${esc(it.resp.text.trim() || "(ответ не записан)")}</p></div></div>
-        <div class="stack"><div class="eyebrow">Эталон</div><div class="passage"><p>${esc(q.ref)}</p></div>
-        <div class="eyebrow">Отметь элементы, которые есть в твоём ответе: 1 балл за каждый</div>
-        <div class="checklist">${q.els.map((x, i) => `<label><input type="checkbox" class="check" data-c="self-el" data-i="${i}"${it.resp.sel.includes(i) ? " checked" : ""}><span>${esc(x)}</span></label>`).join("")}</div></div>`;
-    }
-    return `<div class="field"><label for="ans">Твой ответ</label><input id="ans" class="answer-input" autocomplete="off" spellcheck="false" value="${esc(it.resp)}"${checked ? " disabled" : ""} placeholder="Введи ответ и нажми Enter"></div>`;
-  }
-  function feedbackBlock(it, qz) {
-    const g = it.res, q = it.q;
-    const self = q.t === "self";
-    const title = self ? "Баллов за это задание: " + g.pts + " из " + g.max : g.r === 2 ? "Верно" : g.r === 1 ? "Почти: одна ошибка" : "Неверно";
-    let aiPart = "";
-    if (ai.state === "ready" && !self) {
-      const st = qz.ai && qz.ai.forIdx === qz.i ? qz.ai : null;
-      if (!st) aiPart = `<div><button type="button" class="btn soft sm" data-a="explain">${icon("spark")}Объясни подробнее</button></div>`;
-      else {
-        const busy = st.status === "thinking" || st.status === "streaming";
-        aiPart = `<div class="ai-box"><div class="row between"><span class="eyebrow">Объяснение ИИ</span>${busy ? '<button type="button" class="link-btn" data-a="explain-stop">Остановить</button>' : ""}</div><div class="ai-text" id="ai-explain">${st.text ? fmtAI(st.text) : '<span class="muted">Думаю…</span>'}</div>${st.status === "error" ? `<div class="small" style="color:var(--bad)">${esc(st.error)}</div>` : ""}</div>`;
-      }
-    }
-    const showCorrect = g.r !== 2 && (q.t === "single" || q.t === "multi" || q.t === "input");
-    return `<div class="feedback" data-r="${g.r}">
-      <div class="fb-title">${icon(g.r === 2 ? "check" : g.r === 1 ? "alert" : "x")}${title}${g.max === 2 && !self ? ` · ${g.pts} из 2 баллов` : ""}</div>
-      ${showCorrect ? `<div class="small"><b>Правильный ответ:</b> ${esc(correctText(q))}</div>` : ""}
-      ${q.e ? `<div class="small ink2">${esc(q.e)}</div>` : ""}
-      ${aiPart}
-    </div>`;
-  }
-  const HINT_STOP = new Set(["что", "как", "какой", "какая", "какие", "какое", "каких", "каком", "какую", "выбери", "выберите", "установи", "установите", "соответствие", "между", "расположи", "расположите", "порядке", "ответ", "запиши", "запишите", "слово", "одно", "цифр", "число", "три", "два", "всех", "этом", "или", "для", "при", "над", "под", "без", "про", "из", "по", "от", "до", "на", "во", "со", "не", "ни", "если", "признак", "признака", "признаки", "пример", "примером", "правило", "задания"]);
-  function questionGuideHint(q) {
-    const t = TOPICS[q.topic] || null;
-    const rawText = norm(q.q + " " + (q.t === "match" && Array.isArray(q.l) ? q.l.join(" ") : ""));
-    const stems = rawText.split(/[^a-zа-я0-9]+/i).filter((w) => w.length >= 4 && !HINT_STOP.has(w)).map((w) => w.slice(0, Math.min(w.length, 5))).slice(0, 8);
-    const ansNorm = norm(correctText(q));
-    const ansWords = new Set(ansNorm.split(/[^a-zа-я0-9]+/i).filter((w) => w.length >= 4));
-    let subheading = "", bestScore = 0;
-    const anchors = [];
-    if (t && Array.isArray(t.theory)) {
-      let curSub = "";
-      for (const line of t.theory) {
-        if (line.startsWith("## ")) { curSub = line.slice(3).trim(); continue; }
-        const ln = norm(line);
-        let sc = 0;
-        for (const st of stems) if (ln.includes(st)) sc++;
-        const m = line.match(/^\*\*(.+?)\*\*/);
-        const label = m ? m[1].replace(/[:.;—–-]+$/, "").trim() : "";
-        const labelNorm = norm(label);
-        const safeLabel = label && labelNorm.length >= 3 && labelNorm !== "пример" && labelNorm !== "правило" && !ansWords.has(labelNorm) && !ansNorm.includes(labelNorm);
-        if (sc > bestScore) { bestScore = sc; subheading = curSub; }
-        if (sc > 0 && safeLabel && !anchors.includes(label) && anchors.length < 3) anchors.push(label);
-      }
-      if (!subheading && bestScore === 0) {
-        const firstH = t.theory.find((x) => x.startsWith("## "));
-        if (firstH) subheading = firstH.slice(3).trim();
-      }
-    }
-    let tableTitle = "", bestTblScore = 0;
-    if (t && Array.isArray(t.tables) && t.tables.length) {
-      for (const tb of t.tables) {
-        const tn = norm((tb.title || "") + " " + (tb.rows || []).map((r) => r.join(" ")).join(" "));
-        let sc = 0;
-        for (const st of stems) if (tn.includes(st)) sc++;
-        if (sc > bestTblScore) { bestTblScore = sc; tableTitle = tb.title || ""; }
-      }
-      if (!tableTitle) tableTitle = t.tables[0].title || "";
-    }
-    const rawQuery = anchors[0] || subheading || (t ? t.title.split(/[:.,]/)[0].trim() : "");
-    const guideQuery = rawQuery.split(/\s+/).slice(0, 2).join(" ");
-    return {
-      subjName: SUBJECT_NAME[q.sid] || "",
-      secTitle: t && t.sec ? t.sec.title : "",
-      topic: t,
-      subheading,
-      tableTitle,
-      anchors,
-      guideQuery
-    };
-  }
-  function quizHintHTML(it) {
-    const h = questionGuideHint(it.q);
-    return `<div class="hint-box" role="region" aria-label="Подсказка по справочнику">
-      <div class="hint-box-head">
-        <span class="row" style="gap:6px">${icon("hint")}Где искать информацию в справочнике</span>
-        <button type="button" class="link-btn small" data-a="quiz-hint">Скрыть</button>
-      </div>
-      <div class="small ink2">${esc(h.subjName)}${h.secTitle ? " · " + esc(h.secTitle) : ""}${h.topic ? ` · <b>${esc(codeLabel(h.topic) + " · " + h.topic.title)}</b>` : ""}</div>
-      ${h.subheading ? `<div class="small">Раздел конспекта: <b>«${esc(h.subheading)}»</b></div>` : ""}
-      ${h.tableTitle ? `<div class="small">Таблица в теме: <b>«${esc(h.tableTitle)}»</b></div>` : ""}
-      ${h.anchors.length ? `<div class="small">Ориентиры в тексте: ${h.anchors.map((a) => `<b>«${esc(a)}»</b>`).join(", ")}</div>` : ""}
-      <div class="row" style="gap:8px">
-        <button type="button" class="btn soft sm" data-a="quiz-guide">${icon("book")}Открыть в справочнике</button>
-        ${h.topic ? `<button type="button" class="btn ghost sm" data-a="open-topic" data-id="${h.topic.id}">Открыть конспект темы</button>` : ""}
-      </div>
-    </div>`;
-  }
-  function viewQuiz() {
-    const qz = ui.quiz;
-    if (!qz) { ui.view = "home"; return viewHome(); }
-    if (qz.done) return qz.mode === "variant" ? variantSummary(qz) : quizSummary(qz);
-    const it = qz.items[qz.i], q = it.q, t = TOPICS[q.topic];
-    const exam = qz.mode === "variant";
-    const pct = Math.round(((qz.i + (qz.checked ? 1 : 0)) / qz.items.length) * 100);
-    const keys = q.t === "single" || q.t === "multi" ? "1–" + q.o.length + " — выбор, " : "";
-    const mins = Math.floor((Date.now() - qz.started) / 60000);
-    const strip = qz.items.length <= 40
-      ? `<div class="quiz-strip" aria-hidden="true">${qz.items.map((x, idx) => {
-          const cls = idx === qz.i ? "cur" : x.res ? (exam ? "done" : x.res.r === 2 ? "ok" : x.res.r === 1 ? "part" : "bad") : "";
-          return `<i class="quiz-seg ${cls}"></i>`;
-        }).join("")}</div>`
-      : `<div class="meter accent thin"><i style="width:${pct}%"></i></div>`;
-    const hintStat = qz.hints ? ` · подсказок: ${qz.hints}` : "";
-    const qNum = exam ? String(it.n) : (q.kim ? String(q.kim) : (t && /^\d+$/.test(t.code || "") ? t.code : String(qz.i + 1)));
-    return `<div class="quiz-top">
-        <div class="row between">
-          <div class="eyebrow">${esc(qz.title)}</div>
-          <div class="row" style="gap:6px">
-            <button type="button" class="btn ghost sm" data-a="quiz-guide">${icon("book")}Справочник</button>
-            <button type="button" class="btn ghost sm" data-a="quiz-exit">${exam ? "Прервать" : "Завершить"}</button>
-          </div>
-        </div>
-        <div class="row between small"><span class="ink2">${exam ? "Задание " + it.n + " · " + (qz.i + 1) + " из " + qz.items.length : "Вопрос " + (qz.i + 1) + " из " + qz.items.length}</span><span class="muted num">${(exam ? "идёт " + (mins < 1 ? "меньше минуты" : minutesText(mins)) : "верно " + qz.correct + " из " + qz.answered) + hintStat}</span></div>
-        ${strip}
-      </div>
-      <article class="qcard">
-        <div class="row between"><span class="eyebrow">${esc(typeLabel(q))}</span>${exam ? `<span class="small muted">Задание ${it.n}${q.t === "self" ? " · до " + q.els.length + " баллов" : ((qz.cfg || SUBJ[qz.sid].variant).two || []).includes(it.n) ? " · до 2 баллов" : ""}</span>` : t ? `<span class="small muted">${esc(codeLabel(t))} · ${esc(t.title)}</span>` : ""}</div>
-        ${q.ai ? '<div class="hint">Вопрос составил ИИ. Если ответ вызывает сомнения, сверься с конспектом темы.</div>' : ""}
-        ${passageOf(q) ? `<div class="passage"><div class="eyebrow">Текст</div><p>${esc(passageOf(q))}</p></div>` : ""}
-        <div class="qtext">${esc(q.q)}</div>
-        ${tableHTML(q)}
-        ${renderQuestion(it, qz.checked)}
-        ${it.hintOpen ? quizHintHTML(it) : ""}
-        ${qz.checked ? feedbackBlock(it, qz) : ""}
-        <div class="qfoot">
-          <div class="row" style="gap:8px;flex-wrap:wrap">
-            <button type="button" class="btn ghost sm" data-a="quiz-hint" aria-expanded="${!!it.hintOpen}">${icon("hint")}${it.hintOpen ? "Скрыть подсказку" : "Подсказка"}</button>
-            <button type="button" class="btn ghost sm" data-a="bug-q" data-qid="${esc(q.id)}" data-qnum="${esc(qNum)}" aria-label="Сообщить о баге в задании" title="Сообщить о баге на willagegg@gmail.com">${icon("bug")}<span>Баг</span></button>
-            <span class="kbd">${keys}Enter — ${qz.checked ? "дальше" : exam ? "ответить" : "проверить"}</span>
-          </div>
-          ${qz.checked
-            ? `<button type="button" class="btn" id="next-btn" data-a="quiz-next">${qz.i + 1 >= qz.items.length ? "Итоги" : "Дальше"}${icon("arrow")}</button>`
-            : `<span class="row">${exam ? '<button type="button" class="btn ghost" data-a="quiz-skip">Пропустить</button>' : ""}<button type="button" class="btn" data-a="quiz-check"${canCheck(it) ? "" : " disabled"}>${exam ? "Ответить" : "Проверить"}</button></span>`}
-        </div>
-      </article>`;
-  }
-  function quizSummary(qz) {
-    const answered = qz.items.filter((it) => it.res);
-    const right = answered.filter((it) => it.res.r === 2).length;
-    const wrong = answered.filter((it) => it.res.r !== 2);
-    const pts = answered.reduce((s, it) => s + it.res.pts, 0);
-    const max = answered.reduce((s, it) => s + it.res.max, 0);
-    const pct = answered.length ? Math.round((100 * right) / answered.length) : 0;
-    const head = pct >= 85 ? "Отличный результат" : pct >= 60 ? "Хороший результат" : "Есть над чем поработать";
-    const timeNote = qz.hints ? `подсказок: ${qz.hints}` : "записано в показатели";
-    return `<div class="head"><div class="eyebrow">Итоги · ${esc(qz.title)}</div><h1 class="h1">${head}</h1></div>
-      <div class="tiles">
-        ${tile("Верно", right + " из " + answered.length, "")}
-        ${tile("Баллы как в ЕГЭ", pts + " из " + max, "за одну ошибку в сложном задании — 1 балл")}
-        ${tile("Точность", pct + "%", "")}
-        ${tile("Время", qz.spent < 30000 ? "меньше минуты" : minutesText(Math.round(qz.spent / 60000)), timeNote)}
-      </div>
-      ${wrong.length ? `<section class="section"><h2 class="h2">Разбор ошибок</h2><div class="review-list">${wrong.map((it) => { const tp = TOPICS[it.q.topic]; const qn = it.q.kim ? String(it.q.kim) : (tp && /^\d+$/.test(tp.code || "") ? tp.code : String(qz.items.indexOf(it) + 1)); return `<div class="review-item">
-          <div class="row between"><span class="small muted">${esc(typeLabel(it.q))}</span><button type="button" class="btn ghost sm" data-a="bug-q" data-qid="${esc(it.q.id)}" data-qnum="${esc(qn)}" title="Сообщить о баге на willagegg@gmail.com">${icon("bug")}<span>Баг</span></button></div>
-          <div class="entry-title">${esc(it.q.q)}</div>
-          ${tableHTML(it.q)}
-          <div class="small"><b>Правильно:</b> ${esc(correctText(it.q))}</div>
-          <div class="small muted">Твой ответ: ${esc(userText(it))}</div>
-          ${it.q.e ? `<div class="small ink2">${esc(it.q.e)}</div>` : ""}
-        </div>`; }).join("")}</div></section>` : ""}
-      <div class="row">
-        ${wrong.length ? `<button type="button" class="btn" data-a="quiz-retry">Повторить ошибки · ${wrong.length}</button>` : ""}
-        <button type="button" class="btn ghost" data-a="quiz-exit">${qz.back.v === "plan" ? "Вернуться к плану" : qz.back.v === "stats" ? "Вернуться к показателям" : qz.back.v === "topic" ? "Вернуться к теме" : "Вернуться к предмету"}</button>
-        <button type="button" class="btn ghost" data-a="go" data-v="home">На главную</button>
-      </div>`;
-  }
-
-  function variantSummary(qz) {
-    const sc = variantScore(qz), lost = sc.max - sc.pts;
-    const full = sc.cells.filter((c) => c.p === c.m).length;
-    const bad = sc.cells.filter((c) => c.p < c.m && c.it.q.t !== "self"), shown = new Set();
-    const selfs = sc.cells.filter((c) => c.it.q.t === "self");
-    // Цель 90+ задаёт предмет (variant.goal): русский — 47 из 50, биология — 51 из 57 по шкале 2026 года.
-    const vcfg = qz.cfg || SUBJ[qz.sid].variant;
-    const g = vcfg.goal, need = g.need - sc.pts, half = Math.round(g.rest / 2), goalLabel = g.label || "90+";
-    const guess = g.scale && g.scale[sc.pts + half] ? ` Для ориентира: с такой первой частью и второй на ${half} из ${g.rest} получится примерно ${g.scale[sc.pts + half]} тестовых баллов.` : "";
-    const verdict = g.verdict ? g.verdict(sc.pts) : need <= g.rest
-      ? `Для ${goalLabel} нужно набрать ${g.need} ${plural(g.need, "первичный балл", "первичных балла", "первичных баллов")} из ${g.total} (по шкале 2026 года это ${g.test} тестовых). ${g.ok(need)}${guess}${g.extra ? " " + g.extra(sc.pts) : ""}`
-      : `Для ${goalLabel} нужно набрать ${g.need} ${plural(g.need, "первичный балл", "первичных балла", "первичных баллов")} из ${g.total}. ${g.fail(sc.pts + g.rest)}`;
-    const cell = (c) => `<span class="vcell" data-s="${!c.it.res ? "skip" : c.p === c.m ? "ok" : c.p ? "part" : "bad"}" title="Задание ${c.n}: ${c.p} из ${c.m}">${c.n}</span>`;
-    return `<div class="head"><div class="eyebrow">Итоги · ${esc(qz.title)}</div><h1 class="h1">${sc.pts} из ${sc.max} первичных баллов</h1><p class="lead">${verdict}</p></div>
-      <div class="tiles">
-        ${tile(g.partName || "Тестовая часть", sc.pts + " из " + sc.max, lost ? "потеряно " + lost + " " + plural(lost, "балл", "балла", "баллов") : "без потерь")}
-        ${tile("Заданий без ошибок", full + " из " + sc.cells.length, "")}
-        ${tile("Время", qz.spent < 30000 ? "меньше минуты" : minutesText(Math.round(qz.spent / 60000)), "на экзамене на всё — " + g.time)}
-        ${tile("Цель для " + goalLabel, g.need + " из " + g.total, g.split)}
-      </div>
-      <section class="card stack"><h2 class="h2">Задания</h2><div class="vgrid">${sc.cells.map(cell).join("")}</div>
-        <div class="qlegend"><span><i class="qdot" data-s="2"></i>верно</span><span><i class="qdot" data-s="1"></i>1 балл из 2</span><span><i class="qdot" data-s="0"></i>неверно</span><span><i class="qdot" data-s="-1"></i>пропущено</span></div></section>
-      ${bad.length ? `<section class="section"><h2 class="h2">Разбор ошибок</h2><div class="review-list">${bad.map((c) => `<div class="review-item">
-          <div class="row between"><span class="small muted">Задание ${c.n} · ${c.p} из ${c.m}</span><button type="button" class="btn ghost sm" data-a="bug-q" data-qid="${esc(c.it.q.id)}" data-qnum="${esc(c.n)}" title="Сообщить о баге на willagegg@gmail.com">${icon("bug")}<span>Баг</span></button></div>
-          ${passageOf(c.it.q) && !shown.has(passageOf(c.it.q)) && shown.add(passageOf(c.it.q)) ? `<div class="passage"><div class="eyebrow">Текст</div><p>${esc(passageOf(c.it.q))}</p></div>` : ""}
-          <div class="entry-title">${esc(c.it.q.q)}</div>
-          ${tableHTML(c.it.q)}
-          <div class="small"><b>Правильно:</b> ${esc(correctText(c.it.q))}</div>
-          <div class="small muted">Твой ответ: ${c.it.res ? esc(userText(c.it)) : "пропущено"}</div>
-          ${c.it.q.e ? `<div class="small ink2">${esc(c.it.q.e)}</div>` : ""}
-        </div>`).join("")}</div></section>` : ""}
-      ${selfs.length ? `<section class="section"><h2 class="h2">Часть 2: проверь себя по эталону</h2><p class="small muted">Сравни свой ответ с эталоном и отметь элементы, которые в нём есть: 1 балл за каждый. Итог вверху пересчитается сам.</p><div class="review-list">${selfs.map((c) => { const k = qz.items.indexOf(c.it); return `<div class="review-item">
-          <div class="row between"><span class="small muted">Задание ${c.n} · ${c.p} из ${c.m}</span><button type="button" class="btn ghost sm" data-a="bug-q" data-qid="${esc(c.it.q.id)}" data-qnum="${esc(c.n)}" title="Сообщить о баге на willagegg@gmail.com">${icon("bug")}<span>Баг</span></button></div>
-          <div class="entry-title">${esc(c.it.q.q)}</div>
-          ${tableHTML(c.it.q)}
-          <div class="small"><b>Твой ответ:</b> ${esc(userText(c.it))}</div>
-          <div class="eyebrow">Эталон</div><div class="passage"><p>${esc(c.it.q.ref)}</p></div>
-          <div class="checklist">${c.it.q.els.map((x, i) => `<label><input type="checkbox" class="check" data-c="self-sum" data-k="${k}" data-i="${i}"${c.it.resp.sel.includes(i) ? " checked" : ""}><span>${esc(x)}</span></label>`).join("")}</div>
-        </div>`; }).join("")}</div></section>` : ""}
-      <div class="row" style="flex-wrap:wrap">
-        ${vcfg.goal.scale && (qz.saved || selfs.length)
-          ? (qz.saved
-              ? `<button type="button" class="btn soft" data-a="go" data-v="stats">${icon("chart")}Сохранено в «Показателях»</button>`
-              : `<button type="button" class="btn" data-a="variant-save">Записать результат в «Показатели»</button>`)
-          : ""}
-        ${bad.length ? `<button type="button" class="btn ghost" data-a="quiz-retry">Прорешать ошибки · ${bad.length}</button>` : ""}
-        <button type="button" class="btn ghost" data-a="${vcfg.full ? "quiz-fullvariant" : "quiz-variant"}" data-sid="${qz.sid}" data-k="0">Новый вариант</button>
-        <button type="button" class="btn ghost" data-a="quiz-exit">Вернуться к предмету</button>
-      </div>`;
-  }
-
-  // ---------- ИИ ----------
-  function subjectAI(sid) { return (SUBJ[sid] && SUBJ[sid].ai) || { role: "репетитор", focus: "", suggest: [] }; }
-  function tutorRules(sid) {
-    const a = subjectAI(sid);
-    return `Ты — внимательный ${a.role}. С тобой говорит человек, который готовится к ЕГЭ 2027 года по биологии, русскому языку и химии. ${a.focus} Отвечай по-русски, понятно и точно, по школьной программе и материалам ФИПИ. Пиши коротко: 3–8 предложений или короткий список, если не просят подробнее; если помогает, добавь пример задания ЕГЭ или способ запомнить. Если не уверен в факте, так и скажи. Не используй таблицы и заголовки. Обращайся на «ты» и не угадывай пол собеседника: избегай форм вроде «ты сделал» или «ты сделала».`;
-  }
-  function aiErrorText(e) {
-    const code = e && e.code;
-    if (["ai_disabled", "not_granted", "sampling_disabled", "not_declared", "capability_disabled", "capability_removed"].includes(code)) {
-      ai.state = "off";
-      return store.backend ? "ИИ на сервере сейчас не настроен." : "ИИ недоступен на этой странице.";
-    }
-    if (code === "rate_limited") return "Слишком много запросов подряд. Попробуй через минуту.";
-    if (code === "session_expired" || code === "unauthorized") return store.backend ? "Сессия истекла. Войди в аккаунт снова." : "Сессия claude.ai истекла. Войди в аккаунт снова.";
-    if (code === "refused") return "ИИ не стал отвечать на этот запрос. Попробуй сформулировать иначе.";
-    if (code === "invalid_json") return "ИИ прислал ответ в неверном формате. Попробуй ещё раз.";
-    if (code === "timeout" || code === "upstream_timeout") return "ИИ отвечает слишком долго. Попробуй ещё раз.";
-    return "Не получилось получить ответ. Попробуй ещё раз.";
-  }
-  function fmtAI(text) {
-    const inline = (s) => s.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
-    const lines = esc(text).split(/\n/);
-    let html = "", list = null;
-    const flushList = () => { if (list) { html += `<${list.t}>${list.items.map((i) => `<li>${i}</li>`).join("")}</${list.t}>`; list = null; } };
-    for (const raw of lines) {
-      const line = raw.trim();
-      if (!line) { flushList(); continue; }
-      let m = line.match(/^[-•*]\s+(.*)$/);
-      if (m) { if (!list || list.t !== "ul") { flushList(); list = { t: "ul", items: [] }; } list.items.push(inline(m[1])); continue; }
-      m = line.match(/^\d+[.)]\s+(.*)$/);
-      if (m) { if (!list || list.t !== "ol") { flushList(); list = { t: "ol", items: [] }; } list.items.push(inline(m[1])); continue; }
-      flushList();
-      html += `<p>${inline(line.replace(/^#+\s*/, ""))}</p>`;
-    }
-    flushList();
-    return html;
-  }
-  function abortAI() {
-    const st = ui.quiz && ui.quiz.ai;
-    if (st && st.ctl && (st.status === "thinking" || st.status === "streaming")) st.ctl.abort();
-  }
-  async function explainCurrent() {
-    const qz = ui.quiz, it = curItem();
-    if (!ai.fn || !it || !it.res) return;
-    abortAI();
-    const st = (qz.ai = { status: "thinking", text: "", error: "", ctl: new AbortController(), forIdx: qz.i });
-    scheduleRender();
-    const t = TOPICS[it.q.topic];
-    const prompt = [
-      "Ты — " + subjectAI(it.q.sid).role + ", готовишь к ЕГЭ (Россия, 2027). Человек ответил на тренировочный вопрос. Объясни по-русски, точно и просто, в 4–8 предложениях, почему верный ответ именно такой" + (it.res.r === 2 ? "." : ", и в чём ошибка в ответе.") + " В конце дай короткую подсказку, как это запомнить. Без заголовков и таблиц. Не угадывай пол собеседника.",
-      "",
-      "Тема: " + (t ? codeLabel(t) + ", " + t.title : SUBJECT_NAME[it.q.sid] || ""),
-      passageOf(it.q) ? "Текст задания: " + passageOf(it.q) : "",
-      "Вопрос: " + it.q.q,
-      optionsText(it.q),
-      "Верный ответ: " + correctText(it.q),
-      "Ответ ученика: " + userText(it),
-      it.q.e ? "Пояснение из конспекта: " + it.q.e : ""
-    ].filter(Boolean).join("\n");
-    try {
-      const res = await ai.fn(prompt, { signal: st.ctl.signal, onText: (u) => { st.text = u.text; if (st.status === "thinking") { st.status = "streaming"; scheduleRender(); } else paintAI(); } });
-      st.text = res.text; st.status = "done";
-    } catch (e) {
-      if (e && e.code === "cancelled") { st.status = "done"; if (!st.text && qz.ai === st) qz.ai = null; }
-      else { st.status = "error"; st.text = (e && e.text) || st.text; st.error = aiErrorText(e); }
-    }
-    if (ui.quiz === qz) scheduleRender();
-  }
-  function paintAI() {
-    const el = document.getElementById("ai-explain");
-    if (el && ui.quiz && ui.quiz.ai) el.innerHTML = fmtAI(ui.quiz.ai.text);
-  }
-  function validateGen(data, t) {
-    const arr = Array.isArray(data) ? data : data && Array.isArray(data.questions) ? data.questions : [];
-    const out = [];
-    for (const x of arr) {
-      if (!x || typeof x.q !== "string" || !Array.isArray(x.o)) continue;
-      const o = x.o.map((s) => String(s).trim()).filter(Boolean);
-      if (o.length !== x.o.length) continue;
-      if (x.t === "single") {
-        const a = Number(x.a);
-        if (o.length < 3 || o.length > 6 || !Number.isInteger(a) || a < 0 || a >= o.length) continue;
-        out.push({ t: "single", q: x.q.trim(), o, a, e: String(x.e || "") });
-      } else if (x.t === "multi") {
-        const a = Array.isArray(x.a) ? Array.from(new Set(x.a.map(Number))) : [];
-        if (o.length < 4 || o.length > 8 || a.length < 2 || a.length >= o.length || a.some((v) => !Number.isInteger(v) || v < 0 || v >= o.length)) continue;
-        out.push({ t: "multi", q: x.q.trim(), o, a: a.sort((m, n) => m - n), e: String(x.e || "") });
-      }
-    }
-    // ИИ иногда повторяет вопросы темы или сам себя — такие отбрасываем.
-    const norm = (s) => s.toLowerCase().replace(/ё/g, "е").replace(/[^a-zа-я0-9]+/g, " ").trim();
-    const known = new Set(t.q.map((q) => norm(q.q) + "|" + norm((q.o || []).join(" "))));
-    const fresh = out.filter((q) => { const k = norm(q.q) + "|" + norm(q.o.join(" ")); return !known.has(k) && known.add(k); });
-    fresh.forEach((q) => { q.ai = true; q.id = "ai." + newId(); q.topic = t.id; q.sid = t.sid; });
-    return fresh;
-  }
-  async function generateQuestions(topicId) {
-    const t = TOPICS[topicId];
-    if (!ai.fn || !t) return;
-    const gen = (ui.gen = { topicId, status: "busy", error: "", ctl: new AbortController() });
-    scheduleRender();
-    const prompt = [
-      `Составь 5 новых тренировочных заданий ${SUBJ[t.sid].po} в стиле ЕГЭ (Россия, материалы ФИПИ) по теме «${t.title}» (${codeLabel(t).toLowerCase()}). Используй только надёжные факты и правила школьного курса; если в задании есть слово с пропуском или ударением, проверь его по словарю.`,
-      "",
-      "Ключевые правила и факты темы:",
-      t.theory.map((x) => (x.startsWith("## ") ? x.slice(3) + ":" : "- " + x.replace(/\*\*/g, ""))).join("\n"),
-      "",
-      "Не повторяй эти вопросы:",
-      t.q.map((q) => "- " + q.q).join("\n"),
-      "",
-      "Сделай 3 задания типа \"single\" (4 варианта, один верный) и 2 задания типа \"multi\" (6 вариантов, ровно три верных, формулировка «Выберите три верных ответа...»).",
-      "Ответь только JSON-массивом из 5 объектов, без текста вокруг. Формат:",
-      '[{"t":"single","q":"Текст вопроса","o":["вариант","вариант","вариант","вариант"],"a":0,"e":"Пояснение в 1–2 предложениях"},{"t":"multi","q":"Выберите три верных утверждения о ...","o":["...","...","...","...","...","..."],"a":[0,2,5],"e":"Пояснение"}]',
-      "Индексы в \"a\" считаются с нуля."
-    ].join("\n");
-    try {
-      const data = await ai.fn.json(prompt, { signal: gen.ctl.signal, cache: false });
-      const qs = validateGen(data, t);
-      if (!qs.length) throw { code: "invalid_json" };
-      if (ui.gen !== gen) return;
-      ui.gen = null;
-      startQuiz({ title: "Вопросы ИИ · " + t.title, sid: t.sid, qs, mode: "ai", topicId: t.id, back: { v: "topic", id: t.id } });
-    } catch (e) {
-      if (ui.gen !== gen) return;
-      if (e && e.code === "cancelled") { ui.gen = null; scheduleRender(); return; }
-      ui.gen = { topicId, status: "error", error: aiErrorText(e) };
-      scheduleRender();
-    }
-  }
-  async function sendChat(text) {
-    const c = ui.chat;
-    text = String(text || "").trim();
-    if (!text || c.busy || !ai.fn) return;
-    c.turns.push({ role: "user", content: text });
-    c.draft = ""; c.busy = true; c.error = ""; c.ctl = new AbortController();
-    const pending = { role: "assistant", content: "", streaming: true };
-    const history = c.turns.slice(-12).map((x) => ({ role: x.role, content: x.content }));
-    c.turns.push(pending);
-    ui.focusNext = "chat-input";
-    scheduleRender();
-    try {
-      const res = await ai.fn([{ role: "user", content: tutorRules(c.sid) }].concat(history), {
-        cache: false, signal: c.ctl.signal,
-        onText: (u) => { pending.content = u.text; const el = document.getElementById("chat-stream"); if (el) el.innerHTML = fmtAI(u.text); }
-      });
-      pending.content = res.text;
-    } catch (e) {
-      if (e && e.text) pending.content = e.text;
-      if (!pending.content) c.turns.splice(c.turns.indexOf(pending), 1);
-      if (!(e && e.code === "cancelled")) c.error = aiErrorText(e);
-    }
-    pending.streaming = false;
-    c.busy = false; c.ctl = null;
-    scheduleRender();
-  }
-
-  // ---------- план ----------
-  function planMatches(it, filter) {
-    if (filter === "todo") return !it.done;
-    if (filter === "done") return !!it.done;
-    if (filter === "overdue") return !it.done && validISO(it.due) && daysUntil(it.due) < 0;
-    return true;
-  }
-  function viewPlan() {
-    const all = planItems();
-    const done = all.filter((i) => i.done).length;
-    const todo = all.length - done;
-    const overdue = all.filter((i) => planMatches(i, "overdue")).length;
-    const pct = all.length ? Math.round((done / all.length) * 100) : 0;
-    const f = ui.planFilter === "overdue" && !overdue ? "all" : ui.planFilter;
-    const apply = all.find((i) => i.id === "ege-apply");
-    const customAll = all.filter((i) => i.custom).sort(byDue);
-    const custom = customAll.filter((i) => planMatches(i, f));
-    const phaseBlocks = ((EGE.plan && EGE.plan.phases) || []).map((ph) => {
-      const items = all.filter((i) => i.phase === ph.id);
-      const shown = items.filter((i) => planMatches(i, f));
-      if (f !== "all" && !shown.length) return "";
-      const d = items.filter((i) => i.done).length;
-      return `<section class="phase"><div class="phase-head"><h2 class="h2">${esc(ph.title)}</h2><span class="mono small muted">${esc(ph.period)}</span><span class="chip ${d === items.length && items.length ? "good" : ""}">${d} из ${items.length}</span></div>${shown.map((it) => todoItem(it)).join("")}</section>`;
-    }).join("");
-    const anyShown = !!phaseBlocks || custom.length > 0;
-    return `<div class="head"><div class="eyebrow">План подготовки</div><h1 class="h1">ЕГЭ 2027 и поступление</h1><p class="lead">Что сделать и к какому сроку — от первых тестов и регистрации на экзамен до подачи документов. Завершённые тесты и шаги отмечаются сами.</p></div>
-      ${staleNotice()}
-      <section class="card stack">
-        <div class="row between"><span class="tile-label">Сделано ${done} из ${all.length}</span><span class="small muted num">осталось ${todo} · ${pct}%</span></div>
-        <div class="meter accent"><i style="width:${pct}%"></i></div>
-        <div class="switch" role="group" aria-label="Фильтр задач">
-          <button type="button" data-a="plan-filter" data-filter="all" aria-pressed="${f === "all"}">Все (${all.length})</button>
-          <button type="button" data-a="plan-filter" data-filter="todo" aria-pressed="${f === "todo"}">Осталось (${todo})</button>
-          ${overdue ? `<button type="button" data-a="plan-filter" data-filter="overdue" aria-pressed="${f === "overdue"}">Просрочено (${overdue})</button>` : ""}
-          <button type="button" data-a="plan-filter" data-filter="done" aria-pressed="${f === "done"}">Выполнено (${done})</button>
-        </div>
-      </section>
-      ${apply && !apply.done && f !== "done" ? `<div class="notice info"><b>Главный срок — ${dateLong(apply.due)}.</b><span>До этого дня нужно подать заявление на ЕГЭ. Позже — только по уважительной причине.</span></div>` : ""}
-      ${anyShown ? phaseBlocks : `<div class="empty"><b>Задач в этом фильтре нет</b><button type="button" class="btn ghost sm" data-a="plan-filter" data-filter="all">Показать все</button></div>`}
-      ${f === "done" && !custom.length ? "" : `<section class="phase"><div class="phase-head"><h2 class="h2">Мои дела</h2><span class="small muted">свои задачи и напоминания</span></div>
-        ${custom.map((it) => todoItem(it)).join("")}
-        ${f !== "done" ? `<form class="card form" data-f="todo">
-          <div class="h3">Добавить дело</div>
-          <div class="field"><label for="td-t">Что сделать</label><input class="input" id="td-t" data-d="td.t" value="${esc(draft("td.t", ""))}" maxlength="140" placeholder="Например: записаться на пробный ЕГЭ" required></div>
-          <div class="fields">
-            <div class="field"><label for="td-d">Срок</label><input class="input" type="date" id="td-d" data-d="td.d" value="${esc(draft("td.d", ""))}"></div>
-            <div class="field"><label for="td-n">Заметка</label><input class="input" id="td-n" data-d="td.n" value="${esc(draft("td.n", ""))}" maxlength="300"></div>
-          </div>
-          <div><button class="btn" type="submit">Добавить</button></div>
-        </form>` : ""}
-      </section>`}
-      <p class="hint">${esc((EGE.plan && EGE.plan.note) || "")} Сроки проверены ${EGE.plan ? dateLong(EGE.plan.checked) : ""}.</p>`;
-  }
-  function toggleTodo(id, custom, checked) {
-    if (custom) patchDoc("plan", { custom: { [id]: { done: checked ? Date.now() : null } } });
-    else patchDoc("plan", { done: { [id]: checked ? Date.now() : null } });
-    if (checked) toast("Отмечено");
-  }
-
-  // ---------- показатели ----------
-  function subjectAutoCard(s, prof, allSess, allMocks, pd) {
-    const st = subjectStats(s.id), acc = subjectAccuracy(s.id), thRead = subjectReadCount(s.id);
-    const mis = mistakeQs(s.id).length, due = dueQs(s.id).length;
-    const subSess = allSess.filter((x) => x.sub === s.id);
-    const subMin = subSess.reduce((n, x) => n + (x.m || 0), 0);
-    const subQuizzes = subSess.filter((x) => x.k === "quiz");
-    const subHintAvg = subQuizzes.length ? subQuizzes.reduce((n, x) => n + (x.h || 0), 0) / subQuizzes.length : null;
-    const rep = questionAttemptBreakdown(s.id);
-    const diag = pd.results[DIAG_PLAN_ID[s.id]] || null;
-    const lastMock = allMocks.filter((m) => m.sub === s.id).slice(-1)[0] || null;
-    const rows = [
-      ["Освоено вопросов", `${st.mastered} из ${st.total}`],
-      ["Повтор вопросов", `1×: ${rep.n1.length} · 2×: ${rep.n2.length} · 3+×: ${rep.n3.length + rep.n4.length}`],
-      ["Точность", acc.acc == null ? "—" : `${acc.acc}% (${acc.n} отв.)`],
-      ["Подсказок за тест", subHintAvg == null ? "—" : `${formatAvg(subHintAvg)} в среднем`],
-      ["Конспекты", `${thRead} из ${st.topics}`],
-      ["Время", minutesText(subMin)]
-    ];
-    if (diag && diag.q) rows.push(["Диагностика", `${diag.c} из ${diag.q} (${diag.pct}%)`]);
-    if (lastMock) rows.push(["Последний пробник", `${lastMock.sc} б. (цель ${prof.targets[s.id]})`]);
-    return `<section class="card stack">
-      <div class="row between"><span class="row" style="gap:8px"><i class="dot" style="background:var(--c-${s.id})"></i><b>${esc(s.name)}</b></span><b class="num">${st.pct}%</b></div>
-      <div class="meter"><i style="width:${st.pct}%"></i></div>
-      <div class="stat-kv">${rows.map(([k, v]) => `<div class="stat-kv-row"><span class="muted">${k}</span><b class="num">${esc(v)}</b></div>`).join("")}</div>
-      <div class="row">
-        <button type="button" class="btn soft sm" data-a="quiz-mixed" data-sid="${s.id}">Тест</button>
-        ${mis ? `<button type="button" class="btn ghost sm" data-a="quiz-mistakes" data-sid="${s.id}">Ошибки · ${mis}</button>`
-          : due ? `<button type="button" class="btn ghost sm" data-a="quiz-review" data-sid="${s.id}">Повтор · ${due}</button>`
-          : `<button type="button" class="btn ghost sm" data-a="go" data-v="subject" data-sid="${s.id}">Темы · ${st.topics}</button>`}
-      </div>
-    </section>`;
-  }
-  function repeatabilityCard() {
-    const sid = ui.statsSubj && (ui.statsSubj === "all" || SUBJ[ui.statsSubj]) ? ui.statsSubj : "all";
-    const rep = questionAttemptBreakdown(sid);
-    const buckets = [
-      { k: 1, label: "1 раз", list: rep.n1 },
-      { k: 2, label: "2 раза", list: rep.n2 },
-      { k: 3, label: "3 раза", list: rep.n3 },
-      { k: 4, label: "4+ раз", list: rep.n4 }
-    ];
-    const activeK = [1, 2, 3, 4].includes(ui.statsRepBucket) ? ui.statsRepBucket : 1;
-    const activeBucket = buckets.find((b) => b.k === activeK) || buckets[0];
-    const visible = ui.statsRepAll ? activeBucket.list : activeBucket.list.slice(0, 25);
-    const subjSwitch = `<div class="switch" role="group" aria-label="Предмет">
-      <button type="button" data-a="stats-subj" data-sid="all" aria-pressed="${sid === "all"}">Все предметы</button>
-      ${CONTENT.map((s) => `<button type="button" data-a="stats-subj" data-sid="${s.id}" aria-pressed="${sid === s.id}"><i class="dot" style="background:var(--c-${s.id})"></i><span>${esc(s.name)}</span></button>`).join("")}
-    </div>`;
-    const bucketTabs = `<div class="switch" role="group" aria-label="Сколько раз пройден вопрос">
-      ${buckets.map((b) => `<button type="button" data-a="stats-rep" data-k="${b.k}" aria-pressed="${activeK === b.k}">${b.label} (${b.list.length})</button>`).join("")}
-    </div>`;
-    const listHtml = visible.length
-      ? `<div class="rep-list">${visible.map((it) => {
-          const rawQ = String(it.q.q || "").replace(/\s+/g, " ").trim();
-          const txt = rawQ.length > 110 ? rawQ.slice(0, 108) + "…" : rawQ;
-          const meta = `${esc(SUBJECT_NAME[it.q.sid] || "")}${it.t ? " · " + esc(topicRef(it.t)) : ""} · ответов ${it.st.n}, верных ${it.st.k}`;
-          return `<button type="button" class="step-btn" data-a="quiz-one" data-id="${esc(it.q.id)}" data-back="stats" style="grid-template-columns:14px minmax(0,1fr) auto"><i class="dot" style="background:var(--c-${it.q.sid})"></i><span style="min-width:0"><span style="display:block">${esc(txt)}</span><span class="step-sub" style="display:block">${meta}</span></span><span class="arrow">${icon("arrow")}</span></button>`;
-        }).join("")}</div>`
-      : `<div class="empty"><span>Вопросов в группе «${activeBucket.label}» пока нет.</span></div>`;
-    const moreBtn = !ui.statsRepAll && activeBucket.list.length > 25
-      ? `<div><button type="button" class="btn ghost sm" data-a="stats-rep-all">Показать все (${activeBucket.list.length})</button></div>` : "";
-    return `<section class="card stack">
-      <div class="row between"><h2 class="h2">Повторяемость вопросов</h2><span class="small muted">не пройдено: ${rep.n0} из ${rep.total}</span></div>
-      ${subjSwitch}
-      ${bucketTabs}
-      ${listHtml}
-      ${moreBtn}
-    </section>`;
-  }
-  function viewStats() {
-    const tot = totals(), prof = profile(), pd = planDoc();
-    const allSess = sessions(), allMocks = mocks();
-    const recent = allSess.slice(0, 15);
-    const diff = tot.d7 - tot.prev7;
-    const weekNote = tot.prev7 || tot.d7 ? (diff >= 0 ? "+" : "−") + minutesText(Math.abs(diff)) + " к прошлой неделе" : "";
-    const accVal = tot.acc7 != null ? tot.acc7 + "%" : (tot.accAll != null ? tot.accAll + "%" : "—");
-    const accNote = tot.acc7 != null ? "ответы за 7 дней" : (tot.accAll != null ? "за всё время" : "появится после первого теста");
-    const repAll = questionAttemptBreakdown("all");
-    const rep2Plus = repAll.n2.length + repAll.n3.length + repAll.n4.length;
-    const seenCount = repAll.n1.length + rep2Plus;
-    const subjCards = CONTENT.map((s) => subjectAutoCard(s, prof, allSess, allMocks, pd)).join("");
-    return `<div class="head"><div class="eyebrow">Показатели</div><h1 class="h1">Подготовка в цифрах</h1><p class="lead">Считается автоматически по тестам, конспектам, повторениям и полным вариантам. Занятия с учебником или бумажные пробники можно добавить внизу.</p></div>
-      ${store.mode === "local" ? localNotice() : staleNotice()}
-      <div class="tiles">
-        ${tile("Сегодня", minutesText(tot.today), "")}
-        ${tile("За 7 дней", minutesText(tot.d7), weekNote)}
-        ${tile("Серия", days(tot.streak), "подряд с занятиями")}
-        ${tile("Точность", accVal, accNote)}
-      </div>
-      <div class="tiles tiles-3">
-        ${tile("Тестов завершено", String(tot.quizCount), tot.quizCount ? "всего записано" : "появится после теста")}
-        ${tile("Подсказок за тест", formatAvg(tot.hintAvg), tot.quizCount ? `всего нажатий: ${tot.hintTotal}` : "среднее за завершённые тесты")}
-        ${tile("Пройдено 2+ раза", String(rep2Plus), `из ${seenCount} начатых вопросов`)}
-      </div>
-      ${CONTENT.length ? `<section class="section"><div class="section-head"><h2 class="h2">По предметам (автоматически)</h2><span class="small muted">обновляется после каждого задания</span></div><div class="grid-3">${subjCards}</div></section>` : ""}
-      ${repeatabilityCard()}
-      <section class="card stack">
-        <div class="row between"><h2 class="h2">Занятия за 4 недели</h2><span class="small muted">всего записано ${minutesText(tot.all)}</span></div>
-        <div class="chart" data-chart="activity" style="height:170px"></div>
-        <h3 class="h3">Последние записи</h3>
-        ${recent.length ? `<div class="entries">${recent.map(entryRow).join("")}</div>` : '<div class="empty">Записей пока нет. Реши любой тест — время и результат появятся здесь автоматически.</div>'}
-      </section>
-      ${mocksCard()}
-      <details class="card manual-box">
-        <summary><span><b>Добавить вручную</b> <span class="small muted">занятие с учебником, репетитором или бумажный пробник</span></span></summary>
-        <div class="manual-body"><div class="grid-2">${logForm()}${mockForm()}</div></div>
-      </details>`;
-  }
-  function logForm() {
-    return `<form class="card form" data-f="log">
-      <h2 class="h2">Записать занятие</h2>
-      <div class="fields">
-        <div class="field"><label for="lg-d">Дата</label><input class="input" type="date" id="lg-d" data-d="log.d" value="${esc(draft("log.d", todayISO()))}" max="${todayISO()}" required></div>
-        <div class="field"><label for="lg-s">Предмет</label>${subjSelect("lg-s", "log.sub", draft("log.sub", "bio"), true)}</div>
-        <div class="field"><label for="lg-m">Минут</label><input class="input num" type="number" inputmode="numeric" id="lg-m" data-d="log.m" value="${esc(draft("log.m", ""))}" min="1" max="720" placeholder="45" required></div>
-      </div>
-      <div class="field"><label for="lg-n">Что было на занятии</label><input class="input" id="lg-n" data-d="log.n" value="${esc(draft("log.n", ""))}" maxlength="200" placeholder="Например: учебник, параграф про митоз"></div>
-      <div><button class="btn" type="submit">Сохранить</button></div>
-    </form>`;
-  }
-  function mockForm() {
-    return `<form class="card form" data-f="mock">
-      <h2 class="h2">Добавить пробник</h2>
-      <div class="fields">
-        <div class="field"><label for="mk-d">Дата</label><input class="input" type="date" id="mk-d" data-d="mk.d" value="${esc(draft("mk.d", todayISO()))}" max="${todayISO()}" required></div>
-        <div class="field"><label for="mk-s">Предмет</label>${subjSelect("mk-s", "mk.sub", draft("mk.sub", "bio"), false)}</div>
-        <div class="field"><label for="mk-sc">Тестовый балл</label><input class="input num" type="number" inputmode="numeric" id="mk-sc" data-d="mk.sc" value="${esc(draft("mk.sc", ""))}" min="0" max="100" placeholder="0–100" required></div>
-        <div class="field"><label for="mk-p">Первичный балл</label><input class="input num" type="number" inputmode="numeric" id="mk-p" data-d="mk.p" value="${esc(draft("mk.p", ""))}" min="0" max="100" placeholder="необязательно"></div>
-      </div>
-      <div class="field"><label for="mk-n">Источник</label><input class="input" id="mk-n" data-d="mk.n" value="${esc(draft("mk.n", ""))}" maxlength="120" placeholder="Например: демоверсия ФИПИ"></div>
-      <div><button class="btn" type="submit">Добавить</button></div>
-    </form>`;
-  }
-  function delControl(key, action, attrs) {
-    if (ui.confirmDel === key) return `<span class="row" style="gap:12px"><button type="button" class="link-btn" style="color:var(--bad)" data-a="${action}" ${attrs}>Удалить</button><button type="button" class="link-btn" data-a="cancel-del">Отмена</button></span>`;
-    return `<button type="button" class="x-btn" data-a="ask-del" data-k="${esc(key)}" aria-label="Удалить запись">${icon("trash")}</button>`;
-  }
-  function quizLabel(e) {
-    const t = TOPICS[e.t];
-    if (t) return topicRef(t);
-    return { mixed: "смешанный", review: "повторение", mistakes: "работа над ошибками", ai: "вопросы ИИ", variant: "пробный вариант", part2: "часть 2" }[e.t] || "тренировка";
-  }
-  function entryRow(e) {
-    const title = e.k === "quiz" ? "Тест: " + quizLabel(e) : e.n || "Занятие";
-    const extra = e.k === "quiz" ? ["верно " + (e.c || 0) + " из " + (e.q || 0)].concat(e.h ? ["подсказок: " + e.h] : []) : [];
-    const sub = [SUBJECT_NAME[e.sub] || "Другое", e.m ? minutesText(e.m) : "меньше минуты"].concat(extra).join(" · ");
-    return `<div class="entry"><span class="entry-date">${dateShort(e.d)}</span><div class="entry-main"><span class="entry-title">${esc(title)}</span><span class="entry-sub">${esc(sub)}</span></div>${delControl("log:" + e.doc + ":" + e.id, "del-log", `data-doc="${esc(e.doc)}" data-id="${esc(e.id)}"`)}</div>`;
-  }
-  function mocksCard() {
-    const list = mocks(), prof = profile();
-    const subs = SUBJECT_META.filter((s) => list.some((m) => m.sub === s.id));
-    if (!list.length) {
-      return `<section class="card stack"><div class="row between"><h2 class="h2">Пробные экзамены</h2><span class="small muted">тестовый балл из 100</span></div>
-        <div class="empty"><b>Пробников пока нет</b><span>Реши полный вариант на странице предмета — тестовый балл и график появятся здесь автоматически. Бумажный пробник можно добавить вручную ниже.</span></div></section>`;
-    }
-    const rows = list.slice().reverse().map((m) => {
-      const target = prof.targets[m.sub];
-      const chip = m.sc >= target ? `<span class="chip good">цель достигнута</span>` : `<span class="chip">до цели ${target - m.sc}</span>`;
-      return `<tr><td class="mono small" style="white-space:nowrap">${dateShort(m.d)}</td><td><span class="row" style="gap:6px;flex-wrap:nowrap"><i class="dot" style="background:var(--c-${m.sub})"></i>${esc(SUBJECT_NAME[m.sub] || "")}</span></td><td class="num"><b>${m.sc}</b> ${chip}</td><td class="num">${m.p != null && m.p !== "" ? esc(m.p) : "—"}</td><td class="small">${esc(m.n || "")}</td><td>${delControl("mock:" + m.id, "del-mock", `data-id="${esc(m.id)}"`)}</td></tr>`;
-    }).join("");
-    return `<section class="card stack">
-      <div class="row between"><h2 class="h2">Пробные экзамены</h2><span class="small muted">тестовый балл из 100</span></div>
-      ${subs.length > 1 ? `<div class="legend">${subs.map((s) => `<span><i style="background:var(--c-${s.id})"></i>${esc(s.name)}</span>`).join("")}</div>` : ""}
-      <div class="chart" data-chart="mocks" style="height:230px"></div>
-      <div class="table-wrap"><table class="tbl"><thead><tr><th>Дата</th><th>Предмет</th><th>Балл</th><th>Первичный</th><th>Источник</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
-    </section>`;
-  }
-
-  // ---------- графики ----------
-  function niceStep(x) { const steps = [5, 10, 15, 20, 30, 60, 90, 120, 180, 240, 360]; return steps.find((s) => s >= x) || 480; }
-  function barPath(x, yTop, w, h, r) {
-    r = Math.min(r, w / 2, h);
-    const yb = yTop + h;
-    return `M${x},${yb}V${yTop + r}Q${x},${yTop} ${x + r},${yTop}H${x + w - r}Q${x + w},${yTop} ${x + w},${yTop + r}V${yb}Z`;
-  }
-  function drawActivity(el) {
-    const W = Math.max(260, el.clientWidth), H = 170, padL = 36, padR = 8, padT = 10, padB = 24;
-    const N = 28, today = todayISO(), byDay = minutesByDay();
-    const daysArr = range(N).map((i) => addDays(today, i - N + 1));
-    const vals = daysArr.map((d) => byDay[d] || 0);
-    const step = niceStep(Math.max(30, ...vals) / 3);
-    const top = Math.max(step * 3, Math.ceil(Math.max(...vals) / step) * step);
-    const ih = H - padT - padB, iw = W - padL - padR, band = iw / N, bw = Math.min(24, Math.max(3, band * 0.62));
-    const y = (v) => padT + ih - (v / top) * ih;
-    let s = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Минуты занятий за последние 28 дней">`;
-    for (let v = 0; v <= top; v += step) {
-      s += `<line class="${v === 0 ? "axis-l" : "grid-l"}" x1="${padL}" x2="${W - padR}" y1="${y(v)}" y2="${y(v)}"/><text x="${padL - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`;
-    }
-    daysArr.forEach((d, i) => {
-      const v = vals[i], x = padL + band * i + (band - bw) / 2;
-      if (v > 0) s += `<path d="${barPath(x, y(v), bw, Math.max(2, (v / top) * ih), 4)}" fill="var(--accent)"/>`;
-      if (i % 7 === 6) s += `<text x="${padL + band * i + band / 2}" y="${H - 6}" text-anchor="middle">${esc(dateShort(d))}</text>`;
-      s += `<rect x="${padL + band * i}" y="${padT}" width="${band}" height="${ih}" fill="transparent" data-tip="${esc(dateDay(d) + ": " + (v ? minutesText(v) : "занятий нет"))}"/>`;
-    });
-    if (!vals.some(Boolean)) s += `<text x="${padL + iw / 2}" y="${padT + ih / 2 + 4}" text-anchor="middle">Пока нет записей — пройди тест или добавь занятие</text>`;
-    el.innerHTML = s + "</svg>";
-  }
-  function drawMocks(el) {
-    const list = mocks(), prof = profile();
-    if (!list.length) { el.innerHTML = ""; return; }
-    const W = Math.max(260, el.clientWidth), H = 230, padL = 32, padR = 64, padT = 14, padB = 26;
-    const ih = H - padT - padB, iw = W - padL - padR;
-    const t0 = parseISO(list[0].d).getTime();
-    const t1 = Math.max(parseISO(list[list.length - 1].d).getTime(), t0 + 30 * 86400000);
-    const x = (iso) => padL + ((parseISO(iso).getTime() - t0) / (t1 - t0)) * iw;
-    const y = (v) => padT + ih - (v / 100) * ih;
-    let s = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Баллы пробных экзаменов">`;
-    for (let v = 0; v <= 100; v += 20) s += `<line class="${v === 0 ? "axis-l" : "grid-l"}" x1="${padL}" x2="${W - padR}" y1="${y(v)}" y2="${y(v)}"/><text x="${padL - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`;
-    s += `<text x="${padL}" y="${H - 6}" text-anchor="start">${esc(dateShort(list[0].d))}</text><text x="${W - padR}" y="${H - 6}" text-anchor="end">${esc(dateShort(isoDate(new Date(t1))))}</text>`;
-    const seenTargets = new Set(), ends = [];
-    for (const sm of SUBJECT_META) {
-      const pts = list.filter((m) => m.sub === sm.id);
-      if (!pts.length) continue;
-      const color = `var(--c-${sm.id})`, target = prof.targets[sm.id];
-      s += `<line x1="${padL}" x2="${W - padR}" y1="${y(target)}" y2="${y(target)}" stroke="${color}" stroke-width="1.5" stroke-opacity=".45"/>`;
-      if (!seenTargets.has(target)) { seenTargets.add(target); s += `<text x="${W - padR + 6}" y="${y(target) + 4}">цель ${target}</text>`; }
-      if (pts.length > 1) s += `<path d="${pts.map((m, i) => (i ? "L" : "M") + x(m.d) + "," + y(m.sc)).join("")}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
-      pts.forEach((m) => {
-        s += `<circle cx="${x(m.d)}" cy="${y(m.sc)}" r="4.5" fill="${color}" stroke="var(--surface)" stroke-width="2"/>`;
-        s += `<circle cx="${x(m.d)}" cy="${y(m.sc)}" r="13" fill="transparent" data-tip="${esc(sm.name + " · " + dateDay(m.d) + ": " + m.sc + " " + plural(m.sc, "балл", "балла", "баллов"))}"/>`;
-      });
-      const last = pts[pts.length - 1];
-      ends.push({ x: x(last.d) + 9, y: y(last.sc) - 8, v: last.sc });
-    }
-    // Подписи концов линий не наезжают друг на друга: лишние значения остаются в подсказке и таблице.
-    let prevY = -Infinity;
-    ends.sort((a, b) => a.y - b.y).forEach((e) => {
-      if (e.y - prevY < 14) return;
-      prevY = e.y;
-      s += `<text class="lbl" x="${e.x}" y="${e.y}">${e.v}</text>`;
-    });
-    el.innerHTML = s + "</svg>";
-  }
-  function drawCharts() {
-    document.querySelectorAll("[data-chart]").forEach((el) => {
-      if (el.dataset.chart === "activity") drawActivity(el);
-      if (el.dataset.chart === "mocks") drawMocks(el);
-    });
-  }
-  let resizeTimer = null;
-  window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(drawCharts, 150); });
-
-  // ---------- справочник без ИИ и репетитор ----------
-  function tableBlockHTML(tb) {
-    return `<div class="small muted">${rich(tb.title)}</div><div class="qtbl-wrap"><table class="qtbl">${tb.rows.map((r, i) => `<tr>${r.map((c, j) => (i === 0 || (tb.head1 && j === 0) ? `<th>${esc(c)}</th>` : `<td>${esc(c)}</td>`)).join("")}</tr>`).join("")}</table></div>${tb.note ? `<div class="small muted">${rich(tb.note)}</div>` : ""}`;
-  }
-  function guideQuickChips(sid) {
-    const bySub = {
-      bio: ["митоз", "фотосинтез", "мейоз", "генетический код", "кровообращение"],
-      rus: ["ударения", "н и нн", "запятые", "причастный оборот", "клише", "аргументы"],
-      chem: ["овр", "гидролиз", "электролиз", "изомерия", "степень окисления"],
-      all: ["митоз", "фотосинтез", "ударения", "запятые", "гидролиз", "овр", "клише"]
-    };
-    return (bySub[sid] || bySub.all);
-  }
-  function guideMatchEssay(terms) {
-    const E = EGE.essay;
-    if (!E) return "";
-    const clicheHits = (E.cliches || []).filter((c) => terms.every((w) => norm(c.part + " " + c.items.join(" ")).includes(w)));
-    const argHits = (E.args || []).filter((g) => terms.every((w) => norm(g.theme + " " + g.items.map((x) => x.src + " " + x.text).join(" ")).includes(w)));
-    if (!clicheHits.length && !argHits.length && !terms.every((w) => norm("сочинение задание 27 план клише аргументы").includes(w))) return "";
-    return `<article class="card guide-card">
-      <div class="guide-meta"><span class="eyebrow">Русский язык · Задание 27</span><button type="button" class="btn soft sm" data-a="go" data-v="essay">Тренажёр сочинения</button></div>
-      <h2 class="h2">Сочинение: клише и аргументы</h2>
-      ${clicheHits.slice(0, 2).map((c) => `<div class="stack" style="gap:4px"><div class="label">${esc(c.part)}</div><ul class="theory">${c.items.slice(0, 3).map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>`).join("")}
-      ${argHits.slice(0, 2).map((g) => `<div class="stack" style="gap:4px"><div class="label">${esc(g.theme)}</div><ul class="theory">${g.items.slice(0, 2).map((x) => `<li><b>${esc(x.src)}:</b> ${esc(x.text)}</li>`).join("")}</ul></div>`).join("")}
-    </article>`;
-  }
-  function guideOverview(sid) {
-    const list = sid === "all" ? CONTENT : CONTENT.filter((s) => s.id === sid);
-    const cards = list.map((s) => {
-      const topics = (s.content && s.content.topicList) || [];
-      const withTables = topics.filter((t) => t.tables && t.tables.length);
-      const sample = (withTables.length ? withTables : topics).slice(0, 8);
-      return `<section class="card stack">
-        <div class="row between"><span class="row" style="gap:8px"><i class="dot" style="background:var(--c-${s.id})"></i><h2 class="h2">${esc(s.name)}</h2></span><button type="button" class="link-btn" data-a="go" data-v="subject" data-sid="${s.id}">Все темы · ${topics.length}</button></div>
-        <div class="suggest">${sample.map((t) => `<button type="button" data-a="open-topic" data-id="${t.id}">${esc(t.title)}</button>`).join("")}</div>
-      </section>`;
-    }).join("");
-    const essayCard = (sid === "all" || sid === "rus") && EGE.essay
-      ? `<section class="card stack">
-          <div class="row between"><h2 class="h2">Сочинение ЕГЭ · памятка</h2><button type="button" class="btn soft sm" data-a="go" data-v="essay">Открыть тренажёр</button></div>
-          <p class="small ink2">План на 200–250 слов, готовые клише по критериям К1–К3, образец сочинения и банк литературных аргументов.</p>
-        </section>`
-      : "";
-    return cards + essayCard;
-  }
-  function viewGuide() {
-    const sid = ui.guideSid && (ui.guideSid === "all" || SUBJ[ui.guideSid]) ? ui.guideSid : "all";
-    const qNorm = norm(ui.guideQ);
-    const terms = qNorm ? qNorm.split(/\s+/).filter(Boolean) : [];
-    const switcher = `<div class="switch" role="group" aria-label="Предмет">
-      <button type="button" data-a="guide-sid" data-sid="all" aria-pressed="${sid === "all"}">Все предметы</button>
-      ${CONTENT.map((s) => `<button type="button" data-a="guide-sid" data-sid="${s.id}" aria-pressed="${sid === s.id}"><i class="dot" style="background:var(--c-${s.id})"></i><span>${esc(s.name)}</span></button>`).join("")}
-    </div>`;
-    const searchBox = `<div class="search-wrap">
-      <label class="sr" for="guide-q">Поиск по конспектам и таблицам</label>
-      <input class="input" type="search" id="guide-q" value="${esc(ui.guideQ)}" placeholder="Поиск по правилам, терминам, формулам и исключениям…">
-      ${ui.guideQ ? `<button type="button" class="search-clear" data-a="guide-clear" aria-label="Очистить поиск">${icon("x")}</button>` : ""}
-    </div>`;
-    const chips = `<div class="suggest">${guideQuickChips(sid).map((w) => `<button type="button" data-a="guide-chip" data-q="${esc(w)}">${esc(w)}</button>`).join("")}</div>`;
-    let body = "";
-    if (!terms.length) {
-      body = guideOverview(sid);
-    } else {
-      const pool = (sid === "all" ? CONTENT : CONTENT.filter((s) => s.id === sid));
-      const hits = [];
-      for (const s of pool) {
-        const secs = (s.content && s.content.sections) || [];
-        for (const sec of secs) {
-          for (const t of sec.topics) {
-            const titleText = norm(t.title + " " + t.code + " " + sec.title);
-            const matchTables = (t.tables || []).filter((tb) => terms.every((w) => norm(tb.title + " " + tb.rows.map((r) => r.join(" ")).join(" ") + " " + (tb.note || "")).includes(w)));
-            const matchBullets = (t.theory || []).filter((line) => !line.startsWith("## ") && terms.every((w) => norm(line).includes(w)));
-            const fullText = titleText + " " + norm((t.theory || []).join(" ")) + " " + norm((t.tables || []).map((tb) => tb.title + " " + tb.rows.map((r) => r.join(" ")).join(" ")).join(" "));
-            if (!terms.every((w) => fullText.includes(w))) continue;
-            const score = (terms.every((w) => titleText.includes(w)) ? 4 : 0) + (matchTables.length ? 2 : 0) + (matchBullets.length ? 1 : 0);
-            hits.push({ s, sec, t, matchTables, matchBullets, score });
-          }
-        }
-      }
-      hits.sort((a, b) => b.score - a.score);
-      const essayHit = (sid === "all" || sid === "rus") ? guideMatchEssay(terms) : "";
-      const cards = hits.slice(0, 12).map(({ s, sec, t, matchTables, matchBullets }) => {
-        const bullets = (matchBullets.length ? matchBullets : (t.theory || []).filter((x) => !x.startsWith("## "))).slice(0, 4);
-        const tb = matchTables[0] || (t.tables && t.tables[0]) || null;
-        return `<article class="card guide-card">
-          <div class="guide-meta">
-            <span class="row small muted" style="gap:6px"><i class="dot" style="background:var(--c-${s.id})"></i>${esc(s.name)} · ${esc(sec.title)}</span>
-            <span class="row" style="gap:6px">
-              <button type="button" class="btn soft sm" data-a="open-topic" data-id="${t.id}">Конспект</button>
-              ${t.qids.length ? `<button type="button" class="btn ghost sm" data-a="quiz-topic" data-id="${t.id}">Тест</button>` : ""}
-            </span>
-          </div>
-          <h2 class="h2">${esc(t.title)}</h2>
-          ${bullets.length ? `<ul class="theory">${bullets.map((x) => `<li>${rich(x)}</li>`).join("")}</ul>` : ""}
-          ${tb ? tableBlockHTML(tb) : ""}
-        </article>`;
-      }).join("");
-      body = (essayHit + cards) || `<div class="empty"><b>По запросу «${esc(ui.guideQ)}» ничего не найдено</b><span>Попробуй более короткое слово: например, «митоз», «гидролиз» или «запятые».</span><button type="button" class="btn ghost sm" data-a="guide-clear">Показать все разделы</button></div>`;
-    }
-    return `<div class="head"><div class="eyebrow">Справочник</div><h1 class="h1">Быстрый поиск без нейросети</h1><p class="lead">Правила, термины, формулы, исключения и клише сочинения по всему банку ЕГЭ — работает мгновенно и без интернета к ИИ.</p></div>
-      ${switcher}
-      ${searchBox}
-      ${chips}
-      ${body}`;
-  }
-
-  function viewTutor() {
-    if (ai.state !== "ready") return viewGuide();
-    const c = ui.chat;
-    const lead = store.backend
-      ? "ИИ-репетитор объяснит правило или термин, разберёт задачу, проверит сочинение, подскажет, как запомнить. Важное сверяй с конспектом и материалами ФИПИ."
-      : "Отвечает Claude: объяснит правило или термин, разберёт задачу, проверит сочинение, подскажет, как запомнить. Важное сверяй с конспектом и материалами ФИПИ.";
-    const head = `<div class="head"><div class="eyebrow">Репетитор</div><h1 class="h1">Спроси о любой теме</h1><p class="lead">${lead}</p></div>`;
-    const sugg = subjectAI(c.sid).suggest || [];
-    const switcher = CONTENT.length > 1
-      ? `<div class="switch" role="group" aria-label="Предмет">${CONTENT.map((s) => `<button type="button" data-a="chat-subject" data-sid="${s.id}" aria-pressed="${s.id === c.sid}">${esc(s.name)}</button>`).join("")}</div>`
-      : "";
-    const bubbles = c.turns.map((t) => `<div class="bubble ${t.role === "user" ? "me" : "ai"}"${t.streaming ? ' id="chat-stream"' : ""}>${t.role === "user" ? esc(t.content) : t.content ? fmtAI(t.content) : '<span class="muted">Думаю…</span>'}</div>`).join("");
-    return head + switcher + `${c.turns.length ? `<section class="chat" aria-live="polite">${bubbles}</section>` : `<div class="suggest">${sugg.map((s) => `<button type="button" data-a="chat-suggest" data-text="${esc(s)}">${esc(s)}</button>`).join("")}</div>`}
-      ${c.error ? `<div class="notice">${esc(c.error)}</div>` : ""}
-      <form class="composer" data-f="chat">
-        <label class="sr" for="chat-input">Вопрос репетитору</label>
-        <textarea class="textarea" id="chat-input" rows="2" maxlength="6000" placeholder="Напиши вопрос ${esc(SUBJ[c.sid] ? SUBJ[c.sid].po : "")} или вставь сочинение…">${esc(c.draft)}</textarea>
-        ${c.busy ? `<button class="btn ghost" type="button" data-a="chat-stop">${icon("stop")}Стоп</button>` : `<button class="btn" type="submit">Отправить</button>`}
-      </form>
-      ${c.turns.length && !c.busy ? '<div><button type="button" class="link-btn" data-a="chat-clear">Начать новый разговор</button></div>' : ""}`;
-  }
-
-  // ---------- сочинение ----------
-  const ESSAY_LS = "vektor-ege:essay";
-  const LEGACY_ESSAY_LS = "put-v-medicinu:essay";
-  const ESSAY_K = [["К1", 1, "Позиция автора"], ["К2", 3, "Комментарий"], ["К3", 2, "Своё отношение и аргумент"], ["К4", 1, "Фактическая точность"], ["К5", 2, "Логичность"], ["К6", 1, "Этика"], ["К7", 3, "Орфография"], ["К8", 3, "Пунктуация"], ["К9", 3, "Грамматика"], ["К10", 3, "Речевые нормы"]];
-  let essayTimer = null;
-  function essayState() {
-    if (!ui.essay) {
-      let saved = null;
-      try { saved = JSON.parse(localStorage.getItem(ESSAY_LS) || localStorage.getItem(LEGACY_ESSAY_LS) || "null"); } catch (e) { /* хранилище браузера недоступно */ }
-      ui.essay = Object.assign({ tid: EGE.essay.texts[0].id, own: { text: "", problem: "" }, body: "", editId: null }, saved || {},
-        { tab: "write", checks: {}, ai: null, showPos: false, confirmClear: false });
-    }
-    return ui.essay;
-  }
-  function essayDraftLater() {
-    clearTimeout(essayTimer);
-    essayTimer = setTimeout(() => {
-      const e = ui.essay;
-      try {
-        localStorage.setItem(ESSAY_LS, JSON.stringify({ tid: e.tid, own: e.own, body: e.body, editId: e.editId }));
-        localStorage.removeItem(LEGACY_ESSAY_LS);
-      } catch (err) { /* хранилище браузера недоступно */ }
-    }, 600);
-  }
-  // Слова считаются как в ЕГЭ: служебные тоже, слово через дефис — одно.
-  function wordCount(s) { return (String(s || "").match(/[A-Za-zА-Яа-яЁё0-9]+(?:-[A-Za-zА-Яа-яЁё0-9]+)*/g) || []).length; }
-  function essayText(e) {
-    if (e.tid === "own") return { id: "own", own: true, title: "Свой текст", problem: e.own.problem || "", body: e.own.text || "" };
-    return EGE.essay.texts.find((t) => t.id === e.tid) || EGE.essay.texts[0];
-  }
-  function essays() {
-    const m = (store.docs.essays && store.docs.essays.e) || {};
-    return Object.keys(m).filter((k) => m[k] && m[k].body).map((k) => Object.assign({ id: k }, m[k])).sort((a, b) => (b.at || 0) - (a.at || 0));
-  }
-  function paras(text) { return String(text || "").split(/\n+/).filter((x) => x.trim()).map((x) => `<p>${esc(x)}</p>`).join(""); }
-  function countChip(w) {
-    const cls = w < 150 ? "bad" : w < 200 ? "warn" : "good";
-    return `<span id="essay-count" class="chip ${cls} num">${w} ${plural(w, "слово", "слова", "слов")}</span>`;
-  }
-  function paintEssayCount() {
-    const el = document.getElementById("essay-count");
-    if (el) el.outerHTML = countChip(wordCount(ui.essay.body));
-  }
-  function saveEssay(extra) {
-    const e = essayState(), T = essayText(e);
-    if (!e.body.trim()) { toast("Сочинение пока пустое"); return null; }
-    const id = e.editId || newId();
-    const scored = e.ai && e.ai.status === "done" && e.ai.forHash === hash(e.body) ? e.ai.res : null;
-    const rec = { d: todayISO(), tid: e.tid, title: T.title, problem: T.problem || "", body: e.body.slice(0, 12000), w: wordCount(e.body), at: Date.now(),
-      sc: scored ? scored.total : null, k: scored ? Object.fromEntries(scored.k.map((c) => [c.id, c.p])) : null, adv: scored ? scored.advice : null,
-      src: e.tid === "own" ? String(e.own.text || "").slice(0, 12000) : null };
-    patchDoc("essays", { e: { [id]: Object.assign(rec, extra || {}) } });
-    markPlanPrep("rus", "Написано сочинение");
-    e.editId = id; essayDraftLater();
-    return id;
-  }
-  function validateEssayCheck(data, words) {
-    const arr = data && Array.isArray(data.k) ? data.k : null;
-    if (!arr) return null;
-    const k = ESSAY_K.map(([id, max, name]) => {
-      const x = arr.find((y) => y && String(y.id).replace(/K/g, "К").replace(/\s/g, "") === id) || {};
-      const p = Math.round(Number(x.p));
-      return { id, name, max, p: Number.isFinite(p) ? Math.max(0, Math.min(max, p)) : 0, note: String(x.note || "").slice(0, 400) };
-    });
-    if (k[0].p === 0) { k[1].p = 0; k[2].p = 0; } // без позиции автора комментарий и своё отношение не засчитываются
-    if (words < 150) k.forEach((c) => { c.p = 0; });
-    const errors = (Array.isArray(data.errors) ? data.errors : []).filter((x) => x && x.quote).slice(0, 30)
-      .map((x) => ({ type: String(x.type || ""), quote: String(x.quote).slice(0, 200), fix: String(x.fix || "").slice(0, 300) }));
-    return { k, errors, advice: String(data.advice || "").slice(0, 1200), total: k.reduce((s, c) => s + c.p, 0) };
-  }
-  async function checkEssay() {
-    const e = essayState();
-    if (!ai.fn) return;
-    const T = essayText(e), w = wordCount(e.body);
-    if (w < 30) { toast("Сначала напиши сочинение"); return; }
-    if (T.own && (!T.body.trim() || !T.problem.trim())) { toast("Вставь исходный текст и проблему из задания"); return; }
-    if (e.ai && e.ai.ctl) e.ai.ctl.abort();
-    const st = (e.ai = { status: "busy", ctl: new AbortController(), forHash: hash(e.body), res: null, error: "" });
-    scheduleRender();
-    const prompt = [
-      "Ты — эксперт ЕГЭ по русскому языку. Проверь сочинение (задание 27) по критериям ФИПИ 2026 года строго, как на экзамене.",
-      "",
-      "Задание: Напишите сочинение-рассуждение по проблеме, поставленной в исходном тексте: «" + T.problem + "». Сформулируйте позицию автора (рассказчика) по указанной проблеме. Прокомментируйте, как в тексте раскрывается эта позиция: включите в комментарий два примера-иллюстрации из прочитанного текста, важные для понимания позиции автора, поясните их, укажите и поясните смысловую связь между ними. Сформулируйте и обоснуйте своё отношение к позиции автора, включите в обоснование пример-аргумент из читательского, историко-культурного или жизненного опыта (примеры из комиксов, аниме, манги, фанфиков, графических романов, компьютерных игр не учитываются). Объём — не менее 150 слов.",
-      "",
-      "Критерии и максимальные баллы:",
-      "К1 (1) — позиция автора по указанной проблеме сформулирована верно.",
-      "К2 (3) — комментарий: 3 — два примера-иллюстрации с пояснениями, смысловая связь указана и пояснена; 2 — два примера с пояснениями, но связь не указана или не пояснена; 1 — один пример с пояснением; 0 — примеров нет, они без пояснений, не относятся к позиции автора или текст пересказан.",
-      "К3 (2) — своё отношение к позиции автора: 2 — сформулировано и обосновано подходящим примером-аргументом; 1 — сформулировано, но пример-аргумент отсутствует или не подходит; 0 — отношения нет.",
-      "Если по К1 стоит 0, то по К2 и К3 тоже 0.",
-      "К4 (1) — нет фактических ошибок (имена, названия, даты, события, содержание произведений).",
-      "К5 (2) — логичность: 2 — нет логических ошибок и нарушений абзацного членения; 1 — одна-две логические ошибки; 0 — три и больше.",
-      "К6 (1) — соблюдены этические нормы.",
-      "К7 орфография, К8 пунктуация, К9 грамматика, К10 речевые нормы — по 3 балла: 3 — ошибок нет; 2 — одна-две; 1 — три-четыре; 0 — пять и больше.",
-      "",
-      "Исходный текст:",
-      T.body,
-      "",
-      "Сочинение (слов: " + w + "):",
-      e.body,
-      "",
-      'Ответь только JSON без текста вокруг: {"k":[{"id":"К1","p":0,"note":"кратко, за что поставлен балл"}, … все десять критериев К1–К10 …],"errors":[{"type":"орфография|пунктуация|грамматика|речь|логика|факт","quote":"фрагмент из сочинения с ошибкой","fix":"как исправить"}],"advice":"два-три главных совета, что улучшить"}',
-      "Пиши по-русски, обращайся на «ты», не угадывай пол автора сочинения. Перечисли все найденные ошибки."
-    ].join("\n");
-    try {
-      const data = await ai.fn.json(prompt, { signal: st.ctl.signal, cache: false, modelTier: "complex" });
-      const res = validateEssayCheck(data, w);
-      if (!res) throw { code: "invalid_json" };
-      if (e.ai !== st) return;
-      st.status = "done"; st.res = res; st.ctl = null;
-      saveEssay();
-      toast("Проверено и сохранено в «Мои сочинения»");
-    } catch (err) {
-      if (e.ai !== st) return;
-      if (err && err.code === "cancelled") ui.essay.ai = null;
-      else { st.status = "error"; st.error = aiErrorText(err); st.ctl = null; }
-    }
-    scheduleRender();
-  }
-  function essayAIBlock(e) {
-    const st = e.ai;
-    if (!st) return "";
-    if (st.status === "busy") return `<section class="card stack"><div class="row between"><h2 class="h2">Проверка по критериям</h2><button type="button" class="link-btn" data-a="essay-stop">Остановить</button></div><div class="hint">ИИ читает текст и сочинение и выставляет баллы по К1–К10. Это занимает до минуты.</div></section>`;
-    if (st.status === "error") return `<div class="notice">${esc(st.error)}</div>`;
-    const r = st.res, stale = st.forHash !== hash(e.body);
-    return `<section class="card stack">
-      <div class="row between"><h2 class="h2">Проверка по критериям</h2><span class="chip ${r.total >= 19 ? "good" : r.total >= 14 ? "warn" : "bad"} num">${r.total} из 22</span></div>
-      ${stale ? '<div class="hint">После проверки сочинение изменилось — нажми «Проверить» ещё раз, чтобы получить новую оценку.</div>' : ""}
-      <div class="table-wrap"><table class="tbl"><thead><tr><th>Критерий</th><th>Баллы</th><th>Комментарий</th></tr></thead><tbody>
-        ${r.k.map((c) => `<tr><td><b>${c.id}</b> ${esc(c.name)}</td><td class="num">${c.p} из ${c.max}</td><td class="small ink2">${esc(c.note)}</td></tr>`).join("")}
-      </tbody></table></div>
-      ${r.errors.length ? `<div class="label">Ошибки</div><div class="review-list">${r.errors.map((x) => `<div class="review-item"><div class="small muted">${esc(x.type)}</div><div>«${esc(x.quote)}»</div>${x.fix ? `<div class="small"><b>Как исправить:</b> ${esc(x.fix)}</div>` : ""}</div>`).join("")}</div>` : ""}
-      ${r.advice ? `<div class="ai-box"><span class="eyebrow">Что улучшить</span><div class="ai-text">${fmtAI(r.advice)}</div></div>` : ""}
-      <p class="hint">Оценка ИИ примерная: на экзамене сочинение проверяют два эксперта по критериям ФИПИ. Ошибки, которые нашёл ИИ, перепроверяй по правилам.</p>
-    </section>`;
-  }
-  function viewEssay() {
-    const E = EGE.essay;
-    if (!E) { ui.view = "subject"; return viewSubject(); }
-    const e = essayState(), T = essayText(e), mine = essays();
-    const tabs = [["write", "Писать"], ["plan", "План, клише, образец"], ["args", "Аргументы"], ["mine", "Мои сочинения" + (mine.length ? " · " + mine.length : "")]];
-    const head = `<div><button type="button" class="link-btn" data-a="go" data-v="subject" data-sid="rus">← Русский язык</button></div>
-      <div class="head"><div class="eyebrow">Задание 27 · до 22 баллов</div><h1 class="h1">Тренажёр сочинения</h1><p class="lead">Формат 2026 года: проблема дана в задании. Сформулируй позицию автора, прокомментируй её двумя примерами из текста со смысловой связью и обоснуй своё отношение примером-аргументом. Не меньше 150 слов.</p></div>
-      <div class="switch" role="group" aria-label="Раздел">${tabs.map(([k, l]) => `<button type="button" data-a="essay-tab" data-tab="${k}" aria-pressed="${e.tab === k}">${esc(l)}</button>`).join("")}</div>`;
-    if (e.tab === "plan") return head + essayPlanTab(E);
-    if (e.tab === "args") return head + essayArgsTab(E);
-    if (e.tab === "mine") return head + essayMineTab(mine);
-    const w = wordCount(e.body), checked = E.checklist.filter((x, i) => e.checks[i]).length;
-    const src = T.own
-      ? `<div class="field"><label for="essay-problem">Проблема из задания</label><input class="input" id="essay-problem" maxlength="300" placeholder="Например: «Что даёт человеку чтение?»" value="${esc(e.own.problem)}"></div>
-         <div class="field"><label for="essay-src">Исходный текст</label><textarea class="textarea" id="essay-src" rows="8" maxlength="12000" placeholder="Вставь текст из открытого банка ФИПИ или из варианта">${esc(e.own.text)}</textarea></div>`
-      : `<div class="well"><span class="eyebrow">Проблема из задания</span><div class="h3">${esc(T.problem)}</div></div>
-         <div class="passage"><div class="eyebrow">Текст · «${esc(T.title)}»</div>${paras(T.body)}</div>
-         <div>${e.showPos ? `<div class="ai-box"><span class="eyebrow">Позиция автора</span><div>${esc(T.position)}</div></div>` : `<button type="button" class="link-btn" data-a="essay-pos">Сверить позицию автора (после того как сформулируешь свою)</button>`}</div>`;
-    return head + `
-      <section class="card stack">
-        <h2 class="h2">Исходный текст</h2>
-        <div class="switch" role="group" aria-label="Текст">${E.texts.map((t) => `<button type="button" data-a="essay-text" data-id="${t.id}" aria-pressed="${e.tid === t.id}">${esc(t.title)}</button>`).join("")}<button type="button" data-a="essay-text" data-id="own" aria-pressed="${e.tid === "own"}">Свой текст</button></div>
-        ${src}
-      </section>
-      <section class="card stack">
-        <div class="row between"><h2 class="h2">Сочинение</h2>${countChip(w)}</div>
-        <label class="sr" for="essay-body">Текст сочинения</label>
-        <textarea class="textarea essay-area" id="essay-body" maxlength="12000" placeholder="Начни со вступления, которое подводит к проблеме…">${esc(e.body)}</textarea>
-        <p class="hint">Минимум 150 слов, оптимально 200–300. Черновик сохраняется в этом браузере; кнопка «Сохранить» переносит сочинение в «Мои сочинения» — оно будет доступно на любом компьютере.</p>
-        <div class="row">
-          <button type="button" class="btn" data-a="essay-save">Сохранить</button>
-          ${ai.state === "ready" ? `<button type="button" class="btn soft" data-a="essay-check"${e.ai && e.ai.status === "busy" ? " disabled" : ""}>${icon("spark")}Проверить по критериям</button>` : ""}
-          ${e.confirmClear
-            ? `<span class="row" style="gap:12px"><button type="button" class="link-btn" style="color:var(--bad)" data-a="essay-clear">Очистить поле</button><button type="button" class="link-btn" data-a="essay-clear-cancel">Отмена</button></span>`
-            : `<button type="button" class="btn ghost" data-a="essay-clear-ask">Новое сочинение</button>`}
-        </div>
-        ${ai.state === "off" ? `<div class="hint">${store.backend ? (!store.user ? "Проверка ИИ доступна после входа в аккаунт." : "Проверка ИИ заработает, когда на сервере будет настроен ключ ИИ.") : "Проверка ИИ работает, когда сайт открыт на claude.ai и разрешено обращение к Claude."}</div>` : ""}
-      </section>
-      ${essayAIBlock(e)}
-      <section class="card stack">
-        <div class="row between"><h2 class="h2">Самопроверка</h2><span class="small muted num">${checked} из ${E.checklist.length}</span></div>
-        <div class="checklist">${E.checklist.map((x, i) => `<label><input type="checkbox" class="check" data-c="essay-check" data-i="${i}"${e.checks[i] ? " checked" : ""}><span>${esc(x)}</span></label>`).join("")}</div>
-      </section>`;
-  }
-  function essayPlanTab(E) {
-    const s = E.sample, st = E.texts.find((t) => t.id === s.textId);
-    return `<section class="card pad-lg stack"><h2 class="h2">План на 200–250 слов</h2>
-        <ol class="plan-list">
-          <li><b>Вступление</b> — 1–2 предложения, подводящие к проблеме.</li>
-          <li><b>Позиция автора</b> по проблеме из задания — своими словами (К1).</li>
-          <li><b>Пример 1</b> из текста с номером предложения или цитатой и пояснение: «Этот пример показывает…» (К2).</li>
-          <li><b>Пример 2</b> и пояснение (К2).</li>
-          <li><b>Смысловая связь</b> между примерами — назови и объясни (К2).</li>
-          <li><b>Своё отношение</b> к позиции автора и пример-аргумент из книги, истории или жизни (К3).</li>
-          <li><b>Вывод</b> — 1–2 предложения.</li>
-        </ol></section>
-      <section class="card stack"><h2 class="h2">Клише</h2>
-        ${E.cliches.map((c) => `<div class="stack" style="gap:6px"><div class="label">${esc(c.part)}</div><ul class="theory">${c.items.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>`).join("")}
-      </section>
-      <section class="card stack"><div class="row between"><h2 class="h2">Образец по тексту «${esc(st ? st.title : "")}»</h2><span class="chip num">${wordCount(s.body)} слов</span></div>
-        <div class="well"><span class="eyebrow">Проблема</span><div>${esc(st ? st.problem : "")}</div></div>
-        <div class="essay-sample">${paras(s.body)}</div>
-        <div class="label">Почему это сочинение получает высокие баллы</div>
-        <ul class="theory">${s.notes.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
-      </section>`;
-  }
-  function essayArgsTab(E) {
-    return `<p class="hint">Для К3 нужен пример-аргумент из читательского, историко-культурного или жизненного опыта. Выбери заранее 5–6 произведений и перечитай их краткое содержание: за ошибку в имени, названии или сюжете снимают балл по К4.</p>
-      ${E.args.map((g) => `<section class="card stack"><h2 class="h2">${esc(g.theme)}</h2><div class="stack">${g.items.map((x) => `<div><div class="entry-title">${esc(x.src)}</div><div class="small ink2">${esc(x.text)}</div></div>`).join("")}</div></section>`).join("")}`;
-  }
-  function essayMineTab(list) {
-    if (!list.length) return `<div class="empty"><b>Пока нет сохранённых сочинений</b><span>Напиши первое на вкладке «Писать» и нажми «Сохранить» или «Проверить по критериям».</span></div>`;
-    return `<section class="card stack"><div class="entries">${list.map((x) => `<div class="entry">
-        <span class="entry-date">${esc(dateShort(x.d))}</span>
-        <div class="entry-main"><span class="entry-title">${esc(x.title || "Сочинение")}</span><span class="entry-sub">${esc(x.problem || "")} · ${x.w || 0} ${plural(x.w || 0, "слово", "слова", "слов")}${x.sc != null ? " · ИИ: " + x.sc + " из 22" : ""}</span></div>
-        <span class="row" style="gap:10px"><button type="button" class="link-btn" data-a="essay-open" data-id="${esc(x.id)}">Открыть</button>${delControl("essay:" + x.id, "del-essay", `data-id="${esc(x.id)}"`)}</span>
-      </div>`).join("")}</div></section>`;
-  }
-
-  // ---------- настройки ----------
-  function viewProfile() {
-    const prof = profile();
-    const isTutor = ui.role === "tutor";
-    const isAdmin = ui.role === "admin";
-    return `<div class="head"><div class="eyebrow">Настройки</div><h1 class="h1">Профиль и данные</h1></div>
-      ${store.backend ? accountCard() : ""}
-      <section class="card pad-lg stack">
-        <div class="row between" style="flex-wrap:wrap;gap:8px">
-          <h2 class="h2">Режим кабинета</h2>
-          <span class="chip ${isAdmin ? "pro" : isTutor ? "gold" : "accent"}">${isAdmin ? "Администратор" : isTutor ? "Преподаватель" : "Ученик (по умолчанию)"}</span>
-        </div>
-        <div class="hh-seg" role="group" aria-label="Выбор роли кабинета" style="flex-wrap:wrap">
-          <button type="button" data-a="role-set" data-role="student" aria-pressed="${!isTutor && !isAdmin}">${icon("book")}<span>Как ученик</span></button>
-          <button type="button" data-a="role-set" data-role="tutor" aria-pressed="${isTutor}">${icon("users")}<span>Как преподаватель</span></button>
-          <button type="button" data-a="role-set" data-role="admin" aria-pressed="${isAdmin}">${icon("shield")}<span>Как администратор</span></button>
-        </div>
-      </section>
-      <section class="card pad-lg stack">
-        <div class="row between"><h2 class="h2">Оформление</h2><span class="small muted">${themeMode === "auto" ? "по настройкам устройства" : themeMode === "dark" ? "тёмная палитра" : "светлая палитра"}</span></div>
-        <div class="switch" role="group" aria-label="Тема оформления">
-          <button type="button" data-a="theme-set" data-theme="auto" aria-pressed="${themeMode === "auto"}">Авто</button>
-          <button type="button" data-a="theme-set" data-theme="light" aria-pressed="${themeMode === "light"}">${icon("sun")}<span>Светлая</span></button>
-          <button type="button" data-a="theme-set" data-theme="dark" aria-pressed="${themeMode === "dark"}">${icon("moon")}<span>Тёмная</span></button>
-        </div>
-      </section>
-      <form class="card pad-lg form" data-f="profile">
-        <h2 class="h2">Профиль</h2>
-        <div class="field"><label for="pf-name">Как к тебе обращаться</label><input class="input" id="pf-name" data-d="pf.name" value="${esc(draft("pf.name", prof.name || defaultName()))}" maxlength="40"></div>
-        <div class="label">Целевые баллы</div>
-        <div class="fields">${SUBJECT_META.map((s) => `<div class="field"><label for="pf-t-${s.id}">${esc(s.name)}</label><input class="input num" type="number" min="0" max="100" inputmode="numeric" id="pf-t-${s.id}" data-d="pf.t.${s.id}" value="${esc(draft("pf.t." + s.id, prof.targets[s.id]))}"></div>`).join("")}</div>
-        <div class="label">Даты экзаменов</div>
-        <div class="fields">${SUBJECT_META.map((s) => `<div class="field"><label for="pf-e-${s.id}">${esc(s.name)}</label><input class="input" type="date" id="pf-e-${s.id}" data-d="pf.e.${s.id}" value="${esc(draft("pf.e." + s.id, prof.exams[s.id]))}"></div>`).join("")}</div>
-        <p class="hint">Сейчас стоят даты из проекта расписания ЕГЭ-2027. Когда расписание утвердят, поправь их здесь — план и отсчёты обновятся.</p>
-        <div><button class="btn" type="submit">Сохранить</button></div>
-      </form>
-      ${dataCard()}`;
-  }
-  function dataCard() {
-    const where = store.mode === "cloud"
-      ? (store.backend
-          ? "Прогресс хранится на сервере в базе данных и привязан к твоему аккаунту. Войди под тем же логином на любом устройстве — ответы, отметки и записи будут на месте."
-          : "Прогресс хранится в облаке claude.ai и привязан к твоему аккаунту. Открой эту страницу на любом компьютере под тем же аккаунтом — ответы, отметки и записи будут на месте.")
-      : store.mode === "local"
-        ? (store.backend
-            ? "Сервер базы данных подключён, но вход в аккаунт ещё не выполнен — текущие данные пока хранятся только в этом браузере. Войди или зарегистрируйся выше, чтобы синхронизировать прогресс."
-            : "Сейчас страница открыта не на claude.ai, поэтому данные хранятся только в этом браузере. Открой её по ссылке на claude.ai, чтобы прогресс сохранялся в облаке.")
-        : "Подключаюсь к хранилищу…";
-    const cf = ui.confirm;
-    return `<section class="card pad-lg stack">
-      <h2 class="h2">Данные</h2>
-      <p class="ink2">${where}</p>
-      <div class="row">
-        <button type="button" class="btn ghost" data-a="export">${icon("download")}Скачать резервную копию</button>
-        <button type="button" class="btn ghost" data-a="import">${icon("upload")}Восстановить из копии</button>
-        <input type="file" id="import-file" accept=".json,application/json" hidden>
-      </div>
-      ${ui.exportText ? `<div class="field"><label for="export-text">Скопируй текст и сохрани его в файл с расширением .json</label><textarea class="textarea" id="export-text" rows="6" readonly>${esc(ui.exportText)}</textarea><div><button type="button" class="btn soft sm" data-a="copy-export">Скопировать</button></div></div>` : ""}
-      ${cf && cf.kind === "import" ? `<div class="confirm"><b>Заменить данные копией от ${esc(cf.date)}?</b><span class="small">Прогресс, план и записи заменятся данными из файла.</span><div class="row"><button type="button" class="btn danger sm" data-a="import-do">Заменить</button><button type="button" class="btn ghost sm" data-a="confirm-cancel">Отмена</button></div></div>` : ""}
-      <div class="row">${CONTENT.map((s) => `<button type="button" class="btn ghost" data-a="reset-ask" data-sid="${s.id}">${icon("trash")}Сбросить прогресс ${esc(SUBJ[s.id].po)}</button>`).join("")}</div>
-      ${cf && cf.kind === "reset" ? `<div class="confirm"><b>Сбросить все ответы и отметки ${esc(SUBJ[cf.sid].po)}?</b><span class="small">План, пробники и журнал занятий останутся. Отменить сброс нельзя, поэтому сначала можно скачать резервную копию.</span><div class="row"><button type="button" class="btn danger sm" data-a="reset-do">Сбросить</button><button type="button" class="btn ghost sm" data-a="confirm-cancel">Отмена</button></div></div>` : ""}
-    </section>
-    <section class="card stack"><h2 class="h2">Откуда сроки</h2><p class="ink2 small">Даты собраны ${EGE.plan ? dateLong(EGE.plan.checked) : ""}: проект расписания ЕГЭ-2027 (Минпросвещения и Рособрнадзор, обсуждение до 10 ноября 2026 года) и сроки приёмной кампании 2026 года. Официальные документы смотри на сайтах ниже.</p>
-      <div class="stack small"><a href="https://obrnadzor.gov.ru/" target="_blank" rel="noopener">Рособрнадзор</a><a href="https://fipi.ru/" target="_blank" rel="noopener">ФИПИ</a><a href="https://www.gosuslugi.ru/vuzonline" target="_blank" rel="noopener">Поступление в вуз онлайн (Госуслуги)</a></div>
-    </section>`;
-  }
-  async function doExport() {
-    const data = JSON.stringify({ app: "vektor-ege", v: 1, exported: new Date().toISOString(), docs: store.docs }, null, 2);
-    const filename = "vektor-ege-" + todayISO() + ".json";
-    if (caps.downloads) {
-      try { await caps.downloads.save({ filename, data }); toast("Резервная копия сохранена"); return; }
-      catch (e) { if (e && e.code === "declined") return; }
-    }
-    try {
-      if (typeof Blob === "function" && typeof URL !== "undefined" && typeof URL.createObjectURL === "function" && typeof document.createElement === "function") {
-        const blob = new Blob([data], { type: "application/json" });
-        const href = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = href; a.download = filename;
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        setTimeout(() => { try { URL.revokeObjectURL(href); } catch (e) {} }, 1000);
-        toast("Файл резервной копии скачан");
-        return;
-      }
-    } catch (e) { /* запасной вариант ниже */ }
-    ui.exportText = data;
-    scheduleRender();
-  }
-  function readImport(file) {
-    const r = new FileReader();
-    r.onload = () => {
-      try {
-        const obj = JSON.parse(String(r.result));
-        if (!obj || (obj.app !== "vektor-ege" && obj.app !== "put-v-medicinu") || !isObj(obj.docs)) throw new Error("format");
-        ui.confirm = { kind: "import", data: obj.docs, date: obj.exported ? dateLong(String(obj.exported).slice(0, 10)) : "неизвестной даты" };
-      } catch (e) {
-        ui.confirm = null;
-        toast("Это не резервная копия «Вектора ЕГЭ».");
-      }
-      scheduleRender();
-    };
-    r.readAsText(file);
-  }
-  function doImport() {
-    const cf = ui.confirm;
-    if (!cf || cf.kind !== "import") return;
-    const ok = /^(profile|plan|mocks|essays|prog-[a-z]+|log-\d{4}-\d{2})$/;
-    for (const name of Object.keys(cf.data)) if (ok.test(name) && isObj(cf.data[name])) replaceDoc(name, cf.data[name]);
-    ui.confirm = null;
-    toast("Данные восстановлены из копии");
-  }
-  function copyText(text, sel) {
-    const fallback = () => { const el = document.querySelector(sel); if (el) { el.focus(); el.select(); toast("Текст выделен — нажми Ctrl+C"); } };
-    try { navigator.clipboard.writeText(text).then(() => toast("Скопировано"), fallback); } catch (e) { fallback(); }
-  }
-
+  function bbState() { return EGE.marketBb.bbState(); }
+  function copyTextSafe(txt) { return EGE.marketBb.copyTextSafe(txt); }
+  function patchMaskTrainerDOM() { return EGE.marketBb.patchMaskTrainerDOM(); }
+  function applyBrandbookViewport(rawW) { return EGE.marketBb.applyBrandbookViewport(rawW); }
   // ---------- тосты и подсказки ----------
   let toastTimer = null;
   function dismissSideToast(targetEl) {
@@ -3631,173 +1946,15 @@
     }
   });
 
-  // ---------- действия ----------
-  function subjectOf(el) { return SUBJ[el.dataset.sid] ? el.dataset.sid : ui.sid; }
   const ACTIONS = {
     "theme-toggle": () => setTheme(effectiveDark() ? "light" : "dark"),
     "theme-set": (el) => setTheme(el.dataset.theme),
-    "subj-filter": (el) => { ui.subjFilter = el.dataset.filter || "all"; scheduleRender(); },
-    "subj-clear": () => { ui.subjQ = ""; ui.subjFilter = "all"; ui.focusNext = "subj-q"; scheduleRender(); },
-    "topic-filter": (el) => { ui.topicFilter = el.dataset.filter || "all"; scheduleRender(); },
-    "plan-filter": (el) => { ui.planFilter = el.dataset.filter || "all"; scheduleRender(); },
-    "guide-sid": (el) => { ui.guideSid = el.dataset.sid || "all"; scheduleRender(); },
-    "guide-clear": () => { ui.guideQ = ""; ui.focusNext = "guide-q"; scheduleRender(); },
-    "guide-chip": (el) => { ui.guideQ = el.dataset.q || ""; scheduleRender(); },
-    "stats-subj": (el) => { ui.statsSubj = el.dataset.sid || "all"; ui.statsRepAll = false; scheduleRender(); },
-    "stats-rep": (el) => { const k = Number(el.dataset.k); if ([1, 2, 3, 4].includes(k)) { ui.statsRepBucket = k; ui.statsRepAll = false; scheduleRender(); } },
-    "stats-rep-all": () => { ui.statsRepAll = true; scheduleRender(); },
     "bug-site": () => { ui.bug = buildBugReport({}); ui.focusNext = "bug-body"; renderModal(); },
     "bug-q": (el) => { ui.bug = buildBugReport({ qid: el.dataset.qid, qnum: el.dataset.qnum }); ui.focusNext = "bug-body"; renderModal(); },
     "bug-copy": () => { if (ui.bug) copyText(ui.bug.body, "#bug-body"); },
     "bug-close": () => { ui.bug = null; renderModal(); },
     go: (el) => go(el.dataset.v, { sid: el.dataset.sid, id: el.dataset.id, fromNav: !!(el.closest && el.closest("#side-nav, #tabbar")) }),
-    "open-topic": (el) => go("topic", { id: el.dataset.id }),
-    "quiz-mixed": (el) => { const sid = subjectOf(el); startQuiz({ title: "Смешанный тест · " + SUBJ[sid].name, sid, qs: pickMixed(sid, QUIZ_SIZE).map((id) => QS[id]), mode: "mixed", back: { v: "subject", sid } }); },
-    "quiz-review": (el) => {
-      const sid = subjectOf(el), ids = shuffle(dueQs(sid)).slice(0, QUIZ_SIZE);
-      if (!ids.length) { toast("Повторять пока нечего, загляни завтра."); return; }
-      startQuiz({ title: "Повторение · " + SUBJ[sid].name, sid, qs: ids.map((id) => QS[id]), mode: "review", back: { v: "subject", sid } });
-    },
-    "quiz-mistakes": (el) => {
-      const sid = subjectOf(el), ids = shuffle(mistakeQs(sid)).slice(0, QUIZ_SIZE);
-      if (!ids.length) { toast("Ошибок нет, так держать."); return; }
-      startQuiz({ title: "Работа над ошибками · " + SUBJ[sid].name, sid, qs: ids.map((id) => QS[id]), mode: "mistakes", back: { v: "subject", sid } });
-    },
-    "quiz-topic": (el) => { const t = TOPICS[el.dataset.id]; startQuiz({ title: topicRef(t), sid: t.sid, qs: pickTopic(t, el.dataset.all ? Infinity : TOPIC_QUIZ).map((id) => QS[id]), mode: "topic", topicId: t.id, back: { v: "topic", id: t.id } }); },
-    "quiz-topic-mistakes": (el) => { const t = TOPICS[el.dataset.id]; startQuiz({ title: "Ошибки · " + t.title, sid: t.sid, qs: shuffle(mistakeQs(t.sid, t.id)).map((id) => QS[id]), mode: "topic", topicId: t.id, back: { v: "topic", id: t.id } }); },
-    "quiz-one": (el) => { const q = QS[el.dataset.id]; if (!q) return; const t = TOPICS[q.topic]; const back = el.dataset.back === "stats" ? { v: "stats" } : { v: "topic", id: t.id }; startQuiz({ title: topicRef(t), sid: q.sid, qs: [q], mode: "topic", topicId: t.id, back }); },
-    "quiz-retry": () => {
-      const qz = ui.quiz; if (!qz) return;
-      const exam = qz.mode === "variant";
-      startQuiz({ title: "Ошибки · " + qz.title, sid: qz.sid, qs: qz.items.filter((it) => (exam && !it.res) || (it.res && it.res.r !== 2)).map((it) => it.q), mode: exam || qz.mode === "mixed" ? "mistakes" : qz.mode, topicId: qz.topicId, back: qz.back, retry: true });
-    },
-    "quiz-variant": (el) => {
-      const sid = subjectOf(el); if (!SUBJ[sid].variant) return;
-      const v = pickVariant(sid);
-      startQuiz({ title: SUBJ[sid].variant.title || "Пробный вариант · часть 1", sid, qs: v.map((x) => QS[x.id]), ns: v.map((x) => x.n), mode: "variant", back: { v: "subject", sid } });
-    },
-    "quiz-fullvariant": (el) => {
-      const sid = subjectOf(el), cfg = SUBJ[sid].fullVariant; if (!cfg) return;
-      const k = Number(el.dataset.k) || 0, v = pickVariant(sid, cfg, k);
-      startQuiz({ title: cfg.title + (k ? " · вариант " + k : ""), sid, qs: v.map((x) => QS[x.id]), ns: v.map((x) => x.n), mode: "variant", cfg, back: { v: "subject", sid } });
-    },
-    "variant-save": () => {
-      const qz = ui.quiz; if (!qz || !qz.done || qz.saved) return;
-      saveVariantMock(qz, false);
-      scheduleRender();
-    },
-    "quiz-part2": (el) => {
-      const sid = subjectOf(el), p = SUBJ[sid].part2; if (!p) return;
-      const v = pickVariant(sid, p); if (!v.length) return;
-      startQuiz({ title: p.title, sid, qs: v.map((x) => QS[x.id]), mode: "part2", back: { v: "subject", sid } });
-    },
-    "quiz-skip": () => { const qz = ui.quiz; if (!qz || qz.checked) return; qz.spent += Math.min(Date.now() - qz.qStart, MAX_Q_MS); qz.checked = true; doNext(); },
-    pick: (el) => {
-      const it = curItem(); if (!it || ui.quiz.checked) return;
-      const i = Number(el.dataset.i);
-      if (it.q.t === "single") it.resp = i;
-      else { const k = it.resp.indexOf(i); if (k >= 0) it.resp.splice(k, 1); else it.resp.push(i); }
-      saveActiveQuiz();
-      ui.focusNext = null; scheduleRender();
-    },
-    match: (el) => { const it = curItem(); if (!it || ui.quiz.checked) return; const l = Number(el.dataset.l), r = Number(el.dataset.r); it.resp[l] = it.resp[l] === r ? -1 : r; saveActiveQuiz(); scheduleRender(); },
-    ord: (el) => { const it = curItem(); if (!it || ui.quiz.checked) return; const i = Number(el.dataset.i), k = it.resp.indexOf(i); if (k >= 0) it.resp.splice(k, 1); else it.resp.push(i); saveActiveQuiz(); scheduleRender(); },
-    "ord-reset": () => { const it = curItem(); if (it) { it.resp = []; saveActiveQuiz(); scheduleRender(); } },
-    "quiz-hint": () => {
-      const qz = ui.quiz, it = curItem(); if (!qz || !it) return;
-      it.hintOpen = !it.hintOpen;
-      if (it.hintOpen && !it.hinted) {
-        it.hinted = true;
-        qz.hints = (qz.hints || 0) + 1;
-        if (qz.answered > 0) logQuizSession(qz);
-      }
-      saveActiveQuiz();
-      scheduleRender();
-    },
-    "quiz-guide": () => {
-      const it = curItem();
-      if (ui.quiz && !ui.quiz.done && it && it.q) {
-        ui.guideSid = it.q.sid || "all";
-        ui.guideQ = questionGuideHint(it.q).guideQuery || "";
-      }
-      go("tutor");
-    },
-    "quiz-check": () => doCheck(),
-    "quiz-next": () => doNext(),
-    "quiz-exit": () => exitQuiz(),
-    explain: () => explainCurrent(),
-    "explain-stop": () => abortAI(),
-    theory: (el) => {
-      const t = TOPICS[el.dataset.id], read = !!prog(t.sid).th[t.id];
-      patchDoc("prog-" + t.sid, { th: { [t.id]: read ? null : Date.now() } });
-      if (!read) markPlanPrep(t.sid, "Прочитана теория: " + t.title);
-      toast(read ? "Отметка снята" : "Теория отмечена как прочитанная");
-    },
-    "plan-act": (el) => {
-      const it = findPlanItem(el.dataset.id), act = it && it.action;
-      if (!act || !SUBJ[act.sid]) return;
-      if (act.kind === "diag") {
-        startQuiz({ title: "Диагностика · " + SUBJ[act.sid].name, sid: act.sid, qs: pickMixed(act.sid, QUIZ_SIZE).map((id) => QS[id]), mode: "mixed", back: { v: "plan" }, planId: it.id });
-        return;
-      }
-      if (act.kind === "prep") {
-        const list = (SUBJ[act.sid].topicList || []).filter((x) => x.qids.length);
-        const t = list.find((x) => topicStats(x).mastered < x.qids.length) || list[0];
-        if (!t) { toast("Здесь пока нет вопросов."); return; }
-        startQuiz({ title: topicRef(t), sid: t.sid, qs: pickTopic(t, TOPIC_QUIZ).map((id) => QS[id]), mode: "topic", topicId: t.id, back: { v: "plan" }, planId: it.id });
-      }
-    },
-    "gen-ai": (el) => generateQuestions(el.dataset.id),
-    "gen-stop": () => { if (ui.gen && ui.gen.ctl) ui.gen.ctl.abort(); ui.gen = null; scheduleRender(); },
-    "ask-tutor": (el) => { const t = TOPICS[el.dataset.id]; ui.chat.sid = t.sid; ui.chat.draft = `Объясни простыми словами главное по теме «${t.title}» и приведи пример задания ЕГЭ.`; ui.focusNext = "chat-input"; go("tutor"); },
-    "chat-subject": (el) => { if (SUBJ[el.dataset.sid]) { ui.chat.sid = el.dataset.sid; scheduleRender(); } },
-    "chat-suggest": (el) => sendChat(el.dataset.text),
-    "chat-stop": () => { if (ui.chat.ctl) ui.chat.ctl.abort(); },
-    "chat-clear": () => { if (ui.chat.ctl) ui.chat.ctl.abort(); ui.chat = { sid: ui.chat.sid, turns: [], busy: false, ctl: null, draft: "", error: "" }; scheduleRender(); },
-    "ask-del": (el) => { ui.confirmDel = el.dataset.k; scheduleRender(); },
-    "cancel-del": () => { ui.confirmDel = null; scheduleRender(); },
-    "del-log": (el) => { patchDoc(el.dataset.doc, { s: { [el.dataset.id]: null } }); ui.confirmDel = null; toast("Запись удалена"); },
-    "del-mock": (el) => { patchDoc("mocks", { m: { [el.dataset.id]: null } }); ui.confirmDel = null; toast("Пробник удалён"); },
-    "del-todo": (el) => { patchDoc("plan", { custom: { [el.dataset.id]: null } }); ui.confirmDel = null; toast("Дело удалено"); },
-    export: () => doExport(),
-    "copy-export": () => copyText(ui.exportText, "#export-text"),
-    import: () => { const f = document.getElementById("import-file"); if (f) f.click(); },
-    "import-do": () => doImport(),
-    "reset-ask": (el) => { if (!SUBJ[el.dataset.sid]) return; ui.confirm = { kind: "reset", sid: el.dataset.sid }; scheduleRender(); },
-    "reset-do": () => {
-      const cf = ui.confirm;
-      if (!cf || cf.kind !== "reset" || !SUBJ[cf.sid]) return;
-      replaceDoc("prog-" + cf.sid, { q: {}, th: {} });
-      ui.confirm = null;
-      toast("Прогресс " + SUBJ[cf.sid].po + " сброшен");
-    },
-    "confirm-cancel": () => { ui.confirm = null; scheduleRender(); },
-    "essay-tab": (el) => { essayState().tab = el.dataset.tab; scheduleRender(true); },
-    "essay-text": (el) => { const e = essayState(); if (e.tid === el.dataset.id) return; e.tid = el.dataset.id; e.editId = null; e.showPos = false; e.ai = null; essayDraftLater(); scheduleRender(); },
-    "essay-pos": () => { essayState().showPos = true; scheduleRender(); },
-    "essay-save": () => { if (saveEssay()) toast("Сохранено в «Мои сочинения»"); },
-    "essay-check": () => checkEssay(),
-    "essay-stop": () => { const e = essayState(); if (e.ai && e.ai.ctl) e.ai.ctl.abort(); },
-    "essay-clear-ask": () => { essayState().confirmClear = true; scheduleRender(); },
-    "essay-clear-cancel": () => { essayState().confirmClear = false; scheduleRender(); },
-    "essay-clear": () => {
-      const e = essayState();
-      Object.assign(e, { body: "", editId: null, ai: null, checks: {}, showPos: false, confirmClear: false });
-      essayDraftLater(); ui.focusNext = "essay-body"; scheduleRender();
-    },
-    "essay-open": (el) => {
-      const x = essays().find((r) => r.id === el.dataset.id), e = essayState();
-      if (!x) return;
-      const own = !EGE.essay.texts.some((t) => t.id === x.tid);
-      Object.assign(e, { tid: own ? "own" : x.tid, body: x.body, editId: x.id, ai: null, checks: {}, showPos: false, tab: "write" });
-      if (own) e.own = { text: x.src || "", problem: x.problem || "" };
-      essayDraftLater(); scheduleRender(true);
-    },
-    "del-essay": (el) => {
-      patchDoc("essays", { e: { [el.dataset.id]: null } });
-      if (ui.essay && ui.essay.editId === el.dataset.id) ui.essay.editId = null;
-      ui.confirmDel = null; toast("Сочинение удалено");
-    },
+    "toast-close": () => { dismissSideToast(); },
     "auth-tab": (el) => {
       ui.auth.tab = el.dataset.tab === "register" ? "register" : "login";
       ui.auth.error = "";
@@ -3815,6 +1972,7 @@
       renderModal();
     },
     "auth-role": (el) => {
+      if (HOST_SITE === "student" || HOST_SITE === "tutor" || HOST_SITE === "admin") return;
       setRolePref(el.dataset.role, true);
       if (ui.authModal) renderModal();
       else scheduleRender();
@@ -3840,10 +1998,7 @@
       ui.guest = true;
       ui.authModal = false;
       ui.auth.error = "";
-      if (ui.view !== "market" || ui.role === "tutor") {
-        ui.view = ui.role === "tutor" ? "cabinet" : "tests";
-        writeHash();
-      }
+      applyPostAuthView();
       scheduleRender(true);
     },
     "auth-screen": () => {
@@ -3880,1326 +2035,8 @@
         toast((e && e.message) || "Не удалось перенести данные");
       }
       scheduleRender();
-    },
-    "land-scroll": (el) => {
-      const id = el.dataset.target;
-      let node = id ? document.getElementById(id) : null;
-      if (!node && ui.view === "brandbook" && id) {
-        const bb = bbState();
-        bb.cat = "all";
-        bb.catQ = "";
-        scheduleRender();
-        if (typeof setTimeout === "function") {
-          setTimeout(() => {
-            const n = document.getElementById(id);
-            if (n && typeof n.scrollIntoView === "function") n.scrollIntoView({ behavior: "smooth", block: "start" });
-          }, 40);
-        }
-        return;
-      }
-      if (node && typeof node.scrollIntoView === "function") {
-        node.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-    },
-    "mkt-plan": (el) => {
-      if (!TDATA) return;
-      const plan = TDATA.PLANS.find((p) => p.id === el.dataset.id);
-      if (!plan) return;
-      const st = mkt();
-      const targetBal = Math.max(5000, Number(plan.balance) || 5000);
-      EGEPayments.createTopupIntent({ amount: targetBal, planId: plan.id });
-      st.planId = plan.id;
-      const reserved = st.bookings.reduce((sum, bk) => sum + (bk.reserved || 0), 0);
-      st.balance = Math.max(0, targetBal - reserved);
-      st.initialPaid = true;
-      saveMkt();
-      if (ui.balanceModal) { ui.balanceModal = null; renderModal(); }
-      toast(`Подключён тариф «${plan.name}»: баланс ${st.balance.toLocaleString("ru-RU")} ₽`);
-      scheduleRender();
-    },
-    "bal-open": (el) => {
-      const st = mkt();
-      const reason = el && el.dataset && el.dataset.reason === "trial"
-        ? "Пополните счёт минимум на 5 000 ₽ — после этого можно бесплатно записаться на пробный урок (0 ₽)."
-        : "";
-      const pendingBooking = ui.booking ? Object.assign({}, ui.booking, { mode: "trial", offerPrice: 0 }) : null;
-      if (pendingBooking) ui.booking = null;
-      ui.balanceModal = { customAmount: st.initialPaid ? 500 : 5000, error: "", reason, pendingBooking };
-      renderModal();
-    },
-    "bal-close": () => {
-      const pending = ui.balanceModal && ui.balanceModal.pendingBooking;
-      ui.balanceModal = null;
-      if (pending && (Number(mkt().balance) || 0) >= 5000) ui.booking = pending;
-      renderModal();
-    },
-    "bal-chip": (el) => {
-      if (!ui.balanceModal) return;
-      const minAmt = mkt().initialPaid ? 100 : 5000;
-      ui.balanceModal.customAmount = Math.max(minAmt, Math.min(200000, Number(el.dataset.v) || minAmt));
-      ui.balanceModal.error = "";
-      renderModal();
-    },
-    "bal-topup-preset": (el) => {
-      const st = mkt();
-      const minAmt = st.initialPaid ? 100 : 5000;
-      const amt = Math.max(minAmt, Math.min(200000, Math.round(Number(el.dataset.amount) || 5000)));
-      EGEPayments.createTopupIntent({ amount: amt, planId: el.dataset.plan || st.planId || "trial5k" });
-      st.balance = (Number(st.balance) || 0) + amt;
-      if (st.balance >= 5000) st.initialPaid = true;
-      if (el.dataset.plan) st.planId = el.dataset.plan;
-      else if (st.balance >= 10000) st.planId = "month10k";
-      else if (!st.planId) st.planId = "trial5k";
-      saveMkt();
-      const pending = ui.balanceModal && ui.balanceModal.pendingBooking;
-      ui.balanceModal = null;
-      if (pending && st.balance >= 5000) {
-        ui.booking = Object.assign({}, pending, { offerPrice: pending.mode === "trial" ? 0 : (pending.offerPrice || 1000) });
-      }
-      renderModal();
-      notifySide("Баланс пополнен", `+${amt.toLocaleString("ru-RU")} ₽ · на счёте ${st.balance.toLocaleString("ru-RU")} ₽`);
-      scheduleRender();
-    },
-    "tc-payout-open": () => {
-      const tcMod = EGE.views.tutorCabinet;
-      const summary = tcMod && typeof tcMod.getWalletSummary === "function" ? tcMod.getWalletSummary() : null;
-      const sets = (summary && summary.settings) || {};
-      const defAmt = summary && summary.availableRub >= (summary.minPayout || 500)
-        ? Math.min(summary.availableRub, 3000)
-        : (summary ? summary.availableRub : 0);
-      ui.payoutModal = {
-        method: sets.method === "card" ? "card" : "sbp",
-        bank: sets.bank || "АЭБ (Алмазэргиэнбанк)",
-        phone: sets.phone || "+7 (914) 210-01-99",
-        card: sets.card || "2200 7004 8210 4419",
-        amount: defAmt,
-        npdReceipt: sets.npdReceipt !== undefined ? !!sets.npdReceipt : true,
-        error: ""
-      };
-      renderModal();
-    },
-    "tc-payout-close": () => { ui.payoutModal = null; renderModal(); },
-    "tc-payout-method": (el) => {
-      if (!ui.payoutModal) return;
-      ui.payoutModal.method = el.dataset && el.dataset.v === "card" ? "card" : "sbp";
-      ui.payoutModal.error = "";
-      renderModal();
-    },
-    "tc-payout-chip": (el) => {
-      if (!ui.payoutModal) return;
-      const tcMod = EGE.views.tutorCabinet;
-      const summary = tcMod && typeof tcMod.getWalletSummary === "function" ? tcMod.getWalletSummary() : null;
-      const maxAmt = summary ? summary.availableRub : 50000;
-      const v = Math.max(0, Math.round(Number(el.dataset && el.dataset.v) || 0));
-      ui.payoutModal.amount = maxAmt ? Math.min(maxAmt, v) : v;
-      ui.payoutModal.error = "";
-      renderModal();
-    },
-    "tc-payout-npd": () => {
-      if (!ui.payoutModal) return;
-      ui.payoutModal.npdReceipt = !ui.payoutModal.npdReceipt;
-      ui.payoutModal.error = "";
-      renderModal();
-    },
-    "filter-open": () => { ui.filterModal = true; renderModal(); },
-    "filter-close": () => { ui.filterModal = false; renderModal(); },
-    "study-tab": (el) => { ui.studyTab = el.dataset.tab || "week"; scheduleRender(true); },
-    "study-week": (el) => { ui.studyWeekOffset = el.dataset.w === "1" ? 1 : 0; scheduleRender(); },
-    "study-subj": (el) => { ui.studySubj = el.dataset.v || "all"; scheduleRender(); },
-    "tests-guide-chip": (el) => { ui.guideSid = "all"; ui.guideQ = el.dataset.q || ""; go("tutor"); },
-    "mkt-fav": (el) => {
-      const st = mkt(), id = el.dataset.id;
-      if (!id) return;
-      const i = st.favs.indexOf(id);
-      if (i < 0) st.favs.push(id);
-      else st.favs.splice(i, 1);
-      saveMkt();
-      scheduleRender();
-    },
-    "mkt-clear-q": () => { mkt().q = ""; saveMkt(); ui.focusNext = "mkt-q"; scheduleRender(); },
-    "mkt-bumped-set": (el) => { mkt().onlyBumped = el.dataset.v === "1"; saveMkt(); scheduleRender(); },
-    "mkt-sort-cycle": () => {
-      const order = ["actual", "price_asc", "rating_desc"];
-      const st = mkt();
-      st.sort = order[(order.indexOf(st.sort) + 1) % order.length];
-      saveMkt();
-      scheduleRender();
-    },
-    "mkt-reset-chip": (el) => {
-      const st = mkt(), k = el.dataset.k;
-      if (!k) return;
-      const def = defaultMarketState();
-      if (Object.prototype.hasOwnProperty.call(def, k)) st[k] = def[k];
-      saveMkt();
-      scheduleRender();
-    },
-    "mkt-calc": (el) => {
-      const rate = Number(el.dataset.rate);
-      if (!rate) return;
-      mkt().calcRate = rate;
-      saveMkt();
-      scheduleRender();
-    },
-    "mkt-preset": () => {
-      if (!TDATA) return;
-      const st = mkt();
-      const days = TDATA.buildCalendarDays(7);
-      const sat = days.find((d) => d.dow === 6) || days[0];
-      st.exam = "ЕГЭ";
-      st.subject = "eng";
-      st.format = "Онлайн";
-      st.maxPrice = 2000;
-      st.onlyBumped = false;
-      st.day = sat ? sat.iso : "all";
-      st.hour = "10:00";
-      saveMkt();
-      toast("Фильтр: Английский · ЕГЭ · Сб 10:00");
-      scheduleRender();
-    },
-    "mkt-exam": (el) => { mkt().exam = el.dataset.v || "all"; saveMkt(); scheduleRender(); },
-    "mkt-format": (el) => { mkt().format = el.dataset.v || "all"; saveMkt(); scheduleRender(); },
-    "mkt-city": (el) => { mkt().city = el.dataset.v || "all"; saveMkt(); scheduleRender(); },
-    "mkt-subj": (el) => { mkt().subject = el.dataset.v || "all"; saveMkt(); scheduleRender(); },
-    "mkt-price": (el) => { mkt().maxPrice = Number(el.dataset.v) || 2000; saveMkt(); scheduleRender(); },
-    "mkt-bumped": () => { const st = mkt(); st.onlyBumped = !st.onlyBumped; saveMkt(); scheduleRender(); },
-    "mkt-sort": (el) => { mkt().sort = el.dataset.v || "actual"; saveMkt(); scheduleRender(); },
-    "mkt-day": (el) => { mkt().day = el.dataset.v || "all"; saveMkt(); scheduleRender(); },
-    "mkt-hour": (el) => { mkt().hour = el.dataset.v || "all"; saveMkt(); scheduleRender(); },
-    "mkt-reset": () => {
-      const cur = mkt(), fresh = defaultMarketState();
-      fresh.planId = cur.planId;
-      fresh.balance = cur.balance;
-      fresh.initialPaid = !!cur.initialPaid;
-      fresh.calcRate = cur.calcRate;
-      fresh.favs = cur.favs;
-      fresh.bookings = cur.bookings;
-      ui.market = fresh;
-      saveMkt();
-      scheduleRender();
-    },
-    "book-open": (el) => {
-      if (!TDATA) return;
-      const tutor = TDATA.LIST.find((x) => x.id === el.dataset.id);
-      if (!tutor) return;
-      const st = mkt();
-      const days = TDATA.buildCalendarDays(7);
-      const pickDay = (st.day !== "all" ? days.find((d) => d.iso === st.day) : null)
-        || days.find((d) => TDATA.tutorSlotsForDay(tutor, d.dow).length > 0)
-        || days[0];
-      const daySlots = TDATA.tutorSlotsForDay(tutor, pickDay.dow);
-      const wantedHour = el.dataset.hour || (st.hour !== "all" ? st.hour : "");
-      const hour = isValidHHMM(wantedHour) ? wantedHour : (daySlots[0] || "10:00");
-      const exam = st.exam !== "all" && tutor.exams.includes(st.exam) ? st.exam : tutor.exams[0];
-      const format = st.format !== "all" && tutor.formats.includes(st.format) ? st.format : tutor.formats[0];
-      const offerPrice = Math.max(500, tutor.minFair || (tutor.price - 200));
-      ui.booking = { tutorId: tutor.id, mode: "paid", exam, format, dayIso: pickDay.iso, hour, offerPrice, note: "" };
-      renderModal();
-    },
-    "trial-open": (el) => {
-      if (!TDATA) return;
-      const tutor = TDATA.LIST.find((x) => x.id === el.dataset.id);
-      if (!tutor) return;
-      const st = mkt();
-      const days = TDATA.buildCalendarDays(7);
-      const pickDay = (st.day !== "all" ? days.find((d) => d.iso === st.day) : null)
-        || days.find((d) => TDATA.tutorSlotsForDay(tutor, d.dow).length > 0)
-        || days[0];
-      const daySlots = TDATA.tutorSlotsForDay(tutor, pickDay.dow);
-      const wantedHour = el.dataset.hour || (st.hour !== "all" ? st.hour : "");
-      const hour = isValidHHMM(wantedHour) ? wantedHour : (daySlots[0] || "10:00");
-      const exam = st.exam !== "all" && tutor.exams.includes(st.exam) ? st.exam : tutor.exams[0];
-      const format = st.format !== "all" && tutor.formats.includes(st.format) ? st.format : tutor.formats[0];
-      const draft = { tutorId: tutor.id, mode: "trial", exam, format, dayIso: pickDay.iso, hour, offerPrice: 0, note: "" };
-      if ((Number(st.balance) || 0) < 5000) {
-        ui.balanceModal = {
-          customAmount: 5000,
-          error: "",
-          reason: "Для записи на бесплатный пробный урок (0 ₽) пополните баланс минимум на 5 000 ₽. Средства останутся на вашем счёте.",
-          pendingBooking: draft
-        };
-        renderModal();
-        return;
-      }
-      ui.booking = draft;
-      renderModal();
-    },
-    "book-mode": (el) => {
-      if (!ui.booking || !TDATA) return;
-      const mode = el.dataset.v === "trial" ? "trial" : "paid";
-      const st = mkt();
-      if (mode === "trial" && (Number(st.balance) || 0) < 5000) {
-        const pending = Object.assign({}, ui.booking, { mode: "trial", offerPrice: 0 });
-        ui.booking = null;
-        ui.balanceModal = {
-          customAmount: 5000,
-          error: "",
-          reason: "Пополните баланс минимум на 5 000 ₽ — после этого откроется бесплатный пробный урок (0 ₽).",
-          pendingBooking: pending
-        };
-        renderModal();
-        return;
-      }
-      const tutor = TDATA.LIST.find((x) => x.id === ui.booking.tutorId);
-      ui.booking.mode = mode;
-      ui.booking.offerPrice = mode === "trial" ? 0 : Math.max(500, (tutor && (tutor.minFair || tutor.price - 200)) || 1000);
-      renderModal();
-    },
-    "go-student-lead": () => {
-      if (ui.view !== "study") go("study");
-      ui.studyTab = "week";
-      scheduleRender(true);
-      if (typeof setTimeout === "function") setTimeout(() => scrollToEl("study-lead-card"), 40);
-    },
-    "lead-subj-toggle": () => {
-      if (!ui.leadDraft) ui.leadDraft = { subjects: ["chem"], subjMenuOpen: false, exam: "ЕГЭ", format: "Онлайн", targetPrice: 1000, whatsapp: "", comment: "" };
-      ui.leadDraft.subjMenuOpen = !ui.leadDraft.subjMenuOpen;
-      scheduleRender();
-    },
-    "lead-subj-pick": (el) => {
-      if (!ui.leadDraft) ui.leadDraft = { subjects: ["chem"], subjMenuOpen: false, exam: "ЕГЭ", format: "Онлайн", targetPrice: 1000, whatsapp: "", comment: "" };
-      const id = String(el.dataset.v || "").trim();
-      if (!id) return;
-      const list = Array.isArray(ui.leadDraft.subjects) ? ui.leadDraft.subjects.slice() : ["chem"];
-      const idx = list.indexOf(id);
-      if (idx >= 0) {
-        if (list.length <= 1) { toast("Должен остаться хотя бы один предмет"); return; }
-        list.splice(idx, 1);
-      } else {
-        list.push(id);
-      }
-      ui.leadDraft.subjects = list;
-      scheduleRender();
-    },
-    "lead-exam": (el) => {
-      if (!ui.leadDraft) ui.leadDraft = { subjects: ["chem"], subjMenuOpen: false, exam: "ЕГЭ", format: "Онлайн", targetPrice: 1000, whatsapp: "", comment: "" };
-      if (el.dataset.v) { ui.leadDraft.exam = el.dataset.v; scheduleRender(); }
-    },
-    "lead-format": (el) => {
-      if (!ui.leadDraft) ui.leadDraft = { subjects: ["chem"], subjMenuOpen: false, exam: "ЕГЭ", format: "Онлайн", targetPrice: 1000, whatsapp: "", comment: "" };
-      if (el.dataset.v) { ui.leadDraft.format = el.dataset.v; scheduleRender(); }
-    },
-    "lead-remove": (el) => {
-      if (!TDATA || typeof TDATA.removeStudentLead !== "function" || !el.dataset.id) return;
-      TDATA.removeStudentLead(el.dataset.id);
-      toast("Запрос снят с каталога преподавателей");
-      scheduleRender();
-    },
-    "book-close": () => { ui.booking = null; renderModal(); },
-    "book-exam": (el) => { if (ui.booking && el.dataset.v) { ui.booking.exam = el.dataset.v; renderModal(); } },
-    "book-format": (el) => { if (ui.booking && el.dataset.v) { ui.booking.format = el.dataset.v; renderModal(); } },
-    "book-day": (el) => {
-      if (!ui.booking || !TDATA || !el.dataset.v) return;
-      const tutor = TDATA.LIST.find((x) => x.id === ui.booking.tutorId);
-      const days = TDATA.buildCalendarDays(7);
-      const d = days.find((x) => x.iso === el.dataset.v);
-      if (!d) return;
-      ui.booking.dayIso = d.iso;
-      const slots = tutor ? TDATA.tutorSlotsForDay(tutor, d.dow) : [];
-      if (slots.length && !slots.includes(ui.booking.hour)) ui.booking.hour = slots[0];
-      renderModal();
-    },
-    "book-hour": (el) => {
-      if (!ui.booking || !el.dataset.v) return;
-      ui.booking.hour = el.dataset.v;
-      ui.booking.timeMenuOpen = false;
-      const modalRoot = $("#modal-root");
-      const liveRange = typeof document.getElementById === "function" ? document.getElementById("bid-hour-range") : null;
-      if (modalRoot && typeof modalRoot.contains === "function" && liveRange && modalRoot.contains(liveRange)) {
-        updateBookingModalLive();
-      } else {
-        renderModal();
-      }
-    },
-    "book-time-toggle": () => {
-      if (!ui.booking) return;
-      ui.booking.timeMenuOpen = !ui.booking.timeMenuOpen;
-      renderModal();
-    },
-    "book-time-pick": (el) => {
-      if (!ui.booking || !el.dataset.v) return;
-      ui.booking.hour = el.dataset.v;
-      ui.booking.timeMenuOpen = false;
-      renderModal();
-    },
-    "bid-step": (el) => {
-      if (!ui.booking) return;
-      const delta = Number(el.dataset.step) || 0;
-      const cur = Number(ui.booking.offerPrice) || 1000;
-      ui.booking.offerPrice = Math.max(500, Math.min(5000, cur + delta));
-      const modalRoot = $("#modal-root");
-      const liveInput = typeof document.getElementById === "function" ? document.getElementById("bid-price") : null;
-      if (modalRoot && typeof modalRoot.contains === "function" && liveInput && modalRoot.contains(liveInput)) {
-        updateBookingModalLive();
-      } else {
-        renderModal();
-      }
-    },
-    "book-submit": () => {
-      if (!ui.booking || !TDATA) return;
-      const b = ui.booking;
-      const tutor = TDATA.LIST.find((x) => x.id === b.tutorId);
-      if (!tutor) return;
-      const st = mkt();
-      const isTrial = b.mode === "trial";
-      if (isTrial && (Number(st.balance) || 0) < 5000) {
-        const pending = Object.assign({}, b, { mode: "trial", offerPrice: 0 });
-        ui.booking = null;
-        ui.balanceModal = {
-          customAmount: 5000,
-          error: "",
-          reason: "Пополните баланс минимум на 5 000 ₽ для записи на бесплатный пробный урок (0 ₽).",
-          pendingBooking: pending
-        };
-        renderModal();
-        return;
-      }
-      const days = TDATA.buildCalendarDays(7);
-      const dayObj = days.find((d) => d.iso === b.dayIso) || days[0];
-      const daySlots = TDATA.tutorSlotsForDay(tutor, dayObj.dow);
-      const hour = isValidHHMM(b.hour) ? b.hour : (daySlots[0] || "10:00");
-      const offerPrice = isTrial ? 0 : Math.max(500, Math.min(5000, Math.round(Number(b.offerPrice) || tutor.price)));
-      const feeSplit = isTrial
-        ? { total: 0, fee: 0, payout: 0, pct: 0 }
-        : (typeof TDATA.commissionSplit === "function" ? TDATA.commissionSplit(offerPrice) : { total: offerPrice, fee: Math.round(offerPrice * 0.05), payout: offerPrice - Math.round(offerPrice * 0.05), pct: 5 });
-      let reserved = 0;
-      if (!isTrial && st.balance >= offerPrice) {
-        reserved = offerPrice;
-        st.balance -= reserved;
-      }
-      const newBooking = {
-        id: "bk-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
-        tutorId: tutor.id,
-        tutorName: tutor.name,
-        subjectName: tutor.subjectName,
-        exam: b.exam || tutor.exams[0],
-        format: b.format || tutor.formats[0],
-        dayIso: dayObj.iso,
-        dow: dayObj.dow,
-        dayLabel: dayObj.shortLabel,
-        hour,
-        offerPrice,
-        isTrial,
-        fee: feeSplit.fee,
-        payout: feeSplit.payout,
-        tutorPrice: tutor.price,
-        note: String(b.note || "").trim(),
-        reserved,
-        status: "pending",
-        createdAt: Date.now()
-      };
-      st.bookings.unshift(newBooking);
-      ui.booking = null;
-      saveMkt();
-      if (EGE.views.marketplace && typeof EGE.views.marketplace.publishStudentBid === "function") {
-        EGE.views.marketplace.publishStudentBid(newBooking, tutor);
-      } else if (EGE.realtime && typeof EGE.realtime.publish === "function") {
-        EGE.realtime.publish({
-          channel: "tutor",
-          eventType: "market.bid.created",
-          title: isTrial ? "Новая заявка на пробный урок" : "Новая ставка от ученика",
-          message: `${tutor.name} · ${dayObj.shortLabel}, ${hour} (${offerPrice.toLocaleString("ru-RU")} ₽/ч)`,
-          tutorSlug: String(tutor.id || ""),
-          payload: Object.assign({}, newBooking)
-        });
-      }
-      renderModal();
-      notifySide(
-        isTrial ? "Заявка на пробный урок (0 ₽) отправлена" : "Предложение передано преподавателю",
-        isTrial
-          ? `${tutor.name} · ${dayObj.shortLabel}, ${hour} · с баланса списано 0 ₽`
-          : (reserved
-              ? `Ставка ${offerPrice.toLocaleString("ru-RU")} ₽/ч (${dayObj.shortLabel}, ${hour}) · зарезервировано ${reserved.toLocaleString("ru-RU")} ₽ · уведомим о подтверждении`
-              : `Ставка ${offerPrice.toLocaleString("ru-RU")} ₽/ч (${dayObj.shortLabel}, ${hour}) отправлена — уведомим о подтверждении`)
-      );
-      scheduleRender();
-    },
-    "demo-tab": (el) => {
-      if (!el.dataset.tab) return;
-      ui.demo.tab = el.dataset.tab;
-      scheduleRender();
-    },
-    "demo-subj": (el) => {
-      if (!el.dataset.sid) return;
-      ui.demo.sid = el.dataset.sid;
-      ui.demo.qIdx = 0;
-      ui.demo.pick = null;
-      ui.demo.revealed = false;
-      ui.demo.topicIdx = 0;
-      scheduleRender();
-    },
-    "demo-pick": (el) => {
-      const idx = Number(el.dataset.i);
-      if (!Number.isFinite(idx)) return;
-      ui.demo.pick = idx;
-      ui.demo.revealed = true;
-      scheduleRender();
-    },
-    "demo-next": () => {
-      ui.demo.qIdx = (ui.demo.qIdx || 0) + 1;
-      ui.demo.pick = null;
-      ui.demo.revealed = false;
-      scheduleRender();
-    },
-    "demo-topic": (el) => {
-      ui.demo.topicIdx = Math.max(0, Number(el.dataset.i) || 0);
-      scheduleRender();
-    },
-    "demo-rate": (el) => {
-      const r = Number(el.dataset.rate) || 1000;
-      ui.demo.bidRate = Math.max(500, Math.min(3000, r));
-      if (!EGE.views.landing || typeof EGE.views.landing.patchDemoCalcDOM !== "function" || !EGE.views.landing.patchDemoCalcDOM()) {
-        scheduleRender();
-      }
-    },
-    "demo-step": (el) => {
-      const step = Number(el.dataset.step) || 0;
-      const cur = Number(ui.demo.bidRate) || 1000;
-      ui.demo.bidRate = Math.max(500, Math.min(3000, cur + step));
-      if (!EGE.views.landing || typeof EGE.views.landing.patchDemoCalcDOM !== "function" || !EGE.views.landing.patchDemoCalcDOM()) {
-        scheduleRender();
-      }
-    },
-    "mkt-sim-accept": (el) => {
-      const st = mkt();
-      const bk = st.bookings.find((x) => x.id === el.dataset.id);
-      if (!bk) return;
-      bk.status = "accepted";
-      if (!bk.reserved && st.balance >= bk.offerPrice) {
-        bk.reserved = bk.offerPrice;
-        st.balance -= bk.reserved;
-      }
-      saveMkt();
-      toast(`${bk.tutorName} подтвердил(а) занятие ${bk.hour} по ставке ${bk.offerPrice} ₽/ч · уведомили в Учёбе`);
-      scheduleRender();
-    },
-    "mkt-cancel-book": (el) => {
-      const st = mkt();
-      const idx = st.bookings.findIndex((x) => x.id === el.dataset.id);
-      if (idx < 0) return;
-      const bk = st.bookings[idx];
-      if (bk.reserved) st.balance += bk.reserved;
-      st.bookings.splice(idx, 1);
-      saveMkt();
-      toast(bk.reserved
-        ? `Заявка отменена · ${bk.reserved.toLocaleString("ru-RU")} ₽ возвращены на баланс`
-        : "Заявка отменена — можно выбрать другого репетитора");
-      scheduleRender();
-    },
-    "motion-preset": (el) => {
-      const id = el.dataset.v;
-      const preset = MOTION_PRESETS[id];
-      if (!preset) return;
-      const dh = preset.defaultHour || 10;
-      const slot = String(dh).padStart(2, "0") + ":00";
-      if (!ui.motion) ui.motion = { playing: true, preset: id, step: 0, slot, offer: preset.defaultOffer, sent: false, clicking: false, hitTarget: "" };
-      ui.motion.preset = id;
-      ui.motion.slot = slot;
-      ui.motion.offer = preset.defaultOffer;
-      ui.motion.sent = false;
-      ui.motion.step = 0;
-      ui.motion.playing = false;
-      ui.motion.clicking = false;
-      ui.motion.hitTarget = "";
-      stopMotionTimers();
-      patchHeroMotionDOM();
-    },
-    "motion-step-price": (el) => {
-      if (!ui.motion) ui.motion = { playing: false, preset: "design", step: 1, slot: "10:00", offer: 1200, sent: false, clicking: false, hitTarget: "" };
-      const meta = heroMotionMeta();
-      const step = Number(el.dataset.step) || 0;
-      ui.motion.offer = Math.max(meta.minOffer, Math.min(meta.maxOffer, meta.offer + step));
-      ui.motion.sent = false;
-      ui.motion.step = 1;
-      ui.motion.playing = false;
-      ui.motion.clicking = false;
-      ui.motion.hitTarget = step < 0 ? "minus" : "plus";
-      stopMotionTimers();
-      patchHeroMotionDOM({ liveOnly: true });
-      EGE.views.landing.pulseMotionReset([["#hero-price-minus", "is-hit"], ["#hero-price-plus", "is-hit"]], 280);
-    },
-    "motion-toggle": () => {
-      if (!ui.motion) return;
-      ui.motion.playing = !ui.motion.playing;
-      if (!ui.motion.playing) stopMotionTimers();
-      else { ui.motion.sent = false; ui.motion.step = 0; }
-      patchHeroMotionDOM();
-    },
-    "motion-bid-press": () => {
-      if (!ui.motion) ui.motion = { playing: false, preset: "design", step: 2, slot: "10:00", offer: 1200, sent: false, clicking: false, hitTarget: "" };
-      ui.motion.playing = false;
-      stopMotionTimers();
-      ui.motion.sent = true;
-      ui.motion.step = 2;
-      ui.motion.clicking = true;
-      ui.motion.hitTarget = "bid";
-      patchHeroMotionDOM({ liveOnly: true });
-      const meta = heroMotionMeta();
-      notifySide(
-        "Предложение передано преподавателю",
-        `${meta.tutor.subjectName}: ставка ${meta.offer.toLocaleString("ru-RU")} ₽/ч на ${meta.slot} отправлена — уведомим об ответе`
-      );
-      EGE.views.landing.pulseMotionReset([["#hero-motion-bid-btn", "is-pressed"]], 420);
-    },
-    "motion-book-now": () => {
-      const meta = heroMotionMeta();
-      if (typeof ACTIONS["book-open"] === "function") {
-        ACTIONS["book-open"]({ dataset: { id: meta.tutor.id, hour: meta.slot } });
-        if (ui.booking) {
-          ui.booking.offerPrice = meta.offer;
-          renderModal();
-        }
-      }
-    },
-    "hero-cat": (el) => {
-      const st = mkt();
-      st.subject = el.dataset.subj || "all";
-      st.exam = el.dataset.exam || "all";
-      st.q = "";
-      st.onlyBumped = false;
-      st.maxPrice = 2000;
-      st.day = "all";
-      st.hour = "all";
-      saveMkt();
-      scheduleRender();
-      if (typeof setTimeout === "function") {
-        setTimeout(() => scrollToEl("land-market"), 40);
-      }
-    },
-    "save-freq": (el) => {
-      if (!ui.savings) ui.savings = { freq: 2, marketRate: 1350, offerRate: 1000 };
-      ui.savings.freq = Math.max(1, Math.min(4, Number(el.dataset.v) || 2));
-      patchSavingsDOM();
-    },
-    "save-step": (el) => {
-      if (!ui.savings) ui.savings = { freq: 2, marketRate: 1350, offerRate: 1000 };
-      const which = el.dataset.which === "mkt" ? "marketRate" : "offerRate";
-      const step = Number(el.dataset.step) || 0;
-      if (which === "marketRate") {
-        ui.savings.marketRate = Math.max(1000, Math.min(3500, (Number(ui.savings.marketRate) || 1350) + step));
-        if ((Number(ui.savings.offerRate) || 1000) > ui.savings.marketRate - 100) {
-          ui.savings.offerRate = Math.max(600, ui.savings.marketRate - 100);
-        }
-      } else {
-        const cap = Math.max(600, (Number(ui.savings.marketRate) || 1350) - 100);
-        ui.savings.offerRate = Math.max(600, Math.min(cap, (Number(ui.savings.offerRate) || 1000) + step));
-      }
-      patchSavingsDOM();
-    },
-    "bb-mode": (el) => {
-      const bb = ui.brandbook || (ui.brandbook = { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, chipOn: true, sent: false, fav: true });
-      bb.mode = ["both", "light", "dark"].includes(el.dataset.v) ? el.dataset.v : "both";
-      scheduleRender();
-    },
-    "bb-step": (el) => {
-      const bb = ui.brandbook || (ui.brandbook = { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, chipOn: true, sent: false, fav: true });
-      const step = Number(el.dataset.step) || 0;
-      bb.price = Math.max(600, Math.min(2800, (Number(bb.price) || 1200) + step));
-      bb.sent = false;
-      scheduleRender();
-    },
-    "bb-preset": (el) => {
-      const bb = ui.brandbook || (ui.brandbook = { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, chipOn: true, sent: false, fav: true });
-      const p = Number(el.dataset.price) || 1200;
-      bb.price = Math.max(600, Math.min(2800, p));
-      bb.sent = false;
-      scheduleRender();
-    },
-    "bb-day": (el) => {
-      const bb = ui.brandbook || (ui.brandbook = { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, chipOn: true, sent: false, fav: true });
-      const d = el.dataset.v;
-      if (["all", "sat", "sun", "mon"].includes(d)) bb.day = d;
-      scheduleRender();
-    },
-    "bb-slider-style": (el) => {
-      const bb = ui.brandbook || (ui.brandbook = { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, chipOn: true, sent: false, fav: true });
-      const s = el.dataset.v;
-      if (["clean", "ticks", "ruler"].includes(s)) bb.sliderStyle = s;
-      scheduleRender();
-    },
-    "bb-bounds-toggle": () => {
-      const bb = ui.brandbook || (ui.brandbook = { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, chipOn: true, sent: false, fav: true });
-      bb.showBounds = bb.showBounds === false;
-      scheduleRender();
-    },
-    "bb-chip": () => {
-      const bb = ui.brandbook || (ui.brandbook = { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, chipOn: true, sent: false, fav: true });
-      bb.chipOn = !bb.chipOn;
-      scheduleRender();
-    },
-    "bb-fav": () => {
-      const bb = ui.brandbook || (ui.brandbook = { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, chipOn: true, sent: false, fav: true });
-      bb.fav = bb.fav === false;
-      scheduleRender();
-    },
-    "bb-bid": () => {
-      const bb = ui.brandbook || (ui.brandbook = { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, chipOn: true, sent: false, fav: true, vpWidth: 390 });
-      bb.sent = !bb.sent;
-      const hhStr = String(bb.hour || 14).padStart(2, "0") + ":00";
-      if (bb.sent) {
-        notifySide(
-          "Предложение передано преподавателю",
-          `Ставка ${bb.price.toLocaleString("ru-RU")} ₽/ч на ${hhStr} отправлена — уведомим об ответе`
-        );
-      }
-      const btns = typeof document.querySelectorAll === "function" ? document.querySelectorAll('[data-a="bb-bid"]') : null;
-      if (btns && btns.length) {
-        btns.forEach((btn) => {
-          const isShort = !!(btn.dataset && btn.dataset.bbShort);
-          if (btn.classList) btn.classList.toggle("is-confirmed", !!bb.sent);
-          const lbl = btn.querySelector && (btn.querySelector("[data-bid-lbl]") || btn.querySelector("span"));
-          if (lbl) {
-            lbl.textContent = isShort
-              ? (bb.sent ? "✓ Подтверждено" : "Сөп · Предложить")
-              : bidBtnLabelHTML(bb.sent, bb.price);
-          } else if (EGE.hh && typeof EGE.hh.sakhaBidInnerHTML === "function") {
-            btn.innerHTML = EGE.hh.sakhaBidInnerHTML(bb.sent, bb.price, isShort ? { short: true, size: 15 } : undefined);
-          } else {
-            btn.textContent = isShort
-              ? (bb.sent ? "✓ Подтверждено" : "Сөп · Предложить")
-              : bidBtnLabelHTML(bb.sent, bb.price);
-          }
-        });
-        document.querySelectorAll('[data-bb="bid-status"]').forEach((st) => {
-          if (st.classList) st.classList.toggle("sent", !!bb.sent);
-          st.innerHTML = bb.sent
-            ? (EGE.kit && typeof EGE.kit.sentNoticeHTML === "function"
-                ? EGE.kit.sentNoticeHTML({ slot: hhStr, offer: bb.price, badgeText: "Уведомим" })
-                : "Предложение передано преподавателю · Уведомим")
-            : `<span class="small muted">Обычное состояние CTA · Узор Саха</span><span class="chip notif">Уведомим оранжевым</span>`;
-        });
-      } else {
-        scheduleRender();
-      }
-    },
-    "bb-vp": (el) => {
-      const w = Number(el.dataset.w) || 390;
-      const vpEl = typeof document.getElementById === "function" ? document.getElementById("bb-resp-viewport") : null;
-      applyBrandbookViewport(w);
-      if (!vpEl) scheduleRender();
-    },
-    "bb-icon-play": (el) => {
-      const bb = ui.brandbook || (ui.brandbook = { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, chipOn: true, sent: false, fav: true, vpWidth: 390 });
-      const ic = (el.dataset && el.dataset.icon) || "bell";
-      const label = (el.dataset && el.dataset.label) || ic;
-      const animDesc = (el.dataset && el.dataset.animDesc) || "Анимация";
-      bb.activeIcon = ic;
-      const tiles = typeof document.querySelectorAll === "function" ? document.querySelectorAll(".bb-icon-tile") : null;
-      if (tiles && tiles.length) {
-        tiles.forEach((tile) => {
-          const isMe = tile === el || (tile.dataset && tile.dataset.icon === ic);
-          if (tile.classList) {
-            tile.classList.toggle("is-active", isMe);
-            if (!isMe) tile.classList.remove("is-anim");
-          }
-          if (typeof tile.setAttribute === "function") tile.setAttribute("aria-pressed", isMe ? "true" : "false");
-        });
-        triggerIconTileAnim(el);
-        document.querySelectorAll('[data-bb="icon-status"]').forEach((st) => {
-          st.textContent = label + " · " + animDesc;
-        });
-      } else {
-        scheduleRender();
-      }
-    },
-    "bb-icons-wave": () => {
-      const tiles = typeof document.querySelectorAll === "function" ? document.querySelectorAll(".bb-icon-tile") : null;
-      if (tiles && tiles.length) {
-        document.querySelectorAll('[data-bb="icon-status"]').forEach((st) => {
-          st.textContent = "Каскад · " + tiles.length + " анимаций";
-        });
-        tiles.forEach((tile, idx) => {
-          const run = () => triggerIconTileAnim(tile);
-          if (typeof setTimeout === "function") setTimeout(run, idx * 24);
-          else run();
-        });
-      } else {
-        const bb = ui.brandbook || (ui.brandbook = { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, chipOn: true, sent: false, fav: true, vpWidth: 390 });
-        bb.activeIcon = "spark";
-        scheduleRender();
-      }
-    },
-    "bb-copy-token": (el) => {
-      const txt = (el.dataset && el.dataset.copy) || "";
-      if (!txt) return;
-      copyTextSafe(txt);
-      toast("Скопировано: " + txt);
-    },
-    "bb-switch": (el) => {
-      bbState().switchVal = el.dataset.v || "online";
-      scheduleRender();
-    },
-    "bb-plan-pick": (el) => {
-      bbState().pickedPlan = el.dataset.v || "month10k";
-      scheduleRender();
-    },
-    "bb-quiz-opt": (el) => {
-      const idx = Number(el.dataset.i);
-      bbState().quizOpt = Number.isFinite(idx) ? idx : 0;
-      scheduleRender();
-    },
-    "match-subj-toggle": () => {
-      const lm = ui.landMatch || (ui.landMatch = { subject: "all", tier: "below", hour: "all", menuOpen: false });
-      lm.menuOpen = !lm.menuOpen;
-      scheduleRender();
-    },
-    "match-subj-pick": (el) => {
-      const lm = ui.landMatch || (ui.landMatch = { subject: "all", tier: "below", hour: "all", menuOpen: false });
-      lm.subject = el.dataset.v || "all";
-      lm.menuOpen = false;
-      scheduleRender();
-    },
-    "match-tier": (el) => {
-      const lm = ui.landMatch || (ui.landMatch = { subject: "all", tier: "below", hour: "all", menuOpen: false });
-      lm.tier = ["below", "budget", "pro"].includes(el.dataset.v) ? el.dataset.v : "below";
-      scheduleRender();
-    },
-    "match-hour": (el) => {
-      const lm = ui.landMatch || (ui.landMatch = { subject: "all", tier: "below", hour: "all", menuOpen: false });
-      lm.hour = el.dataset.v || "all";
-      scheduleRender();
-    },
-    "match-apply": () => {
-      const lm = ui.landMatch || { subject: "all", tier: "below", hour: "all" };
-      const st = mkt();
-      st.subject = lm.subject || "all";
-      st.maxPrice = lm.tier === "budget" ? 1200 : 2000;
-      st.hour = lm.hour || "all";
-      st.day = "all";
-      st.exam = "all";
-      st.q = "";
-      st.onlyBumped = false;
-      st.sort = lm.tier === "pro" ? "rating_desc" : "price_asc";
-      saveMkt();
-      scheduleRender();
-      if (typeof setTimeout === "function") setTimeout(() => scrollToEl("land-market"), 40);
-      const cnt = EGE.views.landing && EGE.views.landing.computeQuickMatchMeta ? EGE.views.landing.computeQuickMatchMeta().filtered.length : 0;
-      notifySide("Подборка применена", `Показано анкет по твоим условиям: ${cnt}`);
-    },
-    "land-ai-subj": (el) => {
-      ui.landAiSubj = ["bio", "chem", "rus"].includes(el.dataset.v) ? el.dataset.v : "bio";
-      scheduleRender();
-    },
-    "land-faq": (el) => {
-      const idx = Number(el.dataset.i);
-      const cur = ui.landFaqOpen === undefined ? 0 : ui.landFaqOpen;
-      ui.landFaqOpen = cur === idx ? -1 : idx;
-      scheduleRender();
-    },
-    "tutor-apply-open": () => {
-      if (!ui.tutorApply) ui.tutorApply = { name: "", subject: "eng", rate: 1100, contact: "", error: "" };
-      ui.tutorApply.error = "";
-      ui.tutorApplyModal = true;
-      renderModal();
-    },
-    "tutor-apply-close": () => {
-      ui.tutorApplyModal = false;
-      renderModal();
-    },
-    "tutor-apply-step": (el) => {
-      if (!ui.tutorApply) ui.tutorApply = { name: "", subject: "eng", rate: 1100, contact: "", error: "" };
-      const nm = $("#ta-name"), ct = $("#ta-contact"), sb = $("#ta-subj");
-      if (nm) ui.tutorApply.name = nm.value;
-      if (ct) ui.tutorApply.contact = ct.value;
-      if (sb) ui.tutorApply.subject = sb.value;
-      const step = Number(el.dataset.step) || 0;
-      ui.tutorApply.rate = Math.max(600, Math.min(3500, (Number(ui.tutorApply.rate) || 1100) + step));
-      renderModal();
-    },
-    "toast-close": () => { dismissSideToast(); },
-    "bb-subj-toggle": () => {
-      const bb = bbState();
-      bb.subjMenuOpen = !bb.subjMenuOpen;
-      scheduleRender();
-    },
-    "bb-subj-pick": (el) => {
-      const bb = bbState();
-      bb.subj = el.dataset.v || "bio";
-      bb.subjMenuOpen = false;
-      scheduleRender();
-    },
-    "bb-multi-toggle": () => {
-      const bb = bbState();
-      bb.multiMenuOpen = !bb.multiMenuOpen;
-      scheduleRender();
-    },
-    "bb-multi-pick": (el) => {
-      const bb = bbState();
-      const id = String(el.dataset.v || "").trim();
-      if (!id) return;
-      const list = Array.isArray(bb.multiSubjs) ? bb.multiSubjs.slice() : ["bio", "chem"];
-      const idx = list.indexOf(id);
-      if (idx >= 0) {
-        if (list.length <= 1) { toast("Должен остаться хотя бы 1 предмет"); return; }
-        list.splice(idx, 1);
-      } else {
-        list.push(id);
-      }
-      bb.multiSubjs = list;
-      scheduleRender();
-    },
-    "bb-preview-toast-close": () => {
-      const box = typeof document.querySelector === "function" ? document.querySelector('[data-swipe-toast="preview"]') : null;
-      if (box && box.classList) {
-        box.classList.add("is-dismissing");
-        setTimeout(() => { bbState().previewToastDismissed = true; scheduleRender(); }, 190);
-      } else {
-        bbState().previewToastDismissed = true;
-        scheduleRender();
-      }
-    },
-    "bb-preview-toast-reset": () => {
-      bbState().previewToastDismissed = false;
-      scheduleRender();
-    },
-    "bb-cancel-demo": () => {
-      const bb = bbState();
-      bb.cancelDemoUndone = !bb.cancelDemoUndone;
-      scheduleRender();
-      notifySide(
-        bb.cancelDemoUndone ? "Запись отменена" : "Запись восстановлена",
-        bb.cancelDemoUndone
-          ? "Спокойный янтарный режим · смахни влево или нажми ×"
-          : "Возвращено в активный опасный режим (--bad)"
-      );
-    },
-    "bb-demo-toast": () => {
-      const bb = bbState();
-      const hhStr = String(bb.hour || 14).padStart(2, "0") + ":00";
-      notifySide("Демо бокового уведомления", `Ставка ${bb.price.toLocaleString("ru-RU")} ₽/ч на ${hhStr} отправлена преподавателю`);
-    },
-    "bb-sakha-toggle": () => {
-      const bb = bbState();
-      bb.sakhaSent = !bb.sakhaSent;
-      if (bb.sakhaSent) {
-        notifySide("Сөп · Ставка отправлена", "Узорная кнопка Оһуор перешла в подтверждённый статус .is-confirmed");
-      }
-      scheduleRender();
-    },
-    "bb-sakha-medallion": () => {
-      const bb = bbState();
-      bb.sakhaKunOn = !bb.sakhaKunOn;
-      notifySide(bb.sakhaKunOn ? "Күн Оһуор · Активен" : "Күн Оһуор · Сброшен", "Солнечный медальон в стиле Саха (.sakha-medallion-btn)");
-      scheduleRender();
-    },
-    "bb-sakha-diamond": () => {
-      const bb = bbState();
-      bb.sakhaStarOn = !bb.sakhaStarOn;
-      notifySide(bb.sakhaStarOn ? "Сулус · Ромб выбран" : "Сулус · Сброшен", "Геометрический узор 8-лучевой звезды (.sakha-diamond-btn)");
-      scheduleRender();
-    },
-    "bb-faq-toggle": (el) => {
-      const idx = Number(el.dataset.i);
-      const bb = bbState();
-      bb.faqOpen = bb.faqOpen === idx ? -1 : idx;
-      scheduleRender();
-    },
-    "land-sakha-pattern": () => {
-      ui.landSakhaSent = !ui.landSakhaSent;
-      if (ui.landSakhaSent) {
-        notifySide("Сөп · Предложение передано", "Узорная кнопка Оһуор перешла в статус .is-confirmed — уведомим об ответе преподавателя");
-      }
-      scheduleRender();
-    },
-    "land-sakha-medallion": () => {
-      ui.landKunActive = !ui.landKunActive;
-      const st = mkt();
-      st.subject = "all";
-      st.exam = "all";
-      st.format = "all";
-      st.day = "all";
-      st.hour = "all";
-      st.q = "";
-      st.maxPrice = ui.landKunActive ? 1400 : 2000;
-      st.sort = "price_asc";
-      saveMkt();
-      scheduleRender();
-      notifySide("Күн Оһуор · Анкеты Саха и РФ", ui.landKunActive ? "Выборка до 1 400 ₽/ч (Доска Ykt, Telegram, WhatsApp, MAX)" : "Фильтр солнечного медальона сброшен");
-    },
-    "land-sakha-diamond": () => {
-      ui.landStarActive = !ui.landStarActive;
-      const preset = ui.landStarActive ? "inf" : "design";
-      if (ACTIONS["motion-preset"]) ACTIONS["motion-preset"]({ dataset: { v: preset } });
-      scheduleRender();
-      notifySide("Сулус · Звёздный фильтр Саха", ui.landStarActive ? "Включён трек Информатика КЕГЭ в живой карточке" : "Возвращён трек UX/UI и Figma");
-    },
-    "bb-modal-open": () => {
-      ui.bbModal = true;
-      renderModal();
-    },
-    "bb-modal-close": () => {
-      ui.bbModal = false;
-      renderModal();
-    },
-    "go-fees": () => {
-      ui.booking = null;
-      renderModal();
-      go("fees");
-    },
-    "bb-cat": (el) => {
-      bbState().cat = el.dataset.v || "all";
-      scheduleRender();
-    },
-    "bb-cat-clear": () => {
-      const bb = bbState();
-      bb.cat = "all";
-      bb.catQ = "";
-      ui.focusNext = "bb-catalog-q";
-      scheduleRender();
-    },
-    "bb-hero-primary": () => {
-      const bb = bbState();
-      bb.heroSubmitted = !bb.heroSubmitted;
-      scheduleRender();
-      notifySide("Hero CTA №1 · Найти ниже рынка", bb.heroSubmitted ? "Кнопка на фото перешла в статус .is-confirmed" : "Возврат в основной синий #0070FF");
-    },
-    "bb-hero-beta": () => {
-      const bb = bbState();
-      bb.heroBetaOn = !bb.heroBetaOn;
-      scheduleRender();
-      notifySide("Hero CTA №2 · Бета-тест", bb.heroBetaOn ? "Кнопка бета-теста на фото -> .is-confirmed" : "Возврат в полупрозрачный контур на фото");
-    },
-    "bb-logo-dl": (el) => {
-      const surface = (el.dataset && el.dataset.surface) || "light";
-      const kind = (el.dataset && el.dataset.kind) || "lockup";
-      const svg = EGE.ui && typeof EGE.ui.brandLogoSVG === "function" ? EGE.ui.brandLogoSVG(surface, kind) : "";
-      if (!svg) return;
-      const filename = `vektor-ege-${kind}-${surface}.svg`;
-      try {
-        if (typeof Blob === "function" && typeof URL !== "undefined" && typeof URL.createObjectURL === "function") {
-          const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
-          const href = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = href;
-          a.download = filename;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          if (typeof URL.revokeObjectURL === "function") setTimeout(() => URL.revokeObjectURL(href), 500);
-        }
-      } catch (e) { /* в тестовом окружении скачивание файла пропускается */ }
-      bbState().lastExportedSvg = svg;
-      toast("Скачан " + filename);
-      notifySide("Экспорт SVG · Вектор ЕГЭ", `Файл ${filename} (${surface}, ${kind})`);
-    },
-    "bb-logo-copy": (el) => {
-      const surface = (el.dataset && el.dataset.surface) || "light";
-      const kind = (el.dataset && el.dataset.kind) || "lockup";
-      const svg = EGE.ui && typeof EGE.ui.brandLogoSVG === "function" ? EGE.ui.brandLogoSVG(surface, kind) : "";
-      if (!svg) return;
-      copyTextSafe(svg);
-      bbState().lastExportedSvg = svg;
-      toast(`SVG (${surface}) скопирован`);
-      notifySide("SVG в буфере", `Векторный ${kind} для поверхности «${surface}» скопирован`);
-    },
-    "bb-export-tokens": (el) => {
-      const fmt = (el.dataset && el.dataset.fmt) === "json" ? "json" : "css";
-      const payload = buildBrandbookTokensExport(fmt);
-      copyTextSafe(payload);
-      bbState().lastExportedTokens = { fmt, payload };
-      toast(fmt === "json" ? "Скопирован tokens.json" : "Скопирован :root CSS");
-      notifySide(fmt === "json" ? "Экспорт tokens.json" : "Экспорт :root CSS", `Токены (${payload.length} симв.) скопированы в буфер`);
-    },
-    "bb-app-role": (el) => {
-      bbState().appRole = el.dataset && el.dataset.role === "tutor" ? "tutor" : "student";
-      scheduleRender();
-    },
-    "bb-market-req-toggle": () => {
-      const bb = bbState();
-      bb.marketDemoAccepted = !bb.marketDemoAccepted;
-      scheduleRender();
-      notifySide(
-        "Отклик /market · Состояние",
-        bb.marketDemoAccepted ? "Статус «Преподаватель подтвердил» → открыт чат" : "Статус «На рассмотрении · уведомим» → кнопка «Отменить»"
-      );
-    },
-    "bb-reduced-toggle": () => {
-      const bb = bbState();
-      bb.reducedMotion = !bb.reducedMotion;
-      try {
-        if (document.documentElement && document.documentElement.classList) {
-          document.documentElement.classList.toggle("reduced-motion", !!bb.reducedMotion);
-        }
-      } catch (e) { /* игнор */ }
-      scheduleRender();
-      toast(bb.reducedMotion ? "prefers-reduced-motion: ВКЛ" : "Анимации восстановлены");
-      notifySide("Доступность · Motion", bb.reducedMotion ? "Анимации отключены (html.reduced-motion)" : "Плавные переходы и hover-эффекты активны");
-    },
-    "bb-reduced-motion": () => ACTIONS["bb-reduced-toggle"](),
-    "bb-mask-sample": (el) => {
-      const bb = bbState();
-      const fmtP = EGE.kit && EGE.kit.formatPhoneMask;
-      const fmtTg = EGE.kit && EGE.kit.formatTelegramContact;
-      const rawP = (el.dataset && el.dataset.phone) || "+7 (914) 210-05-11";
-      const rawTg = (el.dataset && el.dataset.tg) || "@aytal_bio";
-      const rawMax = (el.dataset && el.dataset.max) || "aytal_ege";
-      bb.maskPhone = typeof fmtP === "function" ? (fmtP(rawP) || rawP) : rawP;
-      bb.maskTg = typeof fmtTg === "function" ? (fmtTg(rawTg) || rawTg) : rawTg;
-      bb.maskMax = rawMax;
-      scheduleRender();
-    },
-    "bb-pay-threshold": (el) => {
-      const bb = bbState();
-      bb.payInitialDone = !!(el.dataset && el.dataset.v === "repeat");
-      scheduleRender();
-    },
-    "bb-pay-method": (el) => {
-      const bb = bbState();
-      const m = (el.dataset && el.dataset.v) || "sbp";
-      bb.payMethod = ["sbp", "card", "tpay"].includes(m) ? m : "sbp";
-      scheduleRender();
-    },
-    "bb-pay-state": (el) => {
-      const bb = bbState();
-      const s = (el.dataset && el.dataset.v) || "frozen";
-      bb.payState = ["frozen", "captured", "refunded"].includes(s) ? s : "frozen";
-      scheduleRender();
-    },
-    "bb-essay-tab": (el) => {
-      const bb = bbState();
-      const idx = Number(el.dataset && (el.dataset.idx !== undefined ? el.dataset.idx : el.dataset.v));
-      bb.essayOpenIdx = Number.isInteger(idx) ? Math.max(0, Math.min(2, idx)) : 0;
-      scheduleRender();
-    },
-    "bb-bal-toggle": () => {
-      const bb = bbState();
-      bb.balFunded = bb.balFunded === false;
-      scheduleRender();
-      toast(bb.balFunded ? "Баланс: 5 000 ₽ · пробный урок 0 ₽ открыт" : "Баланс: 0 ₽ · требуется первый взнос от 5 000 ₽");
-      notifySide("Баланс · Стенд", bb.balFunded ? "Первый порог 5 000 ₽ пройден — доступны пополнения от 100 ₽ и бесплатный пробный урок" : "Начальный баланс 0 ₽: запись на пробный 0 ₽ заблокирована до внесения 5 000 ₽");
-    },
-    "bb-chart-style": (el) => {
-      const bb = bbState();
-      bb.chartStyle = (el.dataset && el.dataset.v) || "sticks";
-      scheduleRender();
-      toast("Вид графика: " + bb.chartStyle);
-      notifySide("График с палочками", `Выбран стиль «${bb.chartStyle}» — обновлён в кабинете и стенде`);
-    },
-    "bb-chart-data": (el) => {
-      const bb = bbState();
-      bb.chartDataset = (el.dataset && el.dataset.v) || "income";
-      scheduleRender();
-      toast("Набор данных графика обновлён");
-    },
-    "bb-chart-bar": (el) => {
-      const bb = bbState();
-      bb.chartActiveIdx = Math.max(0, Math.min(6, Number(el.dataset && el.dataset.idx) || 0));
-      scheduleRender();
-      toast("Выбран столбик №" + (bb.chartActiveIdx + 1));
-    },
-    "bb-line-pt": (el) => {
-      const bb = bbState();
-      bb.linePtIdx = Math.max(0, Math.min(6, Number(el.dataset && el.dataset.idx) || 0));
-      scheduleRender();
-      toast("Точка линии №" + (bb.linePtIdx + 1));
-    },
-    "bb-donut-ds": (el) => {
-      const bb = bbState();
-      bb.donutDataset = (el.dataset && el.dataset.v) || "channels";
-      bb.donutSliceIdx = 0;
-      scheduleRender();
-      toast("Срез диаграммы обновлён");
-    },
-    "bb-donut-slice": (el) => {
-      const bb = bbState();
-      bb.donutSliceIdx = Math.max(0, Math.min(3, Number(el.dataset && el.dataset.idx) || 0));
-      scheduleRender();
-    },
-    "bb-tbl-cols": (el) => {
-      const bb = bbState();
-      const c = Number(el.dataset && el.dataset.cols);
-      bb.tableCols = [3, 5, 7].includes(c) ? c : 5;
-      scheduleRender();
-      toast("Колонок в таблице: " + bb.tableCols);
-    },
-    "bb-tbl-preset": (el) => {
-      const bb = bbState();
-      const p = (el.dataset && (el.dataset.preset || el.dataset.v)) || "requests";
-      bb.tablePreset = ["requests", "students", "payouts", "exams", "admin"].includes(p) ? p : "requests";
-      bb.tableFilter = "all";
-      bb.tableSearch = "";
-      scheduleRender();
-      toast("Пресет таблицы: " + bb.tablePreset);
-    },
-    "bb-tbl-confirm": (el) => {
-      const bb = bbState();
-      const rowId = el.dataset && el.dataset.id;
-      if (!rowId) return;
-      if (!bb.confirmedRows || typeof bb.confirmedRows !== "object") bb.confirmedRows = {};
-      const on = !bb.confirmedRows[rowId];
-      if (on) bb.confirmedRows[rowId] = true;
-      else delete bb.confirmedRows[rowId];
-      scheduleRender();
-      notifySide(
-        on ? "Запись подтверждена ✓" : "Подтверждение сброшено",
-        on ? `Запись ${rowId} переведена в статус «Подтверждено ✓»` : `Запись ${rowId} возвращена в исходный статус`
-      );
-    },
-    "bb-tbl-filter": (el) => {
-      const bb = bbState();
-      bb.tableFilter = (el.dataset && el.dataset.v) || "all";
-      if (el.dataset && el.dataset.clearQ) bb.tableSearch = "";
-      scheduleRender();
-    },
-    "bb-shell-role": (el) => {
-      const bb = bbState();
-      bb.shellRole = (el.dataset && (el.dataset.role === "student" || el.dataset.v === "student")) ? "student" : "tutor";
-      scheduleRender();
-    },
-    "bb-pipe-filter": (el) => {
-      const bb = bbState();
-      const v = (el.dataset && el.dataset.v) || "all";
-      bb.pipeFilter = ["all", "postgres", "polars", "airflow", "kafka"].includes(v) ? v : "all";
-      scheduleRender();
-    },
-    "bb-cal-tz": (el) => {
-      const bb = bbState();
-      bb.calTz = (el.dataset && el.dataset.v === "UTC+3") ? "UTC+3" : "UTC+9";
-      scheduleRender();
-    },
-    "fees-rate": (el) => {
-      ui.feesRate = Math.max(600, Math.min(3500, Number(el.dataset.rate) || 800));
-      scheduleRender();
     }
   };
-  const BB_EXPORT_SCHEMA = {
-    light: {
-      bg: "#f4f5f7", surface: "#ffffff", "surface-2": "#f2f3f6", ink: "#141517", "ink-2": "#3d424d",
-      muted: "#7c828e", line: "#e4e6ec", "line-strong": "#cdd2dc", accent: "#0070ff", "accent-hover": "#005ce0",
-      "accent-ink": "#ffffff", "accent-soft": "#ebf3ff", notif: "#f97316", "notif-soft": "#fff3eb",
-      confirm: "#16a34a", "confirm-hover": "#15803d", "confirm-soft": "#dcfce7",
-      pro: "#7c3aed", "pro-soft": "#f3e8ff", bad: "#ff2b4d", "bad-soft": "#ffe4e8", warn: "#b45309", "warn-soft": "#fef3c7",
-      gold: "#c59b5f", "gold-hover": "#b3884d", "gold-ink": "#8c6327", "gold-soft": "#fbf5ea",
-      "gold-btn-ink": "#4a310a",
-      "gold-grad": "linear-gradient(90deg, #9a6d28 0%, #c59b5f 40%, #e4be73 76%, #f4da9c 100%)",
-      "gold-glass": "linear-gradient(135deg, rgba(246, 212, 134, .30) 0%, rgba(197, 155, 95, .44) 52%, rgba(168, 116, 40, .30) 100%)",
-      "gold-glass-hover": "linear-gradient(135deg, rgba(250, 220, 146, .42) 0%, rgba(212, 166, 98, .54) 52%, rgba(180, 126, 46, .42) 100%)",
-      "gold-text-grad": "linear-gradient(115deg, #754c12 0%, #b58234 52%, #8a5e1d 100%)"
-    },
-    dark: {
-      bg: "#000000", surface: "#16181d", "surface-2": "#22252e", ink: "#ffffff", "ink-2": "#d4d8e2",
-      muted: "#8b909d", line: "#282b36", "line-strong": "#373b49", accent: "#1d7bff", "accent-hover": "#0d67e8",
-      "accent-ink": "#ffffff", "accent-soft": "#102548", notif: "#fb923c", "notif-soft": "#2e1909",
-      confirm: "#22c55e", "confirm-hover": "#16a34a", "confirm-soft": "#0c2b17",
-      pro: "#a78bfa", "pro-soft": "#21153b", bad: "#ff4d5e", "bad-soft": "#3a171c",
-      gold: "#c59b5f", "gold-hover": "#d8b377", "gold-ink": "#e5c185", "gold-soft": "#261e12",
-      "gold-btn-ink": "#fff3d6",
-      "gold-grad": "linear-gradient(90deg, rgba(168, 117, 42, .92) 0%, #c59b5f 36%, #ebca86 72%, rgba(248, 224, 160, .96) 100%)",
-      "gold-glass": "linear-gradient(135deg, rgba(245, 210, 128, .22) 0%, rgba(197, 155, 95, .34) 52%, rgba(154, 106, 36, .22) 100%)",
-      "gold-glass-hover": "linear-gradient(135deg, rgba(248, 218, 142, .32) 0%, rgba(214, 170, 102, .44) 52%, rgba(168, 118, 44, .32) 100%)",
-      "gold-text-grad": "linear-gradient(115deg, #fde4a8 0%, #e5b869 52%, #f4d38c 100%)"
-    },
-    sakha: {
-      auroraCyan: "#0EA5E9", auroraGreen: "#10B981", ornamentGold: "#C59B5F",
-      glacierLight: "#EFF9FF", glacierBorderLight: "#7DD3FC", glacierDark: "#091E32", glacierBorderDark: "#0284C7"
-    },
-    zIndex: { stickyTop: 10, selectMenu: 25, mobileTabbar: 40, sideToast: 60, modal: 100 },
-    editorial: { currencyFormat: "1 200 ₽/ч", timeWindow: "10:00–20:00" }
-  };
-  function copyTextSafe(txt) {
-    if (!txt) return;
-    try {
-      if (typeof navigator !== "undefined" && navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
-        navigator.clipboard.writeText(txt).catch(() => {});
-      }
-    } catch (e) { /* без буфера в тестовом окружении */ }
-  }
-  function cssVarsBlock(selector, varsMap) {
-    return `${selector} {\n${Object.keys(varsMap).map((k) => `  --${k}: ${varsMap[k]};`).join("\n")}\n}`;
-  }
-  function buildBrandbookTokensExport(fmt) {
-    if (fmt === "json") return JSON.stringify(BB_EXPORT_SCHEMA, null, 2);
-    const extraVars = {
-      "sakha-cyan": BB_EXPORT_SCHEMA.sakha.auroraCyan,
-      "sakha-green": BB_EXPORT_SCHEMA.sakha.auroraGreen,
-      "sakha-gold": BB_EXPORT_SCHEMA.sakha.ornamentGold,
-      "z-sticky-top": BB_EXPORT_SCHEMA.zIndex.stickyTop,
-      "z-select-menu": BB_EXPORT_SCHEMA.zIndex.selectMenu,
-      "z-mobile-tabbar": BB_EXPORT_SCHEMA.zIndex.mobileTabbar,
-      "z-side-toast": BB_EXPORT_SCHEMA.zIndex.sideToast,
-      "z-modal": BB_EXPORT_SCHEMA.zIndex.modal
-    };
-    return [
-      cssVarsBlock(":root", Object.assign({}, BB_EXPORT_SCHEMA.light, extraVars)),
-      cssVarsBlock('[data-theme="dark"]', BB_EXPORT_SCHEMA.dark)
-    ].join("\n\n");
-  }
-  function bbState() {
-    const bb = ui.brandbook || (ui.brandbook = {
-      mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true,
-      vpWidth: 390, chipOn: true, sent: false, fav: true, switchVal: "online",
-      subj: "bio", subjMenuOpen: false, pickedPlan: "month10k", quizOpt: 1,
-      cancelDemoUndone: false, previewToastDismissed: false, sakhaSent: false, sakhaKunOn: false, sakhaStarOn: false,
-      heroSubmitted: false, heroBetaOn: false, heroSearchSubmitted: false, heroQ: "", cat: "all", catQ: "", faqOpen: 0,
-      marketDemoAccepted: false, reducedMotion: false, balFunded: true,
-      chartStyle: "sticks", chartDataset: "income", chartActiveIdx: 3,
-      linePtIdx: 3, donutDataset: "channels", donutSliceIdx: 0, tableCols: 5, tableFilter: "all", tableSearch: "",
-      maskPhone: "+7 (914) 210-05-11", maskTg: "@aytal_bio", maskMax: "aytal_ege",
-      payMethod: "sbp", payState: "frozen", payInitialDone: false,
-      tablePreset: "requests", confirmedRows: {}, essayOpenIdx: 0,
-      shellRole: "tutor", pipeFilter: "all", calTz: "UTC+9"
-    });
-    if (bb.marketDemoAccepted === undefined) bb.marketDemoAccepted = false;
-    if (bb.reducedMotion === undefined) bb.reducedMotion = false;
-    if (bb.balFunded === undefined) bb.balFunded = true;
-    if (!bb.chartStyle) bb.chartStyle = "sticks";
-    if (!bb.chartDataset) bb.chartDataset = "income";
-    if (bb.chartActiveIdx === undefined) bb.chartActiveIdx = 3;
-    if (bb.linePtIdx === undefined) bb.linePtIdx = 3;
-    if (!bb.donutDataset) bb.donutDataset = "channels";
-    if (bb.donutSliceIdx === undefined) bb.donutSliceIdx = 0;
-    if (!bb.tableCols) bb.tableCols = 5;
-    if (!bb.tableFilter) bb.tableFilter = "all";
-    if (bb.tableSearch === undefined) bb.tableSearch = "";
-    if (bb.maskPhone === undefined) bb.maskPhone = "+7 (914) 210-05-11";
-    if (bb.maskTg === undefined) bb.maskTg = "@aytal_bio";
-    if (bb.maskMax === undefined) bb.maskMax = "aytal_ege";
-    if (!bb.payMethod) bb.payMethod = "sbp";
-    if (!bb.payState) bb.payState = "frozen";
-    if (bb.payInitialDone === undefined) bb.payInitialDone = false;
-    if (!bb.tablePreset) bb.tablePreset = "requests";
-    if (!bb.confirmedRows || typeof bb.confirmedRows !== "object") bb.confirmedRows = {};
-    if (bb.essayOpenIdx === undefined) bb.essayOpenIdx = 0;
-    if (!bb.shellRole) bb.shellRole = "tutor";
-    if (!bb.pipeFilter) bb.pipeFilter = "all";
-    if (!bb.calTz) bb.calTz = "UTC+9";
-    return bb;
-  }
-  function patchMaskTrainerDOM() {
-    const bb = bbState();
-    const urlsEl = typeof document.getElementById === "function" ? document.getElementById("bb-mask-urls") : null;
-    const linksEl = typeof document.getElementById === "function" ? document.getElementById("bb-mask-links") : null;
-    if (!urlsEl && !linksEl) return false;
-    const fmtP = EGE.kit && EGE.kit.formatPhoneMask;
-    const fmtTg = EGE.kit && EGE.kit.formatTelegramContact;
-    const urlsFn = EGE.kit && EGE.kit.resolveMessengerUrls;
-    const linksFn = EGE.kit && EGE.kit.messengerLinksHTML;
-    const phoneRaw = String(bb.maskPhone != null ? bb.maskPhone : "+7 (914) 210-05-11");
-    const tgRaw = String(bb.maskTg != null ? bb.maskTg : "@aytal_bio");
-    const maxRaw = String(bb.maskMax != null ? bb.maskMax : "aytal_ege");
-    const phoneNorm = typeof fmtP === "function" && phoneRaw ? (fmtP(phoneRaw) || phoneRaw) : phoneRaw;
-    const tgNorm = typeof fmtTg === "function" && tgRaw ? (fmtTg(tgRaw) || tgRaw) : tgRaw;
-    const entity = {
-      id: "mask-demo",
-      name: "Айтал Б.",
-      whatsapp: phoneNorm || "+7 (914) 210-05-11",
-      telegram: tgNorm || tgRaw || "@aytal_bio",
-      maxHandle: maxRaw || "aytal_ege"
-    };
-    const msgText = "Здравствуйте! Проверяю живую маску контактов в Вектор ЕГЭ.";
-    const urls = typeof urlsFn === "function"
-      ? urlsFn(entity, msgText)
-      : { whatsapp: "https://wa.me/79142100511", telegram: "https://t.me/aytal_bio", max: "https://max.ru/aytal_ege" };
-    if (urlsEl) {
-      urlsEl.innerHTML = `<div class="bb-mask-url-row"><span class="small muted">WhatsApp</span><code>${esc(urls.whatsapp.split("?")[0])}</code></div>
-        <div class="bb-mask-url-row"><span class="small muted">Telegram</span><code>${esc(urls.telegram.split("?")[0])}</code></div>
-        <div class="bb-mask-url-row"><span class="small muted">MAX</span><code>${esc(urls.max.split("?")[0])}</code></div>`;
-    }
-    if (linksEl && typeof linksFn === "function") {
-      linksEl.innerHTML = linksFn({ entity, message: msgText, compact: true });
-    }
-    return true;
-  }
-  function applyBrandbookViewport(rawW) { return EGE.views.brandbook.applyBrandbookViewport(ui, rawW); }
   function authErrorText(e) {
     const code = e && e.code;
     if (code === "unavailable") return "Нет связи с сервером. Попробуй через несколько секунд.";
@@ -5284,10 +2121,7 @@
         clearQueues();
         ui.guest = false;
         ui.authModal = false;
-        if (ui.view !== "market" || ui.role === "tutor") {
-          ui.view = ui.role === "tutor" ? "cabinet" : "tests";
-          writeHash();
-        }
+        applyPostAuthView();
         await loadBackendSession(res.user);
         clearDrafts("auth."); clearDrafts("pf."); clearDrafts("ob.");
         a.error = "";
@@ -5318,31 +2152,32 @@
     },
     "bal-custom": (form) => {
       const st = mkt();
-      const minAmt = st.initialPaid ? 100 : 5000;
+      const trialRub = (TDATA && TDATA.TRIAL_PRICE) || 990;
+      const minAmt = st.initialPaid ? 100 : trialRub;
       const bm = ui.balanceModal || (ui.balanceModal = { customAmount: minAmt, error: "", reason: "", pendingBooking: null });
       const rawEl = (form && form.elements && form.elements.amount) || $("#bal-custom-amount");
       const raw = rawEl ? Number(rawEl.value) : Number(bm.customAmount);
       if (!Number.isFinite(raw) || raw < minAmt) {
         bm.error = !st.initialPaid
-          ? "Первое пополнение — минимум 5 000 ₽ (минимальная подписка). Далее можно от 100 ₽."
-          : "Введите сумму пополнения от 100 ₽.";
+          ? `Первое пополнение на занятия — минимум ${trialRub} ₽ по СБП (пробный 60 мин). Далее можно от 100 ₽.`
+          : "Введите сумму пополнения по СБП от 100 ₽.";
         renderModal();
         return;
       }
       const amt = Math.min(200000, Math.round(raw));
       EGEPayments.createTopupIntent({ amount: amt, planId: st.planId || "trial5k" });
       st.balance = (Number(st.balance) || 0) + amt;
-      if (st.balance >= 5000) st.initialPaid = true;
-      if (st.balance >= 10000) st.planId = "month10k";
+      if (st.balance >= trialRub) st.initialPaid = true;
+      if (st.balance >= 8900) st.planId = "month10k";
       else if (!st.planId) st.planId = "trial5k";
       saveMkt();
       const pending = bm.pendingBooking;
       ui.balanceModal = null;
-      if (pending && st.balance >= 5000) {
-        ui.booking = Object.assign({}, pending, { offerPrice: pending.mode === "trial" ? 0 : (pending.offerPrice || 1000) });
+      if (pending && st.balance >= trialRub) {
+        ui.booking = Object.assign({}, pending, { offerPrice: pending.mode === "trial" ? trialRub : (pending.offerPrice || 1000) });
       }
       renderModal();
-      notifySide("Баланс пополнен", `+${amt.toLocaleString("ru-RU")} ₽ · на счёте ${st.balance.toLocaleString("ru-RU")} ₽`);
+      notifySide("Баланс пополнен по СБП", `+${amt.toLocaleString("ru-RU")} ₽ · на счёте ${st.balance.toLocaleString("ru-RU")} ₽`);
       scheduleRender();
     },
     "student-lead": (form) => {
@@ -5510,7 +2345,7 @@
     if (inpAct && inpAct.indexOf("adm-") === 0 && EGE.views.admin && typeof EGE.views.admin.handleInput === "function") {
       if (EGE.views.admin.handleInput(el)) return;
     }
-    if ((inpAct === "tc-req-tbl-q" || inpAct === "tc-st-tbl-q" || inpAct === "tc-leads-tbl-q") && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.handleInput === "function") {
+    if (inpAct && inpAct.indexOf("tc-") === 0 && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.handleInput === "function") {
       if (EGE.views.tutorCabinet.handleInput(el)) return;
     }
     if ((inpAct === "mkt-bk-q" || inpAct === "study-sched-q" || inpAct === "study-chats-q") && EGE.views.marketplace && typeof EGE.views.marketplace.handleInput === "function") {
@@ -5929,6 +2764,25 @@
     } catch (e) { /* игнор */ }
   }
 
+  const appCtx = {
+    CONTENT, DEFAULT_TARGETS, DIAG_PLAN_ID, EGE, EGEPayments, INTERVALS, LETTERS, MAX_Q_MS,
+    MOTION_PRESETS, QUIZ_SIZE, SUBJ, SUBJECTS, SUBJECT_META, SUBJECT_NAME, TDATA, TOPIC_QUIZ, TOPICS, QS,
+    accountCard, ai, caps, clearActiveQuiz, cloud, codeLabel, completePlanFromQuiz,
+    defaultMarketState, defaultName, draft, dueQs, findPlanItem, firstSubject, formatAvg,
+    getThemeMode: () => themeMode, go, hash, heroMotionMeta, localNotice, markPlanPrep,
+    minutesByDay, mistakeQs, mkt, mocks, nextExam, notifySide, patchDoc, patchHeroMotionDOM,
+    patchSavingsDOM, planDoc, planItems, profile, prog, questionAttemptBreakdown, renderModal,
+    replaceDoc, saveActiveQuiz, saveMkt, scheduleRender, sessions, staleNotice, stepBtn,
+    stopMotionTimers, store, subjSelect, subjectAccuracy, subjectReadCount, subjectStats,
+    tile, toast, todoItem, topicRef, topicStats, totals, ui, updateBookingModalLive
+  };
+  EGE.views.trainer.configure(appCtx);
+  EGE.views.trainer.registerActions(ACTIONS);
+  EGE.views.essayGuide.configure(appCtx);
+  EGE.views.essayGuide.registerActions(ACTIONS);
+  EGE.views.progress.configure(appCtx);
+  EGE.views.progress.registerActions(ACTIONS);
+  EGE.registerMarketBbActions(appCtx, ACTIONS);
   // ---------- запуск ----------
   readHash();
   readQueryError();
