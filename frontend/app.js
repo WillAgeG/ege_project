@@ -844,7 +844,7 @@
     auth: { tab: "login", busy: false, error: "" },
     authModal: false,
     filterModal: false,
-    guest: false,
+    guest: !!(typeof window !== "undefined" && ((window.EGE_HOST && window.EGE_HOST.guest) || (typeof location !== "undefined" && /(?:^\?|&)guest=1(?:&|$)/.test(location.search || "")))),
     essay: null,
     subjQ: "",
     subjFilter: "all",
@@ -984,6 +984,7 @@
       if (SUBJ[h]) { ui.view = "subject"; ui.sid = h; return; }
       if (h === "essay" && EGE.essay && SUBJ.rus) { ui.view = "essay"; ui.sid = "rus"; return; }
       if (TUTOR_TAB_VIEWS[h]) {
+        if (HOST_SITE !== "student") ui.role = "tutor";
         if (EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.setTab === "function") EGE.views.tutorCabinet.setTab(TUTOR_TAB_VIEWS[h]);
         ui.view = "cabinet";
         return;
@@ -2798,6 +2799,11 @@
   EGE.registerMarketBbActions(appCtx, ACTIONS);
   try {
     if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+      window.addEventListener("message", (ev) => {
+        if (ev && ev.data && ev.data.type === "vektor:set-theme") {
+          setTheme(ev.data.theme === "light" ? "light" : "dark", true);
+        }
+      });
       window.addEventListener("popstate", () => {
         if (typeof location !== "undefined" && location.pathname && (location.pathname === "/brandbook" || location.pathname.indexOf("/brandbook/") === 0)) {
           const subApi = EGE.brandbookSubsites;

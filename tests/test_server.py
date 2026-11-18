@@ -67,6 +67,10 @@ def test_health_and_html_shell(tmp_path: Path) -> None:
         assert r_priv.status_code == 200
         assert "Политика конфиденциальности" in r_priv.text
 
+        r_design = client.get("/design")
+        assert r_design.status_code == 200
+        assert "Design Studio" in r_design.text and "frame-mobile" in r_design.text and "390" in r_design.text
+
 
 def test_static_asset_allowlist(tmp_path: Path) -> None:
     app = create_app(_make_settings(tmp_path))
@@ -728,6 +732,10 @@ def test_landing_and_tutors_catalog(tmp_path: Path) -> None:
         r_priv = client.get("/privacy")
         assert r_priv.status_code == 200
         assert "Политика конфиденциальности" in r_priv.text
+
+        r_design = client.get("/design")
+        assert r_design.status_code == 200
+        assert "Design Studio" in r_design.text and "frame-mobile" in r_design.text and "390" in r_design.text
 
         r_js = client.get("/data/tutors.js")
         assert r_js.status_code == 200

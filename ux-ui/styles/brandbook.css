@@ -1308,6 +1308,8 @@ body:not([data-brandbook="1"]):not([data-auth="1"]):not([data-fullbleed="1"]) .b
   display: flex; align-items: flex-end; justify-content: space-between;
   gap: 12px; flex-wrap: wrap; padding-bottom: 12px; border-bottom: 1px solid var(--line);
 }
+.bb-device-toolbar .hh-seg { flex-wrap: wrap; max-width: 100%; }
+.bb-device-toolbar .hh-seg button { flex: 0 1 auto; }
 .bb-device-pair {
   display: grid; gap: 18px; align-items: start; min-width: 0;
   padding: 16px; border-radius: 18px; background: var(--surface-2); border: 1px dashed var(--line-strong);

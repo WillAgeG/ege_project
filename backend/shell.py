@@ -163,6 +163,17 @@ def register_shell_routes(app: FastAPI, root_dir: Path = ROOT_DIR) -> None:
             headers={"Cache-Control": "no-store"},
         )
 
+    @app.get("/design", response_class=HTMLResponse)
+    @app.get("/studio", response_class=HTMLResponse)
+    async def design_studio_page() -> HTMLResponse:
+        studio_file = frontend_dir / "design-studio.html"
+        if not studio_file.is_file():
+            raise HTTPException(status_code=404, detail="Not found")
+        return HTMLResponse(
+            content=studio_file.read_text(encoding="utf-8"),
+            headers={"Cache-Control": "no-store"},
+        )
+
     @app.get("/privacy", response_class=HTMLResponse)
     async def privacy_page() -> HTMLResponse:
         html = """<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Политика конфиденциальности — Вектор ЕГЭ</title><style>

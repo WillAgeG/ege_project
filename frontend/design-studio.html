@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Вектор ЕГЭ — Design Studio (Mobile &amp; Desktop)</title>
+<link rel="icon" type="image/svg+xml" href="/assets/logo-animated.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700;800&display=swap">
+<style>
+:root {
+  --bg: #eef1f6;
+  --surface: #ffffff;
+  --surface-2: #f4f6fa;
+  --ink: #141517;
+  --ink-2: #3d424d;
+  --muted: #6b7280;
+  --line: #dfe3eb;
+  --line-strong: #c6cdd9;
+  --accent: #0070ff;
+  --accent-soft: #e8f1ff;
+  --shadow: 0 20px 50px -24px rgba(15, 23, 42, .25);
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --bg: #000000;
+  --surface: #14161b;
+  --surface-2: #1e2129;
+  --ink: #ffffff;
+  --ink-2: #d4d8e2;
+  --muted: #8b909d;
+  --line: #272b36;
+  --line-strong: #393f4f;
+  --accent: #1d7bff;
+  --accent-soft: #102548;
+  --shadow: 0 24px 60px -20px rgba(0, 0, 0, .85);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; min-height: 100%; }
+button, a { font: inherit; color: inherit; }
+
+@keyframes studioSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.studio-bar {
+  position: sticky; top: 0; z-index: 20;
+  display: grid; gap: 10px;
+  padding: 12px 18px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--line);
+}
+.studio-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; flex-wrap: wrap; min-width: 0;
+}
+.studio-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 700; font-size: 15px; }
+.studio-brand img { width: 32px; height: 32px; display: block; transform-origin: 50% 50%; }
+.studio-brand:hover img { animation: studioSpin 2.6s linear infinite; }
+.studio-sub { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11px; color: var(--muted); }
+
+.seg {
+  display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px;
+  border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line);
+  max-width: 100%;
+}
+.seg button {
+  border: 0; border-radius: 8px; padding: 6px 11px;
+  background: transparent; color: var(--muted); font-size: 13px; font-weight: 600;
+  cursor: pointer; white-space: nowrap; transition: background-color .14s ease, color .14s ease;
+}
+.seg button:hover { color: var(--ink); }
+.seg button[aria-pressed="true"] {
+  background: var(--surface); color: var(--ink);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .08);
+}
+
+.pill-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--surface-2); color: var(--ink); text-decoration: none;
+  font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.pill-btn:hover { border-color: var(--accent); color: var(--accent); }
+.pill-btn.primary { background: var(--accent); border-color: var(--accent); color: #ffffff; }
+.pill-btn.primary:hover { filter: brightness(1.06); color: #ffffff; }
+
+.stage {
+  padding: 18px;
+  display: grid; gap: 20px; align-items: start;
+  max-width: 1880px; margin: 0 auto;
+}
+.stage.is-split { grid-template-columns: minmax(0, 1fr) auto; }
+.stage.is-desktop { grid-template-columns: minmax(0, 1fr); }
+.stage.is-mobile { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+@media (max-width: 1180px) {
+  .stage.is-split { grid-template-columns: minmax(0, 1fr); justify-items: stretch; }
+}
+@media (max-width: 640px) {
+  .studio-bar { padding: 10px 12px; }
+  .stage { padding: 12px; gap: 14px; }
+}
+
+.pane { display: grid; gap: 10px; min-width: 0; }
+.pane-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+}
+.spec-tag {
+  font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11.5px; font-weight: 600;
+  padding: 3px 9px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent);
+}
+
+.mac-frame {
+  border-radius: 18px; border: 1px solid var(--line-strong);
+  background: var(--surface); box-shadow: var(--shadow); overflow: hidden;
+  min-width: 0;
+}
+.mac-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 14px; background: var(--surface-2); border-bottom: 1px solid var(--line);
+}
+.mac-dots { display: flex; gap: 6px; }
+.mac-dots i { width: 10px; height: 10px; border-radius: 50%; display: block; }
+.mac-dots i:nth-child(1) { background: #ff5f57; }
+.mac-dots i:nth-child(2) { background: #febc2e; }
+.mac-dots i:nth-child(3) { background: #28c840; }
+.mac-url {
+  flex: 1 1 auto; max-width: 420px; text-align: center; padding: 4px 10px; border-radius: 8px;
+  background: var(--surface); border: 1px solid var(--line);
+  font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11.5px; color: var(--ink-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mac-viewport {
+  position: relative; width: 100%; overflow: hidden; background: var(--bg);
+}
+.mac-viewport iframe {
+  display: block; border: 0; width: 1440px; height: 900px;
+  transform-origin: 0 0;
+}
+
+.iphone-wrap { display: grid; justify-items: center; }
+.iphone-bezel {
+  padding: 12px 12px 10px; border-radius: 44px;
+  background: #12141a; border: 2px solid #2d3240;
+  box-shadow: 0 28px 60px -22px rgba(0, 0, 0, .55);
+  display: grid; gap: 8px; justify-items: center;
+  max-width: 100%;
+}
+.iphone-island {
+  width: 108px; height: 24px; border-radius: 999px; background: #000000;
+  border: 1px solid #222632;
+}
+.iphone-screen {
+  border-radius: 28px; overflow: hidden; background: var(--surface);
+  border: 1px solid rgba(255, 255, 255, .08);
+  max-width: calc(100vw - 48px);
+}
+.iphone-screen iframe { display: block; border: 0; width: 100%; height: 100%; }
+.iphone-home { width: 120px; height: 4px; border-radius: 999px; background: rgba(255, 255, 255, .36); margin-top: 2px; }
+</style>
+</head>
+<body>
+<header class="studio-bar">
+  <div class="studio-row">
+    <a class="studio-brand" href="/landing?guest=1">
+      <img src="/assets/logo-animated.svg" alt="Вектор ЕГЭ">
+      <div>
+        <div>Вектор ЕГЭ · Design Studio</div>
+        <div class="studio-sub">Живой предпросмотр Desktop (1440 px) и Mobile (390 px)</div>
+      </div>
+    </a>
+    <div class="studio-row" style="gap:8px">
+      <div class="seg" role="group" aria-label="Режим показа">
+        <button type="button" data-mode="split" aria-pressed="true">Рядом · Desktop + Mobile</button>
+        <button type="button" data-mode="mobile" aria-pressed="false">Чисто Mobile</button>
+        <button type="button" data-mode="desktop" aria-pressed="false">Чисто Desktop</button>
+      </div>
+      <div class="seg" role="group" aria-label="Ширина смартфона" id="mobile-width-seg">
+        <button type="button" data-mw="375" aria-pressed="false">375 px</button>
+        <button type="button" data-mw="390" aria-pressed="true">390 px</button>
+        <button type="button" data-mw="430" aria-pressed="false">430 px</button>
+      </div>
+      <div class="seg" role="group" aria-label="Тема">
+        <button type="button" data-theme-pick="light" aria-pressed="true">Светлая</button>
+        <button type="button" data-theme-pick="dark" aria-pressed="false">OLED Dark</button>
+      </div>
+      <a class="pill-btn primary" id="open-direct" href="/landing?guest=1" target="_blank" rel="noopener">↗ Открыть экран</a>
+    </div>
+  </div>
+  <div class="studio-row">
+    <div class="seg" role="group" aria-label="Экраны приложения" id="screen-seg">
+      <button type="button" data-screen="/landing?guest=1" aria-pressed="true">Главная</button>
+      <button type="button" data-screen="/student?guest=1#market" aria-pressed="false">Каталог репетиторов</button>
+      <button type="button" data-screen="/student?guest=1#tests" aria-pressed="false">Ученик · Тесты</button>
+      <button type="button" data-screen="/tutor?guest=1#tutor-requests" aria-pressed="false">Преподаватель · Заявки</button>
+      <button type="button" data-screen="/tutor?guest=1#tutor-calendar" aria-pressed="false">Календарь</button>
+      <button type="button" data-screen="/tutor?guest=1#tutor-students" aria-pressed="false">Мои ученики</button>
+      <button type="button" data-screen="/tutor?guest=1#tutor-leads" aria-pressed="false">Ученики ищут</button>
+      <button type="button" data-screen="/admin?guest=1" aria-pressed="false">Админка</button>
+      <button type="button" data-screen="/brandbook/home?guest=1" aria-pressed="false">Брендбук</button>
+    </div>
+  </div>
+</header>
+
+<main class="stage is-split" id="stage">
+  <section class="pane" id="pane-desktop">
+    <div class="pane-head">
+      <b>Desktop · 1440 × 900</b>
+      <span class="spec-tag" id="desktop-scale-tag">100%</span>
+    </div>
+    <div class="mac-frame">
+      <div class="mac-bar">
+        <div class="mac-dots"><i></i><i></i><i></i></div>
+        <div class="mac-url" id="desktop-url">/landing?guest=1</div>
+        <span class="studio-sub">Desktop</span>
+      </div>
+      <div class="mac-viewport" id="desktop-viewport">
+        <iframe id="frame-desktop" title="Desktop предпросмотр Вектор ЕГЭ" src="/landing?guest=1"></iframe>
+      </div>
+    </div>
+  </section>
+
+  <section class="pane" id="pane-mobile">
+    <div class="pane-head" style="width:100%">
+      <b id="mobile-title">Mobile · 390 × 844</b>
+      <span class="spec-tag">Touch UX</span>
+    </div>
+    <div class="iphone-wrap">
+      <div class="iphone-bezel">
+        <div class="iphone-island" aria-hidden="true"></div>
+        <div class="iphone-screen" id="mobile-screen" style="width:390px;height:780px">
+          <iframe id="frame-mobile" title="Mobile предпросмотр Вектор ЕГЭ" src="/landing?guest=1"></iframe>
+        </div>
+        <div class="iphone-home" aria-hidden="true"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  const MOBILE_SIZES = {
+    375: { w: 375, h: 740 },
+    390: { w: 390, h: 780 },
+    430: { w: 430, h: 820 }
+  };
+
+  let mode = "split";
+  let screen = "/landing?guest=1";
+  let mobWidth = 390;
+  let theme = "light";
+
+  try {
+    const qp = new URLSearchParams(window.location.search || "");
+    const m = qp.get("mode");
+    if (m === "split" || m === "mobile" || m === "desktop") mode = m;
+    const sc = qp.get("screen");
+    if (sc && sc.startsWith("/")) screen = sc;
+    const th = qp.get("theme");
+    if (th === "dark" || th === "light") theme = th;
+    else if (localStorage.getItem("vektor-ege:theme") === "dark") theme = "dark";
+  } catch (e) {}
+
+  function applyTheme(t, reloadIfNeeded) {
+    theme = t === "dark" ? "dark" : "light";
+    document.documentElement.dataset.theme = theme;
+    try { localStorage.setItem("vektor-ege:theme", theme); } catch (e) {}
+    document.querySelectorAll("[data-theme-pick]").forEach((b) => {
+      b.setAttribute("aria-pressed", String(b.dataset.themePick === theme));
+    });
+    ["frame-desktop", "frame-mobile"].forEach((id) => {
+      const fr = document.getElementById(id);
+      if (fr && fr.contentWindow) {
+        try { fr.contentWindow.postMessage({ type: "vektor:set-theme", theme: theme }, "*"); } catch (e) {}
+        if (reloadIfNeeded && fr.contentWindow.location) {
+          fr.contentWindow.location.reload();
+        }
+      }
+    });
+  }
+
+  function layoutDesktopScale() {
+    const vp = document.getElementById("desktop-viewport");
+    const fr = document.getElementById("frame-desktop");
+    const tag = document.getElementById("desktop-scale-tag");
+    if (!vp || !fr || mode === "mobile") return;
+    const avail = Math.max(320, vp.clientWidth);
+    const scale = Math.min(1, avail / 1440);
+    const targetH = Math.round(900 * scale);
+    vp.style.height = targetH + "px";
+    fr.style.transform = "scale(" + scale.toFixed(4) + ")";
+    if (tag) tag.textContent = Math.round(scale * 100) + "% · 1440px";
+  }
+
+  function syncUI() {
+    const stage = document.getElementById("stage");
+    const paneD = document.getElementById("pane-desktop");
+    const paneM = document.getElementById("pane-mobile");
+    const mwSeg = document.getElementById("mobile-width-seg");
+    const mobScr = document.getElementById("mobile-screen");
+    const mobTitle = document.getElementById("mobile-title");
+    const dUrl = document.getElementById("desktop-url");
+    const direct = document.getElementById("open-direct");
+
+    if (stage) stage.className = "stage is-" + mode;
+    if (paneD) paneD.hidden = mode === "mobile";
+    if (paneM) paneM.hidden = mode === "desktop";
+    if (mwSeg) mwSeg.hidden = mode === "desktop";
+
+    const sz = MOBILE_SIZES[mobWidth] || MOBILE_SIZES[390];
+    if (mobScr) { mobScr.style.width = sz.w + "px"; mobScr.style.height = sz.h + "px"; }
+    if (mobTitle) mobTitle.textContent = "Mobile · " + sz.w + " × " + sz.h;
+
+    document.querySelectorAll("[data-mode]").forEach((b) => {
+      b.setAttribute("aria-pressed", String(b.dataset.mode === mode));
+    });
+    document.querySelectorAll("[data-mw]").forEach((b) => {
+      b.setAttribute("aria-pressed", String(Number(b.dataset.mw) === mobWidth));
+    });
+    document.querySelectorAll("[data-screen]").forEach((b) => {
+      b.setAttribute("aria-pressed", String(b.dataset.screen === screen));
+    });
+    if (dUrl) dUrl.textContent = screen;
+    if (direct) direct.href = screen;
+    layoutDesktopScale();
+  }
+
+  function loadScreen(url) {
+    screen = url;
+    try { localStorage.setItem("vektor-ege:theme", theme); } catch (e) {}
+    const frD = document.getElementById("frame-desktop");
+    const frM = document.getElementById("frame-mobile");
+    if (frD) frD.src = screen;
+    if (frM) frM.src = screen;
+    syncUI();
+  }
+
+  ["frame-desktop", "frame-mobile"].forEach((id) => {
+    const fr = document.getElementById(id);
+    if (!fr) return;
+    fr.addEventListener("load", () => {
+      try {
+        if (fr.contentWindow) {
+          fr.contentWindow.postMessage({ type: "vektor:set-theme", theme: theme }, "*");
+        }
+      } catch (e) {}
+    });
+  });
+
+  document.addEventListener("click", (e) => {
+    const mBtn = e.target.closest("[data-mode]");
+    if (mBtn) { mode = mBtn.dataset.mode; syncUI(); return; }
+    const wBtn = e.target.closest("[data-mw]");
+    if (wBtn) { mobWidth = Number(wBtn.dataset.mw) || 390; syncUI(); return; }
+    const tBtn = e.target.closest("[data-theme-pick]");
+    if (tBtn) { applyTheme(tBtn.dataset.themePick, false); return; }
+    const sBtn = e.target.closest("[data-screen]");
+    if (sBtn) { loadScreen(sBtn.dataset.screen); return; }
+  });
+
+  if (typeof ResizeObserver === "function") {
+    const ro = new ResizeObserver(layoutDesktopScale);
+    const vp = document.getElementById("desktop-viewport");
+    if (vp) ro.observe(vp);
+  }
+  window.addEventListener("resize", layoutDesktopScale);
+
+  applyTheme(theme, false);
+  loadScreen(screen);
+})();
+</script>
+</body>
+</html>

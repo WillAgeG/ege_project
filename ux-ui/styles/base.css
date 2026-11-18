@@ -786,6 +786,10 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
   font-size: 14px; font-weight: 500; box-shadow: var(--shadow); max-width: calc(100% - 32px);
   animation: toastIn .18s ease-out;
 }
+.toast:empty,
+.toast[hidden] {
+  display: none !important;
+}
 .toast.is-side {
   left: auto; right: max(20px, env(safe-area-inset-right, 0px));
   bottom: auto; top: calc(78px + env(safe-area-inset-top, 0px));
