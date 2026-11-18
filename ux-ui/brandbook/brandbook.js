@@ -424,8 +424,8 @@
     return `<section class="land-sec" id="bb-logo">
       <div class="land-sec-head">
         <div>
-          <div class="eyebrow">6-лучевая цветная звезда C6 · Палитра Gemini + Hover-анимация</div>
-          <h2 class="h2">Адаптивный логотип: 6-лучевая звезда (Light / Dark / Blue) и вращение на :hover</h2>
+          <div class="eyebrow">6-лучевая цветная звезда C6 · Логотип «Вектор» + Hover-анимация</div>
+          <h2 class="h2">Адаптивный логотип «Вектор»: 6-лучевая звезда и вращение на :hover</h2>
         </div>
         <span class="bb-spec-pill">C6 star · #4285F4 #EA4335 #FBBC04 #34A853 · hover spin</span>
       </div>
@@ -997,8 +997,8 @@
       out += `<section class="land-sec" id="bb-hero-banner" aria-label="Эталон Hero-баннера">
         <div class="land-sec-head">
           <div>
-            <div class="eyebrow">Первый экран /landing · Gemini Spatial Layout</div>
-            <h2 class="h2">Hero-экран с 4 карточками, синей пилюлей CTA и 5 текстами</h2>
+            <div class="eyebrow">Первый экран /landing · Gemini Pure-Black Transition</div>
+            <h2 class="h2">Чёрный #000 Hero с 4 живыми фото → плавный переход в белый #FFF</h2>
           </div>
           <button type="button" class="bb-spec-pill" data-a="bb-copy-token" data-copy="EGE.kit.heroBannerHTML()">Копировать EGE.kit.heroBannerHTML()</button>
         </div>
@@ -1008,7 +1008,7 @@
           primaryActive: !!bb.heroSubmitted
         })}
         <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
-          <span class="bb-spec-pill">.hero-float-card × 4 · фото Ленских столбов, сияющая звезда, орбита и СБП-матч</span>
+          <span class="bb-spec-pill">.hero-float-card × 4 · 4 живые фотографии без плашек + параллакс</span>
           <span class="bb-spec-pill confirm">Пилюля CTA: «Найти ниже рынка» (.hero-cta-primary)</span>
           <span class="bb-spec-pill">30% дешевле рынка · 2 480+ анкет · 24/7 (анимация счёта)</span>
         </div>

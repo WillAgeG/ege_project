@@ -350,6 +350,9 @@
     if (EGE.kit && typeof EGE.kit.animateHeroCounters === "function") {
       EGE.kit.animateHeroCounters(typeof document !== "undefined" ? document : null);
     }
+    if (EGE.kit && typeof EGE.kit.initHeroFloaters === "function") {
+      EGE.kit.initHeroFloaters();
+    }
     syncMobileSticky();
     const ui = getUi();
     const TDATA = getTDATA();

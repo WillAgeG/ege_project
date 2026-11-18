@@ -392,7 +392,7 @@
     const isTutor = role === "tutor";
     return `<div class="bb-mock-app-shell">
       <aside class="bb-mock-app-side">
-        <div class="row" style="gap:8px;align-items:center">${renderMark()}<b style="font-size:13px">Вектор ЕГЭ</b></div>
+        <div class="row" style="gap:8px;align-items:center">${renderMark()}<b style="font-size:14px;font-weight:500">Вектор</b></div>
         <div class="stack" style="gap:4px">
           ${(isTutor ? ["Заявки (3)", "Календарь", "Мои ученики", "Ученики ищут", "Профиль"] : ["Тесты ЕГЭ", "Справочник", "Репетиторы", "Учёба", "Показатели"]).map((lbl, idx) => `<div class="bb-mock-side-item${idx === (isTutor ? 0 : 2) ? " is-on" : ""}">${esc(lbl)}</div>`).join("")}
         </div>
@@ -437,7 +437,7 @@
 
     return `<div class="bb-mock-landing-mobile">
       <div class="bb-mock-m-header">
-        <div class="row" style="gap:6px;align-items:center">${renderMark()}<b style="font-size:13.5px">Вектор ЕГЭ</b></div>
+        <div class="row" style="gap:6px;align-items:center">${renderMark()}<b style="font-size:14px;font-weight:500">Вектор</b></div>
         <div class="row" style="gap:6px">
           <span class="bb-spec-pill">Якутск</span>
           <button type="button" class="btn soft sm" data-a="bb-demo-toast">Войти</button>

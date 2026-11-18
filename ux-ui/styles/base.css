@@ -125,9 +125,9 @@ p { margin: 0; }
 .brand-name { display: inline-flex; align-items: center; gap: 8px; min-width: 0; white-space: nowrap; }
 .brand-wordmark-wrap { display: inline-flex; align-items: center; flex: none; }
 .brand-wordmark {
-  font-family: var(--font-display); font-weight: 600; font-size: 21px; line-height: 1.05;
-  letter-spacing: -.03em; height: auto; width: auto;
-  display: inline-flex; align-items: baseline; gap: 5px; flex: none;
+  font-family: "Google Sans", "Outfit", var(--font-display); font-weight: 500; font-size: 23px; line-height: 1;
+  letter-spacing: -.02em; height: auto; width: auto;
+  display: inline-flex; align-items: center; flex: none;
   color: var(--wm-ink);
 }
 .brand-wordmark .wm-ege { color: var(--wm-ink); opacity: .94; }
@@ -245,7 +245,7 @@ p { margin: 0; }
   .topbar-actions { display: flex; align-items: center; gap: 6px; flex: none; }
   .topbar .brand-mark { width: 32px; height: 32px; border-radius: 0; flex: none; }
   .topbar .brand-mark svg { width: 32px; height: 32px; }
-  .topbar .brand-wordmark { font-size: 19px; height: auto; }
+  .topbar .brand-wordmark { font-size: 20px; height: auto; }
   .topbar .sync { max-width: 170px; }
   .topbar .sync span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
@@ -254,7 +254,7 @@ p { margin: 0; }
   .topbar .brand-lockup { gap: 6px; }
   .topbar .brand-mark { width: 28px; height: 28px; }
   .topbar .brand-mark svg { width: 28px; height: 28px; }
-  .topbar .brand-wordmark { font-size: 17px; height: auto; }
+  .topbar .brand-wordmark { font-size: 18px; height: auto; }
   .topbar .brand-tag { display: none; }
   .topbar-actions { gap: 4px; }
   .topbar-actions .icon-btn { width: 28px; height: 28px; }
@@ -892,7 +892,7 @@ body[data-auth="1"] .main {
 .auth-brand { justify-items: center; text-align: center; display: grid; gap: 8px; }
 .auth-brand .brand-mark { width: 56px; height: 56px; border-radius: 0; }
 .auth-brand .brand-mark svg { width: 56px; height: 56px; }
-.auth-brand .brand-wordmark { font-size: 24px; height: auto; }
+.auth-brand .brand-wordmark { font-size: 26px; height: auto; }
 .auth-perks { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 2px; }
 .auth-card { width: 100%; box-shadow: var(--shadow); }
 .auth-sep { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; color: var(--muted); font-size: 12.5px; }

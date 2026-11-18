@@ -58,23 +58,26 @@
               ? `≈ ${lessons} ${plural(lessons, "урок", "урока", "уроков")} по ${rate} ₽/ч с баланса`
               : "Тесты, конспекты и огромная база репетиторов")));
       return `<article class="card pad-lg plan-card${p.featured ? " featured" : ""}${p.super ? " super" : ""}${picked ? " picked" : ""}">
-        <div class="stack" style="gap:10px">
-          <div class="row between" style="gap:8px;flex-wrap:wrap">
+        <div class="plan-card-head">
+          <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
             <span class="chip ${p.super || p.featured ? "accent" : (p.kind === "ai" ? "pro" : (p.balance ? "leaf" : ""))}">${esc(p.badge)}</span>
             ${picked ? '<span class="chip good">Выбран сейчас</span>' : ""}
           </div>
-          <div>
-            <h3 class="h2">${esc(p.name)}</h3>
-            <div class="plan-price num" style="margin-top:6px">${esc(p.priceLabel)}</div>
-            <div class="small muted">${esc(p.period)}</div>
-          </div>
-          <p class="small ink2">${esc(p.tagline)}</p>
-          <div class="chip">${esc(note)}</div>
-          <ul class="plan-feats">${p.features.map((f) => `<li><span>${esc(f)}</span></li>`).join("")}</ul>
+          <h3 class="h2 plan-title">${esc(p.name)}</h3>
+          <p class="small ink2 plan-tagline">${esc(p.tagline)}</p>
         </div>
-        <div class="stack" style="gap:8px">
-          <button type="button" class="btn${picked && hasMinBalance(st) ? " is-confirmed" : (p.featured || p.super ? "" : " soft")}" data-a="mkt-plan" data-id="${p.id}"${picked && hasMinBalance(st) ? ' aria-current="true"' : ""}>${picked && hasMinBalance(st) ? "✓ СБП-баланс активен · " + st.balance.toLocaleString("ru-RU") + " ₽" : esc(p.cta)}</button>
-          ${p.balance > 0 ? `<button type="button" class="link-btn small muted" data-a="go" data-v="fees" style="justify-self:start">Как работает СБП-эскроу и сборы →</button>` : ""}
+        <div class="plan-price-wrap">
+          <div class="plan-price num">${esc(p.priceLabel)}</div>
+          <div class="small muted">${esc(p.period)} · ${esc(note)}</div>
+        </div>
+        <div class="plan-cta-wrap">
+          <button type="button" class="btn plan-cta-pill${p.super || p.featured ? " is-gemini-grad" : " soft"}${picked && hasMinBalance(st) ? " is-confirmed" : ""}" data-a="mkt-plan" data-id="${p.id}"${picked && hasMinBalance(st) ? ' aria-current="true"' : ""}>${picked && hasMinBalance(st) ? "✓ СБП-баланс активен · " + st.balance.toLocaleString("ru-RU") + " ₽" : esc(p.cta)}</button>
+          ${p.balance > 0 ? `<button type="button" class="link-btn small muted" data-a="go" data-v="fees" style="justify-self:center">Как работает СБП-эскроу →</button>` : ""}
+        </div>
+        <div class="plan-sep" aria-hidden="true"></div>
+        <div class="plan-feats-wrap">
+          <div class="plan-feats-head">Что входит:</div>
+          <ul class="plan-feats">${p.features.map((f) => `<li><span>${esc(f)}</span></li>`).join("")}</ul>
         </div>
       </article>`;
     }).join("");
@@ -87,14 +90,12 @@
     ];
 
     return `<section class="land-sec" id="land-plans" aria-label="Тарифы и СБП-баланс">
-      <div class="land-sec-head">
-        <div>
-          <div class="eyebrow">Только СБП · 0% карточных наценок · Поурочный эскроу</div>
-          <h2 class="h2">Гибкая линейка: от ИИ-тренажёра 390 ₽ до Интенсива 8 900 ₽</h2>
-          <p class="small muted">Оплата напрямую через СБП (АЭБ, СберБанк, Т-Банк, ВТБ) без карточных наценок. Пробный урок по умолчанию — <b>490 ₽</b> (или бесплатно по выбору преподавателя), далее любые пополнения от <b>100 ₽</b>. <a href="/fees" data-a="go" data-v="fees" style="color:var(--accent)">Подробнее о платёжке и правилах →</a></p>
-        </div>
-        <div class="row" style="gap:6px;flex-wrap:wrap">
-          <span class="small muted">Ставка для расчёта:</span>
+      <div class="land-sec-head is-gemini-center">
+        <div class="eyebrow">Только СБП · Поурочный эскроу · Прозрачные тарифы</div>
+        <h2 class="h2 gemini-plans-h2">Больше возможностей с <span class="gemini-grad-word">Вектор</span></h2>
+        <p class="small muted gemini-plans-sub">Гибкая линейка без карточных наценок по СБП: пробный урок <b>490 ₽</b> (или бесплатно у преподавателя), далее любые пополнения от <b>100 ₽</b>. <a href="/fees" data-a="go" data-v="fees" style="color:var(--accent)">Подробнее о платёжке и правилах →</a></p>
+        <div class="gemini-rate-tabs" role="group" aria-label="Ставка для расчёта уроков">
+          <span class="small muted" style="padding:0 8px">Ставка:</span>
           ${rates.map((r) => `<button type="button" class="chip-btn${rate === r ? " on" : ""}" data-a="mkt-calc" data-rate="${r}">${r} ₽/ч</button>`).join("")}
         </div>
       </div>

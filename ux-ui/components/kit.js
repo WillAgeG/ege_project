@@ -40,7 +40,7 @@
     { id: "logo", targetId: "bb-logo", cat: "brand", title: "Адаптивный логотип + SVG Pack", api: "EGE.ui.brandLockupHTML() / brandLogoSVG()", css: ".brand-lockup .brand-mark .brand-wordmark", desc: "6-лучевая цветная звезда в стиле Gemini (#4285F4 · #EA4335 · #FBBC04 · #34A853) в светлой и тёмной темах + плавное вращение на :hover." },
     { id: "surfaces", targetId: "bb-surfaces", cat: "brand", title: "Поверхности, WCAG-контраст и токены", api: "EGE.hh.priceHeadlineHTML(market, offer, true)", css: ".hh-price-old .hh-price-now .diff-tag", desc: "Белый, Чёрный OLED, Синий hh, Золото Саха #C59B5F (--gold), пары контраста AA/AAA и экспорт :root CSS / tokens.json." },
     { id: "fonts", targetId: "bb-fonts", cat: "brand", title: "Типографика Inter + IBM Plex Mono", api: "--font-display / --font-mono / --shadow", css: ".h1 .h2 .small .eyebrow .num", desc: "Иерархия шрифтов, табличные цифры, шкала отступов 4 px, радиусы и 3 уровня теней." },
-    { id: "hero", targetId: "bb-hero-banner", cat: "hero", title: "Hero-экран в стиле Gemini · 4 визуальные карточки", api: "EGE.kit.heroBannerHTML({ ... })", css: ".land-hero-banner .is-gemini-hero .hero-float-card .hero-cta-primary", desc: "Чистая витрина с 4 карточками, крупной центрированной типографикой, синей пилюлей «Найти ниже рынка», 5 текстами и анимацией KPI." },
+    { id: "hero", targetId: "bb-hero-banner", cat: "hero", title: "Hero-экран в стиле Gemini · 4 живые фотографии", api: "EGE.kit.heroBannerHTML({ ... })", css: ".land-hero-banner .is-gemini-hero .hero-float-card .hero-float-drift .hero-cta-primary", desc: "Чёрный #000 Hero-экран с 4 плавающими фотографиями (учёба, книга, конспект, онлайн-урок) без плашек и плавным переходом в белый #FFF." },
     { id: "sakha", targetId: "bb-yakutia", cat: "sakha", title: "Якутские кнопки-узоры Оһуор", api: "EGE.kit.sakhaButtonsHTML({ ... })", css: ".sakha-medallion-btn .sakha-diamond-btn .btn.sakha-pattern", desc: "Күн Оһуор, Сулус и узорная кнопка .btn.sakha-pattern без обрезанных углов." },
     { id: "buttons", targetId: "bb-buttons", cat: "controls", title: "Кнопки отклика, 40 иконок и золотой CTA", api: "EGE.hh.sakhaBidInnerHTML(sent, price) / .btn.gold", css: ".btn.sakha-pattern .btn.gold .is-confirmed .bb-icon-tile", desc: "Плавный .is-confirmed, золотая .btn.gold (#C59B5F), 40 SVG-иконок 1.8 px и оранжевые бейджи." },
     { id: "forms", targetId: "bb-forms", cat: "controls", title: "Формы, Мультивыбор (.hh-multi) и выбор роли", api: "EGE.hh.hhSelectHTML() / hhMultiSelectHTML() / authCard()", css: ".hh-select .hh-multi .hh-seg .switch", desc: "Одиночный и множественный выбор, роль «Как ученик / Как преподаватель» и поля с ошибкой." },
@@ -100,37 +100,25 @@
     const primaryAction = opts.primaryAction || (isDemo ? "bb-hero-primary" : "land-scroll");
     const primaryTarget = opts.primaryTarget || "land-market";
     const feesAction = opts.feesAction || "go";
-    const brandStarHTML = (EGE.ui && typeof EGE.ui.brandMarkHTML === "function") ? EGE.ui.brandMarkHTML() : "";
+    const assetBase = opts.assetBase || ((typeof root.EGE_HOST === "object" && root.EGE_HOST && root.EGE_HOST.uikitStandalone) ? "assets/" : "/assets/");
+    const floaters = [
+      { cls: "is-c1", src: assetBase + "hero-tutor-student.jpg", dur: "9s", delay: "0s", fx: "1", depth: "0.08", enter: "80ms" },
+      { cls: "is-c2", src: assetBase + "hero-book-pages.jpg", dur: "12s", delay: "-1.8s", fx: "-1", depth: "0.14", enter: "180ms" },
+      { cls: "is-c3", src: assetBase + "hero-study-notes.jpg", dur: "10.5s", delay: "-3.4s", fx: "1", depth: "0.11", enter: "280ms" },
+      { cls: "is-c4", src: assetBase + "hero-laptop-call.jpg", dur: "13s", delay: "-5.1s", fx: "-1", depth: "0.16", enter: "380ms" }
+    ];
 
-    return `<section class="land-hero-banner is-gemini-hero" aria-label="Главный экран Вектор ЕГЭ">
-      <div class="hero-float-card is-c1" aria-hidden="true">
-        <img class="hero-banner-bg" src="/assets/lena-pillars.jpg" alt="" decoding="sync">
-        <div class="hero-float-scrim"></div>
-        <span class="hero-float-badge">−30% к рынку</span>
-      </div>
-      <div class="hero-float-card is-c2" aria-hidden="true">
-        <div class="hero-float-aura"></div>
-        <div class="hero-float-emblem">${brandStarHTML}</div>
-        <span class="hero-float-badge">±50 ₽/ч · Своя ставка</span>
-      </div>
+    return `<section class="land-hero-banner is-gemini-hero" aria-label="Главный экран Вектор">
+      ${floaters.map((f) => `<div class="hero-float-card ${f.cls}" style="--float-dur:${f.dur};--float-delay:${f.delay};--fx:${f.fx};--depth:${f.depth};--enter-delay:${f.enter}" data-float-depth="${f.depth}" aria-hidden="true">
+        <div class="hero-float-drift">
+          <img class="hero-float-photo" src="${esc(f.src)}" alt="" loading="eager" decoding="async">
+        </div>
+      </div>`).join("\n      ")}
       <div class="hero-banner-top">
         <h1 class="${isDemo ? "h2" : "hero-banner-h1"}">${esc(copy.h1)}</h1>
         <p class="hero-banner-sub">${esc(copy.sub)}</p>
         <div class="hero-banner-ctas" role="group" aria-label="Главное действие">
           <button type="button" class="btn hero-cta-primary${primaryActive ? " is-confirmed" : ""}" data-a="${esc(primaryAction)}" data-target="${esc(primaryTarget)}">${primaryActive ? "✓ Открыт каталог анкет" : "Найти ниже рынка"}</button>
-        </div>
-      </div>
-      <div class="hero-float-card is-c3" aria-hidden="true">
-        <svg class="hero-float-orb" viewBox="0 0 160 120" fill="none"><circle cx="80" cy="56" r="42" stroke="rgba(66,133,244,.32)" stroke-width="1.2" stroke-dasharray="4 4"/><circle cx="80" cy="56" r="26" stroke="rgba(251,188,4,.36)" stroke-width="1.2"/><circle cx="116" cy="34" r="5" fill="#4285f4"/><circle cx="52" cy="76" r="4" fill="#ea4335"/><circle cx="102" cy="82" r="3.5" fill="#34a853"/></svg>
-        <div class="hero-float-stat"><b>90+</b><span>баллов ЕГЭ · МГУ / МФТИ</span></div>
-        <span class="hero-float-badge">Пробный 490 ₽</span>
-      </div>
-      <div class="hero-float-card is-c4" aria-hidden="true">
-        <div class="hero-float-match">
-          <span class="hero-float-subj">Английский · Химия</span>
-          <span class="hero-float-old num">1 800 ₽</span>
-          <b class="hero-float-now num">1 200 ₽/ч</b>
-          <span class="hero-float-ok">✓ СБП эскроу</span>
         </div>
       </div>
       <div class="hero-banner-foot">
@@ -142,6 +130,67 @@
         <p class="hero-banner-note">Самая большая база проверенных репетиторов — назначай свою цену за урок · <a href="/fees" data-a="${esc(feesAction)}" data-v="fees">безопасная оплата СБП</a>.</p>
       </div>
     </section>`;
+  }
+
+  let _floatersBound = false;
+  let _floatPointerX = 0;
+
+  function updateHeroFloatersFrame() {
+    try {
+      if (typeof document === "undefined" || typeof window === "undefined") return;
+      const reduced = (document.documentElement && document.documentElement.classList && document.documentElement.classList.contains("reduced-motion")) ||
+        (typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+      const sy = typeof window.scrollY === "number" ? window.scrollY : 0;
+      const cards = typeof document.querySelectorAll === "function" ? document.querySelectorAll(".land-page:not(#brandbook-page) [data-float-depth]") : [];
+      cards.forEach((el) => {
+        if (!el || !el.style || typeof el.style.setProperty !== "function") return;
+        if (reduced) {
+          el.style.setProperty("--px", "0px");
+          el.style.setProperty("--py", "0px");
+          return;
+        }
+        const depth = Math.max(0.04, Math.min(0.24, Number(el.getAttribute && el.getAttribute("data-float-depth")) || 0.1));
+        const fx = el.classList && (el.classList.contains("is-c2") || el.classList.contains("is-c4")) ? -1 : 1;
+        const py = Math.max(-46, Math.min(20, Math.round(-sy * depth * 0.45 * 10) / 10));
+        const px = Math.round(_floatPointerX * fx * depth * 72 * 10) / 10;
+        el.style.setProperty("--px", px + "px");
+        el.style.setProperty("--py", py + "px");
+      });
+      const landPage = typeof document.querySelector === "function" ? document.querySelector(".land-page:not(#brandbook-page)") : null;
+      if (landPage && typeof landPage.querySelector === "function") {
+        const topbar = landPage.querySelector(".land-top");
+        const heroEl = landPage.querySelector(":scope > .land-hero-banner") || landPage.querySelector(".land-hero-banner");
+        if (topbar && topbar.classList && heroEl && typeof heroEl.getBoundingClientRect === "function") {
+          const rect = heroEl.getBoundingClientRect();
+          const pastHero = rect.bottom <= 74;
+          topbar.classList.toggle("is-scrolled-light", pastHero);
+        }
+      }
+    } catch (e) { /* игнор без DOM */ }
+  }
+
+  function initHeroFloaters() {
+    try {
+      if (typeof window === "undefined" || typeof document === "undefined") return;
+      updateHeroFloatersFrame();
+      if (_floatersBound || typeof window.addEventListener !== "function") return;
+      _floatersBound = true;
+      let rafPending = false;
+      const scheduleFrame = () => {
+        if (rafPending) return;
+        rafPending = true;
+        const run = () => { rafPending = false; updateHeroFloatersFrame(); };
+        if (typeof requestAnimationFrame === "function") requestAnimationFrame(run);
+        else run();
+      };
+      window.addEventListener("scroll", scheduleFrame, { passive: true });
+      window.addEventListener("resize", scheduleFrame, { passive: true });
+      window.addEventListener("pointermove", (ev) => {
+        if (!ev || typeof window.innerWidth !== "number" || window.innerWidth < 760) return;
+        _floatPointerX = ((ev.clientX / Math.max(1, window.innerWidth)) - 0.5) * 2;
+        scheduleFrame();
+      }, { passive: true });
+    } catch (e) { /* игнор без DOM */ }
   }
 
   function animateHeroCounters(scope) {
@@ -932,6 +981,7 @@
     CATALOG_ITEMS,
     HERO_COPY_VARIANTS,
     animateHeroCounters,
+    initHeroFloaters,
     heroBannerHTML,
     searchStripHTML,
     sentNoticeHTML,

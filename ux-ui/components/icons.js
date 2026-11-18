@@ -191,8 +191,8 @@
 
   const BRAND_WORDMARK_HTML =
     '<span class="brand-wordmark-wrap">' +
-    '<span class="brand-wordmark" aria-hidden="true">Вектор <span class="wm-ege">ЕГЭ</span></span>' +
-    '<span class="sr">Вектор ЕГЭ</span>' +
+    '<span class="brand-wordmark" aria-hidden="true">Вектор</span>' +
+    '<span class="sr">Вектор</span>' +
     "</span>";
 
   function brandLockupHTML(opts) {
@@ -206,8 +206,7 @@
   function brandLogoSVG(surface, kind) {
     const mode = surface === "dark" || surface === "blue" ? surface : "light";
     const isLockup = kind === "lockup";
-    const wmInk = mode === "light" ? "#0e1116" : "#ffffff";
-    const wmAccent = mode === "blue" ? "#ffffff" : (mode === "light" ? "#0e1116" : "#ffffff");
+    const wmInk = mode === "light" ? "#1f1f1f" : "#ffffff";
     const gid = "vektor-svg-" + mode + (isLockup ? "-l" : "");
     const defs = mode === "blue" ? "" : brandMarkDefsSVG(gid);
     const bgHex = mode === "dark" ? "#0b0d12" : (mode === "blue" ? "#0070ff" : "#ffffff");
@@ -224,8 +223,7 @@
     }
     const lockupCanvas = `<rect width="260" height="72" rx="16" fill="${bgHex}"/>`;
     const wordText =
-      `<text x="80" y="45" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="27" font-weight="600" letter-spacing="-0.6" fill="${wmInk}">` +
-      `Вектор <tspan fill="${wmAccent}">ЕГЭ</tspan></text>`;
+      `<text x="80" y="45" font-family="Google Sans, Outfit, Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="30" font-weight="500" letter-spacing="-0.5" fill="${wmInk}">Вектор</text>`;
     return `<svg xmlns="http://www.w3.org/2000/svg" width="260" height="72" viewBox="0 0 260 72" fill="none">${defs}${lockupCanvas}<g transform="translate(8, 4)">${starLayers}</g>${wordText}</svg>`;
   }
 
