@@ -18,6 +18,36 @@
   } = EGE.kit;
 
   let _ctx = {};
+  let _stickyObserver = null;
+  let _heroCopyIdx = (() => {
+    try {
+      const variants = (EGE.kit && Array.isArray(EGE.kit.HERO_COPY_VARIANTS)) ? EGE.kit.HERO_COPY_VARIANTS : [];
+      const total = variants.length || 5;
+      if (typeof sessionStorage !== "undefined" && sessionStorage && typeof sessionStorage.getItem === "function") {
+        const raw = sessionStorage.getItem("vektor:hero-copy-idx");
+        const next = raw == null ? 0 : ((Number(raw) + 1) % total);
+        sessionStorage.setItem("vektor:hero-copy-idx", String(next));
+        return next;
+      }
+    } catch (e) { /* игнор без sessionStorage */ }
+    return 0;
+  })();
+
+  function getHeroVariant() {
+    return _heroCopyIdx;
+  }
+
+  function nextHeroVariant() {
+    const variants = (EGE.kit && Array.isArray(EGE.kit.HERO_COPY_VARIANTS)) ? EGE.kit.HERO_COPY_VARIANTS : [];
+    const total = variants.length || 5;
+    _heroCopyIdx = (_heroCopyIdx + 1) % total;
+    try {
+      if (typeof sessionStorage !== "undefined" && sessionStorage && typeof sessionStorage.setItem === "function") {
+        sessionStorage.setItem("vektor:hero-copy-idx", String(_heroCopyIdx));
+      }
+    } catch (e) { /* игнор */ }
+    return _heroCopyIdx;
+  }
 
   function configure(ctx) {
     _ctx = ctx || {};
@@ -66,9 +96,10 @@
     };
     const market = tutor.marketPrice || Math.round(((tutor.price || 1200) * 1.45) / 50) * 50;
     const tutorPrice = tutor.price || 1200;
-    const minOffer = Math.max(500, Math.round(((tutor.minFair || tutorPrice * 0.72) - 50) / 50) * 50);
-    const maxOffer = Math.max(market + 600, tutorPrice + 600);
-    const offer = Math.max(minOffer, Math.min(maxOffer, Number(m.offer) || preset.defaultOffer || tutorPrice));
+    const minOffer = 0;
+    const maxOffer = 99999;
+    const rawOffer = m.offer != null ? Number(m.offer) : (preset.defaultOffer || tutorPrice);
+    const offer = Math.max(minOffer, Math.min(maxOffer, Number.isFinite(rawOffer) ? rawOffer : (preset.defaultOffer || tutorPrice)));
     const belowMarketRub = Math.max(0, market - offer);
     const aboveMarketRub = Math.max(0, offer - market);
     const belowTutorRub = Math.max(0, tutorPrice - offer);
@@ -293,7 +324,33 @@
     }, delayMs || 280);
   }
 
+  function syncMobileSticky() {
+    try {
+      if (typeof document === "undefined" || typeof document.getElementById !== "function") return;
+      const bar = document.getElementById("land-mobile-sticky");
+      const mktSec = document.getElementById("land-market");
+      if (!bar || !mktSec || !bar.classList) return;
+      if (_stickyObserver && typeof _stickyObserver.disconnect === "function") {
+        _stickyObserver.disconnect();
+        _stickyObserver = null;
+      }
+      if (typeof IntersectionObserver === "function") {
+        _stickyObserver = new IntersectionObserver((entries) => {
+          const entry = entries && entries[0];
+          if (!entry || !bar.classList) return;
+          const pastTop = entry.boundingClientRect && entry.boundingClientRect.top <= (typeof window !== "undefined" ? window.innerHeight * 0.82 : 600);
+          bar.classList.toggle("is-hidden", !!(entry.isIntersecting || pastTop));
+        }, { threshold: 0.02 });
+        _stickyObserver.observe(mktSec);
+      }
+    } catch (e) { /* игнор */ }
+  }
+
   function syncHeroMotion() {
+    if (EGE.kit && typeof EGE.kit.animateHeroCounters === "function") {
+      EGE.kit.animateHeroCounters(typeof document !== "undefined" ? document : null);
+    }
+    syncMobileSticky();
     const ui = getUi();
     const TDATA = getTDATA();
     const stage = typeof document.getElementById === "function" ? document.getElementById("hero-motion-stage") : null;
@@ -396,14 +453,15 @@
     const TDATA = getTDATA();
     const s = ui.savings || (ui.savings = { freq: 2, marketRate: 1350, offerRate: 1000 });
     const freq = Math.max(1, Math.min(4, Number(s.freq) || 2));
-    const mktRate = Math.max(1000, Math.min(3500, Number(s.marketRate) || 1350));
-    const offRate = Math.max(600, Math.min(mktRate - 100, Number(s.offerRate) || 1000));
+    const mktRate = Math.max(0, Math.min(99999, s.marketRate != null ? Number(s.marketRate) : 1350));
+    const cap = Math.max(0, mktRate - 50);
+    const offRate = Math.max(0, Math.min(cap, s.offerRate != null ? Number(s.offerRate) : 1000));
     const monthMkt = freq * 4 * mktRate;
     const monthOff = freq * 4 * offRate;
     const monthSave = Math.max(0, monthMkt - monthOff);
     const yearSave = monthSave * 9;
-    const pct = Math.round((monthSave / Math.max(1, monthMkt)) * 100);
-    const barPct = Math.max(18, Math.min(96, Math.round((monthOff / Math.max(1, monthMkt)) * 100)));
+    const pct = mktRate > 0 ? Math.round((monthSave / Math.max(1, monthMkt)) * 100) : 0;
+    const barPct = mktRate > 0 ? Math.max(18, Math.min(96, Math.round((monthOff / Math.max(1, monthMkt)) * 100))) : 18;
     const split = TDATA && TDATA.commissionSplit
       ? TDATA.commissionSplit(offRate)
       : { payout: Math.round(offRate * 0.95), fee: Math.round(offRate * 0.05), total: offRate, pct: 5 };
@@ -417,7 +475,7 @@
       <div class="land-sec-head">
         <div>
           <div class="eyebrow">Ниже рынка · честная экономика</div>
-          <h2 class="h2">Почему занятия здесь обходятся дешевле на 15–30%</h2>
+          <h2 class="h2">Почему занятия здесь обходятся дешевле на 30%</h2>
           <p class="small muted">Онлайн-школы закладывают до 35% наценки. Мы собираем анкеты с Доски Ykt, Telegram, WhatsApp, MAX и других сервисов — предлагай свою ставку напрямую без лишних переплат.</p>
         </div>
       </div>
@@ -541,10 +599,10 @@
           ${tbl}
         </div>` : `<div class="empty">Выбери предмет для просмотра конспекта.</div>`}`;
     } else if (dm.tab === "calc") {
-      const rate = Math.max(500, Math.min(3000, Number(dm.bidRate) || 1000));
+      const rate = Math.max(0, Math.min(99999, dm.bidRate != null ? Number(dm.bidRate) : 1000));
       const rates = [800, 1000, 1200, 1400];
-      const n5 = Math.max(1, Math.floor(4590 / rate));
-      const n10 = Math.max(1, Math.floor(8900 / rate));
+      const n5 = rate > 0 ? Math.max(1, Math.floor(4590 / rate)) : 0;
+      const n10 = rate > 0 ? Math.max(1, Math.floor(8900 / rate)) : 0;
       const sampleTut = TDATA && TDATA.LIST[0];
       const tutorBase = sampleTut ? sampleTut.price : 1200;
       const marketEx = sampleTut && sampleTut.marketPrice ? sampleTut.marketPrice : 1550;
@@ -573,7 +631,7 @@
               <div class="hh-price-stepper compact demo-rate-stepper">
                 <button type="button" class="hh-step-btn" data-a="demo-step" data-step="-50" aria-label="Снизить ставку на 50 рублей">−50 ₽</button>
                 <label class="hh-step-readout is-inline" for="demo-rate-inp">
-                  <input class="demo-rate-input num" id="demo-rate-inp" type="number" min="500" max="3000" step="50" value="${rate}" aria-label="Своя ставка в рублях">
+                  <input class="demo-rate-input num" id="demo-rate-inp" type="number" min="0" max="99999" step="50" value="${rate}" aria-label="Своя ставка в рублях">
                   <span class="hh-step-unit">₽/ч</span>
                 </label>
                 <button type="button" class="hh-step-btn" data-a="demo-step" data-step="50" aria-label="Повысить ставку на 50 рублей">+50 ₽</button>
@@ -666,9 +724,9 @@
     const TDATA = getTDATA();
     const ui = getUi();
     const dm = ui.demo || {};
-    const rate = Math.max(500, Math.min(3000, Number(dm.bidRate) || 1000));
-    const n5 = Math.max(1, Math.floor(4590 / rate));
-    const n10 = Math.max(1, Math.floor(8900 / rate));
+    const rate = Math.max(0, Math.min(99999, dm.bidRate != null ? Number(dm.bidRate) : 1000));
+    const n5 = rate > 0 ? Math.max(1, Math.floor(4590 / rate)) : 0;
+    const n10 = rate > 0 ? Math.max(1, Math.floor(8900 / rate)) : 0;
     const sampleTut = TDATA && TDATA.LIST[0];
     const tutorBase = sampleTut ? sampleTut.price : 1200;
     const marketEx = sampleTut && sampleTut.marketPrice ? sampleTut.marketPrice : 1550;
@@ -740,17 +798,17 @@
   const LAND_FAQ_ITEMS = [
     {
       q: "Как работает СБП-платёжка и когда реально списываются деньги с баланса?",
-      a: "Мы принимаем оплату только через СБП (АЭБ, СберБанк, Т-Банк, ВТБ) — без привязки банковских карт и карточных наценок. Пополненный баланс (990 / 2 190 / 4 590 / 8 900 ₽) хранится на защищённом эскроу-счёте: деньги бронируются на ближайший урок и переводятся преподавателю только после проведённого занятия.",
+      a: "Мы принимаем оплату только через СБП (АЭБ, СберБанк, Т-Банк, ВТБ) — без привязки банковских карт и карточных наценок. Пополненный баланс (490 / 2 190 / 4 590 / 8 900 ₽) хранится на защищённом эскроу-счёте: деньги бронируются на ближайший урок и переводятся преподавателю только после проведённого занятия.",
       hasFeesLink: true
     },
     {
-      q: "Почему первый пробный урок стоит 990 ₽ за 60 минут, а не «бесплатные 15 минут»?",
-      a: "Короткие 15-минутные созвоны часто превращаются в формальность без результата. Вместо этого в каждой анкете есть видео-визитка 60 сек до оплаты, а за 990 ₽ по СБП ученик получает полноценный часовой урок-диагностику ЕГЭ со 100% гарантией бесплатной замены преподавателя, если не совпал темп.",
+      q: "Сколько стоит пробный урок — 490 ₽ или бесплатно?",
+      a: "По умолчанию пробный урок 60 минут стоит всего 490 ₽ по СБП со 100% гарантией бесплатной замены преподавателя. При этом каждый преподаватель в своём кабинете может сделать пробный бесплатным (0 ₽), назначить свою цену или отключить пробный формат.",
       hasFeesLink: false
     },
     {
       q: "Когда открываются прямые кнопки WhatsApp, Telegram и MAX преподавателя?",
-      a: "Прямые контакты защищены шлюзом (Contact Escrow) и открываются автоматически в разделе «Учёба» сразу после бронирования слота (от 990 ₽). Так мы защищаем и родителей от спама, и преподавателей от пустых откликов без намерения учиться.",
+      a: "Прямые контакты защищены шлюзом (Contact Escrow) и открываются автоматически в разделе «Учёба» сразу после бронирования слота (от 490 ₽ или на бесплатном пробном). Так мы защищаем и родителей от спама, и преподавателей от пустых откликов без намерения учиться.",
       hasFeesLink: false
     },
     {
@@ -810,7 +868,7 @@
       ["18:00", "Вечер · 18:00"]
     ];
     const tierChips = [
-      ["below", "Ниже рынка −15..30%"],
+      ["below", "Ниже рынка −30%"],
       ["budget", "До 1 200 ₽/ч"],
       ["pro", "Профи выше рынка"]
     ];
@@ -932,7 +990,7 @@
 
   function trustUnderPlansHTML() {
     return trustStripHTML({
-      title: "СБП-эскроу без карточных наценок · 100% гарантия замены на пробном 990 ₽",
+      title: "СБП-эскроу без карточных наценок · 100% гарантия замены на пробном 490 ₽",
       desc: "Оплата по QR или кнопке банка (АЭБ, Сбер, Т-Банк, ВТБ) лежит на защищённом балансе и списывается поурочно. Контакты WA / TG / MAX открываются сразу после бронирования слота."
     });
   }
@@ -973,8 +1031,8 @@
     return heroBannerHTML({
       brandbookDemo: isDemo,
       catalogTotal,
-      primaryActive: isDemo ? !!bb.heroSubmitted : !!ui.heroBannerSubmitted,
-      betaActive: isDemo ? !!bb.heroBetaOn : !!ui.heroBetaActive
+      variantIdx: isDemo ? 0 : _heroCopyIdx,
+      primaryActive: isDemo ? !!bb.heroSubmitted : !!ui.heroBannerSubmitted
     });
   }
 
@@ -1019,23 +1077,15 @@
         <span class="hero-orb b" aria-hidden="true"></span>
         <section class="land-below-grid" id="land-motion-showcase">
           <div class="land-hero-copy">
-            <div class="row" style="gap:6px;flex-wrap:wrap">
-              <span class="chip accent">${icon("ohyorCross")}<span>Живой подбор · шаг ±50 ₽</span></span>
-              <span class="chip pro">Без комиссии при выборе</span>
-            </div>
-            <h2 class="land-h1" style="font-size:clamp(24px,3vw,33px)">Назначай свою цену <span class="land-h1-grad">в один клик</span> и смотри отклики</h2>
-            <p class="land-lead">Ниже баннера — интерактивный виджет выбора преподавателя: двигай ползунок удобного времени 10:00–20:00, нажимай −50 ₽ / +50 ₽ и нажимай узорную кнопку «Сөп · Предложить» с мгновенным подтверждением и уведомлением.</p>
+            <h2 class="land-h1" style="font-size:clamp(24px,3vw,33px)">Самая большая база репетиторов — <span class="land-h1-grad">ставь свою цену за урок</span></h2>
+            <p class="land-lead">Выбирай проверенного преподавателя напрямую без посредников: двигай ставку от 0 до 99 999 ₽/ч шагом ±50 ₽ и оплачивай занятия безопасно через СБП после подтверждения.</p>
             <div class="land-hero-ctas">
               <button type="button" class="btn" data-a="land-scroll" data-target="land-market">К каталогу анкет</button>
-              <button type="button" class="btn gold" data-a="land-scroll" data-target="land-demo">${icon("spark")}<span>Попробовать бета-тест</span></button>
-              <a class="btn soft" href="/student">Для ученика</a>
-              <a class="btn soft" href="/tutor">Для преподавателя</a>
-              ${inside ? `<button type="button" class="btn ghost" data-a="go" data-v="${ui.role === "tutor" ? "cabinet" : "tests"}">В кабинет</button>` : ""}
             </div>
             <div class="land-stats">
               <div class="land-stat"><b>${catalogTotal}+ анкет</b><span>Ykt, Telegram, WhatsApp, MAX</span></div>
-              <div class="land-stat"><b>Шаг ±50 ₽</b><span>Гибкая ставка ученика</span></div>
-              <div class="land-stat"><b>10:00 – 20:00</b><span>Почасовая сетка окон</span></div>
+              <div class="land-stat"><b>Шаг ±50 ₽</b><span>Ставка от 0 до 99 999 ₽/ч</span></div>
+              <div class="land-stat"><b>30% дешевле</b><span>Прямой отклик без посредников</span></div>
             </div>
           </div>
           ${heroMotionStageHTML()}
@@ -1050,13 +1100,13 @@
         <div class="land-sec-head">
           <div>
             <div class="eyebrow">Как это устроено</div>
-            <h2 class="h2">От видео-визитки и выбора часа до урока по СБП — без лишних созвонов</h2>
+            <h2 class="h2">От своей ставки в каталоге до урока по СБП — без лишних созвонов</h2>
           </div>
         </div>
         <div class="how-grid">
-          <div class="card how-card"><span class="how-num">01</span><b>Видео-визитка 60 сек в анкете</b><p class="small ink2">Собираем анкеты с Доски Ykt, Telegram, WhatsApp и MAX: смотришь подачу педагога до оплаты без пустых 15-минутных созвонов.</p></div>
-          <div class="card how-card"><span class="how-num">02</span><b>Слот 10:00–20:00 и шаг ±50 ₽</b><p class="small ink2">Выбираешь удобный час и предлагаешь свою ставку либо полноценный пробный урок 60 мин за 990 ₽ с гарантией замены.</p></div>
-          <div class="card how-card"><span class="how-num">03</span><b>Оплата по СБП в защищённый эскроу</b><p class="small ink2">Пополняешь баланс по СБП без карточных наценок — бронь слота сразу открывает WhatsApp, Telegram и MAX в «Учёбе».</p></div>
+          <div class="card how-card"><span class="how-num">01</span><b>Самая большая база анкет</b><p class="small ink2">Собираем проверенных преподавателей с Доски Ykt, Telegram, WhatsApp и MAX в одну понятную ленту с открытыми условиями.</p></div>
+          <div class="card how-card"><span class="how-num">02</span><b>Своя ставка от 0 до 99 999 ₽/ч</b><p class="small ink2">Выбираешь преподавателя и предлагаешь свою ставку шагом ±50 ₽ либо пробный урок за 490 ₽ (или бесплатно).</p></div>
+          <div class="card how-card"><span class="how-num">03</span><b>Оплата по СБП в защищённый эскроу</b><p class="small ink2">Пополняешь баланс по СБП без карточных наценок — бронь урока сразу открывает WhatsApp, Telegram и MAX в «Учёбе».</p></div>
           <div class="card how-card"><span class="how-num">04</span><b>Поурочное списание и отчёт родителю</b><p class="small ink2">Деньги переводятся преподавателю только после занятия, маме уходит отчёт в мессенджер, а замена работает в 1 клик.</p></div>
         </div>
       </section>
@@ -1073,7 +1123,7 @@
           <div class="land-sec-head">
             <div>
               <div class="eyebrow">Для преподавателей</div>
-              <h2 class="h2">Готовые ученики по СБП, видео-визитка 60 сек и «Верхняя полоса PRO»</h2>
+              <h2 class="h2">Готовые ученики по СБП, гибкий пробный от 0 ₽ и PRO-выделение</h2>
             </div>
             <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
               <a href="/tutor" class="btn ghost sm">Кабинет преподавателя →</a>
@@ -1084,11 +1134,11 @@
           <div class="tutor-perks-grid">
             <div class="tutor-perk-card">
               <span class="tutor-perk-ico" aria-hidden="true">${icon("clock")}</span>
-              <div class="stack" style="gap:4px"><b>Ученики после пробного 990 ₽</b><p class="small ink2">Никаких случайных контактов: заявки приходят с оплаченным балансом (990 / 2 190 / 4 590 / 8 900 ₽) и выбранным часом 10:00–20:00.</p></div>
+              <div class="stack" style="gap:4px"><b>Ученики после пробного 490 ₽ или бесплатно</b><p class="small ink2">Преподаватель сам задаёт стоимость пробного (по умолчанию 490 ₽, бесплатно 0 ₽ или без пробного): заявки приходят с подтверждённой ставкой.</p></div>
             </div>
             <div class="tutor-perk-card">
               <span class="tutor-perk-ico" aria-hidden="true">${icon("flame")}</span>
-              <div class="stack" style="gap:4px"><b>«Верхняя полоса PRO» и мини-группы</b><p class="small ink2">Закрепление наверху предмета в часы пик Якутска + право набирать мини-группы 3–5 чел. с доходом до ~2 015 ₽/ч чистыми.</p></div>
+              <div class="stack" style="gap:4px"><b>PRO-выделение и мини-группы</b><p class="small ink2">Мягкое синее выделение анкеты в каталоге без навязчивых баннеров + право набирать мини-группы 3–5 чел. с доходом до ~2 015 ₽/ч чистыми.</p></div>
             </div>
             <div class="tutor-perk-card">
               <span class="tutor-perk-ico" aria-hidden="true">${icon("shield")}</span>
@@ -1130,12 +1180,12 @@
         </div>
       </footer>
 
-      <div class="land-mobile-sticky" role="region" aria-label="Быстрый переход к подбору">
-        <div class="stack" style="gap:1px;min-width:0">
-          <b class="num" style="font-size:14px">От ${minSamplePrice.toLocaleString("ru-RU")} ₽/ч · ${catalogTotal}+ анкет</b>
-          <span class="small muted" style="font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Ставка ±50 ₽ · слоты 10:00–20:00</span>
+      <div class="land-mobile-sticky" id="land-mobile-sticky" role="region" aria-label="Быстрый переход к подбору">
+        <div class="land-mobile-sticky-copy">
+          <b class="num">Самая большая база · ${catalogTotal}+ анкет</b>
+          <span class="small muted num">Ставка 0–99 999 ₽/ч · дешевле на 30%</span>
         </div>
-        <button type="button" class="btn sm" style="flex:none" data-a="land-scroll" data-target="land-market">Подобрать →</button>
+        <button type="button" class="btn gold sm land-mobile-sticky-btn" data-a="land-scroll" data-target="land-market">Подобрать →</button>
       </div>
     </div>`;
   }
@@ -1143,6 +1193,9 @@
   EGE.views = EGE.views || {};
   EGE.views.landing = {
     configure,
+    getHeroVariant,
+    nextHeroVariant,
+    syncMobileSticky,
     MOTION_PRESETS,
     MOTION_ORDER,
     heroMotionMeta,

@@ -396,7 +396,9 @@
         expYears: 6,
         avgScore: 86,
         highScorers: 14,
-        trialFree: true,
+        trialMode: "paid",
+        trialPrice: 490,
+        trialFree: false,
         customSkills: "Задания ФИПИ 2027, №28 Генетика, разбор пробников, медвуз",
         price: 1200,
         minFair: 900,
@@ -471,6 +473,20 @@
       _cache.waSettings.channels = normalizeChannelList(_cache.waSettings.channels);
       _cache.profile.whatsapp = formatPhone(_cache.profile.whatsapp || def.profile.whatsapp);
       _cache.profile.telegram = formatTelegram(_cache.profile.telegram || def.profile.telegram);
+      if (!["paid", "free", "none"].includes(_cache.profile.trialMode)) {
+        _cache.profile.trialMode = saved.profile && saved.profile.trialFree === true ? "free" : "paid";
+      }
+      if (_cache.profile.trialMode === "none") {
+        _cache.profile.trialPrice = null;
+        _cache.profile.trialFree = false;
+      } else if (_cache.profile.trialMode === "free") {
+        _cache.profile.trialPrice = 0;
+        _cache.profile.trialFree = true;
+      } else {
+        const tp = Number(_cache.profile.trialPrice);
+        _cache.profile.trialPrice = Number.isFinite(tp) && tp > 0 ? Math.min(99999, Math.round(tp)) : 490;
+        _cache.profile.trialFree = false;
+      }
       _cache.lastAutoBumpAt = Number(_cache.lastAutoBumpAt || _cache.lastBumpAt) || def.lastAutoBumpAt;
       _cache.lastBumpAt = _cache.lastAutoBumpAt;
       _cache.lastManualBumpAt = Number(_cache.lastManualBumpAt) || 0;
@@ -594,7 +610,8 @@
   }
 
   function clampStep(val, delta, lo, hi) {
-    const cur = Math.round((Number(val) || lo) / 50) * 50;
+    const raw = (val != null && Number.isFinite(Number(val))) ? Number(val) : lo;
+    const cur = Math.round(raw / 50) * 50;
     return Math.max(lo, Math.min(hi, cur + delta));
   }
 
@@ -654,9 +671,12 @@
       timezone: p.timezone || "UTC+9",
       whatsapp: String(p.whatsapp || "79142100199").replace(/\D+/g, "") || "79142100199",
       telegram: p.telegram || "",
-      price: Number(p.price) || 1200,
-      minFair: Math.min(Number(p.price) || 1200, Number(p.minFair) || 900),
-      marketPrice: isPro ? Math.max(1150, Math.round((p.price * 0.85) / 50) * 50) : Math.round((p.price * 1.28) / 50) * 50,
+      price: p.price != null ? Number(p.price) : 1200,
+      minFair: Math.min(p.price != null ? Number(p.price) : 1200, p.minFair != null ? Number(p.minFair) : 900),
+      trialMode: ["paid", "free", "none"].includes(p.trialMode) ? p.trialMode : "paid",
+      trialPrice: p.trialMode === "none" ? null : (p.trialMode === "free" ? 0 : (Number(p.trialPrice) > 0 ? Math.min(99999, Math.round(Number(p.trialPrice))) : 490)),
+      trialFree: p.trialMode === "free",
+      marketPrice: isPro ? Math.max(1150, Math.round(((Number(p.price) || 1200) * 0.85) / 50) * 50) : Math.round(((Number(p.price) || 1200) * 1.28) / 50) * 50,
       tier: isPro ? "pro" : "budget",
       qualBadge: isPro ? "Профиль · Эксперт" : "Проверенная анкета",
       rating: 4.9,

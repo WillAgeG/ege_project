@@ -599,10 +599,25 @@
           </div>
         </div>
 
-        <label class="row" style="gap:8px;align-items:center;cursor:pointer">
-          <input type="checkbox" class="check" name="trialFree" data-tc="trialFree"${p.trialFree ? " checked" : ""}>
-          <span class="small"><b>Бесплатное знакомство 15 минут (0 ₽)</b> — повышает доверие и отклик учеников</span>
-        </label>
+        <div class="field">
+          <span class="label">Пробный урок для новых учеников (по умолчанию 490 ₽)</span>
+          <div class="hh-seg" role="group" aria-label="Формат пробного урока">
+            <button type="button" data-a="tc-trial-mode" data-v="paid" aria-pressed="${!p.trialMode || p.trialMode === "paid"}">По своей цене (490 ₽)</button>
+            <button type="button" data-a="tc-trial-mode" data-v="free" aria-pressed="${p.trialMode === "free"}">Бесплатно (0 ₽)</button>
+            <button type="button" data-a="tc-trial-mode" data-v="none" aria-pressed="${p.trialMode === "none"}">Без пробного</button>
+          </div>
+          ${(!p.trialMode || p.trialMode === "paid") ? `<div class="row" style="gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px">
+            <div class="hh-price-stepper compact" style="max-width:290px;flex:1 1 220px">
+              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="trialPrice" data-step="-50">−50 ₽</button>
+              <label class="hh-step-readout is-inline" for="tc-trial-price-inp">
+                <input class="demo-rate-input num" id="tc-trial-price-inp" name="trialPrice" data-tc="trialPrice" type="number" min="0" max="99999" step="50" value="${Number(p.trialPrice) > 0 ? Number(p.trialPrice) : 490}" style="max-width:78px">
+                <span class="hh-step-unit">₽</span>
+              </label>
+              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="trialPrice" data-step="50">+50 ₽</button>
+            </div>
+            <span class="small muted">0 ₽ автоматически сделает пробный бесплатным.</span>
+          </div>` : `<span class="small muted" style="margin-top:4px">${p.trialMode === "free" ? "На вашей карточке будет кнопка «Пробный · Бесплатно»." : "Кнопка пробного урока скрыта с вашей анкеты — сразу запись по ставке."}</span>`}
+        </div>
 
         <div class="bid-fee-row">${feeSplitHTML(p.price, TDATA)}</div>
         <span class="small muted">Чистая выплата после 5% сбора: <b class="num savings-gold-txt">${baseSplit.payout.toLocaleString("ru-RU")} ₽/ч</b>.</span>
@@ -1000,14 +1015,45 @@
       return true;
     }
 
-    if (act === "tc-rate-step") {
-      const which = d.which === "minFair" ? "minFair" : "price";
-      const step = Number(d.step) || 0;
-      if (which === "price") {
-        st.profile.price = clampStep(st.profile.price, step, 600, 3500);
-        if (st.profile.minFair > st.profile.price) st.profile.minFair = Math.max(500, st.profile.price - 50);
+    if (act === "tc-trial-mode") {
+      const m = ["paid", "free", "none"].includes(d.v) ? d.v : "paid";
+      st.profile.trialMode = m;
+      if (m === "none") {
+        st.profile.trialPrice = null;
+        st.profile.trialFree = false;
+      } else if (m === "free") {
+        st.profile.trialPrice = 0;
+        st.profile.trialFree = true;
       } else {
-        st.profile.minFair = clampStep(st.profile.minFair, step, 500, st.profile.price);
+        st.profile.trialPrice = Number(st.profile.trialPrice) > 0 ? Math.min(99999, Math.round(Number(st.profile.trialPrice))) : 490;
+        st.profile.trialFree = false;
+      }
+      syncPublishedTutor(st);
+      saveState();
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-rate-step") {
+      const which = d.which === "minFair" ? "minFair" : (d.which === "trialPrice" ? "trialPrice" : "price");
+      const step = Number(d.step) || 0;
+      if (which === "trialPrice") {
+        const base = Number(st.profile.trialPrice) > 0 ? Number(st.profile.trialPrice) : 490;
+        const nextTp = clampStep(base, step, 0, 99999);
+        if (nextTp === 0) {
+          st.profile.trialMode = "free";
+          st.profile.trialPrice = 0;
+          st.profile.trialFree = true;
+        } else {
+          st.profile.trialMode = "paid";
+          st.profile.trialPrice = nextTp;
+          st.profile.trialFree = false;
+        }
+      } else if (which === "price") {
+        st.profile.price = clampStep(st.profile.price, step, 0, 99999);
+        if (st.profile.minFair > st.profile.price) st.profile.minFair = Math.max(0, st.profile.price - 50);
+      } else {
+        st.profile.minFair = clampStep(st.profile.minFair, step, 0, st.profile.price);
       }
       syncPublishedTutor(st);
       saveState();
@@ -1018,8 +1064,8 @@
     if (act === "tc-req-step") {
       const step = Number(d.step) || 0;
       updateReq(id, (req) => {
-        const cur = Number(req.counterPrice || req.offerPrice) || st.profile.price;
-        req.counterPrice = clampStep(cur, step, 500, 4000);
+        const cur = req.counterPrice != null ? Number(req.counterPrice) : (req.offerPrice != null ? Number(req.offerPrice) : st.profile.price);
+        req.counterPrice = clampStep(cur, step, 0, 99999);
       });
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
       return true;
@@ -1312,7 +1358,7 @@
       const budget = Number(lead && lead.targetPrice) || st.profile.price;
       const cur = Number((st.leadCounterPrices && st.leadCounterPrices[id]) || (lead && lead.counterPrice) || budget) || budget;
       if (!st.leadCounterPrices || typeof st.leadCounterPrices !== "object") st.leadCounterPrices = {};
-      st.leadCounterPrices[id] = clampStep(cur, step, 500, 5000);
+      st.leadCounterPrices[id] = clampStep(cur, step, 0, 99999);
       saveState();
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
       return true;
@@ -1323,8 +1369,8 @@
       const leadsAll = TDATA && typeof TDATA.getStudentLeads === "function" ? TDATA.getStudentLeads() : [];
       const lead = leadsAll.find((x) => x.id === id);
       const budget = Number(lead && lead.targetPrice) || st.profile.price;
-      const rawRate = (st.leadCounterPrices && st.leadCounterPrices[id]) || (lead && lead.counterPrice) || budget;
-      const counterRate = Math.max(500, Math.min(5000, Math.round(Number(rawRate) || budget)));
+      const rawRate = (st.leadCounterPrices && st.leadCounterPrices[id] != null) ? st.leadCounterPrices[id] : ((lead && lead.counterPrice != null) ? lead.counterPrice : budget);
+      const counterRate = Math.max(0, Math.min(99999, Math.round(Number(rawRate) || 0)));
       if (!st.leadCounterPrices || typeof st.leadCounterPrices !== "object") st.leadCounterPrices = {};
       st.leadCounterPrices[id] = counterRate;
       const hit = TDATA && typeof TDATA.markStudentLeadResponded === "function" ? TDATA.markStudentLeadResponded(id) : null;
@@ -1423,10 +1469,10 @@
       const leadId = el.dataset.id || "";
       if (!leadId) return false;
       const num = Number(el.value);
-      if (!Number.isFinite(num) || num <= 0) return true;
+      if (!Number.isFinite(num) || num < 0) return true;
       if (!st.leadCounterPrices || typeof st.leadCounterPrices !== "object") st.leadCounterPrices = {};
-      const clamped = Math.max(500, Math.min(5000, Math.round(num)));
-      if (num >= 500 && num <= 5000) {
+      const clamped = Math.max(0, Math.min(99999, Math.round(num)));
+      if (num >= 0 && num <= 99999) {
         st.leadCounterPrices[leadId] = clamped;
         saveState();
       }
@@ -1436,7 +1482,7 @@
         const leadsAll = TDATA && typeof TDATA.getStudentLeads === "function" ? TDATA.getStudentLeads() : [];
         const lead = leadsAll.find((x) => x.id === leadId);
         const budget = Number(lead && lead.targetPrice) || st.profile.price;
-        const rate = num >= 500 && num <= 5000 ? clamped : Math.max(500, Math.min(5000, Math.round(num)));
+        const rate = clamped;
         const delta = rate - budget;
         const deltaLabel = delta === 0
           ? "= бюджету"
@@ -1513,6 +1559,15 @@
     else if (key === "expYears") p.expYears = Math.max(1, Math.min(50, Number(el.value) || 1));
     else if (key === "avgScore") p.avgScore = Math.max(40, Math.min(100, Number(el.value) || 80));
     else if (key === "highScorers") p.highScorers = Math.max(0, Math.min(500, Number(el.value) || 0));
+    else if (key === "trialPrice") {
+      const raw = Number(el.value);
+      if (Number.isFinite(raw)) {
+        const clamped = Math.max(0, Math.min(99999, Math.round(raw)));
+        p.trialPrice = clamped;
+        p.trialMode = clamped === 0 ? "free" : "paid";
+        p.trialFree = clamped === 0;
+      }
+    }
     else if (key === "trialFree") p.trialFree = !!el.checked;
     else if (key === "badge0" || key === "badge1") {
       if (!Array.isArray(p.customBadges)) p.customBadges = ["", ""];
@@ -1587,7 +1642,8 @@
       if (!sName) return true;
       const dowObj = DAY_LIST.find((x) => x.dow === st.activeDow) || DAY_LIST[5];
       const hour = els.hour ? String(els.hour.value || "14:00") : "14:00";
-      const rate = Math.max(500, Math.min(5000, Number(els.offerPrice && els.offerPrice.value) || st.profile.price));
+      const rateRaw = els.offerPrice != null ? Number(els.offerPrice.value) : NaN;
+      const rate = Number.isFinite(rateRaw) ? Math.max(0, Math.min(99999, Math.round(rateRaw))) : st.profile.price;
       const note = els.note ? String(els.note.value || "").trim().slice(0, 100) : "";
       const subjObj = (getTDATA() && getTDATA().SUBJECTS) ? getTDATA().SUBJECTS.find((s) => s.id === st.profile.subject) : null;
       const item = {
@@ -1690,7 +1746,17 @@
     if (els.expYears) p.expYears = Math.max(1, Math.min(50, Number(els.expYears.value) || p.expYears));
     if (els.avgScore) p.avgScore = Math.max(40, Math.min(100, Number(els.avgScore.value) || p.avgScore));
     if (els.highScorers) p.highScorers = Math.max(0, Math.min(500, Number(els.highScorers.value) || 0));
-    if (els.trialFree) p.trialFree = !!els.trialFree.checked;
+    if (els.trialPrice) {
+      const tp = Number(els.trialPrice.value);
+      if (Number.isFinite(tp)) {
+        const cl = Math.max(0, Math.min(99999, Math.round(tp)));
+        p.trialPrice = cl;
+        p.trialMode = cl === 0 ? "free" : "paid";
+        p.trialFree = cl === 0;
+      }
+    } else if (els.trialFree) {
+      p.trialFree = !!els.trialFree.checked;
+    }
     if (els.badge0 || els.badge1) {
       if (!Array.isArray(p.customBadges)) p.customBadges = ["", ""];
       if (els.badge0) p.customBadges[0] = String(els.badge0.value || "").trim().slice(0, 36);

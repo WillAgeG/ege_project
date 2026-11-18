@@ -40,7 +40,7 @@
     { id: "logo", targetId: "bb-logo", cat: "brand", title: "Адаптивный логотип + SVG Pack", api: "EGE.ui.brandLockupHTML() / brandLogoSVG()", css: ".brand-lockup .brand-mark .brand-wordmark", desc: "6-лепестковый вихрь (градиент #6FD5FE→#9375AA на тёмном, #1F1A17 на светлом, #FFF на синем) + вращение при наведении." },
     { id: "surfaces", targetId: "bb-surfaces", cat: "brand", title: "Поверхности, WCAG-контраст и токены", api: "EGE.hh.priceHeadlineHTML(market, offer, true)", css: ".hh-price-old .hh-price-now .diff-tag", desc: "Белый, Чёрный OLED, Синий hh, Золото Саха #C59B5F (--gold), пары контраста AA/AAA и экспорт :root CSS / tokens.json." },
     { id: "fonts", targetId: "bb-fonts", cat: "brand", title: "Типографика Inter + IBM Plex Mono", api: "--font-display / --font-mono / --shadow", css: ".h1 .h2 .small .eyebrow .num", desc: "Иерархия шрифтов, табличные цифры, шкала отступов 4 px, радиусы и 3 уровня теней." },
-    { id: "hero", targetId: "bb-hero-banner", cat: "hero", title: "Hero-баннер hh.kz × Ленские столбы", api: "EGE.kit.heroBannerHTML({ ... })", css: ".land-hero-banner .hero-cta-primary .hero-cta-secondary", desc: "Светлое фото без верхнего поисковика, 2 CTA («Найти ниже рынка» синий + «Попробовать бета-тест» золото #C59B5F) и 3 KPI." },
+    { id: "hero", targetId: "bb-hero-banner", cat: "hero", title: "Hero-баннер hh.kz × Ленские столбы", api: "EGE.kit.heroBannerHTML({ ... })", css: ".land-hero-banner .hero-cta-primary .btn.gold", desc: "Светлое фото без верхнего поисковика, единый золотой CTA («Найти ниже рынка»), 5 маркетинговых заголовков и анимация KPI (2 480+ / 30% / 24/7)." },
     { id: "sakha", targetId: "bb-yakutia", cat: "sakha", title: "Якутские кнопки-узоры Оһуор", api: "EGE.kit.sakhaButtonsHTML({ ... })", css: ".sakha-medallion-btn .sakha-diamond-btn .btn.sakha-pattern", desc: "Күн Оһуор, Сулус и узорная кнопка .btn.sakha-pattern без обрезанных углов." },
     { id: "buttons", targetId: "bb-buttons", cat: "controls", title: "Кнопки отклика, 40 иконок и золотой CTA", api: "EGE.hh.sakhaBidInnerHTML(sent, price) / .btn.gold", css: ".btn.sakha-pattern .btn.gold .is-confirmed .bb-icon-tile", desc: "Плавный .is-confirmed, золотая .btn.gold (#C59B5F), 40 SVG-иконок 1.8 px и оранжевые бейджи." },
     { id: "forms", targetId: "bb-forms", cat: "controls", title: "Формы, Мультивыбор (.hh-multi) и выбор роли", api: "EGE.hh.hhSelectHTML() / hhMultiSelectHTML() / authCard()", css: ".hh-select .hh-multi .hh-seg .switch", desc: "Одиночный и множественный выбор, роль «Как ученик / Как преподаватель» и поля с ошибкой." },
@@ -66,37 +66,92 @@
     { id: "arch-split", section: "Данные и наблюдаемость", category: "telemetry", num: "27", targetId: "bb-arch-split", cat: "app", title: "Разделение UI Kit и API + Таблицы обеих ролей", api: "EGE.kit.serviceBoundaryCardHTML() / EGE.charts.dataTableHTML()", css: ".arch-boundary-card .arch-endpoints .role-switch-banner", desc: "Чистая граница stateless UI-Kit, EGE\u002eapi клиент и табличные заявки ученика/преподавателя", tag: "Architecture" }
   ];
 
+  const HERO_COPY_VARIANTS = [
+    {
+      h1: "Назначай цену сам — репетиторы дешевле рынка",
+      sub: "Проверенные преподаватели, слоты в любое время и безопасная оплата через СБП"
+    },
+    {
+      h1: "Предложи свою ставку за урок — репетиторы откликнутся сами",
+      sub: "Сам назначаешь цену от 0 ₽/ч, выбираешь преподавателя по анкете и платишь безопасно через СБП"
+    },
+    {
+      h1: "Твоя цена за занятие — сильные репетиторы на 30% выгоднее",
+      sub: "Самая большая база проверенных преподавателей: меняй ставку шагом ±50 ₽ в один клик"
+    },
+    {
+      h1: "Не переплачивай за подготовку — назови свою цену репетитору",
+      sub: "Преподаватели по ЕГЭ, ОГЭ и вузовским предметам готовы заниматься в любое время по твоей ставке"
+    },
+    {
+      h1: "Репетиторы по твоей цене — экономия до 30% на каждом уроке",
+      sub: "Сравнивай реальные ставки, пробуй первый урок за 490 ₽ или бесплатно и плати через СБП после подтверждения"
+    }
+  ];
+
   function heroBannerHTML(opts) {
     opts = opts || {};
     const isDemo = !!opts.brandbookDemo;
     const catalogTotal = opts.catalogTotal || "2 480";
+    const catalogTotalNum = Math.max(1, Math.round(Number(String(catalogTotal).replace(/\D+/g, "")) || 2480));
+    const variantIdx = ((Number(opts.variantIdx) || 0) % HERO_COPY_VARIANTS.length + HERO_COPY_VARIANTS.length) % HERO_COPY_VARIANTS.length;
+    const copy = HERO_COPY_VARIANTS[variantIdx];
     const primaryActive = !!opts.primaryActive;
-    const betaActive = !!opts.betaActive;
     const primaryAction = opts.primaryAction || (isDemo ? "bb-hero-primary" : "land-scroll");
-    const betaAction = opts.betaAction || (isDemo ? "bb-hero-beta" : "land-scroll");
     const primaryTarget = opts.primaryTarget || "land-market";
-    const betaTarget = opts.betaTarget || "land-demo";
+    const feesAction = opts.feesAction || "go";
 
     return `<section class="land-hero-banner" aria-label="Главный баннер поиска репетиторов на фоне Ленских столбов">
       <img class="hero-banner-bg" src="/assets/lena-pillars.jpg" alt="Природа Якутии — Ленские столбы на рассвете над рекой Леной" decoding="sync">
       <div class="hero-banner-scrim" aria-hidden="true"></div>
       <div class="hero-banner-top">
-        <h1 class="${isDemo ? "h2" : "hero-banner-h1"}">Назначай цену сам — репетиторы дешевле рынка на 15–30%</h1>
-        <p class="hero-banner-sub">Проверенные преподаватели, слоты по часу 10:00–20:00 и безопасная оплата через СБП после подтверждения.</p>
-        <div class="hero-banner-ctas" role="group" aria-label="Главные действия">
-          <button type="button" class="btn hero-cta-primary${primaryActive ? " is-confirmed" : ""}" data-a="${esc(primaryAction)}" data-target="${esc(primaryTarget)}">${primaryActive ? "✓ Открыт каталог анкет" : "Найти ниже рынка"}</button>
-          <button type="button" class="btn hero-cta-secondary${betaActive ? " is-confirmed" : ""}" data-a="${esc(betaAction)}" data-target="${esc(betaTarget)}">${icon("spark")}<span>${betaActive ? "✓ Бета-тест запущен" : "Попробовать бета-тест"}</span></button>
+        <h1 class="${isDemo ? "h2" : "hero-banner-h1"}">${esc(copy.h1)}</h1>
+        <p class="hero-banner-sub">${esc(copy.sub)}</p>
+        <div class="hero-banner-ctas" role="group" aria-label="Главное действие">
+          <button type="button" class="btn gold hero-cta-primary${primaryActive ? " is-confirmed" : ""}" data-a="${esc(primaryAction)}" data-target="${esc(primaryTarget)}">${primaryActive ? "✓ Открыт каталог анкет" : "Найти ниже рынка"}</button>
         </div>
-        <p class="hero-banner-note">Выбирай репетитора без комиссии на витрине · <a href="/fees" data-a="go" data-v="fees">условия оплаты и защиты баланса</a>.</p>
+        <p class="hero-banner-note">Самая большая база проверенных репетиторов — назначай свою цену за урок · <a href="/fees" data-a="${esc(feesAction)}" data-v="fees">безопасная оплата СБП</a>.</p>
       </div>
       <div class="hero-banner-foot">
-        <div class="hero-banner-kpis">
-          <div class="hero-banner-kpi"><b>${esc(catalogTotal)}+</b><span>анкет в базе</span></div>
-          <div class="hero-banner-kpi"><b>15–30%</b><span>ниже рынка</span></div>
-          <div class="hero-banner-kpi"><b>10:00–20:00</b><span>слоты по часу</span></div>
+        <div class="hero-banner-kpis" aria-label="Ключевые показатели платформы">
+          <div class="hero-banner-kpi"><b class="num" data-countup="${catalogTotalNum}" data-suffix="+">${esc(catalogTotal)}+</b><span>анкет в базе</span></div>
+          <div class="hero-banner-kpi"><b class="num" data-countup="30" data-suffix="%">30%</b><span>дешевле рынка</span></div>
+          <div class="hero-banner-kpi"><b class="num" data-countup="24" data-suffix="/7">24/7</b><span>слоты в любое время</span></div>
         </div>
       </div>
     </section>`;
+  }
+
+  function animateHeroCounters(scope) {
+    try {
+      if (typeof window === "undefined" || typeof document === "undefined" || typeof requestAnimationFrame !== "function") return;
+      if (document.documentElement && document.documentElement.classList && document.documentElement.classList.contains("reduced-motion")) return;
+      if (typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      const rootEl = scope && typeof scope.querySelectorAll === "function" ? scope : document;
+      const nodes = Array.from(rootEl.querySelectorAll('[data-countup]:not([data-counted="1"])'));
+      if (!nodes.length) return;
+      const items = nodes.map((el) => {
+        el.setAttribute("data-counted", "1");
+        const target = Math.max(0, Number(el.getAttribute("data-countup")) || 0);
+        const suffix = el.getAttribute("data-suffix") || "";
+        el.textContent = "0" + suffix;
+        return { el, target, suffix };
+      });
+      const t0 = typeof performance !== "undefined" && typeof performance.now === "function" ? performance.now() : Date.now();
+      const duration = 950;
+      const tick = (nowRaw) => {
+        const now = typeof nowRaw === "number" ? nowRaw : Date.now();
+        const p = Math.min(1, Math.max(0, (now - t0) / duration));
+        const eased = 1 - Math.pow(1 - p, 3);
+        items.forEach((it) => {
+          const val = p >= 1 ? it.target : Math.round(it.target * eased);
+          const numTxt = val >= 1000 ? val.toLocaleString("ru-RU") : String(val);
+          it.el.textContent = numTxt + it.suffix;
+        });
+        if (p < 1) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    } catch (e) { /* игнор в окружении без DOM */ }
   }
 
   function searchStripHTML(opts) {
@@ -853,6 +908,8 @@
   EGE.kit = {
     CATALOG_CATEGORIES,
     CATALOG_ITEMS,
+    HERO_COPY_VARIANTS,
+    animateHeroCounters,
     heroBannerHTML,
     searchStripHTML,
     sentNoticeHTML,

@@ -191,13 +191,23 @@
       if (node && typeof node.scrollIntoView === "function") {
         node.scrollIntoView({ behavior: "smooth", block: "start" });
       }
+      if (id === "land-market" && typeof document.getElementById === "function") {
+        const bar = document.getElementById("land-mobile-sticky");
+        if (bar && bar.classList) bar.classList.add("is-hidden");
+      }
+    },
+    "hero-copy-next": () => {
+      if (EGE.views && EGE.views.landing && typeof EGE.views.landing.nextHeroVariant === "function") {
+        EGE.views.landing.nextHeroVariant();
+      }
+      scheduleRender();
     },
     "mkt-plan": (el) => {
       if (!TDATA) return;
       const plan = TDATA.PLANS.find((p) => p.id === el.dataset.id);
       if (!plan) return;
       const st = mkt();
-      const trialRub = (TDATA && TDATA.TRIAL_PRICE) || 990;
+      const trialRub = (TDATA && TDATA.TRIAL_PRICE != null) ? Number(TDATA.TRIAL_PRICE) : 490;
       const targetBal = Math.max(390, Number(plan.balance) || trialRub);
       EGEPayments.createTopupIntent({ amount: targetBal, planId: plan.id });
       st.planId = plan.id;
@@ -211,7 +221,7 @@
     },
     "bal-open": (el) => {
       const st = mkt();
-      const trialRub = (TDATA && TDATA.TRIAL_PRICE) || 990;
+      const trialRub = (TDATA && TDATA.TRIAL_PRICE != null) ? Number(TDATA.TRIAL_PRICE) : 490;
       const reason = el && el.dataset && el.dataset.reason === "trial"
         ? `Пополните счёт по СБП минимум на ${trialRub} ₽ — сумма заморозится на эскроу за полноценный пробный урок 60 мин со 100% гарантией замены.`
         : "";
@@ -222,14 +232,14 @@
     },
     "bal-close": () => {
       const pending = ui.balanceModal && ui.balanceModal.pendingBooking;
-      const trialRub = (TDATA && TDATA.TRIAL_PRICE) || 990;
+      const trialRub = (TDATA && TDATA.TRIAL_PRICE != null) ? Number(TDATA.TRIAL_PRICE) : 490;
       ui.balanceModal = null;
-      if (pending && (Number(mkt().balance) || 0) >= trialRub) ui.booking = pending;
+      if (pending && (Number(mkt().balance) || 0) >= (Number(pending.offerPrice) || trialRub)) ui.booking = pending;
       renderModal();
     },
     "bal-chip": (el) => {
       if (!ui.balanceModal) return;
-      const trialRub = (TDATA && TDATA.TRIAL_PRICE) || 990;
+      const trialRub = (TDATA && TDATA.TRIAL_PRICE != null) ? Number(TDATA.TRIAL_PRICE) : 490;
       const minAmt = mkt().initialPaid ? 100 : trialRub;
       ui.balanceModal.customAmount = Math.max(minAmt, Math.min(200000, Number(el.dataset.v) || minAmt));
       ui.balanceModal.error = "";
@@ -237,7 +247,7 @@
     },
     "bal-topup-preset": (el) => {
       const st = mkt();
-      const trialRub = (TDATA && TDATA.TRIAL_PRICE) || 990;
+      const trialRub = (TDATA && TDATA.TRIAL_PRICE != null) ? Number(TDATA.TRIAL_PRICE) : 490;
       const presetPlan = el.dataset.plan || "";
       const minAmt = presetPlan === "ai390" ? 390 : (st.initialPaid ? 100 : trialRub);
       const amt = Math.max(minAmt, Math.min(200000, Math.round(Number(el.dataset.amount) || trialRub)));
@@ -250,8 +260,8 @@
       saveMkt();
       const pending = ui.balanceModal && ui.balanceModal.pendingBooking;
       ui.balanceModal = null;
-      if (pending && st.balance >= trialRub) {
-        ui.booking = Object.assign({}, pending, { offerPrice: pending.mode === "trial" ? trialRub : (pending.offerPrice || 1000) });
+      if (pending && st.balance >= (Number(pending.offerPrice) || trialRub)) {
+        ui.booking = Object.assign({}, pending, { offerPrice: pending.mode === "trial" ? (Number(pending.offerPrice) || trialRub) : (pending.offerPrice != null ? pending.offerPrice : 1000) });
       }
       renderModal();
       notifySide("Баланс пополнен по СБП", `+${amt.toLocaleString("ru-RU")} ₽ · на счёте ${st.balance.toLocaleString("ru-RU")} ₽`);
@@ -374,6 +384,25 @@
       saveMkt();
       scheduleRender();
     },
+    "tutor-bio-toggle": (el) => {
+      const id = el && el.dataset && el.dataset.id;
+      if (!id) return;
+      const map = ui.expandedBios || (ui.expandedBios = {});
+      map[id] = !map[id];
+      scheduleRender();
+    },
+    "card-offer-step": (el) => {
+      if (!TDATA) return;
+      const id = el && el.dataset && el.dataset.id;
+      const tutor = id && TDATA.LIST.find((x) => x.id === id);
+      if (!tutor) return;
+      const step = Number(el.dataset.step) || 0;
+      const map = ui.cardOffers || (ui.cardOffers = {});
+      const raw = map[id] != null && Number.isFinite(Number(map[id])) ? Number(map[id]) : (Number(tutor.price) || 1200);
+      const base = Math.round(raw / 50) * 50;
+      map[id] = Math.max(0, Math.min(99999, base + step));
+      scheduleRender();
+    },
     "book-open": (el) => {
       if (!TDATA) return;
       const tutor = TDATA.LIST.find((x) => x.id === el.dataset.id);
@@ -388,7 +417,13 @@
       const hour = isValidHHMM(wantedHour) ? wantedHour : (daySlots[0] || "10:00");
       const exam = st.exam !== "all" && tutor.exams.includes(st.exam) ? st.exam : tutor.exams[0];
       const format = st.format !== "all" && tutor.formats.includes(st.format) ? st.format : tutor.formats[0];
-      const offerPrice = Math.max(500, tutor.minFair || (tutor.price - 200));
+      const cardOffers = ui.cardOffers || {};
+      const dataOffer = el && el.dataset && el.dataset.offer != null ? Number(el.dataset.offer) : NaN;
+      const offerPrice = (cardOffers[tutor.id] != null && Number.isFinite(Number(cardOffers[tutor.id])))
+        ? Math.max(0, Math.min(99999, Math.round(Number(cardOffers[tutor.id]))))
+        : (Number.isFinite(dataOffer)
+            ? Math.max(0, Math.min(99999, Math.round(dataOffer)))
+            : Math.max(0, Number(tutor.price) || 1200));
       ui.booking = { tutorId: tutor.id, mode: "paid", exam, format, dayIso: pickDay.iso, hour, offerPrice, note: "" };
       renderModal();
     },
@@ -396,8 +431,16 @@
       if (!TDATA) return;
       const tutor = TDATA.LIST.find((x) => x.id === el.dataset.id);
       if (!tutor) return;
+      const mktViews = EGE.views && EGE.views.marketplace;
+      const trialInfo = mktViews && typeof mktViews.resolveTutorTrial === "function"
+        ? mktViews.resolveTutorTrial(tutor, TDATA)
+        : { enabled: tutor.trialMode !== "none" && tutor.trialPrice !== null, free: tutor.trialMode === "free" || Number(tutor.trialPrice) === 0, price: tutor.trialMode === "free" ? 0 : ((TDATA && TDATA.TRIAL_PRICE != null) ? Number(TDATA.TRIAL_PRICE) : 490) };
+      if (!trialInfo.enabled) {
+        toast("Этот преподаватель работает без пробного урока — предложите свою ставку");
+        return;
+      }
       const st = mkt();
-      const trialRub = (TDATA && TDATA.TRIAL_PRICE) || 990;
+      const trialRub = trialInfo.price;
       const days = TDATA.buildCalendarDays(7);
       const pickDay = (st.day !== "all" ? days.find((d) => d.iso === st.day) : null)
         || days.find((d) => TDATA.tutorSlotsForDay(tutor, d.dow).length > 0)
@@ -408,7 +451,7 @@
       const exam = st.exam !== "all" && tutor.exams.includes(st.exam) ? st.exam : tutor.exams[0];
       const format = st.format !== "all" && tutor.formats.includes(st.format) ? st.format : tutor.formats[0];
       const draft = { tutorId: tutor.id, mode: "trial", isTrial: true, exam, format, dayIso: pickDay.iso, hour, offerPrice: trialRub, note: "" };
-      if ((Number(st.balance) || 0) < trialRub) {
+      if (!trialInfo.free && trialRub > 0 && (Number(st.balance) || 0) < trialRub) {
         ui.balanceModal = {
           customAmount: trialRub,
           error: "",
@@ -423,10 +466,16 @@
     },
     "book-mode": (el) => {
       if (!ui.booking || !TDATA) return;
+      const tutor = TDATA.LIST.find((x) => x.id === ui.booking.tutorId);
+      const mktViews = EGE.views && EGE.views.marketplace;
+      const trialInfo = mktViews && typeof mktViews.resolveTutorTrial === "function"
+        ? mktViews.resolveTutorTrial(tutor, TDATA)
+        : { enabled: tutor && tutor.trialMode !== "none" && tutor.trialPrice !== null, free: tutor && (tutor.trialMode === "free" || Number(tutor.trialPrice) === 0), price: tutor && tutor.trialMode === "free" ? 0 : ((TDATA && TDATA.TRIAL_PRICE != null) ? Number(TDATA.TRIAL_PRICE) : 490) };
       const mode = el.dataset.v === "trial" ? "trial" : "paid";
+      if (mode === "trial" && !trialInfo.enabled) return;
       const st = mkt();
-      const trialRub = (TDATA && TDATA.TRIAL_PRICE) || 990;
-      if (mode === "trial" && (Number(st.balance) || 0) < trialRub) {
+      const trialRub = trialInfo.price != null ? trialInfo.price : 0;
+      if (mode === "trial" && !trialInfo.free && trialRub > 0 && (Number(st.balance) || 0) < trialRub) {
         const pending = Object.assign({}, ui.booking, { mode: "trial", isTrial: true, offerPrice: trialRub });
         ui.booking = null;
         ui.balanceModal = {
@@ -438,10 +487,13 @@
         renderModal();
         return;
       }
-      const tutor = TDATA.LIST.find((x) => x.id === ui.booking.tutorId);
+      const cardOffers = ui.cardOffers || {};
+      const regularOffer = tutor && cardOffers[tutor.id] != null
+        ? Math.max(0, Math.min(99999, Math.round(Number(cardOffers[tutor.id]))))
+        : Math.max(0, (tutor && Number(tutor.price)) || 1200);
       ui.booking.mode = mode;
       ui.booking.isTrial = mode === "trial";
-      ui.booking.offerPrice = mode === "trial" ? trialRub : Math.max(500, (tutor && (tutor.minFair || tutor.price - 200)) || 1000);
+      ui.booking.offerPrice = mode === "trial" ? trialRub : regularOffer;
       renderModal();
     },
     "go-student-lead": () => {
@@ -524,8 +576,11 @@
     "bid-step": (el) => {
       if (!ui.booking) return;
       const delta = Number(el.dataset.step) || 0;
-      const cur = Number(ui.booking.offerPrice) || 1000;
-      ui.booking.offerPrice = Math.max(500, Math.min(5000, cur + delta));
+      const cur = ui.booking.offerPrice != null ? Number(ui.booking.offerPrice) : 1000;
+      const next = Math.max(0, Math.min(99999, Math.round(cur) + delta));
+      ui.booking.offerPrice = next;
+      const cardOffers = ui.cardOffers || (ui.cardOffers = {});
+      if (ui.booking.tutorId && ui.booking.mode !== "trial") cardOffers[ui.booking.tutorId] = next;
       const modalRoot = $("#modal-root");
       const liveInput = typeof document.getElementById === "function" ? document.getElementById("bid-price") : null;
       if (modalRoot && typeof modalRoot.contains === "function" && liveInput && modalRoot.contains(liveInput)) {
@@ -540,9 +595,13 @@
       const tutor = TDATA.LIST.find((x) => x.id === b.tutorId);
       if (!tutor) return;
       const st = mkt();
-      const trialRub = (TDATA && TDATA.TRIAL_PRICE) || 990;
-      const isTrial = b.mode === "trial" || !!b.isTrial;
-      if (isTrial && (Number(st.balance) || 0) < trialRub) {
+      const mktViews = EGE.views && EGE.views.marketplace;
+      const trialInfo = mktViews && typeof mktViews.resolveTutorTrial === "function"
+        ? mktViews.resolveTutorTrial(tutor, TDATA)
+        : { enabled: tutor.trialMode !== "none" && tutor.trialPrice !== null, free: tutor.trialMode === "free" || Number(tutor.trialPrice) === 0, price: tutor.trialMode === "free" ? 0 : ((TDATA && TDATA.TRIAL_PRICE != null) ? Number(TDATA.TRIAL_PRICE) : 490) };
+      const isTrial = trialInfo.enabled && (b.mode === "trial" || !!b.isTrial);
+      const trialRub = trialInfo.price != null ? trialInfo.price : 490;
+      if (isTrial && !trialInfo.free && trialRub > 0 && (Number(st.balance) || 0) < trialRub) {
         const pending = Object.assign({}, b, { mode: "trial", isTrial: true, offerPrice: trialRub });
         ui.booking = null;
         ui.balanceModal = {
@@ -558,12 +617,16 @@
       const dayObj = days.find((d) => d.iso === b.dayIso) || days[0];
       const daySlots = TDATA.tutorSlotsForDay(tutor, dayObj.dow);
       const hour = isValidHHMM(b.hour) ? b.hour : (daySlots[0] || "10:00");
-      const offerPrice = isTrial ? trialRub : Math.max(500, Math.min(5000, Math.round(Number(b.offerPrice) || tutor.price)));
+      const domPriceEl = $("#bid-price");
+      const domNoteEl = $("#bid-note");
+      const rawPriceVal = !isTrial && domPriceEl && domPriceEl.value !== "" ? Number(domPriceEl.value) : (b.offerPrice != null ? Number(b.offerPrice) : tutor.price);
+      const offerPrice = isTrial ? trialRub : Math.max(0, Math.min(99999, Number.isFinite(rawPriceVal) ? Math.round(rawPriceVal) : tutor.price));
+      const noteText = String((domNoteEl ? domNoteEl.value : b.note) || "").trim();
       const feeSplit = typeof TDATA.commissionSplit === "function"
         ? TDATA.commissionSplit(offerPrice)
         : { total: offerPrice, fee: Math.round(offerPrice * 0.05), payout: offerPrice - Math.round(offerPrice * 0.05), pct: 5 };
       let reserved = 0;
-      if (st.balance >= offerPrice) {
+      if (offerPrice > 0 && st.balance >= offerPrice) {
         reserved = offerPrice;
         st.balance -= reserved;
       }
@@ -583,7 +646,7 @@
         fee: feeSplit.fee,
         payout: feeSplit.payout,
         tutorPrice: tutor.price,
-        note: String(b.note || "").trim(),
+        note: noteText,
         reserved,
         status: "pending",
         createdAt: Date.now()
@@ -597,20 +660,22 @@
         EGE.realtime.publish({
           channel: "tutor",
           eventType: "market.bid.created",
-          title: isTrial ? `Новая заявка на пробный урок (${trialRub} ₽)` : "Новая ставка от ученика",
-          message: `${tutor.name} · ${dayObj.shortLabel}, ${hour} (${offerPrice.toLocaleString("ru-RU")} ₽/ч)`,
+          title: isTrial ? (trialRub === 0 ? "Новая заявка на бесплатный пробный урок" : `Новая заявка на пробный урок (${trialRub} ₽)`) : "Новая ставка от ученика",
+          message: `${tutor.name} · ${dayObj.shortLabel}, ${hour} (${offerPrice === 0 ? "Бесплатно" : offerPrice.toLocaleString("ru-RU") + " ₽/ч"})`,
           tutorSlug: String(tutor.id || ""),
           payload: Object.assign({}, newBooking)
         });
       }
       renderModal();
       notifySide(
-        isTrial ? `Заявка на пробный урок (${trialRub} ₽ · СБП-эскроу) отправлена` : "Предложение передано преподавателю",
+        isTrial ? (trialRub === 0 ? "Заявка на бесплатный пробный отправлена" : `Заявка на пробный урок (${trialRub} ₽ · СБП-эскроу) отправлена`) : "Предложение передано преподавателю",
         isTrial
-          ? `${tutor.name} · ${dayObj.shortLabel}, ${hour} · заморожено на эскроу ${reserved.toLocaleString("ru-RU")} ₽ (100% гарантия замены)`
+          ? (trialRub === 0
+              ? `${tutor.name} · бесплатный пробный урок · уведомим о подтверждении`
+              : `${tutor.name} · заморожено на эскроу ${reserved.toLocaleString("ru-RU")} ₽ (100% гарантия замены)`)
           : (reserved
-              ? `Ставка ${offerPrice.toLocaleString("ru-RU")} ₽/ч (${dayObj.shortLabel}, ${hour}) · зарезервировано ${reserved.toLocaleString("ru-RU")} ₽ · уведомим о подтверждении`
-              : `Ставка ${offerPrice.toLocaleString("ru-RU")} ₽/ч (${dayObj.shortLabel}, ${hour}) отправлена — уведомим о подтверждении`)
+              ? `Ставка ${offerPrice.toLocaleString("ru-RU")} ₽/ч · зарезервировано ${reserved.toLocaleString("ru-RU")} ₽ · уведомим о подтверждении`
+              : `Ставка ${offerPrice.toLocaleString("ru-RU")} ₽/ч отправлена — уведомим о подтверждении`)
       );
       scheduleRender();
     },
@@ -646,16 +711,16 @@
       scheduleRender();
     },
     "demo-rate": (el) => {
-      const r = Number(el.dataset.rate) || 1000;
-      ui.demo.bidRate = Math.max(500, Math.min(3000, r));
+      const r = el.dataset.rate != null ? Number(el.dataset.rate) : 1000;
+      ui.demo.bidRate = Math.max(0, Math.min(99999, Number.isFinite(r) ? r : 1000));
       if (!EGE.views.landing || typeof EGE.views.landing.patchDemoCalcDOM !== "function" || !EGE.views.landing.patchDemoCalcDOM()) {
         scheduleRender();
       }
     },
     "demo-step": (el) => {
       const step = Number(el.dataset.step) || 0;
-      const cur = Number(ui.demo.bidRate) || 1000;
-      ui.demo.bidRate = Math.max(500, Math.min(3000, cur + step));
+      const cur = ui.demo.bidRate != null ? Number(ui.demo.bidRate) : 1000;
+      ui.demo.bidRate = Math.max(0, Math.min(99999, cur + step));
       if (!EGE.views.landing || typeof EGE.views.landing.patchDemoCalcDOM !== "function" || !EGE.views.landing.patchDemoCalcDOM()) {
         scheduleRender();
       }
@@ -776,13 +841,16 @@
       const which = el.dataset.which === "mkt" ? "marketRate" : "offerRate";
       const step = Number(el.dataset.step) || 0;
       if (which === "marketRate") {
-        ui.savings.marketRate = Math.max(1000, Math.min(3500, (Number(ui.savings.marketRate) || 1350) + step));
-        if ((Number(ui.savings.offerRate) || 1000) > ui.savings.marketRate - 50) {
-          ui.savings.offerRate = Math.max(600, ui.savings.marketRate - 50);
+        const curMkt = ui.savings.marketRate != null ? Number(ui.savings.marketRate) : 1350;
+        ui.savings.marketRate = Math.max(0, Math.min(99999, curMkt + step));
+        const curOff = ui.savings.offerRate != null ? Number(ui.savings.offerRate) : 1000;
+        if (curOff > Math.max(0, ui.savings.marketRate - 50)) {
+          ui.savings.offerRate = Math.max(0, ui.savings.marketRate - 50);
         }
       } else {
-        const cap = Math.max(600, (Number(ui.savings.marketRate) || 1350) - 50);
-        ui.savings.offerRate = Math.max(600, Math.min(cap, (Number(ui.savings.offerRate) || 1000) + step));
+        const cap = Math.max(0, (ui.savings.marketRate != null ? Number(ui.savings.marketRate) : 1350) - 50);
+        const curOff = ui.savings.offerRate != null ? Number(ui.savings.offerRate) : 1000;
+        ui.savings.offerRate = Math.max(0, Math.min(cap, curOff + step));
       }
       patchSavingsDOM();
     },
@@ -794,14 +862,15 @@
     "bb-step": (el) => {
       const bb = ui.brandbook || (ui.brandbook = { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, chipOn: true, sent: false, fav: true });
       const step = Number(el.dataset.step) || 0;
-      bb.price = Math.max(600, Math.min(2800, (Number(bb.price) || 1200) + step));
+      const cur = bb.price != null ? Number(bb.price) : 1200;
+      bb.price = Math.max(0, Math.min(99999, cur + step));
       bb.sent = false;
       scheduleRender();
     },
     "bb-preset": (el) => {
       const bb = ui.brandbook || (ui.brandbook = { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, chipOn: true, sent: false, fav: true });
-      const p = Number(el.dataset.price) || 1200;
-      bb.price = Math.max(600, Math.min(2800, p));
+      const p = Number(el.dataset.price);
+      bb.price = Math.max(0, Math.min(99999, Number.isFinite(p) ? p : 1200));
       bb.sent = false;
       scheduleRender();
     },
@@ -1003,7 +1072,8 @@
       if (ct) ui.tutorApply.contact = ct.value;
       if (sb) ui.tutorApply.subject = sb.value;
       const step = Number(el.dataset.step) || 0;
-      ui.tutorApply.rate = Math.max(600, Math.min(3500, (Number(ui.tutorApply.rate) || 1100) + step));
+      const cur = ui.tutorApply.rate != null ? Number(ui.tutorApply.rate) : 1100;
+      ui.tutorApply.rate = Math.max(0, Math.min(99999, cur + step));
       renderModal();
     },
     "bb-subj-toggle": () => {
@@ -1150,8 +1220,9 @@
       const bb = bbState();
       bb.heroSubmitted = !bb.heroSubmitted;
       scheduleRender();
-      notifySide("Hero CTA №1 · Найти ниже рынка", bb.heroSubmitted ? "Кнопка на фото перешла в статус .is-confirmed" : "Возврат в основной синий #0070FF");
+      notifySide("Hero CTA · Найти ниже рынка", bb.heroSubmitted ? "Кнопка на фото перешла в статус .is-confirmed" : "Возврат в золото Саха");
     },
+    "bb-hero-submit": () => ACTIONS["bb-hero-primary"](),
     "bb-hero-beta": () => {
       const bb = bbState();
       bb.heroBetaOn = !bb.heroBetaOn;
@@ -1346,7 +1417,7 @@
         ? Number(bb.tableRates[rowId])
         : (row && (Number(row.rate) || Number(row.gross)) || 1200);
       if (!bb.tableRates || typeof bb.tableRates !== "object") bb.tableRates = {};
-      bb.tableRates[rowId] = Math.max(500, Math.min(5000, Math.round(base / 50) * 50 + step));
+      bb.tableRates[rowId] = Math.max(0, Math.min(99999, Math.round(base / 50) * 50 + step));
       scheduleRender();
     },
     "bb-tbl-filter": (el) => {
@@ -1372,7 +1443,8 @@
       scheduleRender();
     },
     "fees-rate": (el) => {
-      ui.feesRate = Math.max(600, Math.min(3500, Number(el.dataset.rate) || 800));
+      const r = Number(el.dataset.rate);
+      ui.feesRate = Math.max(0, Math.min(99999, Number.isFinite(r) ? r : 800));
       scheduleRender();
     }
     });

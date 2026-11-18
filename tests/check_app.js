@@ -705,23 +705,39 @@
     const afterLeadHtml = env4.elements.get("main").innerHTML;
     assert(afterLeadHtml.includes("Опубликовано для преподавателей") && afterLeadHtml.includes('id="student-leads-table"') && afterLeadHtml.includes("bb-data-table") && afterLeadHtml.includes("data-label=") && afterLeadHtml.includes("Химия") && afterLeadHtml.includes("Биология"), "expected submitted multi-subject student lead to render in Brandbook #student-leads-table");
 
-    // Пробный урок 60 мин (990 ₽ · СБП-эскроу) блокируется при балансе < 990 ₽ -> открытие модалки СБП -> пополнение -> эскроу-бронь 990 ₽ -> появление в «Учёбе»
+    // Пробный урок по умолчанию 490 ₽ (Бесплатный 0 ₽ у tut-kim, скрыт у tut-belova) и СБП-пополнение от 490 ₽
     clickAction(env4, { a: "go", v: "market" });
     await flushMicrotasks(4);
-    clickAction(env4, { a: "trial-open", id: "tut-sokolova", hour: "10:00" });
+    const marketViewHtml = env4.elements.get("main").innerHTML;
+    assert(
+      !marketViewHtml.includes('data-a="trial-open" data-id="tut-belova"') &&
+      marketViewHtml.includes("Пробный · Бесплатно") &&
+      marketViewHtml.includes("Пробный · 490 ₽"),
+      "expected per-tutor trial config: hidden on tut-belova, free on tut-kim, 490 ₽ default on others"
+    );
+    clickAction(env4, { a: "trial-open", id: "tut-kim" });
+    await flushMicrotasks(2);
+    assert(
+      env4.elements.get("modal-root").innerHTML.includes("Бесплатно (0 ₽)") &&
+      !env4.elements.get("modal-root").innerHTML.includes("Баланс и пополнение"),
+      "expected free trial (0 ₽) on tut-kim to open booking modal directly with 0 ₽ balance"
+    );
+    clickAction(env4, { a: "book-close" });
+    await flushMicrotasks(2);
+    clickAction(env4, { a: "trial-open", id: "tut-sokolova" });
     await flushMicrotasks(2);
     const balModalHtml = env4.elements.get("modal-root").innerHTML;
-    assert(balModalHtml.includes("Баланс и пополнение") && balModalHtml.includes("Только СБП") && balModalHtml.includes("первый платёж от 990 ₽"), "expected trial action under 990 ₽ balance to open Brandbook SBP top-up modal requiring 990 ₽ first payment");
-    env4.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "bal-custom" }, elements: { amount: { value: "500" } } }) }, preventDefault() {} });
+    assert(balModalHtml.includes("Баланс и пополнение") && balModalHtml.includes("Только СБП") && balModalHtml.includes("первый платёж от 490 ₽"), "expected trial action under 490 ₽ balance to open Brandbook SBP top-up modal requiring 490 ₽ first payment");
+    env4.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "bal-custom" }, elements: { amount: { value: "300" } } }) }, preventDefault() {} });
     await flushMicrotasks(2);
-    assert(env4.elements.get("modal-root").innerHTML.includes("Первое пополнение на занятия — минимум 990 ₽ по СБП"), "expected first top-up below 990 ₽ to be rejected");
+    assert(env4.elements.get("modal-root").innerHTML.includes("Первое пополнение на занятия — минимум 490 ₽ по СБП"), "expected first top-up below 490 ₽ to be rejected");
     env4.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "bal-custom" }, elements: { amount: { value: "6500" } } }) }, preventDefault() {} });
     await flushMicrotasks(3);
     const afterTopupModal = env4.elements.get("modal-root").innerHTML;
-    assert(afterTopupModal.includes("Пробный урок · 990 ₽") && hasNum(env4.elements.get("side-foot").innerHTML, "6 500") && hasNum(env4.elements.get("top-balance-slot").innerHTML, "6 500"), "expected custom top-up to reach 6500 ₽ and sync both bottom-left & top-right student balance");
+    assert(afterTopupModal.includes("Пробный · 490 ₽") && hasNum(env4.elements.get("side-foot").innerHTML, "6 500") && hasNum(env4.elements.get("top-balance-slot").innerHTML, "6 500"), "expected custom top-up to reach 6500 ₽ and sync both bottom-left & top-right student balance");
     clickAction(env4, { a: "book-submit" });
     await flushMicrotasks(3);
-    assert(hasNum(env4.elements.get("side-foot").innerHTML, "5 510") && hasNum(env4.elements.get("top-balance-slot").innerHTML, "5 510"), "expected 990 ₽ trial escrow reservation to reduce available balance from 6500 to 5510");
+    assert(hasNum(env4.elements.get("side-foot").innerHTML, "6 010") && hasNum(env4.elements.get("top-balance-slot").innerHTML, "6 010"), "expected 490 ₽ trial escrow reservation to reduce available balance from 6500 to 6010");
     assert(env4.elements.get("main").innerHTML.includes('id="student-bookings-table"') && env4.elements.get("main").innerHTML.includes("bb-data-table") && env4.elements.get("main").innerHTML.includes("data-label="), "expected #student-bookings-table Brandbook table on /market after booking");
     clickAction(env4, { a: "mkt-bk-cols", cols: "3" });
     await flushMicrotasks(3);
@@ -736,10 +752,10 @@
     assert(env4.elements.get("main").innerHTML.includes("Соколова"), "expected mkt-bk-filter clearQ=1 to restore booking row");
     clickAction(env4, { a: "bal-open" });
     await flushMicrotasks(2);
-    assert(env4.elements.get("modal-root").innerHTML.includes("от 100 ₽"), "expected subsequent top-ups from 100 ₽ once initial 990 ₽ is paid");
+    assert(env4.elements.get("modal-root").innerHTML.includes("от 100 ₽"), "expected subsequent top-ups from 100 ₽ once initial 490 ₽ is paid");
     env4.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "bal-custom" }, elements: { amount: { value: "100" } } }) }, preventDefault() {} });
     await flushMicrotasks(3);
-    assert(hasNum(env4.elements.get("side-foot").innerHTML, "5 610") && hasNum(env4.elements.get("top-balance-slot").innerHTML, "5 610"), "expected subsequent 100 ₽ custom top-up to reach 5610 ₽ cleanly in both balance slots");
+    assert(hasNum(env4.elements.get("side-foot").innerHTML, "6 110") && hasNum(env4.elements.get("top-balance-slot").innerHTML, "6 110"), "expected subsequent 100 ₽ custom top-up to reach 6110 ₽ cleanly in both balance slots");
 
     clickAction(env4, { a: "go", v: "study" });
     await flushMicrotasks(4);
@@ -977,12 +993,36 @@
     assert(new Set(globalThis.EGE.tutors.LIST.map((t) => t.source)).size >= 3 && globalThis.EGE.tutors.LIST.every((t) => Boolean(t.source) && t.availableFrom && t.availableTo && (t.tier === "pro" ? (t.price > t.marketPrice && t.abovePct > 0 && t.aboveRub > 0) : (t.marketPrice > t.price && t.belowPct > 0 && t.belowRub > 0))), "expected multi-channel sources, window and below/above-market metadata on all tutors");
 
     const landHtml = env5.elements.get("main").innerHTML;
-    assert(landHtml.includes("Назначай цену сам — репетиторы дешевле рынка на 15–30%") && landHtml.includes("Проверенные преподаватели, слоты по часу 10:00–20:00 и безопасная оплата через СБП после подтверждения"), "expected updated Hero headline and SBP subtitle on landing");
+    assert(
+      landHtml.includes("Назначай цену сам — репетиторы дешевле рынка") &&
+      landHtml.includes("Проверенные преподаватели, слоты в любое время и безопасная оплата через СБП") &&
+      landHtml.includes("btn gold hero-cta-primary") &&
+      !landHtml.includes("hero-cta-secondary") &&
+      !landHtml.includes("Попробовать бета-тест") &&
+      !landHtml.includes("15–30%") &&
+      landHtml.includes('data-countup="2480"') &&
+      landHtml.includes('data-countup="30"') &&
+      landHtml.includes('data-countup="24"') &&
+      landHtml.includes("Самая большая база проверенных репетиторов"),
+      "expected updated single-gold Hero CTA, countup KPIs, single 30% figure, and big-base subtitle"
+    );
+    const heroSeen = new Set();
+    for (let v = 0; v < 5; v++) {
+      const curH = env5.elements.get("main").innerHTML;
+      const mH1 = /class="hero-banner-h1">([^<]+)</.exec(curH);
+      if (mH1) heroSeen.add(mH1[1]);
+      clickAction(env5, { a: "hero-copy-next" });
+      await flushMicrotasks(1);
+    }
+    assert(heroSeen.size === 5, "expected 5 distinct rotating Hero copy variants");
+    assert(!landHtml.includes("Живой подбор · шаг ±50 ₽") && !landHtml.includes("Без комиссии при выборе"), "expected noisy chips removed from showcase copy");
     assert(!landHtml.includes("Бесплатная") && landHtml.includes("ИИ-Старт ЕГЭ") && landHtml.includes("Пробный урок · 60 мин") && landHtml.includes("Мини-группа Саха") && landHtml.includes("Стандарт · 4 урока") && landHtml.includes("Интенсив · Месяц под ключ"), "expected 5-tier SBP subscription ladder without free tutor plan on landing");
     assert(landHtml.includes("Супер-подписка") && landHtml.includes("plan-card featured super"), "expected distinct super class and badge on flagship tariff");
-    assert(landHtml.includes("390 ₽/мес") && landHtml.includes("990 ₽") && landHtml.includes("2 190 ₽") && landHtml.includes("4 590 ₽") && landHtml.includes("8 900 ₽") && landHtml.includes('id="sbp-escrow-explainer"') && landHtml.includes("Верхняя полоса PRO") && landHtml.includes("1 490 ₽/мес"), "expected 390/990/2190/4590/8900 prices, SBP escrow explainer and tutor PRO plan on landing");
+    assert(landHtml.includes("390 ₽/мес") && landHtml.includes("490 ₽") && landHtml.includes("2 190 ₽") && landHtml.includes("4 590 ₽") && landHtml.includes("8 900 ₽") && landHtml.includes('id="sbp-escrow-explainer"') && landHtml.includes("PRO-акцент в каталоге") && landHtml.includes("1 490 ₽/мес"), "expected 390/490/2190/4590/8900 prices, SBP escrow explainer and tutor PRO plan on landing");
     assert(landHtml.includes("Дмитрий Волков") && landHtml.includes("выше рынка") && landHtml.includes("diff-tag pro"), "expected above-market high-qualification expert tutor visible on default Любая filter");
-    assert(landHtml.includes('data-a="mkt-day"') && landHtml.includes('id="mkt-hour-range"') && landHtml.includes('<span class="day-dot">7</span>') && !landHtml.includes(">7 дн<") && !landHtml.includes(">7д<"), "expected clean 7 number badge (without 7д/7 дн) and 10:00-20:00 hour range slider on landing");
+    assert(!landHtml.includes('id="mkt-hour-range"') && !landHtml.includes("mkt-controls") && !landHtml.includes("Видео-визитка") && !landHtml.includes("Задача №34") && !landHtml.includes("Верхняя полоса PRO") && landHtml.includes('class="card tutor-card is-pro"'), "expected clean #land-market top without mkt-controls/wallet-bar, blue is-pro glow without PRO banner pill, and no video/task noise");
+    const tutorCardsMatched = landHtml.match(/<article class="card tutor-card[\s\S]*?<\/article>/g) || [];
+    assert(tutorCardsMatched.length >= 16 && tutorCardsMatched.every((c) => (c.match(/class="diff-tag/g) || []).length <= 2 && !c.includes(">Онлайн<") && !c.includes("Слоты:")), "expected <= 2 diff-tag pills and no Онлайн/Слоты spam on every tutor card");
     assert(landHtml.includes('id="land-demo"') && landHtml.includes("Доска Ykt") && landHtml.includes("Telegram") && landHtml.includes("MAX") && !landHtml.includes("Комиссия 5%") && !landHtml.includes("760 ₽") && landHtml.includes('data-v="fees"'), "expected interactive beta demo, multi-channel sources (Ykt/TG/WA/MAX), hidden 5% commission on landing and separate /fees link");
     assert(landHtml.includes('id="hero-motion-stage"') && landHtml.includes('id="hero-motion-bid-btn"') && landHtml.includes('id="hero-hour-range"') && landHtml.includes('id="hero-price-minus"') && !landHtml.includes("01 Выбор") && landHtml.includes("hh-price-old") && !landHtml.includes("hh-blue-banner") && landHtml.includes("btn sakha-pattern motion-bid-btn") && hasNum(landHtml, "Сөп · Предложить 1 200 ₽") && landHtml.includes("Денис Ковалёв") && landHtml.includes("marquee-band") && landHtml.includes('id="land-savings"') && !landHtml.includes('data-target="land-motion-showcase"') && !landHtml.includes(">Моушен<") && !landHtml.includes(">Брендбук<") && landHtml.includes("UX/UI и Figma"), "expected clean hh-style UX/UI stage with Sakha Предложить CTA, strikethrough price, no Моушен/Брендбук links in header, and Денис Ковалёв");
 
@@ -1032,37 +1072,46 @@
     await flushMicrotasks(4);
     assert(env5.elements.get("main").innerHTML.includes("Анна Соколова"), "expected tutor window matching for intermediate hour 15:00");
 
+    clickAction(env5, { a: "card-offer-step", id: "tut-sokolova", step: "-50" });
+    await flushMicrotasks(2);
+    assert(hasNum(env5.elements.get("main").innerHTML, "Сөп · Предложить 1 150 ₽"), "expected card inline -50 step to update offer button immediately");
+    clickAction(env5, { a: "card-offer-step", id: "tut-sokolova", step: "50" });
+    clickAction(env5, { a: "tutor-bio-toggle", id: "tut-sokolova" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes('class="tutor-bio-wrap is-open"'), "expected tutor-bio-toggle to expand tutor bio");
+
     clickAction(env5, { a: "mkt-reset" });
     clickAction(env5, { a: "mkt-plan", id: "trial5k" });
     await flushMicrotasks(4);
     assert(hasNum(env5.elements.get("main").innerHTML, "4 590 ₽"), "expected 4 590 ₽ wallet balance after trial5k (Стандарт · 4 урока)");
 
-    clickAction(env5, { a: "book-open", id: "tut-sokolova", hour: "10:00" });
+    clickAction(env5, { a: "book-open", id: "tut-sokolova" });
     await flushMicrotasks(2);
     const modalBefore = env5.elements.get("modal-root").innerHTML;
     assert(
       modalBefore.includes("Запись · Анна Соколова") &&
-      modalBefore.includes('id="bid-hour-range"') &&
-      modalBefore.includes('id="bid-hour-ticks"') &&
-      modalBefore.includes("hh-slider-ticks ruler") &&
       modalBefore.includes('id="bid-price"') &&
-      modalBefore.includes('id="bid-custom-time"') &&
-      modalBefore.includes("hh-select is-pill") &&
-      !modalBefore.includes('type="time"') &&
-      !modalBefore.includes('id="bid-fee-split"') &&
+      modalBefore.includes('min="0"') &&
+      modalBefore.includes('max="99999"') &&
+      modalBefore.includes('id="bid-note"') &&
+      !modalBefore.includes('id="bid-hour-range"') &&
+      !modalBefore.includes('id="bid-custom-time"') &&
+      !modalBefore.includes('data-a="book-exam"') &&
+      !modalBefore.includes('data-a="book-format"') &&
       modalBefore.includes('data-a="go-fees"'),
-      "expected booking modal with ruler hour slider, pill time select, custom time, hidden commission split and separate /fees link"
+      "expected minimalist booking modal with only 0-99999 price input, goal textarea, and /fees link"
     );
-    clickAction(env5, { a: "book-time-toggle" });
+    env5.emitDoc("input", { target: { id: "bid-price", value: "25000", dataset: {} } });
+    clickAction(env5, { a: "bid-step", step: "50" });
+    clickAction(env5, { a: "bid-step", step: "-50" });
     await flushMicrotasks(2);
-    assert(env5.elements.get("modal-root").innerHTML.includes('data-a="book-time-pick"'), "expected pill time select dropdown to open");
-    clickAction(env5, { a: "book-time-pick", v: "14:30" });
-    await flushMicrotasks(2);
-    assert(env5.elements.get("modal-root").innerHTML.includes("14:30") && !env5.elements.get("modal-root").innerHTML.includes('data-a="book-time-pick"'), "expected picked time 14:30 to update pill and close dropdown");
+    assert(hasNum(env5.elements.get("modal-root").innerHTML, "25 000 ₽") && env5.elements.get("modal-root").innerHTML.includes('value="25000"'), "expected 5-digit price input (25000) to work without 5000 cap");
+    env5.emitDoc("input", { target: { id: "bid-price", value: "1200", dataset: {} } });
+    await flushMicrotasks(1);
     clickAction(env5, { a: "bid-step", step: "-50" });
     await flushMicrotasks(2);
     const modalStepped = env5.elements.get("modal-root").innerHTML;
-    assert(modalStepped.includes('value="950"') && hasNum(modalStepped, "950 ₽/ч") && !modalStepped.includes("902 ₽") && !modalStepped.includes("48 ₽"), "expected -50 step to update offerPrice to 950 without showing commission split");
+    assert(modalStepped.includes('value="1150"') && hasNum(modalStepped, "1 150 ₽") && !modalStepped.includes("1 092 ₽"), "expected -50 step to update offerPrice to 1150 without showing commission split");
 
     clickAction(env5, { a: "book-submit" });
     await flushMicrotasks(4);
@@ -1070,7 +1119,7 @@
     const bookSideToast = env5.elements.get("toast");
     assert(bookSideToast.className === "toast is-side" && bookSideToast.innerHTML.includes("Предложение передано преподавателю"), "expected side notification after submitting booking bid");
     const afterBookHtml = env5.elements.get("main").innerHTML;
-    assert(afterBookHtml.includes("На рассмотрении · уведомим") && hasNum(afterBookHtml, "3 640 ₽"), "expected 950 ₽ reserved from 4 590 ₽ balance leaving 3 640 ₽");
+    assert(afterBookHtml.includes("На рассмотрении · уведомим") && hasNum(afterBookHtml, "3 440 ₽"), "expected 1150 ₽ reserved from 4 590 ₽ balance leaving 3 440 ₽");
 
     const acceptIdMatch = /data-a="mkt-sim-accept" data-id="([^"]+)"/.exec(afterBookHtml);
     assert(acceptIdMatch, "expected sim-accept button for pending booking");
@@ -1187,16 +1236,15 @@
     assert(!env5.elements.get("modal-root").innerHTML.trim(), "expected sample brandbook modal to close");
     const iconMatches = bbHtml.match(/data-a="bb-icon-play"/g) || [];
     assert(iconMatches.length === 40 && bbHtml.includes('data-icon="wallet"') && bbHtml.includes('data-icon="shield"') && bbHtml.includes('data-icon="send"') && bbHtml.includes('data-icon="ohyorCross"') && bbHtml.includes('data-icon="sakhaStar"') && bbHtml.includes('data-icon="sakhaLattice"') && bbHtml.includes('data-icon="sakhaKun"') && !bbHtml.includes('data-icon="sakha"') && !bbHtml.includes('data-icon="aurora"') && bbHtml.includes('data-a="bb-icons-wave"'), "expected 40-icon catalog with Photo 2/3 Yakut ornaments and Photo 4 icons removed");
-    assert(bbHtml.includes('id="bb-catalog"') && bbHtml.includes('id="bb-catalog-q"') && bbHtml.includes('id="bb-hero-banner"') && bbHtml.includes('id="bb-yakutia"') && bbHtml.includes('id="bb-landing-kit"') && bbHtml.includes('/assets/lena-pillars.jpg') && !bbHtml.includes('/assets/iphone-motion.jpg') && !bbHtml.includes('hero-iphone-bezel') && !bbHtml.includes('hero-banner-form') && !bbHtml.includes('hero-banner-badges') && !bbHtml.includes('id="bb-hero-demo-q"') && !bbHtml.includes('land-search-strip') && bbHtml.includes('hero-banner-ctas') && bbHtml.includes('Найти ниже рынка') && bbHtml.includes('Попробовать бета-тест') && bbHtml.includes("sakha-medallion-btn") && bbHtml.includes("sakha-diamond-btn") && bbHtml.includes("btn sakha-pattern") && bbHtml.includes("sakha-divider"), "expected searchable brandbook catalog + Hero banner with Lena Pillars & 2 CTAs (no top search strip/input/3 pills) + Photo 2/3 Yakut ornament buttons + landing kit");
+    assert(bbHtml.includes('id="bb-catalog"') && bbHtml.includes('id="bb-catalog-q"') && bbHtml.includes('id="bb-hero-banner"') && bbHtml.includes('id="bb-yakutia"') && bbHtml.includes('id="bb-landing-kit"') && bbHtml.includes('/assets/lena-pillars.jpg') && !bbHtml.includes('/assets/iphone-motion.jpg') && !bbHtml.includes('hero-iphone-bezel') && !bbHtml.includes('hero-banner-form') && !bbHtml.includes('hero-banner-badges') && !bbHtml.includes('id="bb-hero-demo-q"') && !bbHtml.includes('land-search-strip') && bbHtml.includes('hero-banner-ctas') && bbHtml.includes('Найти ниже рынка') && !bbHtml.includes('hero-cta-secondary') && bbHtml.includes("sakha-medallion-btn") && bbHtml.includes("sakha-diamond-btn") && bbHtml.includes("btn sakha-pattern") && bbHtml.includes("sakha-divider"), "expected searchable brandbook catalog + Hero banner with Lena Pillars & single gold CTA + Photo 2/3 Yakut ornament buttons + landing kit");
     clickAction(env5, { a: "bb-cat", v: "hero" });
     await flushMicrotasks(2);
     const bbFilteredHero = env5.elements.get("main").innerHTML;
     assert(bbFilteredHero.includes('id="bb-hero-banner"') && !bbFilteredHero.includes('id="bb-sliders"'), "expected bb-cat=hero filter to narrow brandbook down to hero components");
     clickAction(env5, { a: "bb-hero-primary" });
-    clickAction(env5, { a: "bb-hero-beta" });
     await flushMicrotasks(2);
     const bbHeroClicked = env5.elements.get("main").innerHTML;
-    assert(bbHeroClicked.includes("hero-cta-primary is-confirmed") && bbHeroClicked.includes("hero-cta-secondary is-confirmed"), "expected both hero CTA buttons in brandbook to toggle confirmed status");
+    assert(bbHeroClicked.includes("hero-cta-primary is-confirmed"), "expected gold hero CTA button in brandbook to toggle confirmed status");
     clickAction(env5, { a: "bb-cat-clear" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes('id="bb-sliders"'), "expected bb-cat-clear to restore all brandbook sections");
@@ -1243,7 +1291,7 @@
     clickAction(env5, { a: "go", v: "fees" });
     await flushMicrotasks(4);
     const feesHtml = env5.elements.get("main").innerHTML;
-    assert(feesHtml.includes('id="fees-page"') && feesHtml.includes("5%") && feesHtml.includes("Только СБП") && feesHtml.includes("990 ₽") && feesHtml.includes("шлюз СБП") && feesHtml.includes("1 490 ₽/мес") && hasNum(feesHtml, "760 ₽") && feesHtml.includes("40 ₽") && !feesHtml.includes("Открыть Брендбук"), "expected dedicated /fees page showing SBP-only mechanics, 5% + 1% SBP split, PRO 1490 ₽/mo and 760/40 calculator without internal brandbook button");
+    assert(feesHtml.includes('id="fees-page"') && feesHtml.includes("5%") && feesHtml.includes("Только СБП") && feesHtml.includes("490 ₽") && feesHtml.includes("шлюз СБП") && feesHtml.includes("1 490 ₽/мес") && hasNum(feesHtml, "760 ₽") && feesHtml.includes("40 ₽") && !feesHtml.includes("Открыть Брендбук"), "expected dedicated /fees page showing SBP-only mechanics, 490 ₽ trial, 5% + 1% SBP split, PRO 1490 ₽/mo and 760/40 calculator without internal brandbook button");
     clickAction(env5, { a: "fees-rate", rate: "2000" });
     await flushMicrotasks(2);
     const feesUpdated = env5.elements.get("main").innerHTML;
@@ -1397,7 +1445,7 @@
     await flushMicrotasks(2);
     const landFullHtml = env5.elements.get("main").innerHTML;
     assert(landFullHtml.includes('id="land-match"') && landFullHtml.includes('class="land-hero-banner"'), "expected hero banner and quick match on landing");
-    assert(landFullHtml.includes("Найти ниже рынка") && landFullHtml.includes("Попробовать бета-тест") && landFullHtml.includes("hero-cta-secondary") && !landFullHtml.includes("hero-banner-form"), "expected hero banner gold and blue CTAs without top search form");
+    assert(landFullHtml.includes("Найти ниже рынка") && landFullHtml.includes("btn gold hero-cta-primary") && !landFullHtml.includes("hero-cta-secondary") && !landFullHtml.includes("hero-banner-form"), "expected hero banner single gold CTA without top search form or secondary CTA");
     assert(landFullHtml.includes("savings-bar-fill gold-fill") && landFullHtml.includes("savings-gold-txt") && landFullHtml.includes("Вектор ЕГЭ · твоя ставка"), "expected Sakha Gold Вектор ЕГЭ твоя ставка progress bar and text class");
     assert(!landFullHtml.includes("land-search-strip") && !landFullHtml.includes("hh-blue-banner") && !landFullHtml.includes("hero-iphone-bezel") && landFullHtml.includes("/assets/lena-pillars.jpg"), "expected Lena Pillars hero without iPhone or search strip or blue brandbook banner");
     assert(landFullHtml.includes("sakha-divider is-gold-logo") && landFullHtml.includes("sakha-gold-emblem") && !landFullHtml.includes("Оһуор · Саха сирэ · Вектор ЕГЭ"), "expected single gold circular logo bottom divider without text label");
@@ -1748,16 +1796,17 @@
     clickAction(env5, { a: "tc-chart-style", v: "sticks" });
     await flushMicrotasks(1);
 
-    // Каталог /market фильтр городов: строго Якутск и Москва + Без фото
+    // Каталог /market фильтр городов: строго Якутск и Москва + Без фото (без дубля UTC+...)
     clickAction(env5, { a: "go", v: "market" });
     await flushMicrotasks(3);
     clickAction(env5, { a: "mkt-city", v: "Якутск" });
     await flushMicrotasks(2);
     const mktYakHtml = env5.elements.get("main").innerHTML;
-    assert(mktYakHtml.includes("UTC+9") && mktYakHtml.includes("Без фото") && mktYakHtml.includes('data-k="city"'), "expected Якутск city filter chip, UTC+9 and Без фото tutor avatar on /market");
+    assert(mktYakHtml.includes("Якутск") && !mktYakHtml.includes("(UTC+9)") && mktYakHtml.includes("Без фото") && mktYakHtml.includes('data-k="city"'), "expected Якутск city filter chip and Без фото tutor avatar on /market without UTC suffix");
     clickAction(env5, { a: "mkt-city", v: "Москва" });
     await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("Москва (UTC+3)"), "expected Москва (UTC+3) tutors when filtered to Москва");
+    const mktMskHtml = env5.elements.get("main").innerHTML;
+    assert(mktMskHtml.includes("Москва") && !mktMskHtml.includes("Москва (UTC+3)"), "expected clean Москва tutors without (UTC+3) dupe when filtered to Москва");
     clickAction(env5, { a: "mkt-reset" });
     await flushMicrotasks(2);
 
@@ -1879,7 +1928,7 @@
     clickAction(env5, { a: "bb-subsite", v: "home" });
     await flushMicrotasks(2);
     const bbHomeHtml = env5.elements.get("main").innerHTML;
-    assert(bbHomeHtml.includes('id="bb-device-showcase"') && bbHomeHtml.includes('id="bb-hero-banner"') && bbHomeHtml.includes("Назначай цену сам — репетиторы дешевле рынка на 15–30%"), "expected bb-subsite=home to render device showcase, updated hero headline and hero showcase");
+    assert(bbHomeHtml.includes('id="bb-device-showcase"') && bbHomeHtml.includes('id="bb-hero-banner"') && bbHomeHtml.includes("Назначай цену сам — репетиторы дешевле рынка"), "expected bb-subsite=home to render device showcase, updated hero headline and hero showcase");
     clickAction(env5, { a: "bb-dev-view", v: "desktop" });
     await flushMicrotasks(2);
     const bbDesktopOnly = env5.elements.get("main").innerHTML;

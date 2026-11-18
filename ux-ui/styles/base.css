@@ -126,7 +126,7 @@ p { margin: 0; }
 }
 .brand-name { display: inline-flex; align-items: center; gap: 8px; min-width: 0; white-space: nowrap; }
 .brand-wordmark-wrap { display: inline-flex; align-items: center; flex: none; }
-.brand-wordmark { height: 22px; width: auto; display: block; flex: none; color: var(--wm-ink); }
+.brand-wordmark { height: 26px; width: auto; display: block; flex: none; color: var(--wm-ink); }
 .brand-wordmark .wm-ege,
 .brand-wordmark .wm-diamond { color: var(--wm-accent); }
 .brand-tag {
@@ -239,18 +239,18 @@ p { margin: 0; }
   .topbar .brand-lockup { min-width: 0; flex: 1 1 auto; }
   .topbar .brand-text { min-width: 0; }
   .topbar-actions { display: flex; align-items: center; gap: 6px; flex: none; }
-  .topbar .brand-mark { width: 34px; height: 34px; border-radius: 0; flex: none; }
-  .topbar .brand-mark svg { width: 34px; height: 34px; }
-  .topbar .brand-wordmark { height: 19px; }
+  .topbar .brand-mark { width: 36px; height: 36px; border-radius: 0; flex: none; }
+  .topbar .brand-mark svg { width: 36px; height: 36px; }
+  .topbar .brand-wordmark { height: 22px; }
   .topbar .sync { max-width: 170px; }
   .topbar .sync span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 @media (max-width: 430px) {
   .topbar { padding-left: max(10px, env(safe-area-inset-left, 0px)); padding-right: max(10px, env(safe-area-inset-right, 0px)); gap: 6px; }
   .topbar .brand-lockup { gap: 6px; }
-  .topbar .brand-mark { width: 28px; height: 28px; }
-  .topbar .brand-mark svg { width: 28px; height: 28px; }
-  .topbar .brand-wordmark { height: 14.5px; }
+  .topbar .brand-mark { width: 31px; height: 31px; }
+  .topbar .brand-mark svg { width: 31px; height: 31px; }
+  .topbar .brand-wordmark { height: 18px; }
   .topbar .brand-tag { display: none; }
   .topbar-actions { gap: 4px; }
   .topbar-actions .icon-btn { width: 28px; height: 28px; }

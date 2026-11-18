@@ -6,8 +6,8 @@
   const EGE = (root.EGE = root.EGE || {});
   const { esc, plural, initials } = EGE.utils;
   const { icon } = EGE.ui;
-  const { isValidHHMM, bidBtnLabelHTML, sakhaBidInnerHTML, priceHeadlineHTML, priceDiffTagsHTML, sliderTicksHTML, hhSelectHTML, hhMultiSelectHTML, tutorAvatarHTML } = EGE.hh;
-  const MIN_ACTION_BALANCE = 990;
+  const { isValidHHMM, bidBtnLabelHTML, sakhaBidInnerHTML, priceHeadlineHTML, priceDiffTagsHTML, hhSelectHTML, hhMultiSelectHTML, tutorAvatarHTML } = EGE.hh;
+  const MIN_ACTION_BALANCE = 490;
 
   function hasMinBalance(st) {
     return (Number(st && st.balance) || 0) >= MIN_ACTION_BALANCE;
@@ -51,7 +51,7 @@
       const note = p.kind === "ai"
         ? "Безлимит тренажёра ЕГЭ и ИИ-сочинений К1–К12"
         : (p.id === "trial990"
-          ? "Полноценный урок 60 мин + 100% гарантия замены"
+          ? "Полноценный урок 60 мин за 490 ₽ + 100% гарантия замены"
           : (p.id === "minigroup"
             ? "4 урока в группе 3–5 чел. (~548 ₽/урок) + ИИ"
             : (p.balance > 0
@@ -82,8 +82,8 @@
     const sbpSteps = [
       ["01", "Оплата только через СБП", "QR-код или кнопка вашего банка (АЭБ, Сбер, Т-Банк, ВТБ) за 5 секунд — без привязки карт и карточных наценок."],
       ["02", "Поурочный эскроу-холд", "Деньги не уходят репетитору авансом за месяц: резервируется только сумма ближайшего урока до его завершения."],
-      ["03", "Шлюз контактов (WA · TG · MAX)", "До оплаты открыта видео-визитка 60 сек; сразу после бронирования слота от 990 ₽ в «Учёбе» открываются чаты в мессенджерах."],
-      ["04", "100% гарантия замены или возврат", "Если на пробном 990 ₽ не совпал темп или занятие отменено за ≥ 4 ч — бесплатная замена репетитора либо возврат 100%."]
+      ["03", "Шлюз контактов (WA · TG · MAX)", "Сразу после бронирования урока (от 490 ₽ или на бесплатном пробном) в «Учёбе» открываются прямые чаты в мессенджерах."],
+      ["04", "100% гарантия замены или возврат", "Если на пробном за 490 ₽ не совпал темп или занятие отменено за ≥ 4 ч — бесплатная замена репетитора либо возврат 100%."]
     ];
 
     return `<section class="land-sec" id="land-plans" aria-label="Тарифы и СБП-баланс">
@@ -91,7 +91,7 @@
         <div>
           <div class="eyebrow">Только СБП · 0% карточных наценок · Поурочный эскроу</div>
           <h2 class="h2">Гибкая линейка: от ИИ-тренажёра 390 ₽ до Интенсива 8 900 ₽</h2>
-          <p class="small muted">Оплата напрямую через СБП (АЭБ, СберБанк, Т-Банк, ВТБ) без карточных наценок. Старт с репетитором — от <b>990 ₽</b> (полноценный пробный урок 60 мин с 100% гарантией замены), далее любые пополнения от <b>100 ₽</b>. <a href="/fees" data-a="go" data-v="fees" style="color:var(--accent)">Подробнее о платёжке и правилах →</a></p>
+          <p class="small muted">Оплата напрямую через СБП (АЭБ, СберБанк, Т-Банк, ВТБ) без карточных наценок. Пробный урок по умолчанию — <b>490 ₽</b> (или бесплатно по выбору преподавателя), далее любые пополнения от <b>100 ₽</b>. <a href="/fees" data-a="go" data-v="fees" style="color:var(--accent)">Подробнее о платёжке и правилах →</a></p>
         </div>
         <div class="row" style="gap:6px;flex-wrap:wrap">
           <span class="small muted">Ставка для расчёта:</span>
@@ -122,73 +122,109 @@
     </section>`;
   }
 
-  /** Карточка преподавателя в стиле hh.ru без зелёных оттенков. */
-  function tutorCardHTML(t, opts) {
-    opts = opts || {};
-    const TDATA = getTDATA();
-    const st = getMkt();
-    const isFav = Array.isArray(st.favs) && st.favs.includes(t.id);
-    const activeDow = opts.activeDow !== undefined ? opts.activeDow : "all";
-    const daySlots = TDATA.tutorSlotsForDay(t, activeDow).slice(0, 5);
-    const pickHour = opts.pickHour || (st.hour !== "all" ? st.hour : (daySlots[0] || t.availableFrom || "10:00"));
-    const winTxt = t.windowLabel || ("с " + t.availableFrom + " до " + t.availableTo);
-    const belowRub = t.belowRub != null ? t.belowRub : Math.max(0, (t.marketPrice || t.price) - t.price);
-    const aboveRub = t.aboveRub != null ? t.aboveRub : Math.max(0, t.price - (t.marketPrice || t.price));
-    const qualLine = t.qualBadge || "Высокая квалификация";
+  function resolveTutorTrial(t, TDATA) {
+    const defPrice = (TDATA && TDATA.TRIAL_PRICE != null) ? Number(TDATA.TRIAL_PRICE) : 490;
+    if (!t || t.trialMode === "none" || t.trialPrice === null || t.trialPrice === false) {
+      return { enabled: false, free: false, price: null, label: "" };
+    }
+    if (t.trialMode === "free" || Number(t.trialPrice) === 0 || t.trialFree === true) {
+      return { enabled: true, free: true, price: 0, label: "Пробный · Бесплатно" };
+    }
+    const tp = (typeof t.trialPrice === "number" && Number.isFinite(t.trialPrice) && t.trialPrice > 0)
+      ? Math.min(99999, Math.round(t.trialPrice))
+      : defPrice;
+    return { enabled: true, free: false, price: tp, label: `Пробный · ${tp.toLocaleString("ru-RU")} ₽` };
+  }
+
+  function cardDiffTagsHTML(t, offerPrice) {
+    const marketP = Number(t.marketPrice) || Number(t.price) || 1200;
     const customBadges = Array.isArray(t.customBadges)
       ? t.customBadges.map((b) => String(b || "").trim()).filter(Boolean).slice(0, 2)
       : [];
-    const showTopPro = (aboveRub > 0 || (t.verified && Number(t.rating) >= 4.9)) && !customBadges.some((b) => b.includes("PRO"));
-    const trialPrice = (TDATA && TDATA.TRIAL_PRICE) || 990;
-    return `<article class="card tutor-card">
-      <div class="stack" style="gap:10px">
+    const tags = [];
+    const diffBelow = Math.max(0, marketP - offerPrice);
+    const diffAbove = Math.max(0, offerPrice - marketP);
+    if (diffBelow > 0) {
+      const pct = Math.max(1, Math.round((diffBelow / Math.max(1, marketP)) * 100));
+      tags.push(`<span class="diff-tag save-cool num">на ${diffBelow.toLocaleString("ru-RU")} ₽ ниже рынка</span>`);
+      tags.push(`<span class="diff-tag save-cyan num">−${pct}%</span>`);
+    } else if (diffAbove > 0) {
+      const pct = Math.max(1, Math.round((diffAbove / Math.max(1, marketP)) * 100));
+      const qual = customBadges[0] || t.qualBadge || "Высокая квалификация";
+      tags.push(`<span class="diff-tag pro">${esc(qual)}</span>`);
+      tags.push(`<span class="diff-tag pro num">выше рынка +${pct}%</span>`);
+    } else if (customBadges.length) {
+      customBadges.slice(0, 2).forEach((b) => tags.push(`<span class="diff-tag pro">${esc(b)}</span>`));
+    } else {
+      tags.push(`<span class="diff-tag rate">${esc(t.qualBadge || "Ставка по рынку")}</span>`);
+    }
+    return tags.slice(0, 2).join("");
+  }
+
+  /** Лаконичная карточка преподавателя одинакового размера без лишнего шума. */
+  function tutorCardHTML(t) {
+    const TDATA = getTDATA();
+    const ui = getUi();
+    const st = getMkt();
+    const isFav = Array.isArray(st.favs) && st.favs.includes(t.id);
+    const cardOffers = ui.cardOffers || (ui.cardOffers = {});
+    const hasDraft = cardOffers[t.id] != null && Number.isFinite(Number(cardOffers[t.id]));
+    const cardPrice = hasDraft ? Math.max(0, Math.min(99999, Math.round(Number(cardOffers[t.id])))) : Math.max(0, Number(t.price) || 1200);
+    const aboveRub = Math.max(0, cardPrice - (Number(t.marketPrice) || cardPrice));
+    const isProCard = !!(t.tier === "pro" || Number(t.price) > (Number(t.marketPrice) || Number(t.price)) || (t.bumpedToday && Number(t.rating) >= 4.9));
+    const expandedMap = ui.expandedBios || {};
+    const isBioOpen = !!expandedMap[t.id];
+    const trialInfo = resolveTutorTrial(t, TDATA);
+    const alreadyBooked = Array.isArray(st.bookings) && st.bookings.some((bk) => bk.tutorId === t.id);
+
+    return `<article class="card tutor-card${isProCard ? " is-pro" : ""}" data-tutor-id="${esc(t.id)}">
+      <div class="tutor-card-top">
         <div class="tutor-head">
           <div style="min-width:0">
-            <h3 class="h3" style="font-size:17px">Репетитор · ${esc(t.subjectName)}</h3>
-            <div class="hh-price-row" style="margin-top:4px">
+            <h3 class="h3" style="font-size:17px">${esc(t.subjectName)}</h3>
+            <div class="hh-price-row" style="margin-top:4px" data-card-price-row="${esc(t.id)}">
               ${aboveRub > 0
-                ? `<div class="tutor-rate num">${t.price.toLocaleString("ru-RU")} ₽/ч</div><span class="small muted num">рынок ${t.marketPrice.toLocaleString("ru-RU")} ₽</span>`
-                : `${t.marketPrice ? `<s class="hh-price-old num">${t.marketPrice.toLocaleString("ru-RU")} ₽</s>` : ""}<div class="tutor-rate num">${t.price.toLocaleString("ru-RU")} ₽/ч</div>`}
+                ? `<b class="hh-price-now num">${cardPrice.toLocaleString("ru-RU")} ₽/ч</b><span class="small muted num">рынок ${(t.marketPrice || cardPrice).toLocaleString("ru-RU")} ₽</span>`
+                : `${t.marketPrice && cardPrice < t.marketPrice ? `<s class="hh-price-old num">${t.marketPrice.toLocaleString("ru-RU")} ₽</s>` : ""}<div class="tutor-rate num">${cardPrice.toLocaleString("ru-RU")} ₽/ч</div>`}
             </div>
-            <div class="hh-diff-strip" style="margin-top:6px">
-              ${showTopPro ? `<span class="diff-tag pro">Верхняя полоса PRO</span>` : ""}
-              ${belowRub > 0 ? `<span class="diff-tag save-cool num">на ${belowRub.toLocaleString("ru-RU")} ₽ ниже рынка</span>` : ""}
-              ${t.belowPct ? `<span class="diff-tag save-cyan num">−${t.belowPct}%</span>` : ""}
-              ${aboveRub > 0 ? `<span class="diff-tag pro num">на +${aboveRub.toLocaleString("ru-RU")} ₽ выше рынка</span>` : ""}
-              ${customBadges.length
-                ? customBadges.map((b) => `<span class="diff-tag pro">${esc(b)}</span>`).join("")
-                : (aboveRub > 0 ? `<span class="diff-tag pro">${esc(qualLine)}</span>` : "")}
+            <div class="hh-diff-strip" style="margin-top:6px" data-card-diff="${esc(t.id)}">
+              ${cardDiffTagsHTML(t, cardPrice)}
             </div>
           </div>
           <button type="button" class="fav-btn" data-a="mkt-fav" data-id="${esc(t.id)}" aria-pressed="${isFav}" aria-label="В избранное">${icon(isFav ? "heartFill" : "heart")}</button>
         </div>
+
         <div class="tutor-name-line">
           ${tutorAvatarHTML(t)}
-          <b style="color:var(--ink)">${esc(t.name)}</b>
-          ${t.verified ? `<span class="verified-badge" title="Проверенная анкета">${icon("check")}</span>` : ""}
-          <span class="small muted">· ${esc(t.city)}${t.tzLabel ? " (" + esc(t.tzLabel) + ")" : ""} · ★ ${t.rating.toFixed(1)} (${t.reviews})</span>
+          <div class="tutor-person-meta">
+            <div class="row" style="gap:6px;align-items:center;flex-wrap:wrap">
+              <b style="color:var(--ink)">${esc(t.name)}</b>
+              ${t.verified ? `<span class="verified-badge" title="Проверенная анкета">${icon("check")}</span>` : ""}
+            </div>
+            <span class="small muted">${esc(t.city)} · ${esc(t.exp)} · ★ ${t.rating.toFixed(1)} (${t.reviews})</span>
+          </div>
         </div>
-        <div class="tutor-tags">
-          <span class="tutor-tag-pill">▶ Видео-визитка 60 сек</span>
-          <span class="tutor-tag-pill">${esc(t.source || "Доска Ykt")} · ${esc(winTxt)}</span>
-          <span class="tutor-tag-pill">${esc(t.exams.join(" и "))}</span>
-          <span class="tutor-tag-pill">${esc(t.exp)}</span>
-          <span class="tutor-tag-pill">${esc(t.formats.join(" / "))}</span>
-          <span class="tutor-tag-pill">${esc(t.tag)}</span>
+
+        <div class="tutor-bio-wrap${isBioOpen ? " is-open" : ""}">
+          <p class="tutor-bio">${esc(t.bio)}</p>
+          <button type="button" class="tutor-bio-more" data-a="tutor-bio-toggle" data-id="${esc(t.id)}" aria-expanded="${isBioOpen ? "true" : "false"}" title="${isBioOpen ? "Свернуть описание" : "Развернуть описание"}">
+            <span>${isBioOpen ? "Свернуть" : "Развернуть"}</span>
+            ${icon("chevDown")}
+          </button>
         </div>
-        <p class="tutor-bio">${esc(t.bio)}</p>
-        <div class="row between small muted" style="gap:6px;flex-wrap:wrap">
-          <span>${esc(t.bumpText)}</span>
-          <span class="num">Можно −50 ₽ от ${t.minFair} ₽/ч</span>
-        </div>
-        ${daySlots.length ? `<div class="slot-mini-row">
-          <span class="small muted">${opts.dayLabel ? esc(opts.dayLabel) + ":" : "Слоты:"}</span>
-          ${daySlots.map((h) => `<button type="button" class="slot-mini${st.hour === h ? " picked" : ""}" data-a="book-open" data-id="${esc(t.id)}" data-hour="${esc(h)}">${esc(h)}</button>`).join("")}
-        </div>` : ""}
       </div>
-      <div class="tutor-actions">
-        <button type="button" class="btn sakha-pattern" data-a="book-open" data-id="${esc(t.id)}" data-hour="${esc(pickHour)}">${sakhaBidInnerHTML(false, t.price)}</button>
-        <button type="button" class="btn soft" data-a="trial-open" data-id="${esc(t.id)}" data-hour="${esc(pickHour)}">${icon("spark")}<span>Пробный 60 мин · ${trialPrice} ₽</span></button>
+
+      <div class="tutor-card-foot">
+        <div class="hh-price-stepper compact tutor-card-stepper">
+          <button type="button" class="hh-step-btn" data-a="card-offer-step" data-id="${esc(t.id)}" data-step="-50" aria-label="Снизить цену на 50 рублей">−50 ₽</button>
+          <div class="hh-step-readout"><b class="num" data-card-val="${esc(t.id)}">${cardPrice.toLocaleString("ru-RU")} ₽/ч</b></div>
+          <button type="button" class="hh-step-btn" data-a="card-offer-step" data-id="${esc(t.id)}" data-step="50" aria-label="Повысить цену на 50 рублей">+50 ₽</button>
+        </div>
+        <button type="button" class="btn sakha-pattern tutor-bid-btn${alreadyBooked ? " is-confirmed" : ""}" data-a="book-open" data-id="${esc(t.id)}" data-offer="${cardPrice}">${sakhaBidInnerHTML(alreadyBooked, cardPrice)}</button>
+        <div class="tutor-sub-actions${trialInfo.enabled ? "" : " is-single"}">
+          ${trialInfo.enabled ? `<button type="button" class="btn soft sm" data-a="trial-open" data-id="${esc(t.id)}">${icon("spark")}<span>${esc(trialInfo.label)}</span></button>` : ""}
+          <button type="button" class="btn ghost sm" data-a="book-open" data-id="${esc(t.id)}" data-offer="${cardPrice}">Подробнее</button>
+        </div>
       </div>
     </article>`;
   }
@@ -201,7 +237,7 @@
     const bkFilter = ["all", "pending", "accepted"].includes(ui.mktBkFilter) ? ui.mktBkFilter : "all";
     const pendingCnt = st.bookings.filter((b) => b.status !== "accepted").length;
     const acceptedCnt = st.bookings.filter((b) => b.status === "accepted").length;
-    const trialDefault = (TDATA && TDATA.TRIAL_PRICE) || 990;
+    const trialDefault = (TDATA && TDATA.TRIAL_PRICE != null) ? Number(TDATA.TRIAL_PRICE) : 490;
 
     const bkColumns = [
       {
@@ -209,24 +245,24 @@
         label: "Преподаватель и предмет",
         render: (bk, h) => {
           const isTrial = !!bk.isTrial;
-          const trialRub = Number(bk.offerPrice) > 0 ? Number(bk.offerPrice) : trialDefault;
+          const trialRub = bk.offerPrice != null && Number.isFinite(Number(bk.offerPrice)) ? Number(bk.offerPrice) : trialDefault;
           return `<div class="stack" style="gap:4px;min-width:0">
             <div class="row" style="gap:6px;flex-wrap:wrap">
               <b>${esc(bk.tutorName)}</b>
               <span class="chip">${esc(bk.exam)} · ${esc(bk.subjectName)}</span>
-              ${isTrial ? `<span class="chip gold">Пробный · ${trialRub.toLocaleString("ru-RU")} ₽</span>` : ""}
+              ${isTrial ? `<span class="chip gold">${trialRub === 0 ? "Пробный · Бесплатно" : `Пробный · ${trialRub.toLocaleString("ru-RU")} ₽`}</span>` : ""}
             </div>
-            ${h.cols === 3 ? `<span class="small muted">${esc(bk.dayLabel)} в ${esc(bk.hour)} (${esc(bk.format)})</span>` : ""}
+            ${h.cols === 3 ? `<span class="small muted">${esc(bk.dayLabel)} · ${esc(bk.hour)}</span>` : ""}
           </div>`;
         }
       },
       {
         key: "slot",
-        label: "Слот",
+        label: "Детали",
         minCols: 5,
         render: (bk) => `<div class="stack" style="gap:2px">
           <b class="num">${esc(bk.dayLabel)} · ${esc(bk.hour)}</b>
-          <span class="small muted">${esc(bk.format)}</span>
+          <span class="small muted">${esc(bk.subjectName)}</span>
         </div>`
       },
       {
@@ -235,9 +271,9 @@
         num: true,
         render: (bk) => {
           const isTrial = !!bk.isTrial;
-          const trialRub = Number(bk.offerPrice) > 0 ? Number(bk.offerPrice) : trialDefault;
+          const trialRub = bk.offerPrice != null && Number.isFinite(Number(bk.offerPrice)) ? Number(bk.offerPrice) : trialDefault;
           return isTrial
-            ? `<b class="num">Пробный ${trialRub.toLocaleString("ru-RU")} ₽</b>`
+            ? `<b class="num">${trialRub === 0 ? "Пробный · Бесплатно" : `Пробный ${trialRub.toLocaleString("ru-RU")} ₽`}</b>`
             : `<div class="stack" style="gap:2px"><b class="num">${Number(bk.offerPrice).toLocaleString("ru-RU")} ₽/ч</b><span class="small muted num">вместо ${Number(bk.tutorPrice).toLocaleString("ru-RU")} ₽</span></div>`;
         }
       },
@@ -297,7 +333,7 @@
       id: "student-bookings-table",
       cardWrap: false,
       showPresetSwitch: false,
-      eyebrow: "Мои заявки",
+      eyebrow: `Мои заявки · доступно ${Number(st.balance || 0).toLocaleString("ru-RU")} ₽`,
       title: "Отправленные отклики и ставки ±50 ₽",
       cols: bkCols,
       filter: bkFilter,
@@ -343,138 +379,68 @@
     if (!ui.booking || !TDATA) return "";
     const b = ui.booking, tutor = TDATA.LIST.find((x) => x.id === b.tutorId);
     if (!tutor) return "";
-    const days = TDATA.buildCalendarDays(7);
-    const dayObj = days.find((d) => d.iso === b.dayIso) || days[0];
-    const daySlots = TDATA.tutorSlotsForDay(tutor, dayObj.dow);
-    const curHour = isValidHHMM(b.hour) ? b.hour : (daySlots[0] || "10:00");
-    const curHourNum = Math.max(10, Math.min(20, parseInt(String(curHour).split(":")[0], 10) || 10));
-    const curHourPct = Math.round(((curHourNum - 10) / 10) * 100);
-    const sig = TDATA.offerSignal(tutor.price, b.offerPrice);
     const st = getMkt();
-    const isTrial = b.mode === "trial" || !!b.isTrial;
-    const trialPrice = (TDATA && TDATA.TRIAL_PRICE) || 990;
-    const minOk = hasMinBalance(st);
-    const n5 = b.offerPrice > 0 ? Math.max(1, Math.floor(4590 / b.offerPrice)) : 0;
-    const n10 = b.offerPrice > 0 ? Math.max(1, Math.floor(8900 / b.offerPrice)) : 0;
-    const winTxt = tutor.windowLabel || ("с " + tutor.availableFrom + " до " + tutor.availableTo);
-    const inWin = typeof TDATA.tutorInWindow === "function" ? TDATA.tutorInWindow(tutor, curHour) : true;
-    const preview = isTrial
-      ? `Запрос на пробный урок 60 мин (${trialPrice} ₽ · СБП-эскроу, 100% гарантия замены) · ${b.exam}, ${tutor.subjectName}, ${b.format.toLowerCase()}, ${dayObj.fullLabel} в ${curHour}.`
-      : TDATA.botPreviewText({
-          exam: b.exam,
-          subjectName: tutor.subjectName,
-          format: b.format,
-          dayLabel: dayObj.fullLabel,
-          hour: curHour,
-          offerPrice: b.offerPrice,
-          tutorPrice: tutor.price
-        });
-    const timeOptions = [];
-    for (let h = 10; h <= 20; h++) {
-      timeOptions.push({ id: `${String(h).padStart(2, "0")}:00`, label: `${String(h).padStart(2, "0")}:00` });
-      if (h < 20) timeOptions.push({ id: `${String(h).padStart(2, "0")}:30`, label: `${String(h).padStart(2, "0")}:30` });
-    }
-    if (isValidHHMM(curHour) && !timeOptions.some((o) => o.id === curHour)) {
-      timeOptions.push({ id: curHour, label: curHour });
-      timeOptions.sort((a, z) => a.id.localeCompare(z.id));
-    }
+    const trialInfo = resolveTutorTrial(tutor, TDATA);
+    const isTrial = trialInfo.enabled && (b.mode === "trial" || !!b.isTrial);
+    const offerPrice = Math.max(0, Math.min(99999, b.offerPrice != null ? Math.round(Number(b.offerPrice)) : (Number(tutor.price) || 1200)));
+    const sig = TDATA.offerSignal(tutor.price, offerPrice);
+    const trialNeedsBal = isTrial && !trialInfo.free && (Number(st.balance) || 0) < trialInfo.price;
+
     return `<div class="modal-back" role="dialog" aria-modal="true" aria-labelledby="book-modal-title">
       <div class="modal-card">
         <div class="modal-head">
-          <div class="row" style="gap:8px">${icon("cal")}<b id="book-modal-title">Запись · ${esc(tutor.name)}</b></div>
+          <div class="stack" style="gap:2px;min-width:0">
+            <b id="book-modal-title">Запись · ${esc(tutor.name)}</b>
+            <span class="small muted">${esc(tutor.subjectName)} · ${esc(tutor.city)} · ★ ${tutor.rating.toFixed(1)} (${tutor.reviews})</span>
+          </div>
           <button type="button" class="icon-btn sm" data-a="book-close" aria-label="Закрыть">${icon("x")}</button>
         </div>
-        <div class="row between small muted" style="flex-wrap:wrap;gap:6px">
-          <span>${esc(tutor.subjectName)} · ${esc(tutor.source)} · окно <b>${esc(winTxt)}</b></span>
-          <span>Баланс (СБП): <b class="num">${st.balance.toLocaleString("ru-RU")} ₽</b></span>
-        </div>
-        <div class="hh-seg equal" role="group" aria-label="Формат первого урока">
-          <button type="button" data-a="book-mode" data-v="paid" aria-pressed="${!isTrial}"><span>Обычный урок (своя ставка)</span></button>
-          <button type="button" data-a="book-mode" data-v="trial" aria-pressed="${isTrial}">${icon("spark")}<span>Пробный урок · ${trialPrice} ₽</span></button>
-        </div>
-        ${isTrial && !minOk ? `<div class="notice warn">
-          <b>Нужно от ${trialPrice} ₽ на балансе (СБП)</b>
-          <span class="small">Для записи на пробный урок 60 мин (990 ₽) пополните счёт через СБП — сумма заморозится на эскроу и защищена 100% гарантией замены.</span>
-          <div><button type="button" class="btn sm" data-a="bal-open" data-reason="trial">${icon("wallet")}<span>Пополнить по СБП от ${trialPrice} ₽</span></button></div>
+
+        <p class="small ink2" style="margin:0;line-height:1.5">${esc(tutor.bio)}</p>
+
+        ${trialInfo.enabled ? `<div class="hh-seg equal" role="group" aria-label="Формат записи">
+          <button type="button" data-a="book-mode" data-v="paid" aria-pressed="${!isTrial}"><span>Своя цена за урок</span></button>
+          <button type="button" data-a="book-mode" data-v="trial" aria-pressed="${isTrial}">${icon("spark")}<span>${esc(trialInfo.label)}</span></button>
         </div>` : ""}
-        <div class="fields">
-          <div class="field">
-            <label>Экзамен</label>
-            <div class="switch">${tutor.exams.map((ex) => `<button type="button" data-a="book-exam" data-v="${esc(ex)}" aria-pressed="${b.exam === ex}">${esc(ex)}</button>`).join("")}</div>
-          </div>
-          <div class="field">
-            <label>Формат</label>
-            <div class="switch">${tutor.formats.map((fm) => `<button type="button" data-a="book-format" data-v="${esc(fm)}" aria-pressed="${b.format === fm}">${esc(fm)}</button>`).join("")}</div>
-          </div>
-        </div>
+
+        ${trialNeedsBal ? `<div class="notice warn">
+          <b>Нужно от ${trialInfo.price.toLocaleString("ru-RU")} ₽ на балансе (СБП)</b>
+          <span class="small">Сумма заморозится на эскроу за пробный урок и защищена 100% гарантией замены.</span>
+          <div><button type="button" class="btn sm" data-a="bal-open" data-reason="trial">${icon("wallet")}<span>Пополнить по СБП от ${trialInfo.price.toLocaleString("ru-RU")} ₽</span></button></div>
+        </div>` : ""}
+
         <div class="field">
-          <label>Выбери день</label>
-          <div class="cal-days">${days.map((d) => {
-            const cnt = TDATA.tutorSlotsForDay(tutor, d.dow).length;
-            if (!cnt) return "";
-            const on = d.iso === dayObj.iso;
-            return `<button type="button" class="day-cir${on ? " on" : ""}" data-a="book-day" data-v="${d.iso}"><span class="day-wd">${esc(d.wd)}</span><span class="day-dot">${d.num}</span><span class="day-cnt">${cnt} слот.</span></button>`;
-          }).join("")}</div>
-        </div>
-        <div class="field">
-          <label>Выбери час с 10:00 до 20:00 (${esc(winTxt)})</label>
-          <div class="hh-time-picker">
-            <div class="row between">
-              <span class="small muted">Время занятия</span>
-              <span class="hh-time-val num" id="bid-hour-pill">${esc(curHour)}</span>
-            </div>
-            <input class="hh-time-range is-ruler" id="bid-hour-range" type="range" min="10" max="20" step="1" value="${curHourNum}" style="--pct:${curHourPct}%" aria-label="Час занятия с 10:00 до 20:00">
-            ${sliderTicksHTML(curHourNum, "ruler", { id: "bid-hour-ticks" })}
-            <div class="hh-time-ticks" aria-hidden="true"><span>10:00</span><span>12:00</span><span>14:00</span><span>16:00</span><span>18:00</span><span>20:00</span></div>
-          </div>
-          ${daySlots.length ? `<div class="hour-circles compact" id="bid-day-slots" style="margin-top:8px">${daySlots.map((h) => `<button type="button" class="hr-cir${h === curHour ? " on" : ""}" data-a="book-hour" data-v="${esc(h)}">${esc(h)}</button>`).join("")}</div>` : ""}
-          <div class="bid-time-row" style="margin-top:8px">
-            <span class="small muted" id="bid-win-status">${inWin ? `Входит в свободное окно (${esc(winTxt)})` : `Вне типового окна (${esc(winTxt)}) — уточним и уведомим`}</span>
-            ${hhSelectHTML({
-              id: "bid-custom-time",
-              pill: true,
-              leadIcon: "clock",
-              options: timeOptions,
-              value: curHour,
-              open: !!b.timeMenuOpen,
-              toggleAction: "book-time-toggle",
-              pickAction: "book-time-pick",
-              ariaLabel: "Выбрать точное время урока"
-            })}
-          </div>
-        </div>
-        <div class="field">
-          <label for="bid-price">${isTrial ? "Стоимость пробного урока (60 мин)" : "Твоя цена за занятие (₽/ч)"}</label>
+          <label for="bid-price">${isTrial ? "Стоимость пробного урока" : "Твоя цена за урок (0 – 99 999 ₽/ч)"}</label>
           ${isTrial
-            ? `<div class="hh-notice-card" style="padding:12px 14px"><b class="num">${trialPrice} ₽ — полноценный пробный урок 60 мин (СБП-эскроу)</b><span class="small ink2">Сумма ${trialPrice} ₽ замораживается на балансе <b>${st.balance.toLocaleString("ru-RU")} ₽</b> до конца урока: сразу открываются WhatsApp / Telegram / MAX, а если темп не подошёл — 100% бесплатная замена репетитора.</span></div>`
+            ? `<div class="hh-notice-card" style="padding:12px 14px"><b class="num">${trialInfo.free ? "Бесплатно (0 ₽) — пробный урок-знакомство" : `${trialInfo.price.toLocaleString("ru-RU")} ₽ — пробный урок 60 мин (СБП-эскроу)`}</b><span class="small ink2">${trialInfo.free ? "Преподаватель проводит первое занятие бесплатно — пополнение баланса не требуется." : `Сумма замораживается на балансе (${st.balance.toLocaleString("ru-RU")} ₽) до завершения урока.`}</span></div>`
             : `<div class="hh-price-row" id="bid-price-row" style="margin-bottom:4px">
-                ${priceHeadlineHTML(tutor.marketPrice, b.offerPrice, false)}
+                ${priceHeadlineHTML(tutor.marketPrice, offerPrice, false)}
               </div>
               <div class="hh-diff-strip" id="bid-diff-strip" style="margin-bottom:4px">
-                ${priceDiffTagsHTML({ tutorPrice: tutor.price, marketPrice: tutor.marketPrice || tutor.price, offerPrice: b.offerPrice, qualBadge: tutor.qualBadge, customBadges: tutor.customBadges })}
+                ${cardDiffTagsHTML(tutor, offerPrice)}
               </div>
               <div class="hh-price-stepper">
                 <button type="button" class="hh-step-btn" data-a="bid-step" data-step="-50">−50 ₽</button>
-                <input class="input bid-input num" id="bid-price" type="number" min="500" max="5000" step="50" inputmode="numeric" value="${b.offerPrice}">
+                <div class="hh-step-readout is-inline">
+                  <input class="input bid-input num" id="bid-price" type="number" min="0" max="99999" step="50" inputmode="numeric" value="${offerPrice}">
+                  <span class="hh-step-unit">₽/ч</span>
+                </div>
                 <button type="button" class="hh-step-btn" data-a="bid-step" data-step="50">+50 ₽</button>
               </div>
               <div id="bid-signal" class="small"><span class="chip ${sig.tone}">${esc(sig.label)}</span></div>`}
         </div>
+
         <div class="field">
-          <label for="bid-note">Пожелания по подготовке (необязательно)</label>
-          <input class="input" id="bid-note" maxlength="140" placeholder="Например: цель 80+ баллов, разбор устной части и эссе" value="${esc(b.note || "")}">
+          <label for="bid-note">Твоя цель и почему хочешь заниматься у этого преподавателя</label>
+          <textarea class="input" id="bid-note" rows="3" maxlength="240" placeholder="Например: цель 85+ баллов, нужно подтянуть сложные темы и разбирать варианты раз в неделю">${esc(b.note || "")}</textarea>
         </div>
-        <div class="bot-preview">
-          <b class="small">Детали заявки (уведомим о подтверждении):</b>
-          <span id="bot-preview-txt">${esc(preview)}</span>
-          ${isTrial ? "" : `<span class="small muted" id="bid-plan-counts">На «Стандарт» (4 590 ₽) хватит на <b>${n5} ур.</b> · на «Интенсив» (8 900 ₽) на <b>${n10} ур.</b></span>`}
-        </div>
+
         <div class="row between" style="flex-wrap:wrap;gap:8px;align-items:center">
           <div class="row" style="flex-wrap:wrap;gap:8px">
-            <button type="button" class="btn sakha-pattern" id="bid-submit-btn" data-a="book-submit">${isTrial ? `<span>Сөп · Записаться на пробный ${trialPrice} ₽</span>` : sakhaBidInnerHTML(false, b.offerPrice, { attr: 'data-bid-lbl="1"' })}</button>
+            <button type="button" class="btn sakha-pattern" id="bid-submit-btn" data-a="book-submit">${isTrial ? `<span>Сөп · ${trialInfo.free ? "Записаться бесплатно" : `Пробный ${trialInfo.price.toLocaleString("ru-RU")} ₽`}</span>` : sakhaBidInnerHTML(false, offerPrice, { attr: 'data-bid-lbl="1"' })}</button>
             <button type="button" class="btn ghost" data-a="book-close">Отмена</button>
           </div>
-          <button type="button" class="link-btn small muted" data-a="go-fees">Как работает СБП-эскроу и сборы →</button>
+          <button type="button" class="link-btn small muted" data-a="go-fees">Защита оплаты СБП →</button>
         </div>
       </div>
     </div>`;
@@ -486,100 +452,37 @@
     if (!ui.booking || !TDATA) return;
     const b = ui.booking, tutor = TDATA.LIST.find((x) => x.id === b.tutorId);
     if (!tutor) return;
-    const days = TDATA.buildCalendarDays(7);
-    const dayObj = days.find((d) => d.iso === b.dayIso) || days[0];
-    const hourPill = document.getElementById("bid-hour-pill");
-    if (hourPill) hourPill.textContent = b.hour;
-    const hourRange = document.getElementById("bid-hour-range");
-    const hNum = Math.max(10, Math.min(20, parseInt(String(b.hour || "10").slice(0, 2), 10) || 10));
-    if (hourRange) {
-      hourRange.value = String(hNum);
-      if (hourRange.style && typeof hourRange.style.setProperty === "function") {
-        hourRange.style.setProperty("--pct", ((hNum - 10) * 10) + "%");
-      }
-    }
-    const ticksEl = document.getElementById("bid-hour-ticks");
-    if (ticksEl && typeof ticksEl.querySelectorAll === "function") {
-      ticksEl.querySelectorAll("i").forEach((it) => {
-        const tv = Number(it.getAttribute && it.getAttribute("data-tick")) || 0;
-        if (it.classList) it.classList.toggle("on", tv === hNum);
-      });
-    }
-    const slotsEl = document.getElementById("bid-day-slots");
-    if (slotsEl && typeof slotsEl.querySelectorAll === "function") {
-      slotsEl.querySelectorAll('[data-a="book-hour"]').forEach((btn) => {
-        const match = btn.getAttribute && btn.getAttribute("data-v") === b.hour;
-        if (btn.classList) btn.classList.toggle("on", !!match);
-      });
-    }
-    const customEl = document.getElementById("bid-custom-time");
-    if (customEl) {
-      const lblEl = customEl.querySelector && customEl.querySelector(".hh-select-val > span.num");
-      if (lblEl) lblEl.textContent = b.hour;
-      if (typeof customEl.querySelectorAll === "function") {
-        customEl.querySelectorAll(".hh-select-item").forEach((it) => {
-          const match = it.getAttribute && it.getAttribute("data-v") === b.hour;
-          if (it.classList) it.classList.toggle("on", !!match);
-          if (it.setAttribute) it.setAttribute("aria-selected", match ? "true" : "false");
-        });
-      }
-    }
+    const trialInfo = resolveTutorTrial(tutor, TDATA);
+    const isTrial = trialInfo.enabled && (b.mode === "trial" || !!b.isTrial);
+    const offerPrice = Math.max(0, Math.min(99999, b.offerPrice != null ? Math.round(Number(b.offerPrice)) : (Number(tutor.price) || 1200)));
+
     const priceEl = document.getElementById("bid-price");
     if (priceEl) {
-      if (document.activeElement !== priceEl) priceEl.value = String(b.offerPrice);
-      if (typeof priceEl.setAttribute === "function") priceEl.setAttribute("value", String(b.offerPrice));
-    }
-    const planEl = document.getElementById("bid-plan-counts");
-    if (planEl && b.offerPrice > 0) {
-      const n5 = Math.max(1, Math.floor(4590 / b.offerPrice));
-      const n10 = Math.max(1, Math.floor(8900 / b.offerPrice));
-      planEl.innerHTML = `На «Стандарт» (4 590 ₽) хватит на <b>${n5} ур.</b> · на «Интенсив» (8 900 ₽) на <b>${n10} ур.</b>`;
+      if (document.activeElement !== priceEl) priceEl.value = String(offerPrice);
+      if (typeof priceEl.setAttribute === "function") priceEl.setAttribute("value", String(offerPrice));
     }
     const priceRowEl = document.getElementById("bid-price-row");
     if (priceRowEl) {
-      priceRowEl.innerHTML = priceHeadlineHTML(tutor.marketPrice, b.offerPrice, false);
+      priceRowEl.innerHTML = priceHeadlineHTML(tutor.marketPrice, offerPrice, false);
     }
     const diffEl = document.getElementById("bid-diff-strip");
     if (diffEl) {
-      diffEl.innerHTML = priceDiffTagsHTML({ tutorPrice: tutor.price, marketPrice: tutor.marketPrice || tutor.price, offerPrice: b.offerPrice, qualBadge: tutor.qualBadge, customBadges: tutor.customBadges });
+      diffEl.innerHTML = cardDiffTagsHTML(tutor, offerPrice);
     }
     const subBtn = document.getElementById("bid-submit-btn");
     if (subBtn) {
-      if (b.isTrial || b.mode === "trial") {
-        const trialPrice = (TDATA && TDATA.TRIAL_PRICE) || 990;
-        subBtn.innerHTML = `<span>Сөп · Записаться на пробный ${trialPrice} ₽</span>`;
+      if (isTrial) {
+        subBtn.innerHTML = `<span>Сөп · ${trialInfo.free ? "Записаться бесплатно" : `Пробный ${trialInfo.price.toLocaleString("ru-RU")} ₽`}</span>`;
       } else {
         const subLbl = subBtn.querySelector && (subBtn.querySelector("[data-bid-lbl]") || subBtn.querySelector("span"));
-        if (subLbl) subLbl.textContent = bidBtnLabelHTML(false, b.offerPrice);
-        else subBtn.innerHTML = sakhaBidInnerHTML(false, b.offerPrice, { attr: 'data-bid-lbl="1"' });
+        if (subLbl) subLbl.textContent = bidBtnLabelHTML(false, offerPrice);
+        else subBtn.innerHTML = sakhaBidInnerHTML(false, offerPrice, { attr: 'data-bid-lbl="1"' });
       }
     }
     const sigEl = document.getElementById("bid-signal");
     if (sigEl) {
-      const sig = TDATA.offerSignal(tutor.price, b.offerPrice);
+      const sig = TDATA.offerSignal(tutor.price, offerPrice);
       sigEl.innerHTML = `<span class="chip ${sig.tone}">${esc(sig.label)}</span>`;
-    }
-    const winEl = document.getElementById("bid-win-status");
-    if (winEl && typeof TDATA.tutorInWindow === "function") {
-      const winTxt = tutor.windowLabel || ("с " + tutor.availableFrom + " до " + tutor.availableTo);
-      const inWin = TDATA.tutorInWindow(tutor, b.hour);
-      winEl.textContent = inWin
-        ? `Входит в свободное окно (${winTxt})`
-        : `Вне типового окна (${winTxt}) — уточним и уведомим`;
-    }
-    const prevEl = document.getElementById("bot-preview-txt");
-    if (prevEl) {
-      prevEl.textContent = b.isTrial
-        ? `Запрос на бесплатный пробный урок (0 ₽) · ${b.exam}, ${tutor.subjectName}, ${b.format.toLowerCase()}, ${dayObj.fullLabel} в ${b.hour}. Баланс подтверждён.`
-        : TDATA.botPreviewText({
-            exam: b.exam,
-            subjectName: tutor.subjectName,
-            format: b.format,
-            dayLabel: dayObj.fullLabel,
-            hour: b.hour,
-            offerPrice: b.offerPrice,
-            tutorPrice: tutor.price
-          });
     }
   }
 
@@ -670,29 +573,8 @@
     const st = getMkt();
     const days = TDATA.buildCalendarDays(7);
     const activeDayObj = st.day !== "all" ? (days.find((d) => d.iso === st.day) || null) : null;
-    const activeDow = activeDayObj ? activeDayObj.dow : "all";
     const list = TDATA.filterTutors(st, days);
-    const activePlan = TDATA.PLANS.find((p) => p.id === st.planId) || TDATA.PLANS[0];
     const fCount = activeFilterCount(st);
-
-    const dayPills = `<button type="button" class="day-cir${st.day === "all" ? " on" : ""}" data-a="mkt-day" data-v="all">
-        <span class="day-wd">Все</span>
-        <span class="day-dot">7</span>
-        <span class="day-cnt">${days[0].num}–${days[days.length - 1].num} ${days[0].month}</span>
-      </button>` + days.map((d) => {
-        const cnt = TDATA.countForDay(st, d.dow);
-        return `<button type="button" class="day-cir${st.day === d.iso ? " on" : ""}" data-a="mkt-day" data-v="${d.iso}">
-          <span class="day-wd">${esc(d.wd)}</span>
-          <span class="day-dot">${d.num}</span>
-          <span class="day-cnt">${cnt ? cnt + " преп." : "нет"}</span>
-        </button>`;
-      }).join("");
-
-    const hourPills = `<button type="button" class="hr-cir${st.hour === "all" ? " on" : ""}" data-a="mkt-hour" data-v="all">Любое</button>` +
-      TDATA.HOURS.map((h) => {
-        const cnt = TDATA.countForHour(st, activeDow, h);
-        return `<button type="button" class="hr-cir${st.hour === h ? " on" : ""}${cnt === 0 ? " empty-slot" : ""}" data-a="mkt-hour" data-v="${esc(h)}"><span>${esc(h)}</span><span class="hr-cnt">${cnt}</span></button>`;
-      }).join("");
 
     const activeChips = [];
     if (st.subject !== "all") {
@@ -707,16 +589,21 @@
 
     const sortLabels = { actual: "По соответствию", price_asc: "Сначала дешевле", rating_desc: "По рейтингу" };
     const cardsHTML = list.length
-      ? `<div class="tutor-grid">${list.map((t) => tutorCardHTML(t, { activeDow, dayLabel: activeDayObj ? activeDayObj.wd : "" })).join("")}</div>`
+      ? `<div class="tutor-grid">${list.map((t) => tutorCardHTML(t)).join("")}</div>`
       : `<div class="empty">
-          <b>По выбранным фильтрам и времени пока никого нет.</b>
-          <span>Попробуй расширить бюджет, выбрать «Все» дни или сбросить час.</span>
+          <b>По выбранным фильтрам пока никого нет.</b>
+          <span>Попробуй расширить бюджет или сбросить фильтры.</span>
           <button type="button" class="btn soft sm" data-a="mkt-reset">Сбросить фильтры</button>
         </div>`;
-
-    const selTimeDesc = (activeDayObj ? activeDayObj.shortLabel : "Все 7 дней") + " · " + (st.hour === "all" ? "любое время" : st.hour);
-    const mktHourNum = st.hour !== "all" ? Math.max(10, Math.min(20, parseInt(String(st.hour).split(":")[0], 10) || 10)) : 10;
-    const mktHourPct = Math.round(((mktHourNum - 10) / 10) * 100);
+    const bottomBalanceBar = (!st.bookings.length && Number(st.balance) > 0)
+      ? `<div class="row between small muted mkt-foot-bal" style="padding:10px 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface)">
+          <span>Доступно на балансе СБП: <b class="num" style="color:var(--ink)">${Number(st.balance).toLocaleString("ru-RU")} ₽</b></span>
+          <div class="row" style="gap:6px;flex-wrap:wrap">
+            <button type="button" class="btn soft sm" data-a="bal-open">${icon("wallet")}<span>Пополнить</span></button>
+            <button type="button" class="btn ghost sm" data-a="go-student-lead">${icon("plus")}<span>Ищу преподавателя</span></button>
+          </div>
+        </div>`
+      : "";
 
     return `<section class="land-sec" id="land-market" aria-label="Маркетплейс репетиторов">
       <div class="land-sec-head">
@@ -741,56 +628,8 @@
         ${(!st.city || st.city === "all") ? (((TDATA && TDATA.CITIES) || ["Якутск", "Москва"]).map((c) => `<button type="button" class="chip-btn" data-a="mkt-city" data-v="${esc(c)}">+ ${esc(c)}</button>`).join("")) : ""}
         ${!st.onlyBumped ? `<button type="button" class="chip-btn" data-a="mkt-bumped">+ Актуальные сегодня</button>` : ""}
         ${st.maxPrice >= 2000 ? `<button type="button" class="chip-btn" data-a="mkt-price" data-v="1300">+ До 1 300 ₽</button>` : ""}
-        <button type="button" class="chip-btn" data-a="mkt-preset">+ Английский · Сб 10:00</button>
+        <button type="button" class="chip-btn" data-a="mkt-preset">+ Английский ЕГЭ</button>
         ${TDATA.SUBJECTS.filter((sb) => sb.id !== st.subject).map((sb) => `<button type="button" class="chip-btn" data-a="mkt-subj" data-v="${sb.id}">+ ${esc(sb.short)}</button>`).join("")}
-      </div>
-
-      ${(EGE.kit && typeof EGE.kit.walletSummaryBarHTML === "function")
-        ? EGE.kit.walletSummaryBarHTML({
-            labelHTML: `Тариф: <b style="color:var(--ink)">${esc(activePlan.name)}</b>`,
-            amountRub: st.balance,
-            inlineNote: hasMinBalance(st) ? "доступны пробный 60 мин (990 ₽) и отклики по СБП" : "старт с репетитором от 990 ₽ по СБП (далее доплаты от 100 ₽)",
-            actions: [
-              { label: "Пополнить по СБП", action: "bal-open", icon: "wallet", cls: `btn ${hasMinBalance(st) ? "soft" : ""} sm` },
-              { label: "Ищу преподавателя", action: "go-student-lead", icon: "plus", cls: "btn soft sm" }
-            ]
-          })
-        : `<div class="wallet-bar">
-        <div class="stack" style="gap:2px">
-          <span class="small muted">Тариф: <b style="color:var(--ink)">${esc(activePlan.name)}</b></span>
-          <div class="row" style="gap:10px;align-items:baseline;flex-wrap:wrap">
-            <span class="wallet-num num">${st.balance.toLocaleString("ru-RU")} ₽</span>
-            <span class="small muted">${hasMinBalance(st) ? "доступны пробный 60 мин (990 ₽) и отклики по СБП" : "старт с репетитором от 990 ₽ по СБП (далее доплаты от 100 ₽)"}</span>
-          </div>
-        </div>
-        <div class="row" style="gap:8px;flex-wrap:wrap">
-          <button type="button" class="btn ${hasMinBalance(st) ? "soft" : ""} sm" data-a="bal-open">${icon("wallet")}<span>Пополнить по СБП</span></button>
-          <button type="button" class="btn soft sm" data-a="go-student-lead">${icon("plus")}<span>Ищу преподавателя</span></button>
-        </div>
-      </div>`}
-
-      ${bookingsStripHTML(st)}
-
-      <div class="card mkt-controls">
-        <div class="cal-label">
-          <b>Когда удобно заниматься (10:00 – 20:00)</b>
-          <span class="chip accent">${esc(selTimeDesc)}</span>
-        </div>
-        <div class="cal-days" aria-label="Дни недели">${dayPills}</div>
-        <div class="hh-time-picker">
-          <div class="row between">
-            <span class="small muted">Ползунок часа с 10:00 до 20:00</span>
-            <div class="row" style="gap:6px">
-              <button type="button" class="chip-btn${st.hour === "all" ? " on" : ""}" data-a="mkt-hour" data-v="all">Любое время</button>
-              <span class="hh-time-val num" id="mkt-hour-pill">${st.hour === "all" ? "Все часы" : esc(st.hour)}</span>
-            </div>
-          </div>
-          <input class="hh-time-range is-ruler" id="mkt-hour-range" type="range" min="10" max="20" step="1" value="${mktHourNum}" style="--pct:${mktHourPct}%" aria-label="Выбрать час с 10:00 до 20:00">
-          ${sliderTicksHTML(mktHourNum, "ruler", { id: "mkt-hour-ticks" })}
-          <div class="hh-time-ticks" aria-hidden="true"><span>10:00</span><span>12:00</span><span>14:00</span><span>16:00</span><span>18:00</span><span>20:00</span></div>
-        </div>
-        <div class="hour-circles" aria-label="Часы занятий">${hourPills}</div>
-        <div class="small muted">Анкеты объединены с Доски Ykt, Telegram, WhatsApp, MAX и других сервисов — выбирай удобный час или предлагай свою ставку.</div>
       </div>
 
       <div class="hh-sort-row">
@@ -799,13 +638,14 @@
       </div>
 
       ${cardsHTML}
+      ${bookingsStripHTML(st)}
+      ${bottomBalanceBar}
     </section>`;
   }
 
   function viewMarket() {
     return `<div class="head"><div class="row between" style="flex-wrap:wrap;gap:10px"><div><div class="eyebrow">Маркетплейс</div><h1 class="h1">Подбор репетитора</h1></div><button type="button" class="btn ghost sm" data-a="go" data-v="landing">Витрина</button></div></div>
-      ${marketSectionHTML()}
-      ${plansSectionHTML()}`;
+      ${marketSectionHTML()}`;
   }
 
   function studentLeadCardHTML(TDATA, ui) {
@@ -922,7 +762,7 @@
         <div class="fields">
           <div class="field">
             <label for="lead-price">Желаемая ставка (₽/ч)</label>
-            <input class="input num" id="lead-price" name="targetPrice" type="number" min="500" max="5000" step="50" value="${Number(ld.targetPrice) || 1000}">
+            <input class="input num" id="lead-price" name="targetPrice" type="number" min="0" max="99999" step="50" value="${Number(ld.targetPrice) || 1000}">
           </div>
           <div class="field">
             <label for="lead-wa">Телефон (WhatsApp / MAX)</label>
@@ -1001,14 +841,14 @@
       }
       const sorted = bookedList.slice().sort((a, b) => (b.booking.status === "accepted" ? 1 : 0) - (a.booking.status === "accepted" ? 1 : 0));
       const chatRows = sorted.map(({ tutor: t, booking: bk }) => {
-        const trialDefault = (TDATA && TDATA.TRIAL_PRICE) || 990;
+        const trialDefault = (TDATA && TDATA.TRIAL_PRICE != null) ? Number(TDATA.TRIAL_PRICE) : 490;
         const isTrial = !!bk.isTrial;
-        const trialRub = Number(bk.offerPrice) > 0 ? Number(bk.offerPrice) : trialDefault;
+        const trialRub = bk.offerPrice != null && Number.isFinite(Number(bk.offerPrice)) ? Number(bk.offerPrice) : trialDefault;
         const slot = `${bk.dayLabel}, ${bk.hour}`;
-        const msgTxt = `Здравствуйте, ${t.name}! Пишу по поводу занятия ${bk.dayLabel} в ${bk.hour} (${bk.subjectName}, ${isTrial ? `пробный урок 60 мин (${trialRub} ₽)` : "ставка " + bk.offerPrice + " ₽/ч"}).`;
+        const msgTxt = `Здравствуйте, ${t.name}! Пишу по поводу занятия ${bk.dayLabel} в ${bk.hour} (${bk.subjectName}, ${isTrial ? (trialRub === 0 ? "бесплатный пробный урок" : `пробный урок 60 мин (${trialRub} ₽)`) : "ставка " + bk.offerPrice + " ₽/ч"}).`;
         const statusTxt = bk.status === "accepted"
           ? "Подтверждён · выберите мессенджер"
-          : (isTrial ? `Запрос на пробный · ${trialRub} ₽` : `Отклик ${bk.offerPrice} ₽/ч`);
+          : (isTrial ? (trialRub === 0 ? "Запрос на пробный · Бесплатно" : `Запрос на пробный · ${trialRub} ₽`) : `Отклик ${bk.offerPrice} ₽/ч`);
         return {
           id: "chat-" + String(t.id || bk.id),
           tutor: t,
@@ -1057,7 +897,7 @@
             minCols: 5,
             render: (row) => `<div class="stack" style="gap:2px">
               <span>${esc(row.subjectName)}</span>
-              <span class="small muted num">${row.isTrial ? `пробный · ${(Number(row.booking && row.booking.offerPrice) || 990).toLocaleString("ru-RU")} ₽` : `от ${row.tutor.price} ₽/ч`}</span>
+              <span class="small muted num">${row.isTrial ? ((row.booking && row.booking.offerPrice != null && Number(row.booking.offerPrice) === 0) ? "пробный · Бесплатно" : `пробный · ${(row.booking && row.booking.offerPrice != null ? Number(row.booking.offerPrice) : 490).toLocaleString("ru-RU")} ₽`) : `от ${row.tutor.price} ₽/ч`}</span>
             </div>`
           },
           {
@@ -1111,14 +951,14 @@
       <span class="small ink2">${st.bookings.length ? "Здесь показаны только преподаватели, к которым у вас есть заявка или подтверждённый урок." : "После записи в «Репетиторах» здесь появятся ваше расписание, статус подтверждения и прямые контакты WhatsApp, Telegram и MAX."}</span>
       <div class="row" style="gap:8px;flex-wrap:wrap">
         <button type="button" class="btn sm" data-a="go" data-v="market">Подобрать репетитора</button>
-        ${!hasMinBalance(st) ? `<button type="button" class="btn soft sm" data-a="bal-open">${icon("wallet")}<span>Пополнить по СБП от 990 ₽</span></button>` : ""}
+        ${!hasMinBalance(st) ? `<button type="button" class="btn soft sm" data-a="bal-open">${icon("wallet")}<span>Пополнить по СБП от 490 ₽</span></button>` : ""}
       </div>
     </div>`;
 
     const enrolledSection = !st.bookings.length
       ? `<div class="empty">
           <b>Вы пока не записаны ни к одному преподавателю</b>
-          <span>Откройте «Репетиторы», пополните счёт по СБП от 990 ₽ и выберите обычный урок со ставкой или пробный урок 60 мин.</span>
+          <span>Откройте «Репетиторы», выберите пробный (490 ₽ или бесплатно) либо предложите свою ставку за урок.</span>
           <button type="button" class="btn sm" data-a="go" data-v="market">Выбрать преподавателя</button>
         </div>`
       : (() => {
@@ -1149,7 +989,7 @@
                 format: bk.format || "Онлайн",
                 tutorName: bk.tutorName,
                 subjectName: bk.subjectName,
-                offerPrice: Number(bk.offerPrice) || (isTrial ? 990 : 0),
+                offerPrice: bk.offerPrice != null && Number.isFinite(Number(bk.offerPrice)) ? Number(bk.offerPrice) : (isTrial ? 490 : 0),
                 isTrial,
                 status: bk.status || "pending",
                 tutor,
@@ -1362,6 +1202,8 @@
   EGE.views.marketplace = {
     configure,
     hasMinBalance,
+    resolveTutorTrial,
+    cardDiffTagsHTML,
     bookingModalHTML,
     activeFilterCount,
     filterModalHTML,

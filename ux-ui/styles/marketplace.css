@@ -29,6 +29,7 @@ body:not([data-auth="1"]):not([data-fullbleed="1"]):not([data-brandbook="1"]) .l
 .land-top + .land-hero-banner { margin-top: -8px; }
 .land-top .brand-lockup { flex: none; min-width: 0; }
 .land-top .brand-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.land-top .brand-wordmark { height: 26px; }
 .land-links {
   display: flex; align-items: center; justify-content: center; gap: 4px;
   flex: 1 1 auto; min-width: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
@@ -159,10 +160,24 @@ body:not([data-auth="1"]):not([data-fullbleed="1"]):not([data-brandbook="1"]) .l
 .hr-cir.empty-slot { opacity: .45; }
 
 /* карточки репетиторов */
-.tutor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; min-width: 0; max-width: 100%; }
+.tutor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: stretch; min-width: 0; max-width: 100%; }
 @media (max-width: 760px) { .tutor-grid { grid-template-columns: minmax(0, 1fr); } }
-.tutor-card { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-content: space-between; min-width: 0; transition: border-color .15s ease, box-shadow .15s ease; }
+.tutor-card {
+  display: flex; flex-direction: column; justify-content: space-between; gap: 12px; height: 100%;
+  min-width: 0; transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+}
 .tutor-card:hover { border-color: var(--line-strong); box-shadow: var(--shadow); }
+.tutor-card.is-pro {
+  border-color: color-mix(in srgb, var(--accent) 44%, var(--line));
+  background: linear-gradient(165deg, color-mix(in srgb, var(--accent-soft) 52%, var(--surface)) 0%, var(--surface) 66%);
+  box-shadow: 0 12px 30px -18px rgba(0, 112, 255, .34);
+}
+.tutor-card.is-pro:hover {
+  border-color: color-mix(in srgb, var(--accent) 68%, var(--line));
+  box-shadow: 0 16px 36px -18px rgba(0, 112, 255, .44);
+}
+.tutor-card-top { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.tutor-person-meta { display: grid; gap: 2px; min-width: 0; }
 .tutor-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .tutor-id { display: flex; align-items: center; gap: 11px; min-width: 0; }
 .tutor-avatar {
@@ -205,7 +220,28 @@ body:not([data-auth="1"]):not([data-fullbleed="1"]):not([data-brandbook="1"]) .l
 .tc-contact-grid .input { width: 100%; min-width: 0; padding: 9px 11px; font-size: 13.5px; }
 @media (max-width: 1120px) { .tc-contact-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 520px) { .tc-contact-grid { grid-template-columns: minmax(0, 1fr); } }
-.tutor-bio { font-size: 13.5px; color: var(--ink-2); line-height: 1.5; }
+.tutor-bio-wrap { display: grid; gap: 4px; align-content: start; min-width: 0; }
+.tutor-bio {
+  margin: 0; font-size: 14px; color: var(--ink-2); line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  overflow: hidden; min-height: calc(1.5em * 3);
+}
+.tutor-bio-wrap.is-open .tutor-bio {
+  display: block; -webkit-line-clamp: unset; overflow: visible;
+}
+.tutor-bio-more {
+  justify-self: start; display: inline-flex; align-items: center; gap: 4px;
+  border: 0; background: none; padding: 2px 0; cursor: pointer;
+  color: var(--accent); font-size: 12.5px; font-weight: 600;
+}
+.tutor-bio-more:hover { text-decoration: underline; }
+.tutor-bio-more svg { width: 14px; height: 14px; transition: transform .18s ease; }
+.tutor-bio-wrap.is-open .tutor-bio-more svg { transform: rotate(180deg); }
+.tutor-card-foot { margin-top: auto; display: grid; gap: 8px; padding-top: 4px; min-width: 0; }
+.tutor-bid-btn { width: 100%; justify-content: center; }
+.tutor-sub-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.tutor-sub-actions.is-single { grid-template-columns: minmax(0, 1fr); }
+.tutor-sub-actions .btn { width: 100%; justify-content: center; }
 .slot-mini-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .slot-mini {
   padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--surface-2);
@@ -296,7 +332,7 @@ body:not([data-auth="1"]):not([data-fullbleed="1"]):not([data-brandbook="1"]) .l
   height: 100%; padding: 0 8px; white-space: nowrap; cursor: text; min-width: 0;
 }
 .demo-rate-input {
-  width: 4ch; min-width: 38px; max-width: 56px; height: 22px; line-height: 22px;
+  width: 6ch; min-width: 44px; max-width: 78px; height: 22px; line-height: 22px;
   border: 0; background: transparent; padding: 0; margin: 0; min-height: 0; box-shadow: none; outline: none;
   text-align: right; font-family: var(--font-display); font-size: 15.5px; font-weight: 700; color: var(--ink);
   font-variant-numeric: tabular-nums; -moz-appearance: textfield;
@@ -358,9 +394,14 @@ body:not([data-auth="1"]):not([data-fullbleed="1"]):not([data-brandbook="1"]) .l
 
 /* степпер цены (единый сегмент .hh-price-stepper из брендбука + числовой input в модалке) */
 .bid-input {
-  text-align: center; font-family: var(--font-display); font-size: 19px; font-weight: 700;
-  border: 0; background: transparent; padding: 4px 6px; min-height: 0; box-shadow: none;
+  width: 6ch; min-width: 48px; max-width: 84px;
+  text-align: right; font-family: var(--font-display); font-size: 18px; font-weight: 700;
+  border: 0; background: transparent; padding: 2px 4px; min-height: 0; box-shadow: none;
+  font-variant-numeric: tabular-nums; -moz-appearance: textfield;
 }
+.bid-input::-webkit-outer-spin-button,
+.bid-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.bid-input:focus { outline: none; box-shadow: none; color: var(--accent); }
 .bot-preview {
   padding: 12px 14px; border-radius: var(--r-sm); background: var(--surface-2); border: 1px dashed var(--line-strong);
   display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; font-size: 13px; color: var(--ink-2); line-height: 1.5; min-width: 0;
@@ -371,9 +412,9 @@ body:not([data-auth="1"]):not([data-fullbleed="1"]):not([data-brandbook="1"]) .l
 @media (max-width: 600px) {
   .land-top { padding: 8px 10px; gap: 6px; }
   .land-top .brand-lockup { gap: 8px; }
-  .land-top .brand-mark { width: 34px; height: 34px; border-radius: 0; }
-  .land-top .brand-mark svg { width: 34px; height: 34px; }
-  .land-top .brand-wordmark { height: 18px; }
+  .land-top .brand-mark { width: 36px; height: 36px; border-radius: 0; }
+  .land-top .brand-mark svg { width: 36px; height: 36px; }
+  .land-top .brand-wordmark { height: 22px; }
   .land-top .brand-tag { display: none; }
   .land-top .brand-sub { display: none; }
   .land-top-actions { gap: 5px; }
@@ -794,7 +835,7 @@ body:not([data-auth="1"]):not([data-fullbleed="1"]):not([data-brandbook="1"]) .l
 .hh-step-btn:active, .hh-step-btn.is-hit { transform: scale(.96); background: var(--accent); color: #fff; }
 .hh-step-readout {
   display: flex; align-items: center; justify-content: center; text-align: center;
-  gap: 4px; line-height: 1.15; padding: 2px 6px; min-width: 0; white-space: nowrap;
+  gap: 4px; line-height: 1.15; padding: 2px 8px; min-width: 112px; white-space: nowrap;
 }
 .hh-step-readout b {
   font-size: 15.5px; font-weight: 700; letter-spacing: -.01em;
@@ -1055,15 +1096,21 @@ body:not([data-auth="1"]):not([data-fullbleed="1"]):not([data-brandbook="1"]) .l
   .land-rates-grid { grid-template-columns: minmax(0, 1fr); }
   .land-page { padding-bottom: 84px; }
   .land-mobile-sticky {
-    display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    position: fixed; left: 12px; right: 12px; z-index: 24;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    position: fixed; left: 12px; right: 12px; max-width: 520px; margin-inline: auto; z-index: 24;
     bottom: max(10px, env(safe-area-inset-bottom, 0px));
-    padding: 9px 12px; border-radius: 16px;
+    min-height: 58px; padding: 10px 14px; border-radius: 16px;
     border: 1px solid var(--line-strong);
-    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    background: color-mix(in srgb, var(--surface) 94%, transparent);
     backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
     box-shadow: 0 14px 32px -12px rgba(15, 23, 42, .32);
+    transition: opacity .22s ease, transform .22s ease;
   }
+  .land-mobile-sticky.is-hidden { opacity: 0; pointer-events: none; transform: translateY(16px); }
+  .land-mobile-sticky-copy { display: grid; gap: 2px; min-width: 0; flex: 1 1 auto; }
+  .land-mobile-sticky-copy b { font-size: 13.5px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .land-mobile-sticky-copy span { font-size: 11.5px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .land-mobile-sticky-btn { flex: none; min-height: 38px; padding: 0 16px; border-radius: 12px; font-weight: 700; white-space: nowrap; }
   .land-page[data-inside="1"] .land-mobile-sticky {
     bottom: calc(66px + env(safe-area-inset-bottom, 0px));
   }
@@ -1110,9 +1157,27 @@ body:not([data-auth="1"]):not([data-fullbleed="1"]):not([data-brandbook="1"]) .l
 .hero-banner-ctas {
   display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0;
 }
+.land-hero-banner .hero-cta-primary,
 .hero-cta-primary {
-  min-height: 48px; padding: 0 24px; font-size: 15px; font-weight: 700; white-space: nowrap;
-  box-shadow: 0 12px 26px -10px rgba(0, 112, 255, .58);
+  min-height: 48px; padding: 0 26px; font-size: 15px; font-weight: 700; white-space: nowrap;
+  color: #ffffff;
+  background: linear-gradient(135deg, #d7ab5e 0%, #c59b5f 52%, #a27739 100%);
+  border: 1.5px solid rgba(255, 235, 184, .78);
+  box-shadow: inset 0 1px 0 rgba(255, 248, 224, .45), 0 14px 30px -10px rgba(197, 155, 95, .62);
+  text-shadow: 0 1px 6px rgba(24, 16, 4, .35);
+}
+.land-hero-banner .hero-cta-primary:hover:not(:disabled),
+.hero-cta-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #e4b86a 0%, #d2a666 52%, #b08342 100%);
+  border-color: rgba(255, 244, 210, .92);
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 rgba(255, 250, 230, .55), 0 16px 32px -10px rgba(197, 155, 95, .74);
+}
+.land-hero-banner .hero-cta-primary.is-confirmed,
+.hero-cta-primary.is-confirmed {
+  background: var(--confirm);
+  border-color: var(--confirm);
+  color: #ffffff;
 }
 .hero-cta-secondary {
   min-height: 48px; padding: 0 22px; font-size: 14.5px; font-weight: 700; white-space: nowrap;

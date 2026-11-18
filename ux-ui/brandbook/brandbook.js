@@ -998,20 +998,19 @@
         <div class="land-sec-head">
           <div>
             <div class="eyebrow">Первый экран /landing · Фото-баннер hh.kz × Ленские столбы</div>
-            <h2 class="h2">Hero-баннер /assets/lena-pillars.jpg и 2 кнопки CTA без поисковика</h2>
+            <h2 class="h2">Hero-баннер /assets/lena-pillars.jpg · единый золотой CTA и 5 текстов</h2>
           </div>
           <button type="button" class="bb-spec-pill" data-a="bb-copy-token" data-copy="EGE.kit.heroBannerHTML()">Копировать EGE.kit.heroBannerHTML()</button>
         </div>
         ${heroBannerHTML({
           brandbookDemo: true,
           catalogTotal: "2 480",
-          primaryActive: !!bb.heroSubmitted,
-          betaActive: !!bb.heroBetaOn
+          primaryActive: !!bb.heroSubmitted
         })}
         <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
           <span class="bb-spec-pill">.hero-banner-scrim · светлый градиент справа (0% над скалами)</span>
-          <span class="bb-spec-pill confirm">2 CTA: Синий «Найти ниже рынка» + Золото Саха «Попробовать бета-тест» (.btn.gold)</span>
-          <span class="bb-spec-pill">Сразу под Hero начинается бегущая лента тем</span>
+          <span class="bb-spec-pill confirm">1 золотой CTA: «Найти ниже рынка» (.btn.gold.hero-cta-primary)</span>
+          <span class="bb-spec-pill">30% дешевле рынка · 2 480+ анкет · 24/7 (анимация счёта)</span>
         </div>
       </section>`;
     }
@@ -1584,7 +1583,7 @@
     const payMethod = bb.payMethod || "sbp";
     const payState = bb.payState || "frozen";
     const initialDone = !!bb.payInitialDone;
-    const minTopup = initialDone ? 100 : 990;
+    const minTopup = initialDone ? 100 : 490;
     const topupSample = initialDone ? 1200 : 4590;
     const lessonAmount = 1200;
     const tutorNet = Math.round(lessonAmount * 0.95);
@@ -1604,7 +1603,7 @@
       refunded: {
         cls: "is-refund",
         badge: "Отмена ≥ 4 ч · Возврат 100%",
-        desc: "Ученик отменил занятие заранее или воспользовался гарантией замены пробного 990 ₽ — сумма мгновенно возвращается на баланс без комиссий."
+        desc: "Ученик отменил занятие заранее или воспользовался гарантией замены пробного 490 ₽ — сумма мгновенно возвращается на баланс без комиссий."
       }
     }[payState] || {
       cls: "is-pending",
@@ -1622,7 +1621,7 @@
       <div class="land-sec-head">
         <div>
           <div class="eyebrow">09 · Эквайринг СБП-only · Эскроу · Выплаты (EGE.payments)</div>
-          <h2 class="h2">СБП-пополнение от 990 ₽, статусы удержания 95% / 5% и вывод с авточеком НПД</h2>
+          <h2 class="h2">СБП-пополнение от 490 ₽, статусы удержания 95% / 5% и вывод с авточеком НПД</h2>
         </div>
         <button type="button" class="bb-spec-pill" data-a="bb-copy-token" data-copy="EGE.payments.createTopupIntent">Копировать EGE.payments</button>
       </div>
@@ -1631,13 +1630,13 @@
         <div class="card pad stack" style="gap:12px">
           <div class="row between" style="gap:8px;flex-wrap:wrap">
             <b>01 · Пополнение баланса по СБП и статусы эскроу</b>
-            <span class="bb-spec-pill">${initialDone ? "Повторное от 100 ₽" : "Старт СБП от 990 ₽"}</span>
+            <span class="bb-spec-pill">${initialDone ? "Повторное от 100 ₽" : "Старт СБП от 490 ₽"}</span>
           </div>
 
           <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
             <span class="small muted">Порог пополнения:</span>
             <div class="hh-seg" role="group" aria-label="Режим порога пополнения">
-              <button type="button" data-a="bb-pay-threshold" data-v="initial" aria-pressed="${!initialDone}">Первый платёж СБП ≥ 990 ₽</button>
+              <button type="button" data-a="bb-pay-threshold" data-v="initial" aria-pressed="${!initialDone}">Первый платёж СБП ≥ 490 ₽</button>
               <button type="button" data-a="bb-pay-threshold" data-v="repeat" aria-pressed="${initialDone}">Повторный ≥ 100 ₽</button>
             </div>
           </div>
@@ -3231,9 +3230,9 @@
             <p class="small ink2">Принимаем оплату напрямую через Систему быстрых платежей (АЭБ, СберБанк, Т-Банк, ВТБ). Ученик и родитель платят ровно по тарифу или выбранной ставке — никаких скрытых комиссий сверху.</p>
           </div>
           <div class="card pad stack" style="gap:6px;box-shadow:none">
-            <span class="chip accent" style="justify-self:start">02 · Старт от 990 ₽ или 390 ₽ ИИ</span>
-            <b>Пробный 60 мин с 100% гарантией замены</b>
-            <p class="small ink2">Старт занятий с репетитором — от <b>990 ₽</b> за полный 60-минутный урок-диагностику (вместо «пустых» 15 минут; видео-визитку можно посмотреть заранее). После первого платежа любые доплаты открыты от <b>100 ₽</b>, а самостоятельный тренажёр «ИИ-Старт ЕГЭ» стоит <b>390 ₽/мес</b>.</p>
+            <span class="chip accent" style="justify-self:start">02 · Пробный от 0 до 490 ₽ или 390 ₽ ИИ</span>
+            <b>Пробный 60 мин с гарантией замены (по умолч. 490 ₽)</b>
+            <p class="small ink2">Старт занятий с репетитором — от <b>0 ₽</b> (бесплатно) или <b>490 ₽</b> за пробный урок 60 минут по СБП. Преподаватель сам задаёт формат пробного (бесплатно, 490 ₽ или без пробного), а после старта любые доплаты открыты от <b>100 ₽</b>.</p>
           </div>
           <div class="card pad stack" style="gap:6px;box-shadow:none">
             <span class="chip gold" style="justify-self:start">03 · Эскроу и шлюз контактов</span>
@@ -3255,7 +3254,7 @@
             </div>
             <ul class="plan-feats">
               <li><span><b>ИИ-Старт ЕГЭ — 390 ₽/мес</b> · безлимитный тренажёр ЕГЭ-2027 и ИИ-сочинения К1–К12</span></li>
-              <li><span><b>Пробный урок 60 мин — 990 ₽</b> · диагностика + 100% гарантия бесплатной замены и открытие WA/TG/MAX</span></li>
+              <li><span><b>Пробный урок — 490 ₽ (или бесплатно)</b> · диагностика 60 мин + 100% гарантия бесплатной замены</span></li>
               <li><span><b>Мини-группа Саха (3–5 чел.) — 2 190 ₽</b> · 4 живых урока (~548 ₽/урок) + ИИ-Старт бесплатно</span></li>
               <li><span><b>Стандарт 1-на-1 (4 урока) — 4 590 ₽</b> · эскроу по урокам + автоотчёт родителю + доплаты от 100 ₽</span></li>
               <li><span><b>Интенсив (8 уроков под ключ) — 8 900 ₽</b> · замена за 15 мин, фиксация ставки и кэшбэк 2%</span></li>
@@ -3267,8 +3266,8 @@
               <span class="chip pro">PRO 1 490 ₽/мес</span>
             </div>
             <ul class="plan-feats">
-              <li><span><b>Свободный старт — 0 ₽/мес</b> · видео-визитка 60 сек, ежедневный топ и готовые ученики с оплаченным пробным 990 ₽</span></li>
-              <li><span><b>Верхняя полоса PRO — 1 490 ₽/мес (3 900 ₽ / 3 мес.)</b> · закрепление в верхней карусели предмета в часы пик и скидка 50% на сбор подбора</span></li>
+              <li><span><b>Свободный старт — 0 ₽/мес</b> · готовые ученики с оплаченным пробным 490 ₽ и выбор «Бесплатно / 490 ₽ / Без пробного»</span></li>
+              <li><span><b>Продвижение PRO — 1 490 ₽/мес (3 900 ₽ / 3 мес.)</b> · выделение анкеты мягким синим свечением в выдаче и скидка 50% на сбор подбора</span></li>
               <li><span><b>Мини-группы 3–5 чел.</b> · доступно на PRO: 4–5 учеников в одном слоте дают до ~2 015 ₽/ч чистыми под сбор 8%</span></li>
               <li><span><b>Быстрый вывод на СБП</b> · мгновенно от 500 ₽ с автоматической фискализацией чека НПД</span></li>
             </ul>
@@ -3393,13 +3392,14 @@
     }
     if (act === "bb-step") {
       const step = Number(ds.step) || 0;
-      bb.price = Math.max(600, Math.min(3500, (Number(bb.price) || 1200) + step));
+      const cur = bb.price != null ? Number(bb.price) : 1200;
+      bb.price = Math.max(0, Math.min(99999, cur + step));
       render();
       return true;
     }
     if (act === "bb-preset") {
       const p = Number(ds.price);
-      if (Number.isFinite(p)) bb.price = Math.max(600, Math.min(3500, p));
+      if (Number.isFinite(p)) bb.price = Math.max(0, Math.min(99999, p));
       render();
       return true;
     }
@@ -3541,7 +3541,7 @@
       render();
       return true;
     }
-    if (act === "bb-hero-primary") {
+    if (act === "bb-hero-primary" || act === "bb-hero-submit") {
       bb.heroSubmitted = !bb.heroSubmitted;
       render();
       return true;
@@ -3698,7 +3698,7 @@
         ? Number(bb.tableRates[rowId])
         : (row && (Number(row.rate) || Number(row.gross)) || 1200);
       if (!bb.tableRates || typeof bb.tableRates !== "object") bb.tableRates = {};
-      bb.tableRates[rowId] = Math.max(500, Math.min(5000, Math.round(base / 50) * 50 + step));
+      bb.tableRates[rowId] = Math.max(0, Math.min(99999, Math.round(base / 50) * 50 + step));
       render();
       return true;
     }

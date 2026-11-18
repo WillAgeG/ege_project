@@ -316,7 +316,7 @@
         <div class="bb-mock-nav-links small muted">
           <span>Предметы</span>
           <span>СБП 0,8%</span>
-          <span>Верхняя полоса PRO</span>
+          <span>PRO-акцент</span>
         </div>
         <div class="row" style="gap:6px">
           <button type="button" class="btn ghost sm" data-a="bb-demo-toast">Войти</button>
@@ -328,12 +328,11 @@
         <img src="${esc(heroImg)}" alt="Ленские столбы · Якутия" class="bb-mock-hero-img">
         <div class="bb-mock-hero-scrim"></div>
         <div class="bb-mock-hero-copy">
-          <span class="bb-mock-hero-pill">Платформа Якутии · ЕГЭ и ОГЭ 2027</span>
-          <h3>Назначай цену сам — репетиторы дешевле рынка на 15–30%</h3>
-          <p class="small">Проверенные преподаватели, слоты по часу 10:00–20:00 и безопасная оплата через СБП после подтверждения.</p>
+          <span class="bb-mock-hero-pill">Самая большая база · 2 480+ анкет</span>
+          <h3>Назначай цену сам — репетиторы дешевле рынка</h3>
+          <p class="small">Проверенные преподаватели, слоты в любое время и безопасная оплата через СБП.</p>
           <div class="row" style="gap:8px;flex-wrap:wrap">
-            <button type="button" class="btn sm${bb.heroSubmitted ? " is-confirmed" : ""}" data-a="bb-hero-submit">${bb.heroSubmitted ? "✓ Анкеты открыты" : "Найти ниже рынка"}</button>
-            <button type="button" class="btn hero-cta-secondary sm${bb.heroBetaOn ? " is-confirmed" : ""}" data-a="bb-hero-beta">${icon("spark")}<span>Попробовать бета-тест</span></button>
+            <button type="button" class="btn gold sm${bb.heroSubmitted ? " is-confirmed" : ""}" data-a="bb-hero-submit">${bb.heroSubmitted ? "✓ Анкеты открыты" : "Найти ниже рынка"}</button>
           </div>
         </div>
       </div>
@@ -351,7 +350,7 @@
           <div class="row between" style="gap:6px;align-items:flex-start">
             <div class="stack" style="gap:2px">
               <b style="font-size:14px">Анна Соколова</b>
-              <span class="small muted">ЕГЭ Биология · Якутск / Онлайн</span>
+              <span class="small muted">ЕГЭ Биология · Якутск</span>
             </div>
             <span class="verified-badge sm" title="Проверен">${icon("check")}</span>
           </div>
@@ -368,17 +367,17 @@
         <article class="card pad stack" style="gap:8px;box-shadow:none">
           <span class="eyebrow" style="margin:0">Оплата и защита</span>
           <b style="font-size:14px">СБП-сплит + холд первого урока</b>
-          <p class="small muted" style="margin:0">Прямые мессенджеры WA/TG/MAX открываются после брони слота и пополнения баланса от 390 ₽.</p>
+          <p class="small muted" style="margin:0">Прямые мессенджеры WA/TG/MAX открываются после брони урока и пополнения баланса от 490 ₽.</p>
           <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:auto">
             <span class="bb-spec-pill confirm">СБП · 0,8%</span>
-            <span class="bb-spec-pill">390 / 990 / 4 590 ₽</span>
+            <span class="bb-spec-pill">390 / 490 / 4 590 ₽</span>
           </div>
         </article>
 
         <article class="card pad stack" style="gap:8px;box-shadow:none">
           <span class="eyebrow" style="margin:0">Преподавателям · SaaS</span>
-          <b style="font-size:14px">Верхняя полоса PRO · 1 490 ₽/мес</b>
-          <p class="small muted" style="margin:0">Закреп в верхней карусели предмета, значок «Проверен» и скидка 50% на входящие заявки учеников.</p>
+          <b style="font-size:14px">PRO-акцент · 1 490 ₽/мес</b>
+          <p class="small muted" style="margin:0">Мягкое синее выделение анкеты в каталоге, значок «Проверен» и скидка 50% на сбор подбора.</p>
           <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:auto">
             <span class="bb-spec-pill pro">PRO карусель</span>
             <span class="bb-spec-pill">Учёт доходов и календарь</span>
@@ -449,12 +448,11 @@
         <img src="${esc(heroImg)}" alt="Ленские столбы · Якутия" class="bb-mock-hero-img">
         <div class="bb-mock-hero-scrim is-mobile"></div>
         <div class="bb-mock-hero-copy is-mobile">
-          <span class="bb-mock-hero-pill">Якутск · ЕГЭ и ОГЭ 2027</span>
-          <h4>Назначай цену сам — репетиторы дешевле рынка на 15–30%</h4>
-          <p class="small">Проверенные преподаватели, слоты по часу 10:00–20:00 и безопасная оплата через СБП после подтверждения.</p>
+          <span class="bb-mock-hero-pill">Самая большая база · 2 480+ анкет</span>
+          <h4>Назначай цену сам — репетиторы дешевле рынка</h4>
+          <p class="small">Проверенные преподаватели, слоты в любое время и безопасная оплата через СБП.</p>
           <div class="stack" style="gap:6px">
-            <button type="button" class="btn sm${bb.heroSubmitted ? " is-confirmed" : ""}" style="width:100%" data-a="bb-hero-submit">${bb.heroSubmitted ? "✓ Каталог открыт" : "Найти ниже рынка"}</button>
-            <button type="button" class="btn hero-cta-secondary sm${bb.heroBetaOn ? " is-confirmed" : ""}" style="width:100%" data-a="bb-hero-beta">${icon("spark")}<span>Попробовать бета-тест</span></button>
+            <button type="button" class="btn gold sm${bb.heroSubmitted ? " is-confirmed" : ""}" style="width:100%" data-a="bb-hero-submit">${bb.heroSubmitted ? "✓ Каталог открыт" : "Найти ниже рынка"}</button>
           </div>
         </div>
       </div>

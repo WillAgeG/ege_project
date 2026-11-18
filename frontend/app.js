@@ -900,7 +900,7 @@
       if (raw) saved = JSON.parse(raw);
     } catch (e) { /* игнор */ }
     ui.market = Object.assign(defaultMarketState(), saved && typeof saved === "object" ? saved : {});
-    ui.market.initialPaid = !!(ui.market.initialPaid || Number(ui.market.balance) >= 990);
+    ui.market.initialPaid = !!(ui.market.initialPaid || Number(ui.market.balance) >= 490);
     if (!ui.market.planId || ui.market.planId === "free") ui.market.planId = "trial5k";
     if (!ui.market.city) ui.market.city = "all";
     if (!Array.isArray(ui.market.bookings)) ui.market.bookings = [];
@@ -1235,10 +1235,10 @@
     const bm = ui.balanceModal;
     if (!bm) return "";
     const st = mkt();
-    const trialRub = (TDATA && TDATA.TRIAL_PRICE) || 990;
+    const trialRub = (TDATA && TDATA.TRIAL_PRICE != null) ? Number(TDATA.TRIAL_PRICE) : 490;
     const minOk = (Number(st.balance) || 0) >= trialRub;
     const minTopup = st.initialPaid ? 100 : trialRub;
-    const chipVals = st.initialPaid ? [100, 500, 990, 4590] : [990, 2190, 4590, 8900];
+    const chipVals = st.initialPaid ? [100, 490, 1000, 4590] : [490, 2190, 4590, 8900];
     const plans = (TDATA && TDATA.PLANS) || [];
     const customVal = bm.customAmount != null ? String(bm.customAmount) : String(minTopup);
     const payProv = EGEPayments && EGEPayments.provider === "demo"
@@ -1271,7 +1271,7 @@
             <b class="small">Как работает СБП-оплата и защита баланса</b>
             <span class="chip confirm" style="font-size:11px">Только СБП · 0% за карты</span>
           </div>
-          <span class="small ink2">Пополнение проходит напрямую по СБП (АЭБ, СберБанк, Т-Банк, ВТБ) и хранится на эскроу: преподаватель получает оплату только после занятия, контакты WA / TG / MAX открываются сразу после бронирования слота, а на пробном уроке 60 мин за 990 ₽ действует 100% гарантия бесплатной замены.</span>
+          <span class="small ink2">Пополнение проходит напрямую по СБП (АЭБ, СберБанк, Т-Банк, ВТБ) и хранится на эскроу: преподаватель получает оплату только после занятия, контакты WA / TG / MAX открываются сразу после бронирования слота, а на пробном уроке 60 мин за ${trialRub.toLocaleString("ru-RU")} ₽ действует 100% гарантия бесплатной замены.</span>
           <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
             <span class="small muted">Базовый расчёт: 5% сервис + 1% шлюз СБП</span>
             <button type="button" class="link-btn small" data-a="go-fees">Подробнее о СБП и сборе →</button>
@@ -1320,7 +1320,7 @@
   function tutorApplyModalHTML() {
     const ta = ui.tutorApply || (ui.tutorApply = { name: "", subject: "eng", rate: 1100, contact: "", error: "" });
     const subjects = (TDATA && TDATA.SUBJECTS) ? TDATA.SUBJECTS : [{ id: "eng", name: "Английский язык" }];
-    const rate = Math.max(600, Math.min(3500, Number(ta.rate) || 1100));
+    const rate = Math.max(0, Math.min(99999, ta.rate != null ? Number(ta.rate) : 1100));
     const isPro = rate >= 1400;
     return `<div class="modal-back" role="dialog" aria-modal="true" aria-labelledby="ta-modal-title">
       <div class="modal-card">
@@ -2156,7 +2156,7 @@
       ta.error = "";
       const subjObj = (TDATA && TDATA.SUBJECTS || []).find((s) => s.id === subjId);
       const subjName = subjObj ? subjObj.name : "Подготовка к ЕГЭ";
-      const rate = Math.max(600, Math.min(3500, Number(ta.rate) || 1100));
+      const rate = Math.max(0, Math.min(99999, ta.rate != null ? Number(ta.rate) : 1100));
       ui.tutorApplyDone = { name, subjectName: subjName, rate, contact };
       ui.tutorApplyModal = false;
       renderModal();
@@ -2165,7 +2165,7 @@
     },
     "bal-custom": (form) => {
       const st = mkt();
-      const trialRub = (TDATA && TDATA.TRIAL_PRICE) || 990;
+      const trialRub = (TDATA && TDATA.TRIAL_PRICE != null) ? Number(TDATA.TRIAL_PRICE) : 490;
       const minAmt = st.initialPaid ? 100 : trialRub;
       const bm = ui.balanceModal || (ui.balanceModal = { customAmount: minAmt, error: "", reason: "", pendingBooking: null });
       const rawEl = (form && form.elements && form.elements.amount) || $("#bal-custom-amount");
@@ -2186,8 +2186,11 @@
       saveMkt();
       const pending = bm.pendingBooking;
       ui.balanceModal = null;
-      if (pending && st.balance >= trialRub) {
-        ui.booking = Object.assign({}, pending, { offerPrice: pending.mode === "trial" ? trialRub : (pending.offerPrice || 1000) });
+      if (pending && st.balance >= (pending.offerPrice != null ? Number(pending.offerPrice) : trialRub)) {
+        const pOffer = pending.mode === "trial"
+          ? (pending.offerPrice != null ? Number(pending.offerPrice) : trialRub)
+          : (pending.offerPrice != null ? Number(pending.offerPrice) : 1000);
+        ui.booking = Object.assign({}, pending, { offerPrice: pOffer });
       }
       renderModal();
       notifySide("Баланс пополнен по СБП", `+${amt.toLocaleString("ru-RU")} ₽ · на счёте ${st.balance.toLocaleString("ru-RU")} ₽`);
@@ -2199,7 +2202,8 @@
       const priceEl = (form && form.elements && form.elements.targetPrice) || $("#lead-price");
       const waEl = (form && form.elements && form.elements.whatsapp) || $("#lead-wa");
       const cEl = (form && form.elements && form.elements.comment) || $("#lead-comment");
-      const targetPrice = Math.max(500, Math.min(5000, Math.round(Number(priceEl ? priceEl.value : ld.targetPrice) || 1000)));
+      const rawLeadPrice = Number(priceEl ? priceEl.value : ld.targetPrice);
+      const targetPrice = Math.max(0, Math.min(99999, Number.isFinite(rawLeadPrice) ? Math.round(rawLeadPrice) : 1000));
       const whatsapp = String((waEl ? waEl.value : ld.whatsapp) || "").trim();
       const comment = String((cEl ? cEl.value : ld.comment) || "").trim();
       const subjects = Array.isArray(ld.subjects) && ld.subjects.length ? ld.subjects.slice() : ["chem"];
@@ -2456,7 +2460,12 @@
       if (ui.booking) {
         const raw = parseInt(el.value, 10);
         if (Number.isFinite(raw)) {
-          ui.booking.offerPrice = Math.max(500, Math.min(5000, raw));
+          const next = Math.max(0, Math.min(99999, raw));
+          ui.booking.offerPrice = next;
+          if (ui.booking.tutorId && ui.booking.mode !== "trial") {
+            const cardOffers = ui.cardOffers || (ui.cardOffers = {});
+            cardOffers[ui.booking.tutorId] = next;
+          }
           updateBookingModalLive();
         }
       }
@@ -2472,7 +2481,7 @@
     if (el.id === "demo-rate-inp") {
       const raw = parseInt(el.value, 10);
       if (Number.isFinite(raw)) {
-        ui.demo.bidRate = Math.max(500, Math.min(3000, raw));
+        ui.demo.bidRate = Math.max(0, Math.min(99999, raw));
         if (!EGE.views.landing || typeof EGE.views.landing.patchDemoCalcDOM !== "function" || !EGE.views.landing.patchDemoCalcDOM()) {
           scheduleRender();
         }
@@ -2611,8 +2620,13 @@
     if (el.id === "bid-price") {
       if (ui.booking) {
         const raw = parseInt(el.value, 10);
-        ui.booking.offerPrice = Number.isFinite(raw) ? Math.max(500, Math.min(5000, raw)) : (ui.booking.offerPrice || 1000);
-        el.value = String(ui.booking.offerPrice);
+        const next = Number.isFinite(raw) ? Math.max(0, Math.min(99999, raw)) : (ui.booking.offerPrice != null ? Number(ui.booking.offerPrice) : 1000);
+        ui.booking.offerPrice = next;
+        if (ui.booking.tutorId && ui.booking.mode !== "trial") {
+          const cardOffers = ui.cardOffers || (ui.cardOffers = {});
+          cardOffers[ui.booking.tutorId] = next;
+        }
+        el.value = String(next);
         updateBookingModalLive();
       }
       return;
