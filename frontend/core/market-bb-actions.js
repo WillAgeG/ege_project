@@ -294,14 +294,12 @@
         ? Math.max(minTopup, Number(pendingBooking.offerPrice) - (Number(st.balance) || 0))
         : (st.initialPaid ? 500 : trialRub);
       if (pendingBooking) ui.booking = null;
+      const cards = Array.isArray(st.savedCards) ? st.savedCards : (st.savedCard && st.savedCard.last4 ? [st.savedCard] : []);
+      ui.cardBindModal = null;
       ui.balanceModal = {
         method: "sbp",
+        selectedCardId: (cards[0] && cards[0].id) || "",
         customAmount: customAmt,
-        addingNewCard: !(st.savedCard && st.savedCard.last4),
-        cardNum: "",
-        cardExp: "",
-        cardCvc: "",
-        saveCard: true,
         error: "",
         reason,
         pendingBooking
@@ -311,6 +309,7 @@
     "bal-close": () => {
       const pending = ui.balanceModal && ui.balanceModal.pendingBooking;
       const trialRub = (TDATA && TDATA.TRIAL_PRICE != null) ? Number(TDATA.TRIAL_PRICE) : 490;
+      ui.cardBindModal = null;
       ui.balanceModal = null;
       if (pending && (Number(mkt().balance) || 0) >= (Number(pending.offerPrice) || trialRub)) ui.booking = pending;
       renderModal();
@@ -332,23 +331,40 @@
         if (digits !== "") ui.balanceModal.customAmount = digits;
       }
       const next = el && el.dataset && el.dataset.v === "card" ? "card" : "sbp";
-      ui.balanceModal.method = next;
-      ui.balanceModal.error = "";
-      if (next === "card" && !(st.savedCard && st.savedCard.last4)) {
-        ui.balanceModal.addingNewCard = true;
+      const cards = Array.isArray(st.savedCards) ? st.savedCards : (st.savedCard && st.savedCard.last4 ? [Object.assign({ id: "card-1" }, st.savedCard)] : []);
+      if (next === "card" && !cards.length) {
+        ui.cardBindModal = { cardNum: "", cardExp: "", cardCvc: "", saveCard: true, error: "" };
+        renderModal();
+        return;
       }
-      renderModal();
-    },
-    "bal-card-new": () => {
-      if (!ui.balanceModal) return;
-      ui.balanceModal.addingNewCard = true;
+      ui.balanceModal.method = next;
+      if (next === "card") {
+        ui.balanceModal.selectedCardId = (el && el.dataset && el.dataset.cardId) || (cards[0] && cards[0].id) || "card-1";
+      }
       ui.balanceModal.error = "";
       renderModal();
+      if (typeof document !== "undefined" && typeof document.querySelector === "function") {
+        const targetTile = next === "sbp"
+          ? document.querySelector('[data-a="bal-method"][data-v="sbp"]')
+          : document.querySelector('[data-a="bal-method"][data-v="card"].is-on');
+        if (targetTile && typeof targetTile.scrollIntoView === "function") {
+          try { targetTile.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" }); } catch (e) {}
+        }
+      }
     },
-    "bal-card-use-saved": () => {
-      if (!ui.balanceModal) return;
-      ui.balanceModal.addingNewCard = false;
-      ui.balanceModal.error = "";
+    "bal-card-open": () => {
+      if (ui.balanceModal && typeof document !== "undefined" && document.getElementById) {
+        const amtEl = document.getElementById("bal-custom-amount");
+        if (amtEl && amtEl.value != null) {
+          const digits = String(amtEl.value).replace(/\D+/g, "").slice(0, 6);
+          if (digits !== "") ui.balanceModal.customAmount = digits;
+        }
+      }
+      ui.cardBindModal = { cardNum: "", cardExp: "", cardCvc: "", saveCard: true, error: "" };
+      renderModal();
+    },
+    "bal-card-close": () => {
+      ui.cardBindModal = null;
       renderModal();
     },
     "bal-topup-preset": (el) => {
@@ -701,14 +717,12 @@
         const deficit = Math.max(minTopup, offerPrice - (Number(st.balance) || 0));
         const pending = Object.assign({}, b, { mode: "paid", isTrial: false, offerPrice, note: noteText });
         ui.booking = null;
+        const cards = Array.isArray(st.savedCards) ? st.savedCards : (st.savedCard && st.savedCard.last4 ? [st.savedCard] : []);
+        ui.cardBindModal = null;
         ui.balanceModal = {
           method: "sbp",
+          selectedCardId: (cards[0] && cards[0].id) || "",
           customAmount: deficit,
-          addingNewCard: !(st.savedCard && st.savedCard.last4),
-          cardNum: "",
-          cardExp: "",
-          cardCvc: "",
-          saveCard: true,
           error: "",
           reason: `Нужно пополнить баланс для отправки заявки преподавателю (${offerPrice.toLocaleString("ru-RU")} ₽/ч).`,
           pendingBooking: pending
@@ -765,7 +779,7 @@
       const gNote = hasGuarantee ? " · возврат за 1-й урок при отказе" : "";
       notifySide(
         "Предложение передано преподавателю",
-        `Написали ему в мессенджер (WhatsApp, Telegram, MAX) · ставка ${offerPrice.toLocaleString("ru-RU")} ₽/ч${reserved ? ` · в резерве ${reserved.toLocaleString("ru-RU")} ₽` : ""}${gNote}`
+        `Написали ему в мессенджер (WhatsApp, Telegram, MAX) — когда ответит, мы напишем вам уведомление в WhatsApp, Telegram или MAX · ставка ${offerPrice.toLocaleString("ru-RU")} ₽/ч${reserved ? ` · в резерве ${reserved.toLocaleString("ru-RU")} ₽` : ""}${gNote}`
       );
       scheduleRender();
     },

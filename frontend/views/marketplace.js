@@ -459,7 +459,7 @@
 
         <div class="sheet-foot is-centered is-stacked">
           <button type="button" class="btn bid-submit-main" id="bid-submit-btn" data-a="book-submit"><span data-bid-lbl="1">${esc(plainBidLabel(false, offerPrice))}</span></button>
-          <span class="small muted bid-messenger-note">Отправим вашу заявку преподавателю в мессенджер (WhatsApp, Telegram, MAX)</span>
+          <span class="small muted bid-messenger-note">Отправим заявку преподавателю и напишем вам уведомление в WhatsApp, Telegram или MAX</span>
         </div>
       </div>
     </div>`;

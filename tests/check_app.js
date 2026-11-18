@@ -475,6 +475,44 @@
     assert(!homeAuthed.includes("Лечебное дело") && !homeAuthed.includes("СВФУ"), "expected universal 3-subject copy without medical uni");
     assert(env2.elements.get("side-foot").innerHTML.includes("Оля"), "expected sidebar user name");
 
+    // Обязательное подтверждение контакта (WhatsApp / MAX / Telegram) и кода из 4 цифр сразу после регистрации
+    const regVerifyHtml = env2.elements.get("modal-root").innerHTML;
+    assert(
+      regVerifyHtml.includes("is-contact-verify-sheet") &&
+      regVerifyHtml.includes("sheet-grabber") &&
+      regVerifyHtml.includes("Подтвердите контакт") &&
+      regVerifyHtml.includes("WhatsApp") &&
+      regVerifyHtml.includes("MAX"),
+      "expected mandatory contact verification grabber sheet after registration"
+    );
+    env2.emitDoc("click", {
+      target: { closest: (sel) => sel === "[data-a]" ? { dataset: { a: "cv-app", v: "max" }, disabled: false } : null },
+      preventDefault() {}
+    });
+    env2.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "contact-verify-send" }, elements: { contact: { value: "+79142100511" } } }) }, preventDefault() {} });
+    await flushMicrotasks(4);
+    const regOtpHtml = env2.elements.get("modal-root").innerHTML;
+    assert(
+      regOtpHtml.includes("otp-4-grid") &&
+      regOtpHtml.includes('id="cv-d0"') &&
+      regOtpHtml.includes('id="cv-d3"') &&
+      regOtpHtml.includes("MAX") &&
+      regOtpHtml.includes("4829"),
+      "expected 4-digit OTP confirmation screen for MAX contact"
+    );
+    env2.emitDoc("submit", {
+      target: { closest: () => ({ dataset: { f: "contact-verify-check" }, elements: { d0: { value: "0" }, d1: { value: "0" }, d2: { value: "0" }, d3: { value: "0" } } }) },
+      preventDefault() {}
+    });
+    await flushMicrotasks(4);
+    assert(env2.elements.get("modal-root").innerHTML.includes("Неверный код из 4 цифр"), "expected wrong 4-digit code to be rejected");
+    env2.emitDoc("submit", {
+      target: { closest: () => ({ dataset: { f: "contact-verify-check" }, elements: { d0: { value: "4" }, d1: { value: "8" }, d2: { value: "2" }, d3: { value: "9" } } }) },
+      preventDefault() {}
+    });
+    await flushMicrotasks(8);
+    assert(!env2.elements.get("modal-root").innerHTML.trim(), "expected valid 4-digit code to complete verification and close sheet");
+
     // Репетитор доступен и отвечает стримом
     env2.emitDoc("click", {
       target: { closest: (sel) => sel === "[data-a]" ? { dataset: { a: "go", v: "tutor" }, disabled: false } : null },
@@ -621,6 +659,12 @@
       preventDefault() {}
     });
     await flushMicrotasks(25);
+    assert(env4.elements.get("modal-root").innerHTML.includes("is-contact-verify-sheet"), "expected mandatory contact confirmation sheet after Igor registration");
+    env4.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "contact-verify-send" }, elements: { contact: { value: "+79142100001" } } }) }, preventDefault() {} });
+    await flushMicrotasks(4);
+    clickAction(env4, { a: "cv-autofill" });
+    env4.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "contact-verify-check" } }) }, preventDefault() {} });
+    await flushMicrotasks(6);
     const obHtml = env4.elements.get("main").innerHTML;
     assert(obHtml.includes("Давай настроим подготовку"), "expected onboarding form for fresh backend user");
     assert(!obHtml.includes("Как к тебе обращаться") && !obHtml.includes('id="ob-name"'), "should not ask display name again during onboarding");
@@ -753,33 +797,58 @@
     assert(
       balModalHtml.includes("Баланс и пополнение") &&
       balModalHtml.includes("первый платёж от 490 ₽") &&
+      balModalHtml.includes("ygo-pay-rail") &&
       balModalHtml.includes('data-a="bal-method" data-v="sbp"') &&
-      balModalHtml.includes('data-a="bal-method" data-v="card"') &&
+      balModalHtml.includes('data-a="bal-card-open"') &&
       balModalHtml.includes("+3%") &&
-      balModalHtml.indexOf('data-v="card"') < balModalHtml.indexOf('id="bal-custom-amount"') &&
+      balModalHtml.indexOf("ygo-pay-rail") < balModalHtml.indexOf('id="bal-custom-amount"') &&
       balModalHtml.includes("bal-flat-sec") &&
       !balModalHtml.includes("bal-plan-grid") &&
       !balModalHtml.includes("wallet-bar") &&
       !balModalHtml.includes("hh-notice-card") &&
       !balModalHtml.includes("notice warn"),
-      "expected tariffless flat top-up sheet with method selector (SBP 0% vs Card +3%) above amount input and no rounded wrapper boxes"
+      "expected Yandex Go horizontal L->R payment rail above amount input without tariffs or rounded wrapper boxes"
     );
     env4.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "bal-custom" }, elements: { amount: { value: "300" } } }) }, preventDefault() {} });
     await flushMicrotasks(2);
     assert(env4.elements.get("modal-root").innerHTML.includes("Первое пополнение на занятия — минимум 490 ₽"), "expected first top-up below 490 ₽ to be rejected");
-    clickAction(env4, { a: "bal-method", v: "card" });
+    clickAction(env4, { a: "bal-card-open" });
     await flushMicrotasks(2);
     const balCardHtml = env4.elements.get("modal-root").innerHTML;
     assert(
+      balCardHtml.includes("is-card-bind-sheet") &&
+      balCardHtml.includes("ygo-bank-card") &&
       balCardHtml.includes('id="bal-card-num"') &&
       balCardHtml.includes('id="bal-card-exp"') &&
       balCardHtml.includes('id="bal-card-cvc"') &&
-      balCardHtml.includes("Комиссия карты 3%"),
-      "expected selecting Add Card to reveal card inputs and +3% fee calculation"
+      balCardHtml.includes("Привязать карту"),
+      "expected Yandex Go dark virtual card binding sheet when clicking Add Card"
     );
-    env4.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "bal-custom" }, elements: { amount: { value: "1000" } } }) }, preventDefault() {} });
+    env4.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "bal-card-bind" }, elements: { cardNum: { value: "2202" } } }) }, preventDefault() {} });
     await flushMicrotasks(2);
-    assert(env4.elements.get("modal-root").innerHTML.includes("Укажите 16 цифр карты"), "expected incomplete card fields to be rejected when card method is active");
+    assert(env4.elements.get("modal-root").innerHTML.includes("Укажите 16 цифр карты"), "expected incomplete card fields to be rejected in Yandex Go bind sheet");
+    env4.emitDoc("submit", {
+      target: {
+        closest: () => ({
+          dataset: { f: "bal-card-bind" },
+          elements: {
+            cardNum: { value: "2202 2012 3456 9012" },
+            cardExp: { value: "12/28" },
+            cardCvc: { value: "789" }
+          }
+        })
+      },
+      preventDefault() {}
+    });
+    await flushMicrotasks(3);
+    const afterBindHtml = env4.elements.get("modal-root").innerHTML;
+    assert(
+      afterBindHtml.includes("is-balance-sheet") &&
+      afterBindHtml.includes("МИР") &&
+      afterBindHtml.includes("•• 9012") &&
+      afterBindHtml.includes("Комиссия карты 3%"),
+      "expected bound MIR card •• 9012 to appear selected in horizontal rail with +3% fee calculation"
+    );
     clickAction(env4, { a: "bal-method", v: "sbp" });
     await flushMicrotasks(2);
     env4.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "bal-custom" }, elements: { amount: { value: "6500" } } }) }, preventDefault() {} });
@@ -814,12 +883,7 @@
       target: {
         closest: () => ({
           dataset: { f: "bal-custom" },
-          elements: {
-            amount: { value: "100" },
-            cardNum: { value: "4276 1234 5678 9012" },
-            cardExp: { value: "12/28" },
-            cardCvc: { value: "789" }
-          }
+          elements: { amount: { value: "100" } }
         })
       },
       preventDefault() {}
@@ -829,7 +893,7 @@
       hasNum(env4.elements.get("side-foot").innerHTML, "5 400") &&
       hasNum(env4.elements.get("top-balance-slot").innerHTML, "5 400") &&
       env4.elements.get("toast").innerHTML.includes("+3%"),
-      "expected subsequent 100 ₽ card top-up (+3% gateway fee) to credit 100 ₽ cleanly to reach 5400 ₽ in both balance slots"
+      "expected subsequent 100 ₽ bound-card top-up (+3% fee) to credit 100 ₽ cleanly to reach 5400 ₽"
     );
 
     clickAction(env4, { a: "go", v: "study" });
@@ -1239,7 +1303,7 @@
       !modalBefore.includes('data-a="book-format"') &&
       !modalBefore.includes("Отмена") &&
       !modalBefore.includes('data-a="go-fees"') &&
-      modalBefore.includes("Отправим вашу заявку преподавателю в мессенджер (WhatsApp, Telegram, MAX)"),
+      modalBefore.includes("Отправим заявку преподавателю и напишем вам уведомление в WhatsApp, Telegram или MAX"),
       "expected bottom-sheet booking modal with grabber, no close cross, digits-only 0-99999 price input, centered Предложить CTA, and messenger note"
     );
     env5.emitDoc("input", { target: { id: "bid-price", value: "25a000", dataset: {} } });
@@ -1254,13 +1318,23 @@
     const modalStepped = env5.elements.get("modal-root").innerHTML;
     assert(modalStepped.includes('value="1150"') && hasNum(modalStepped, "Предложить 1 150 ₽") && !modalStepped.includes("1 092 ₽"), "expected -50 step to update centered Предложить CTA to 1150 without Yakut logo");
 
-    // Воронка «Предложить 1 150 ₽»: без входа -> Вход/Регистрация -> с 0 ₽ -> Пополнение баланса СБП -> возврат в заявку 1150 ₽ -> отправка
+    // Воронка «Предложить 1 150 ₽»: без входа -> Google + обязательное подтверждение TG/WA/MAX (4 цифры) -> пополнение СБП -> заявка + уведомление студенту
     clickAction(env5, { a: "book-submit" });
     await flushMicrotasks(3);
-    assert(env5.elements.get("modal-root").innerHTML.includes('data-f="auth"') && env5.elements.get("modal-root").innerHTML.includes("sheet-grabber"), "expected book-submit while logged out to open grabber auth sheet");
-    clickAction(env5, { a: "auth-guest" });
-    await flushMicrotasks(3);
-    assert(env5.elements.get("modal-root").innerHTML.includes('id="bid-submit-btn"') && env5.elements.get("modal-root").innerHTML.includes('value="1150"'), "expected login to resume booking sheet with preserved 1150 ₽ offer");
+    const authGateHtml = env5.elements.get("modal-root").innerHTML;
+    assert(authGateHtml.includes('data-f="auth"') && authGateHtml.includes('data-a="auth-google-start"') && authGateHtml.includes("sheet-grabber"), "expected book-submit while logged out to open grabber auth sheet with Google button");
+    clickAction(env5, { a: "auth-google-start" });
+    await flushMicrotasks(2);
+    clickAction(env5, { a: "cv-channel", v: "tg" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("modal-root").innerHTML.includes("is-contact-verify-sheet") && env5.elements.get("modal-root").innerHTML.includes('id="cv-contact-inp"'), "expected Google sign-in to require messenger contact grabber");
+    env5.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "contact-verify-send" }, elements: { contact: { value: "aytal_student" } } }) }, preventDefault() {} });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("modal-root").innerHTML.includes("otp-4-grid") && env5.elements.get("modal-root").innerHTML.includes("@aytal_student"), "expected 4-digit OTP sheet after Telegram submission");
+    clickAction(env5, { a: "cv-autofill" });
+    env5.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "contact-verify-check" } }) }, preventDefault() {} });
+    await flushMicrotasks(4);
+    assert(env5.elements.get("modal-root").innerHTML.includes('id="bid-submit-btn"') && env5.elements.get("modal-root").innerHTML.includes('value="1150"'), "expected confirmed Google + 4-digit OTP to resume booking sheet with preserved 1150 ₽ offer");
 
     clickAction(env5, { a: "book-submit" });
     await flushMicrotasks(3);
@@ -1288,8 +1362,9 @@
     assert(
       bookSideToast.className === "toast is-side" &&
       bookSideToast.innerHTML.includes("Предложение передано преподавателю") &&
-      bookSideToast.innerHTML.includes("Написали ему в мессенджер (WhatsApp, Telegram, MAX)"),
-      "expected side notification saying Написали ему в мессенджер (WhatsApp, Telegram, MAX)"
+      bookSideToast.innerHTML.includes("Написали ему в мессенджер (WhatsApp, Telegram, MAX)") &&
+      bookSideToast.innerHTML.includes("мы напишем вам уведомление в WhatsApp, Telegram или MAX"),
+      "expected side notification promising student notification in WhatsApp, Telegram, or MAX"
     );
     const afterBookHtml = env5.elements.get("main").innerHTML;
     assert(afterBookHtml.includes("На рассмотрении · уведомим") && hasNum(afterBookHtml, "3 440 ₽"), "expected 1150 ₽ reserved from 4 590 ₽ balance leaving 3 440 ₽");

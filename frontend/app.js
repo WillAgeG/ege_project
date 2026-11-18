@@ -491,6 +491,13 @@
       if (me && me.user) {
         try {
           await loadBackendSession(me.user);
+          const hasVerifiedContact = Boolean(
+            (store.docs && store.docs.profile && store.docs.profile.contactVerified) ||
+            (mkt() && mkt().verifiedContact && mkt().verifiedContact.value)
+          );
+          if (me.user.authProvider === "google" && !hasVerifiedContact) {
+            openContactVerifyModal({ required: true });
+          }
         } catch (e) {
           store.user = me.user; store.uid = String(me.user.id);
           store.me = { name: me.user.displayName || me.user.username, avatarUrl: me.user.avatarUrl || "" };
@@ -1247,6 +1254,22 @@
       <button type="button" class="top-bal-btn" data-a="bal-open" aria-label="Пополнить баланс" title="Пополнить баланс">${icon("plus")}<span>Пополнить</span></button>
     </div>`;
   }
+  function detectCardBrand(rawNum) {
+    const d = String(rawNum || "").replace(/\D+/g, "");
+    if (!d) return "Карта РФ";
+    if (/^2/.test(d)) return "МИР";
+    if (/^4/.test(d)) return "VISA";
+    if (/^5/.test(d)) return "Mastercard";
+    if (/^62/.test(d)) return "UnionPay";
+    return "Карта РФ";
+  }
+  function savedCardsForMarket(st) {
+    if (st && Array.isArray(st.savedCards) && st.savedCards.length) return st.savedCards;
+    if (st && st.savedCard && st.savedCard.last4) {
+      return [Object.assign({ id: st.savedCard.id || "card-1", brand: st.savedCard.brand || "Карта РФ" }, st.savedCard)];
+    }
+    return [];
+  }
   function calcBalanceTopupMeta(rawAmount, method) {
     const clean = String(rawAmount == null ? "" : rawAmount).replace(/\D+/g, "");
     const amt = clean === "" ? 0 : Math.max(0, Math.min(200000, Math.round(Number(clean) || 0)));
@@ -1281,40 +1304,50 @@
       });
     }
   }
+  function openContactVerifyModal(opts) {
+    opts = opts || {};
+    const existing = mkt().verifiedContact;
+    ui.contactVerifyModal = {
+      step: "input",
+      channel: opts.channel === "tg" ? "tg" : ((existing && existing.channel === "tg") ? "tg" : "phone"),
+      app: opts.app === "max" ? "max" : "whatsapp",
+      contact: opts.contact || (existing && existing.value) || "",
+      digits: ["", "", "", ""],
+      expectedCode: "4829",
+      required: opts.required !== false,
+      fromGoogleDemo: !!opts.fromGoogleDemo,
+      error: ""
+    };
+    renderModal();
+  }
   function balanceModalHTML() {
     const bm = ui.balanceModal;
     if (!bm) return "";
     const st = mkt();
     const trialRub = (TDATA && TDATA.TRIAL_PRICE != null) ? Number(TDATA.TRIAL_PRICE) : 490;
     const minTopup = st.initialPaid ? 100 : trialRub;
-    const method = bm.method === "card" ? "card" : "sbp";
-    const savedCard = st.savedCard && st.savedCard.last4 ? st.savedCard : null;
-    const showNewCard = !savedCard || !!bm.addingNewCard;
+    const cards = savedCardsForMarket(st);
+    const method = (bm.method === "card" && cards.length) ? "card" : "sbp";
+    const activeCardId = bm.selectedCardId || (cards[0] && cards[0].id) || "";
     const customVal = bm.customAmount != null ? String(bm.customAmount) : String(minTopup);
     const meta = calcBalanceTopupMeta(customVal, method);
     const chipVals = st.initialPaid ? [500, 1000, 1500, 3000] : [trialRub, 1000, 2150, 4590];
     if (meta.amt >= minTopup && !chipVals.includes(meta.amt)) chipVals.unshift(meta.amt);
-    const cardSectionHTML = method === "card"
-      ? (showNewCard
-        ? `<div class="bal-card-box">
-            <input class="input num" id="bal-card-num" name="cardNum" type="text" inputmode="numeric" autocomplete="cc-number" maxlength="19" placeholder="Номер карты · 0000 0000 0000 0000" value="${esc(bm.cardNum || "")}">
-            <div class="bal-card-row2">
-              <input class="input num" id="bal-card-exp" name="cardExp" type="text" inputmode="numeric" autocomplete="cc-exp" maxlength="5" placeholder="ММ/ГГ" value="${esc(bm.cardExp || "")}">
-              <input class="input num" id="bal-card-cvc" name="cardCvc" type="password" inputmode="numeric" autocomplete="cc-csc" maxlength="3" placeholder="CVC" value="${esc(bm.cardCvc || "")}">
-            </div>
-            <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
-              <label class="row small" style="gap:8px;cursor:pointer">
-                <input type="checkbox" id="bal-save-card" ${bm.saveCard !== false ? "checked" : ""}>
-                <span>Сохранить карту</span>
-              </label>
-              ${savedCard ? `<button type="button" class="link-btn small" data-a="bal-card-use-saved">Сохранённая •• ${esc(savedCard.last4)}</button>` : ""}
-            </div>
-          </div>`
-        : `<div class="bal-saved-card">
-            <span class="small"><b>Карта •••• ${esc(savedCard.last4)}</b>${savedCard.exp ? ` · до ${esc(savedCard.exp)}` : ""}</span>
-            <button type="button" class="link-btn small" data-a="bal-card-new">+ Новая карта</button>
-          </div>`)
-      : "";
+    const sbpMark = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 21 7 21 17 12 22 3 17 3 7"/><polyline points="12 2 12 12 21 7"/><polyline points="12 12 3 17"/></svg>';
+    const checkSvg = '<span class="ygo-check" aria-hidden="true">' + icon("check") + '</span>';
+    const cardTilesHTML = cards.map((c) => {
+      const isSel = method === "card" && activeCardId === c.id;
+      return `<button type="button" class="ygo-pay-tile${isSel ? " is-on" : ""}" data-a="bal-method" data-v="card" data-card-id="${esc(c.id)}" role="radio" aria-checked="${isSel ? "true" : "false"}">
+        <div class="ygo-tile-top">
+          <span class="ygo-card-net">${esc(c.brand || "Карта")}</span>
+          ${isSel ? checkSvg : ""}
+        </div>
+        <div class="ygo-tile-copy">
+          <b>•• ${esc(c.last4)}</b>
+          <span>Комиссия +3%</span>
+        </div>
+      </button>`;
+    }).join("");
     return `<div class="modal-back is-sheet-back" role="dialog" aria-modal="true" aria-labelledby="bal-modal-title">
       <div class="modal-card sheet-modal is-balance-sheet" data-sheet-kind="balance">
         <div class="sheet-grabber-zone" data-sheet-drag="1" role="button" tabindex="0" data-a="bal-close" aria-label="Свернуть окно баланса">
@@ -1334,24 +1367,32 @@
             <p class="bal-flat-copy">Деньги хранятся на защищённом счёте и переводятся преподавателю только после проведения урока. Контакты в WhatsApp, Telegram и MAX открываются сразу после отправки заявки.</p>
           </div>
           <div class="stack" style="gap:8px">
-            <span class="label">Способ оплаты</span>
-            <div class="bal-method-list" role="radiogroup" aria-label="Способ оплаты">
-              <button type="button" class="bal-method-opt${method === "sbp" ? " is-on" : ""}" data-a="bal-method" data-v="sbp" role="radio" aria-checked="${method === "sbp" ? "true" : "false"}">
-                <span class="bal-method-main">
-                  <b>СБП · Быстрый платёж</b>
-                  <span>СберБанк, Т-Банк, АЭБ, ВТБ</span>
-                </span>
-                <span class="bal-method-right is-free">0%<i class="bal-radio" aria-hidden="true"></i></span>
+            <div class="row between" style="align-items:center">
+              <span class="label">Способ оплаты</span>
+              <span class="ygo-rail-note">Листайте влево-вправо →</span>
+            </div>
+            <div class="ygo-pay-rail" role="radiogroup" aria-label="Способ оплаты">
+              <button type="button" class="ygo-pay-tile${method === "sbp" ? " is-on" : ""}" data-a="bal-method" data-v="sbp" role="radio" aria-checked="${method === "sbp" ? "true" : "false"}">
+                <div class="ygo-tile-top">
+                  <span class="ygo-sbp-badge">${sbpMark}</span>
+                  ${method === "sbp" ? checkSvg : ""}
+                </div>
+                <div class="ygo-tile-copy">
+                  <b>СБП · Банк</b>
+                  <span class="is-free">Комиссия 0%</span>
+                </div>
               </button>
-              <button type="button" class="bal-method-opt${method === "card" ? " is-on" : ""}" data-a="bal-method" data-v="card" role="radio" aria-checked="${method === "card" ? "true" : "false"}">
-                <span class="bal-method-main">
-                  <b>${savedCard && !bm.addingNewCard ? `Карта •• ${esc(savedCard.last4)}` : "Добавить карту"}</b>
-                  <span>Банковская карта РФ · комиссия 3%</span>
-                </span>
-                <span class="bal-method-right is-fee">+3%<i class="bal-radio" aria-hidden="true"></i></span>
+              ${cardTilesHTML}
+              <button type="button" class="ygo-pay-tile" data-a="bal-card-open">
+                <div class="ygo-tile-top">
+                  <span class="ygo-add-badge">${icon("plus")}</span>
+                </div>
+                <div class="ygo-tile-copy">
+                  <b>Добавить карту</b>
+                  <span>Мир, Visa · +3%</span>
+                </div>
               </button>
             </div>
-            ${cardSectionHTML}
           </div>
           <form class="stack" style="gap:10px" data-f="bal-custom">
             <div class="stack" style="gap:8px">
@@ -1368,6 +1409,132 @@
             ${bm.error ? `<div class="small" style="color:var(--bad);font-weight:600">${esc(bm.error)}</div>` : ""}
             <button type="submit" class="btn bal-submit-btn" id="bal-submit-btn">${esc(meta.btnText)}</button>
           </form>
+        </div>
+      </div>
+    </div>`;
+  }
+  function cardBindModalHTML() {
+    const cb = ui.cardBindModal;
+    if (!cb) return "";
+    const brand = detectCardBrand(cb.cardNum);
+    const chipSvg = '<svg width="36" height="26" viewBox="0 0 36 26" fill="none" aria-hidden="true"><rect x=".75" y=".75" width="34.5" height="24.5" rx="5.25" fill="#e5c07b" fill-opacity=".9" stroke="#bfa05a" stroke-width="1.2"/><path d="M12 1v24M24 1v24M1 9.5h11M1 16.5h11M24 9.5h11M24 16.5h11" stroke="#8c6d2c" stroke-width="1.1"/></svg>';
+    const nfcSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 16a6 6 0 0 1 0-8"/><path d="M10 18a10 10 0 0 1 0-12"/><path d="M14 20a14 14 0 0 1 0-16"/></svg>';
+    return `<div class="modal-back is-sheet-back" role="dialog" aria-modal="true" aria-labelledby="card-bind-title">
+      <div class="modal-card sheet-modal is-card-bind-sheet" data-sheet-kind="card-bind">
+        <div class="sheet-grabber-zone" data-sheet-drag="1" role="button" tabindex="0" data-a="bal-card-close" aria-label="Свернуть добавление карты">
+          <span class="sheet-grabber"></span>
+        </div>
+        <div class="sheet-head is-booking-head">
+          <button type="button" class="sheet-back-btn" data-a="bal-card-close">${icon("back")}<span>Назад</span></button>
+          <b id="card-bind-title">Добавить карту</b>
+          <span style="width:64px" aria-hidden="true"></span>
+        </div>
+        <div class="sheet-body">
+          <form class="stack" style="gap:14px" data-f="bal-card-bind">
+            <div class="ygo-bank-card">
+              <div class="ygo-card-top">
+                <div class="ygo-chip-wrap">${chipSvg}${nfcSvg}</div>
+                <span class="ygo-brand-pill" id="ygo-card-brand">${esc(brand)}</span>
+              </div>
+              <div class="ygo-card-field">
+                <label class="ygo-card-lbl" for="bal-card-num">Номер карты</label>
+                <input class="ygo-card-inp num" id="bal-card-num" name="cardNum" type="text" inputmode="numeric" autocomplete="cc-number" maxlength="19" placeholder="0000 0000 0000 0000" value="${esc(cb.cardNum || "")}">
+              </div>
+              <div class="ygo-card-bottom2">
+                <div class="ygo-card-field">
+                  <label class="ygo-card-lbl" for="bal-card-exp">Срок действия</label>
+                  <input class="ygo-card-inp num" id="bal-card-exp" name="cardExp" type="text" inputmode="numeric" autocomplete="cc-exp" maxlength="5" placeholder="ММ/ГГ" value="${esc(cb.cardExp || "")}">
+                </div>
+                <div class="ygo-card-field">
+                  <label class="ygo-card-lbl" for="bal-card-cvc">Код CVC</label>
+                  <input class="ygo-card-inp num" id="bal-card-cvc" name="cardCvc" type="password" inputmode="numeric" autocomplete="cc-csc" maxlength="3" placeholder="•••" value="${esc(cb.cardCvc || "")}">
+                </div>
+              </div>
+            </div>
+            <label class="row small" style="gap:8px;cursor:pointer">
+              <input type="checkbox" id="bal-save-card" ${cb.saveCard !== false ? "checked" : ""}>
+              <span>Сохранить карту для быстрых пополнений</span>
+            </label>
+            <div class="ygo-sec-note">
+              ${icon("shield")}
+              <span>Данные передаются по защищённому каналу. Для проверки карты спишется и сразу вернётся 1 ₽ · при пополнении комиссия +3%.</span>
+            </div>
+            ${cb.error ? `<div class="small" style="color:var(--bad);font-weight:600">${esc(cb.error)}</div>` : ""}
+            <button type="submit" class="btn bal-submit-btn" id="bal-card-submit">Привязать карту</button>
+          </form>
+        </div>
+      </div>
+    </div>`;
+  }
+  function contactVerifyModalHTML() {
+    const cv = ui.contactVerifyModal;
+    if (!cv) return "";
+    const isTg = cv.channel === "tg";
+    const isOtp = cv.step === "otp";
+    const appLabel = isTg ? "Telegram" : (cv.app === "max" ? "MAX" : "WhatsApp");
+    const digits = Array.isArray(cv.digits) ? cv.digits : ["", "", "", ""];
+    return `<div class="modal-back is-sheet-back" role="dialog" aria-modal="true" aria-labelledby="cv-modal-title">
+      <div class="modal-card sheet-modal is-contact-verify-sheet" data-sheet-kind="contact-verify">
+        <div class="sheet-grabber-zone" data-sheet-drag="1" role="button" tabindex="0" data-a="cv-close" aria-label="Свернуть подтверждение контакта">
+          <span class="sheet-grabber"></span>
+        </div>
+        <div class="sheet-head is-booking-head">
+          ${isOtp
+            ? `<button type="button" class="sheet-back-btn" data-a="cv-back">${icon("back")}<span>Контакт</span></button>`
+            : `<span style="width:64px" aria-hidden="true"></span>`}
+          <b id="cv-modal-title">${isOtp ? "Код из 4 цифр" : "Подтвердите контакт"}</b>
+          <span style="width:64px" aria-hidden="true"></span>
+        </div>
+        <div class="sheet-body">
+          ${!isOtp ? `
+            <p class="small ink2" style="margin:0;line-height:1.48">Обязательный шаг: укажите телефон (WhatsApp или MAX) или Telegram, чтобы мы прислали код подтверждения и уведомления об ответах преподавателей.</p>
+            <div class="hh-seg equal" role="group" aria-label="Способ связи">
+              <button type="button" data-a="cv-channel" data-v="phone" aria-pressed="${!isTg}"><span>Телефон · WA / MAX</span></button>
+              <button type="button" data-a="cv-channel" data-v="tg" aria-pressed="${isTg}"><span>Telegram</span></button>
+            </div>
+            <form class="stack" style="gap:12px" data-f="contact-verify-send">
+              ${!isTg ? `
+                <div class="stack" style="gap:6px">
+                  <span class="label">Куда прислать код из 4 цифр</span>
+                  <div class="cv-app-row">
+                    <button type="button" class="chip-btn${cv.app !== "max" ? " is-on" : ""}" data-a="cv-app" data-v="whatsapp">WhatsApp</button>
+                    <button type="button" class="chip-btn${cv.app === "max" ? " is-on" : ""}" data-a="cv-app" data-v="max">MAX</button>
+                  </div>
+                </div>
+              ` : ""}
+              <div class="field">
+                <label for="cv-contact-inp">${isTg ? "Ник или телефон в Telegram" : `Номер телефона (${appLabel})`}</label>
+                <input class="input${isTg ? "" : " num"}" id="cv-contact-inp" name="contact" type="${isTg ? "text" : "tel"}" inputmode="${isTg ? "text" : "tel"}" autocomplete="tel" placeholder="${isTg ? "@username или +7 914 210-05-11" : "+7 (914) 210-05-11"}" value="${esc(cv.contact || "")}">
+              </div>
+              ${cv.error ? `<div class="small" style="color:var(--bad);font-weight:600">${esc(cv.error)}</div>` : ""}
+              <button type="submit" class="btn bal-submit-btn" id="cv-send-btn">Получить код из 4 цифр</button>
+              <div class="row center" style="gap:12px">
+                ${cv.fromGoogleDemo
+                  ? `<button type="button" class="link-btn small" data-a="cv-close">Назад ко входу</button>`
+                  : (store.user ? `<button type="button" class="link-btn small" data-a="auth-logout">Выйти из аккаунта</button>` : "")}
+              </div>
+            </form>
+          ` : `
+            <p class="small ink2" style="margin:0;line-height:1.48">Мы отправили уведомление с 4-значным кодом в <b>${esc(appLabel)}</b> на <b>${esc(cv.contact)}</b>. Введите код ниже, чтобы подтвердить аккаунт.</p>
+            <div class="cv-demo-push">
+              <div class="cv-demo-push-copy">
+                <b>Уведомление · ${esc(appLabel)}</b>
+                <span>Код подтверждения Вектор: <b class="num">${esc(cv.expectedCode)}</b></span>
+              </div>
+              <button type="button" class="chip-btn" data-a="cv-autofill">Подставить</button>
+            </div>
+            <form class="stack" style="gap:14px" data-f="contact-verify-check">
+              <div class="otp-4-grid" aria-label="Код подтверждения из 4 цифр">
+                ${[0, 1, 2, 3].map((idx) => `<input class="otp-digit-box" id="cv-d${idx}" data-otp-idx="${idx}" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="${idx === 0 ? "one-time-code" : "off"}" value="${esc(digits[idx] || "")}" aria-label="Цифра ${idx + 1}">`).join("")}
+              </div>
+              ${cv.error ? `<div class="small" style="color:var(--bad);font-weight:600;text-align:center">${esc(cv.error)}</div>` : ""}
+              <button type="submit" class="btn bal-submit-btn" id="cv-check-btn">Подтвердить аккаунт</button>
+              <div class="row center small" style="gap:8px">
+                <span class="muted">Не пришло уведомление?</span>
+                <button type="button" class="link-btn small" data-a="cv-resend">Отправить снова</button>
+              </div>
+            </form>
+          `}
         </div>
       </div>
     </div>`;
@@ -1463,6 +1630,8 @@
       if (nb && savedBackTop) nb.scrollTop = savedBackTop;
       if (nc && savedCardTop) nc.scrollTop = savedCardTop;
     };
+    if (ui.contactVerifyModal) { root.innerHTML = contactVerifyModalHTML(); restoreModalScroll(); return; }
+    if (ui.cardBindModal) { root.innerHTML = cardBindModalHTML(); restoreModalScroll(); return; }
     if (ui.authModal) { root.innerHTML = authModalHTML(); restoreModalScroll(); return; }
     if (ui.payoutModal && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.payoutModalHTML === "function") {
       root.innerHTML = EGE.views.tutorCabinet.payoutModalHTML(ui.payoutModal);
@@ -1813,8 +1982,8 @@
       <p class="ink2 small">${reg ? "Создай личный аккаунт — прогресс, расписание и баланс сохранятся на сервере." : "Выбери удобный способ входа и укажи, как открыть кабинет — учеником или преподавателем."}</p>
       ${hasGoogle
         ? `<a class="btn ghost google-btn" href="/api/auth/google/start">${GOOGLE_SVG}<span>Продолжить через Google</span></a>`
-        : `<button type="button" class="btn ghost google-btn" disabled title="Подключается через GOOGLE_CLIENT_ID и GOOGLE_CLIENT_SECRET на сервере">${GOOGLE_SVG}<span>Продолжить через Google</span></button>`}
-      ${!hasGoogle ? '<p class="hint" style="text-align:center">Вход через Google активируется после настройки ключей на сервере.</p>' : ""}
+        : `<button type="button" class="btn ghost google-btn" data-a="auth-google-start">${GOOGLE_SVG}<span>Продолжить через Google</span></button>`}
+      <p class="hint" style="text-align:center">После регистрации или входа через Google — подтверждение WhatsApp, MAX или Telegram кодом из 4 цифр.</p>
       <div class="auth-sep"><span>или по логину</span></div>
       ${reg ? `<div class="fields">
         <div class="field"><label for="auth-name">Как к тебе обращаться</label><input class="input" id="auth-name" name="displayName" type="text" autocomplete="name" maxlength="40" placeholder="Имя (необязательно)" data-d="auth.name" value="${esc(draft("auth.name", ""))}"></div>
@@ -2142,6 +2311,63 @@
       }
       scheduleRender(true);
     },
+    "auth-google-start": () => {
+      ui.authModal = false;
+      ui.auth.error = "";
+      openContactVerifyModal({ fromGoogleDemo: true, required: true });
+    },
+    "cv-channel": (el) => {
+      if (!ui.contactVerifyModal) return;
+      ui.contactVerifyModal.channel = el && el.dataset && el.dataset.v === "tg" ? "tg" : "phone";
+      ui.contactVerifyModal.step = "input";
+      ui.contactVerifyModal.contact = "";
+      ui.contactVerifyModal.error = "";
+      renderModal();
+    },
+    "cv-app": (el) => {
+      if (!ui.contactVerifyModal) return;
+      ui.contactVerifyModal.app = el && el.dataset && el.dataset.v === "max" ? "max" : "whatsapp";
+      ui.contactVerifyModal.error = "";
+      renderModal();
+    },
+    "cv-back": () => {
+      if (!ui.contactVerifyModal) return;
+      ui.contactVerifyModal.step = "input";
+      ui.contactVerifyModal.digits = ["", "", "", ""];
+      ui.contactVerifyModal.error = "";
+      renderModal();
+    },
+    "cv-resend": () => {
+      if (!ui.contactVerifyModal) return;
+      const cv = ui.contactVerifyModal;
+      cv.expectedCode = cv.expectedCode === "4829" ? "7391" : "4829";
+      cv.digits = ["", "", "", ""];
+      cv.error = "";
+      const appLabel = cv.channel === "tg" ? "Telegram" : (cv.app === "max" ? "MAX" : "WhatsApp");
+      renderModal();
+      notifySide(`Повторный код · ${appLabel}`, `Отправили код ${cv.expectedCode} на ${cv.contact}`);
+    },
+    "cv-autofill": () => {
+      if (!ui.contactVerifyModal) return;
+      const code = String(ui.contactVerifyModal.expectedCode || "4829").padStart(4, "0").slice(0, 4);
+      ui.contactVerifyModal.digits = code.split("");
+      ui.contactVerifyModal.error = "";
+      renderModal();
+      const subBtn = typeof document !== "undefined" && document.getElementById ? document.getElementById("cv-check-btn") : null;
+      if (subBtn && typeof subBtn.focus === "function") subBtn.focus();
+    },
+    "cv-close": () => {
+      const cv = ui.contactVerifyModal;
+      if (!cv) return;
+      if (cv.fromGoogleDemo || !cv.required) {
+        ui.contactVerifyModal = null;
+        if (cv.fromGoogleDemo) ui.authModal = true;
+        renderModal();
+        return;
+      }
+      cv.error = "Обязательный шаг: подтвердите телефон (WhatsApp / MAX) или Telegram кодом из 4 цифр.";
+      renderModal();
+    },
     "auth-guest": () => {
       ui.demoAuthed = true;
       ui.guest = true;
@@ -2162,7 +2388,7 @@
       store.error = null; store.confirmed = false; store.stale = false;
       ui.demoAuthed = false; ui.pendingBookingAfterAuth = null; ui.authPrompt = "";
       cloud.db = null; ai.fn = null; ai.state = "off";
-      ui.guest = false; ui.authModal = false; ui.filterModal = false; ui.quiz = null;
+      ui.guest = false; ui.authModal = false; ui.contactVerifyModal = null; ui.cardBindModal = null; ui.filterModal = false; ui.quiz = null;
       clearActiveQuiz();
       clearQueues();
       ui.confirm = null; ui.auth.error = "";
@@ -2201,7 +2427,14 @@
       const name = (store.user ? defaultName() : String(draft("ob.name", defaultName()))).trim().slice(0, 40);
       const targets = {};
       SUBJECT_META.forEach((s) => { targets[s.id] = clampInt(draft("ob." + s.id, DEFAULT_TARGETS[s.id]), 0, 100, DEFAULT_TARGETS[s.id]); });
-      patchDoc("profile", { name, targets, created: Date.now() });
+      const payload = { name, targets, created: Date.now() };
+      const vc = mkt() && mkt().verifiedContact;
+      if (vc && vc.value) {
+        payload.contactVerified = true;
+        payload.messengerContact = vc.value;
+        payload.messengerApp = vc.app || "";
+      }
+      patchDoc("profile", payload);
       clearDrafts("ob.");
       toast("Готово! Подготовка началась");
     },
@@ -2268,6 +2501,11 @@
         a.error = "";
         clearDrafts("auth.");
         toast(reg ? "Аккаунт создан" : "Вход выполнен");
+        if (reg) {
+          openContactVerifyModal({ required: true });
+          scheduleRender();
+          return;
+        }
         if (!resumePendingAfterAuth()) {
           renderModal();
           scheduleRender();
@@ -2292,6 +2530,12 @@
         clearDrafts("auth."); clearDrafts("pf."); clearDrafts("ob.");
         a.error = "";
         toast(reg ? (migrated ? "Аккаунт создан, прогресс перенесён" : "Аккаунт создан") : "Вход выполнен");
+        if (reg) {
+          a.busy = false;
+          openContactVerifyModal({ required: true });
+          scheduleRender();
+          return;
+        }
         if (hadPending) { a.busy = false; resumePendingAfterAuth(); return; }
       } catch (e) {
         a.error = authErrorText(e);
@@ -2317,18 +2561,134 @@
       scheduleRender();
       notifySide("Анкета принята на проверку", `${name} · ${subjName} · ${rate.toLocaleString("ru-RU")} ₽/ч — появится в каталоге сегодня`);
     },
+    "bal-card-bind": (form) => {
+      const st = mkt();
+      const cb = ui.cardBindModal || (ui.cardBindModal = { cardNum: "", cardExp: "", cardCvc: "", saveCard: true, error: "" });
+      const numEl = (form && form.elements && form.elements.cardNum) || $("#bal-card-num");
+      const expEl = (form && form.elements && form.elements.cardExp) || $("#bal-card-exp");
+      const cvcEl = (form && form.elements && form.elements.cardCvc) || $("#bal-card-cvc");
+      const saveEl = $("#bal-save-card");
+      const cardDigits = String((numEl && numEl.value) || cb.cardNum || "").replace(/\D+/g, "");
+      const expRawDigits = String((expEl && expEl.value) || cb.cardExp || "").replace(/\D+/g, "").slice(0, 4);
+      const expNorm = expRawDigits.length >= 3
+        ? (expRawDigits.slice(0, 2) + "/" + expRawDigits.slice(2, 4))
+        : String((expEl && expEl.value) || cb.cardExp || "").trim();
+      const cvcDigits = String((cvcEl && cvcEl.value) || cb.cardCvc || "").replace(/\D+/g, "");
+      const saveCard = saveEl != null ? !!saveEl.checked : (cb.saveCard !== false);
+      cb.cardNum = cardDigits.slice(0, 16).replace(/(\d{4})(?=\d)/g, "$1 ");
+      cb.cardExp = expNorm;
+      cb.cardCvc = cvcDigits.slice(0, 3);
+      cb.saveCard = saveCard;
+      if (cardDigits.length !== 16 || !/^(0[1-9]|1[0-2])\/\d{2}$/.test(expNorm) || cvcDigits.length !== 3) {
+        cb.error = "Укажите 16 цифр карты, срок ММ/ГГ и 3 цифры CVC.";
+        renderModal();
+        return;
+      }
+      const brand = detectCardBrand(cardDigits);
+      const last4 = cardDigits.slice(-4);
+      const cards = savedCardsForMarket(st).slice();
+      const existing = cards.find((c) => c.last4 === last4 && c.exp === expNorm);
+      const cardObj = existing || { id: "card-" + last4 + "-" + Date.now().toString(36), brand, last4, exp: expNorm };
+      if (!existing) cards.unshift(cardObj);
+      st.savedCards = cards;
+      st.savedCard = cardObj;
+      saveMkt();
+      ui.cardBindModal = null;
+      if (!ui.balanceModal) {
+        const trialRub = (TDATA && TDATA.TRIAL_PRICE != null) ? Number(TDATA.TRIAL_PRICE) : 490;
+        ui.balanceModal = { method: "card", selectedCardId: cardObj.id, customAmount: st.initialPaid ? 500 : trialRub, error: "", reason: "", pendingBooking: null };
+      } else {
+        ui.balanceModal.method = "card";
+        ui.balanceModal.selectedCardId = cardObj.id;
+        ui.balanceModal.error = "";
+      }
+      renderModal();
+      notifySide("Карта привязана", `${brand} •• ${last4} добавлена к способам оплаты (+3% комиссия)`);
+    },
+    "contact-verify-send": (form) => {
+      const cv = ui.contactVerifyModal;
+      if (!cv) return;
+      const inpEl = (form && form.elements && form.elements.contact) || $("#cv-contact-inp");
+      const raw = String((inpEl && inpEl.value) || cv.contact || "").trim();
+      const isTg = cv.channel === "tg";
+      if (isTg) {
+        const digits = raw.replace(/\D+/g, "");
+        const isPhoneLike = /^\+?\d[\d\s()-]{8,}$/.test(raw) && digits.length >= 10;
+        const handle = raw.replace(/^@+/, "").trim();
+        if (!isPhoneLike && handle.length < 3) {
+          cv.error = "Укажите @username или номер телефона в Telegram.";
+          renderModal();
+          return;
+        }
+        cv.contact = isPhoneLike ? raw : ("@" + handle);
+      } else {
+        const digits = raw.replace(/\D+/g, "");
+        if (digits.length < 10 || digits.length > 11) {
+          cv.error = "Введите корректный номер телефона (WhatsApp или MAX).";
+          renderModal();
+          return;
+        }
+        const fmtP = EGE.kit && EGE.kit.formatPhoneMask;
+        cv.contact = typeof fmtP === "function" ? (fmtP(raw) || raw) : raw;
+      }
+      cv.step = "otp";
+      cv.digits = ["", "", "", ""];
+      if (!cv.expectedCode) cv.expectedCode = "4829";
+      cv.error = "";
+      const appLabel = isTg ? "Telegram" : (cv.app === "max" ? "MAX" : "WhatsApp");
+      renderModal();
+      notifySide(`Код из 4 цифр · ${appLabel}`, `Отправили код ${cv.expectedCode} на ${cv.contact}`);
+      if (typeof document !== "undefined" && typeof document.getElementById === "function") {
+        const d0 = document.getElementById("cv-d0");
+        if (d0 && typeof d0.focus === "function") d0.focus();
+      }
+    },
+    "contact-verify-check": (form) => {
+      const cv = ui.contactVerifyModal;
+      if (!cv) return;
+      const readDigit = (idx) => {
+        const domEl = (typeof document !== "undefined" && document.getElementById) ? document.getElementById("cv-d" + idx) : null;
+        const formEl = form && form.elements ? form.elements["d" + idx] : null;
+        const v = (domEl && domEl.value != null ? domEl.value : (formEl && formEl.value != null ? formEl.value : ((cv.digits && cv.digits[idx]) || "")));
+        return String(v || "").replace(/\D+/g, "").slice(0, 1);
+      };
+      const code = [0, 1, 2, 3].map(readDigit).join("");
+      if (code.length < 4 || code !== String(cv.expectedCode || "4829")) {
+        cv.error = "Неверный код из 4 цифр. Проверьте уведомление и попробуйте снова.";
+        renderModal();
+        return;
+      }
+      const appLabel = cv.channel === "tg" ? "Telegram" : (cv.app === "max" ? "MAX" : "WhatsApp");
+      if (cv.fromGoogleDemo && !store.user) {
+        store.user = { id: "google-local", username: "google_user", displayName: "Аккаунт Google", authProvider: "google" };
+        ui.demoAuthed = true;
+        ui.guest = false;
+      }
+      mkt().verifiedContact = { channel: cv.channel, app: appLabel, value: cv.contact, verifiedAt: Date.now() };
+      saveMkt();
+      if (store.backend && store.user && store.docs && store.docs.profile) {
+        patchDoc("profile", { contactVerified: true, messengerContact: cv.contact, messengerApp: appLabel });
+      }
+      ui.contactVerifyModal = null;
+      ui.authModal = false;
+      ui.auth.error = "";
+      toast("Аккаунт подтверждён");
+      notifySide("Контакт подтверждён", `${appLabel} (${cv.contact}) привязан — ответы преподавателей придут туда`);
+      if (!resumePendingAfterAuth()) {
+        if (ui.view !== "landing" && ui.view !== "market") applyPostAuthView();
+        renderModal();
+        scheduleRender(true);
+      }
+    },
     "bal-custom": (form) => {
       const st = mkt();
       const trialRub = (TDATA && TDATA.TRIAL_PRICE != null) ? Number(TDATA.TRIAL_PRICE) : 490;
       const minAmt = st.initialPaid ? 100 : trialRub;
+      const cards = savedCardsForMarket(st);
       const bm = ui.balanceModal || (ui.balanceModal = {
         method: "sbp",
+        selectedCardId: (cards[0] && cards[0].id) || "",
         customAmount: minAmt,
-        addingNewCard: !(st.savedCard && st.savedCard.last4),
-        cardNum: "",
-        cardExp: "",
-        cardCvc: "",
-        saveCard: true,
         error: "",
         reason: "",
         pendingBooking: null
@@ -2345,34 +2705,14 @@
         return;
       }
       const method = bm.method === "card" ? "card" : "sbp";
-      if (method === "card") {
-        const useSaved = !!(st.savedCard && st.savedCard.last4 && !bm.addingNewCard);
-        if (!useSaved) {
-          const numEl = (form && form.elements && form.elements.cardNum) || $("#bal-card-num");
-          const expEl = (form && form.elements && form.elements.cardExp) || $("#bal-card-exp");
-          const cvcEl = (form && form.elements && form.elements.cardCvc) || $("#bal-card-cvc");
-          const saveEl = $("#bal-save-card");
-          const cardDigits = String((numEl && numEl.value) || bm.cardNum || "").replace(/\D+/g, "");
-          const expRawDigits = String((expEl && expEl.value) || bm.cardExp || "").replace(/\D+/g, "").slice(0, 4);
-          const expNorm = expRawDigits.length >= 3
-            ? (expRawDigits.slice(0, 2) + "/" + expRawDigits.slice(2, 4))
-            : String((expEl && expEl.value) || bm.cardExp || "").trim();
-          const cvcDigits = String((cvcEl && cvcEl.value) || bm.cardCvc || "").replace(/\D+/g, "");
-          const saveCard = saveEl != null ? !!saveEl.checked : (bm.saveCard !== false);
-          bm.cardNum = cardDigits.slice(0, 16).replace(/(\d{4})(?=\d)/g, "$1 ");
-          bm.cardExp = expNorm;
-          bm.cardCvc = cvcDigits.slice(0, 3);
-          bm.saveCard = saveCard;
-          if (cardDigits.length !== 16 || !/^(0[1-9]|1[0-2])\/\d{2}$/.test(expNorm) || cvcDigits.length !== 3) {
-            bm.error = "Укажите 16 цифр карты, срок ММ/ГГ и 3 цифры CVC.";
-            renderModal();
-            return;
-          }
-          if (saveCard) {
-            st.savedCard = { last4: cardDigits.slice(-4), exp: expNorm };
-          }
-        }
+      if (method === "card" && !cards.length) {
+        ui.cardBindModal = { cardNum: "", cardExp: "", cardCvc: "", saveCard: true, error: "" };
+        renderModal();
+        return;
       }
+      const activeCard = method === "card"
+        ? (cards.find((c) => c.id === bm.selectedCardId) || cards[0] || null)
+        : null;
       const amt = Math.min(200000, Math.round(raw));
       const fee = method === "card" ? Math.round(amt * 0.03) : 0;
       const totalCharged = amt + fee;
@@ -2392,7 +2732,8 @@
       }
       renderModal();
       if (method === "card") {
-        notifySide("Баланс пополнен картой", `+${amt.toLocaleString("ru-RU")} ₽ (списано ${totalCharged.toLocaleString("ru-RU")} ₽, +3%) · на счёте ${st.balance.toLocaleString("ru-RU")} ₽`);
+        const cardDesc = activeCard ? ` · ${activeCard.brand || "Карта"} •• ${activeCard.last4}` : "";
+        notifySide("Баланс пополнен картой", `+${amt.toLocaleString("ru-RU")} ₽ (списано ${totalCharged.toLocaleString("ru-RU")} ₽, +3%${cardDesc}) · на счёте ${st.balance.toLocaleString("ru-RU")} ₽`);
       } else {
         notifySide("Баланс пополнен по СБП", `+${amt.toLocaleString("ru-RU")} ₽ · на счёте ${st.balance.toLocaleString("ru-RU")} ₽`);
       }
@@ -2518,12 +2859,34 @@
     return changed;
   }
 
+  function dismissActiveModal() {
+    if (ui.contactVerifyModal) {
+      if (ui.contactVerifyModal.fromGoogleDemo || !ui.contactVerifyModal.required) {
+        const backToAuth = !!ui.contactVerifyModal.fromGoogleDemo;
+        ui.contactVerifyModal = null;
+        if (backToAuth) ui.authModal = true;
+        renderModal();
+        return true;
+      }
+      ui.contactVerifyModal.error = "Обязательный шаг: подтвердите телефон (WhatsApp / MAX) или Telegram кодом из 4 цифр.";
+      renderModal();
+      return false;
+    }
+    if (ui.cardBindModal) {
+      ui.cardBindModal = null;
+      renderModal();
+      return true;
+    }
+    ui.bug = null; ui.booking = null; ui.authModal = false; ui.authPrompt = ""; ui.pendingBookingAfterAuth = null; ui.filterModal = false; ui.bbModal = false; ui.tutorApplyModal = false; ui.coopModal = false; ui.balanceModal = null; ui.payoutModal = null;
+    renderModal();
+    return true;
+  }
+
   document.addEventListener("click", (e) => {
     if (suppressSheetClick) { suppressSheetClick = false; if (typeof e.preventDefault === "function") e.preventDefault(); return; }
     if (closeSelectMenus(e.target)) scheduleRender();
     if (e.target && e.target.classList && e.target.classList.contains("modal-back")) {
-      ui.bug = null; ui.booking = null; ui.authModal = false; ui.authPrompt = ""; ui.pendingBookingAfterAuth = null; ui.filterModal = false; ui.bbModal = false; ui.tutorApplyModal = false; ui.coopModal = false; ui.balanceModal = null; ui.payoutModal = null;
-      renderModal();
+      dismissActiveModal();
       return;
     }
     const el = e.target.closest("[data-a]") || e.target.closest("[data-act]");
@@ -2561,7 +2924,7 @@
     if (h) h(f);
   });
   function handleBalanceFieldInput(el) {
-    if (!el || !el.id) return false;
+    if (!el) return false;
     if (el.id === "bal-custom-amount") {
       const digits = String(el.value || "").replace(/\D+/g, "").slice(0, 6);
       if (el.value !== digits) el.value = digits;
@@ -2576,24 +2939,80 @@
       const digits = String(el.value || "").replace(/\D+/g, "").slice(0, 16);
       const formatted = digits.replace(/(\d{4})(?=\d)/g, "$1 ");
       if (el.value !== formatted) el.value = formatted;
-      if (ui.balanceModal) { ui.balanceModal.cardNum = formatted; ui.balanceModal.error = ""; }
+      const target = ui.cardBindModal || ui.balanceModal;
+      if (target) { target.cardNum = formatted; target.error = ""; }
+      const brandEl = typeof document !== "undefined" && document.getElementById ? document.getElementById("ygo-card-brand") : null;
+      if (brandEl) brandEl.textContent = detectCardBrand(digits);
+      if (digits.length === 16 && typeof document !== "undefined" && document.getElementById) {
+        const expEl = document.getElementById("bal-card-exp");
+        if (expEl && typeof expEl.focus === "function") expEl.focus();
+      }
       return true;
     }
     if (el.id === "bal-card-exp") {
       const digits = String(el.value || "").replace(/\D+/g, "").slice(0, 4);
       const formatted = digits.length > 2 ? (digits.slice(0, 2) + "/" + digits.slice(2)) : digits;
       if (el.value !== formatted) el.value = formatted;
-      if (ui.balanceModal) { ui.balanceModal.cardExp = formatted; ui.balanceModal.error = ""; }
+      const target = ui.cardBindModal || ui.balanceModal;
+      if (target) { target.cardExp = formatted; target.error = ""; }
+      if (digits.length === 4 && typeof document !== "undefined" && document.getElementById) {
+        const cvcEl = document.getElementById("bal-card-cvc");
+        if (cvcEl && typeof cvcEl.focus === "function") cvcEl.focus();
+      }
       return true;
     }
     if (el.id === "bal-card-cvc") {
       const digits = String(el.value || "").replace(/\D+/g, "").slice(0, 3);
       if (el.value !== digits) el.value = digits;
-      if (ui.balanceModal) { ui.balanceModal.cardCvc = digits; ui.balanceModal.error = ""; }
+      const target = ui.cardBindModal || ui.balanceModal;
+      if (target) { target.cardCvc = digits; target.error = ""; }
       return true;
     }
     if (el.id === "bal-save-card") {
-      if (ui.balanceModal) ui.balanceModal.saveCard = !!el.checked;
+      const target = ui.cardBindModal || ui.balanceModal;
+      if (target) target.saveCard = !!el.checked;
+      return true;
+    }
+    if (el.id === "cv-contact-inp") {
+      const cv = ui.contactVerifyModal;
+      let val = String(el.value || "");
+      if (cv && cv.channel === "phone") {
+        const d = val.replace(/\D+/g, "");
+        const fmtP = EGE.kit && EGE.kit.formatPhoneMask;
+        if (typeof fmtP === "function" && d.length >= 10) {
+          const masked = fmtP(val);
+          if (masked && masked !== val) { val = masked; el.value = masked; }
+        }
+      }
+      if (cv) { cv.contact = val; cv.error = ""; }
+      return true;
+    }
+    if (el.dataset && el.dataset.otpIdx != null) {
+      const idx = Number(el.dataset.otpIdx);
+      const digits = String(el.value || "").replace(/\D+/g, "");
+      const cv = ui.contactVerifyModal;
+      const curDigits = (cv && Array.isArray(cv.digits)) ? cv.digits.slice() : ["", "", "", ""];
+      if (digits.length > 1) {
+        for (let k = 0; k < 4 - idx && k < digits.length; k++) {
+          const ch = digits.charAt(k);
+          curDigits[idx + k] = ch;
+          const node = typeof document !== "undefined" && document.getElementById ? document.getElementById("cv-d" + (idx + k)) : null;
+          if (node) node.value = ch;
+        }
+        if (cv) { cv.digits = curDigits; cv.error = ""; }
+        const nextIdx = Math.min(3, idx + digits.length);
+        const focusEl = typeof document !== "undefined" && document.getElementById ? document.getElementById(nextIdx < 4 && digits.length + idx < 4 ? ("cv-d" + nextIdx) : "cv-check-btn") : null;
+        if (focusEl && typeof focusEl.focus === "function") focusEl.focus();
+      } else {
+        const ch = digits.slice(0, 1);
+        if (el.value !== ch) el.value = ch;
+        curDigits[idx] = ch;
+        if (cv) { cv.digits = curDigits; cv.error = ""; }
+        if (ch && idx < 3 && typeof document !== "undefined" && document.getElementById) {
+          const nxt = document.getElementById("cv-d" + (idx + 1));
+          if (nxt && typeof nxt.focus === "function") nxt.focus();
+        }
+      }
       return true;
     }
     return false;
@@ -2913,16 +3332,27 @@
     if (el.id === "import-file" && el.files && el.files[0]) { readImport(el.files[0]); el.value = ""; }
   });
   document.addEventListener("keydown", (e) => {
+    if (e.target && e.target.dataset && e.target.dataset.otpIdx != null && e.key === "Backspace") {
+      const idx = Number(e.target.dataset.otpIdx);
+      if (!e.target.value && idx > 0 && typeof document !== "undefined" && document.getElementById) {
+        const prev = document.getElementById("cv-d" + (idx - 1));
+        if (prev) {
+          prev.value = "";
+          if (ui.contactVerifyModal && Array.isArray(ui.contactVerifyModal.digits)) ui.contactVerifyModal.digits[idx - 1] = "";
+          if (typeof prev.focus === "function") prev.focus();
+        }
+      }
+      return;
+    }
     if (e.key === "Escape" && closeSelectMenus(null)) {
       scheduleRender();
     }
-    if (e.key === "Escape" && (ui.bug || ui.booking || ui.authModal || ui.filterModal || ui.bbModal || ui.tutorApplyModal || ui.coopModal || ui.balanceModal || ui.payoutModal)) {
+    if (e.key === "Escape" && (ui.bug || ui.booking || ui.authModal || ui.contactVerifyModal || ui.cardBindModal || ui.filterModal || ui.bbModal || ui.tutorApplyModal || ui.coopModal || ui.balanceModal || ui.payoutModal)) {
       e.preventDefault();
-      ui.bug = null; ui.booking = null; ui.authModal = false; ui.authPrompt = ""; ui.pendingBookingAfterAuth = null; ui.filterModal = false; ui.bbModal = false; ui.tutorApplyModal = false; ui.coopModal = false; ui.balanceModal = null; ui.payoutModal = null;
-      renderModal();
+      dismissActiveModal();
       return;
     }
-    if (ui.bug || ui.booking || ui.authModal || ui.filterModal || ui.bbModal || ui.tutorApplyModal || ui.coopModal || ui.balanceModal || ui.payoutModal) return;
+    if (ui.bug || ui.booking || ui.authModal || ui.contactVerifyModal || ui.cardBindModal || ui.filterModal || ui.bbModal || ui.tutorApplyModal || ui.coopModal || ui.balanceModal || ui.payoutModal) return;
     if (e.target && e.target.id === "chat-input" && e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(ui.chat.draft); return; }
     if (ui.view !== "quiz" || !ui.quiz || ui.quiz.done || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.target && e.target.id === "self-text") return; // в поле развёрнутого ответа Enter — перенос строки
@@ -2977,24 +3407,19 @@
     const shouldClose = cur.dy > 84 || (cur.dy > 32 && vel > 0.55);
     if (cur.moved) suppressSheetClick = true;
     if (shouldClose) {
+      if (ui.contactVerifyModal && !ui.contactVerifyModal.fromGoogleDemo && ui.contactVerifyModal.required) {
+        if (cur.sheet && cur.sheet.style) {
+          cur.sheet.style.transition = "transform .2s cubic-bezier(.22, 1, .36, 1)";
+          cur.sheet.style.transform = "";
+        }
+        dismissActiveModal();
+        return;
+      }
       if (cur.sheet && cur.sheet.style) {
         cur.sheet.style.transition = "transform .2s ease";
         cur.sheet.style.transform = "translateY(105%)";
       }
-      const closeNow = () => {
-        ui.filterModal = false;
-        ui.booking = null;
-        ui.authModal = false;
-        ui.authPrompt = "";
-        ui.pendingBookingAfterAuth = null;
-        ui.balanceModal = null;
-        ui.tutorApplyModal = false;
-        ui.coopModal = false;
-        ui.bbModal = false;
-        ui.bug = null;
-        ui.payoutModal = null;
-        renderModal();
-      };
+      const closeNow = () => { dismissActiveModal(); };
       if (typeof setTimeout === "function") setTimeout(closeNow, 150);
       else closeNow();
     } else if (cur.sheet && cur.sheet.style) {
