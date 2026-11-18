@@ -133,6 +133,7 @@ p { margin: 0; }
 .brand-wordmark .wm-ege { color: var(--wm-ink); opacity: .94; }
 [data-surface="blue"] .brand-wordmark .wm-ege,
 .hh-blue-banner .brand-wordmark .wm-ege { color: #ffffff; opacity: 1; }
+.brand[data-a], .brand-lockup[data-a], .brand-home-link { cursor: pointer; text-decoration: none; color: inherit; display: inline-flex; align-items: center; min-width: 0; }
 .brand-tag {
   display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px;
   font-size: 11px; font-weight: 600; line-height: 1.3;

@@ -1075,7 +1075,6 @@
     opts = opts || {};
     const TDATA = getTDATA();
     const inside = !!opts.inside;
-    const dark = typeof _ctx.effectiveDark === "function" ? _ctx.effectiveDark() : false;
     const catalogTotal = TDATA && TDATA.CATALOG_TOTAL ? TDATA.CATALOG_TOTAL.toLocaleString("ru-RU") : "2 480";
     const mktApi = EGE.views && EGE.views.marketplace;
 
@@ -1084,7 +1083,7 @@
 
     return `<div class="land-page${ui.landWhiteStage ? " is-white-stage" : ""}" data-inside="${inside ? 1 : 0}">
       <header class="land-top${ui.landWhiteStage ? " is-scrolled-light" : ""}">
-        ${brandLockupHTML({})}
+        <a href="#land-market" class="brand-home-link" data-a="land-scroll" data-target="land-market" aria-label="Вектор — к репетиторам">${brandLockupHTML({})}</a>
         <nav class="land-links" aria-label="Разделы лендинга">
           <a href="#land-market" data-a="land-scroll" data-target="land-market">Репетиторы</a>
           <a href="/student">Для ученика</a>
@@ -1092,7 +1091,6 @@
           <a href="/fees" data-a="go" data-v="fees">Условия оплаты</a>
         </nav>
         <div class="land-top-actions">
-          <button type="button" class="icon-btn sm" data-a="theme-toggle" aria-label="Сменить тему" title="Сменить тему">${icon(dark ? "sun" : "moon")}</button>
           ${inside
             ? `<button type="button" class="btn sm" data-a="go" data-v="${ui.role === "tutor" ? "cabinet" : "tests"}">В кабинет</button>`
             : `<button type="button" class="btn sm" data-a="auth-modal-open">Войти</button>`}

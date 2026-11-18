@@ -239,15 +239,18 @@
       { val: summary.availableRub, label: `Вся сумма (${summary.availableRub.toLocaleString("ru-RU")} ₽)` }
     ];
 
-    return `<div class="modal-back">
-      <div class="modal-card stack" role="dialog" aria-modal="true" aria-labelledby="tc-payout-title" style="gap:14px;max-width:540px">
-        <div class="row between" style="gap:10px;align-items:flex-start">
+    return `<div class="modal-back is-sheet-back">
+      <div class="modal-card sheet-modal" data-sheet-kind="payout" role="dialog" aria-modal="true" aria-labelledby="tc-payout-title" style="max-width:540px">
+        <div class="sheet-grabber-zone" data-sheet-drag="1" role="button" tabindex="0" data-a="tc-payout-close" aria-label="Свернуть вывод средств">
+          <span class="sheet-grabber"></span>
+        </div>
+        <div class="sheet-head is-booking-head">
           <div>
             <div class="eyebrow">Выплаты преподавателям</div>
             <h2 class="h2" id="tc-payout-title">Вывод средств преподавателя</h2>
           </div>
-          <button type="button" class="icon-btn" data-a="tc-payout-close" aria-label="Закрыть">${icon("x")}</button>
         </div>
+        <div class="sheet-body stack" style="gap:14px">
 
         ${(EGE.kit && typeof EGE.kit.walletSummaryBarHTML === "function")
           ? EGE.kit.walletSummaryBarHTML({
@@ -315,10 +318,10 @@
           ${!canSubmit && !errorMsg ? `<div class="small muted">Минимальный доступный остаток для вывода — ${summary.minPayout.toLocaleString("ru-RU")} ₽.</div>` : ""}
 
           <div class="row between" style="gap:10px;flex-wrap:wrap">
-            <button type="button" class="btn ghost" data-a="tc-payout-close">Отмена</button>
             <button type="submit" class="btn confirm"${canSubmit ? "" : " disabled"}>Вывести ${amountNum.toLocaleString("ru-RU")} ₽</button>
           </div>
         </form>
+        </div>
       </div>
     </div>`;
   }

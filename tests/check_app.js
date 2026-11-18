@@ -1052,7 +1052,12 @@
     }
     assert(heroSeen.size === 5, "expected 5 distinct rotating Hero copy variants");
     // Упрощённый лендинг: Hero (чёрный фон) -> бесконечная лента анкет (8 -> 16 -> 24 -> 30, без «Конец списка») -> простая линия и 4-ссылочный футер
+    const landTopHtml = landHtml.slice(0, landHtml.indexOf("</header>"));
     assert(
+      !landTopHtml.includes('data-a="theme-toggle"') &&
+      landTopHtml.includes('class="brand-home-link"') &&
+      landTopHtml.includes('data-a="land-scroll" data-target="land-market"') &&
+      readFileText("frontend/index.html").includes('data-a="brand-go-tutors"') &&
       landHtml.includes('class="land-hero-banner is-gemini-hero"') &&
       landHtml.includes('id="land-market"') &&
       landHtml.includes('class="hh-seg hh-sort-seg"') &&
@@ -1151,16 +1156,19 @@
     assert(env5.elements.get("main").innerHTML.includes('class="tutor-bio-wrap is-open"'), "expected tutor-bio-toggle to expand tutor bio");
 
     clickAction(env5, { a: "mkt-reset" });
-    clickAction(env5, { a: "bal-open" });
-    await flushMicrotasks(2);
-    env5.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "bal-custom" }, elements: { amount: { value: "4590" } } }) }, preventDefault() {} });
-    await flushMicrotasks(4);
-    assert(hasNum(env5.elements.get("main").innerHTML, "4 590 ₽"), "expected 4 590 ₽ wallet balance after SBP top-up");
 
-    // Клик «Предложить X ₽» без входа открывает окно входа/регистрации
+    // Клик «Предложить X ₽» без входа открывает окно входа/регистрации (с grabber и без крестика)
     clickAction(env5, { a: "card-bid", id: "tut-sokolova", offer: "1200" });
     await flushMicrotasks(2);
-    assert(env5.elements.get("modal-root").innerHTML.includes('data-f="auth"') && env5.elements.get("modal-root").innerHTML.includes("Войдите или зарегистрируйтесь"), "expected card-bid while logged out to open Login/Register modal");
+    const authPreBid = env5.elements.get("modal-root").innerHTML;
+    assert(
+      authPreBid.includes("is-auth-sheet") &&
+      authPreBid.includes("sheet-grabber") &&
+      !authPreBid.includes('aria-label="Закрыть"') &&
+      authPreBid.includes('data-f="auth"') &&
+      authPreBid.includes("Войдите или зарегистрируйтесь"),
+      "expected card-bid while logged out to open grabber Login/Register sheet without close cross"
+    );
     clickAction(env5, { a: "auth-modal-close" });
     await flushMicrotasks(2);
 
@@ -1171,6 +1179,7 @@
       modalBefore.includes('id="book-modal-title">Анна Соколова</b>') &&
       modalBefore.includes("is-booking-sheet") &&
       modalBefore.includes("sheet-grabber") &&
+      !modalBefore.includes('aria-label="Закрыть"') &&
       modalBefore.includes("tutor-modal-head") &&
       !modalBefore.includes('data-a="book-mode"') &&
       modalBefore.includes('id="bid-price"') &&
@@ -1181,8 +1190,9 @@
       !modalBefore.includes('data-a="book-exam"') &&
       !modalBefore.includes('data-a="book-format"') &&
       !modalBefore.includes("Отмена") &&
-      !modalBefore.includes('data-a="go-fees"'),
-      "expected bottom-sheet booking modal with grabber, digits-only 0-99999 price input, goal textarea, and single centered Предложить CTA"
+      !modalBefore.includes('data-a="go-fees"') &&
+      modalBefore.includes("Отправим вашу заявку преподавателю в мессенджер (WhatsApp, Telegram, MAX)"),
+      "expected bottom-sheet booking modal with grabber, no close cross, digits-only 0-99999 price input, centered Предложить CTA, and messenger note"
     );
     env5.emitDoc("input", { target: { id: "bid-price", value: "25a000", dataset: {} } });
     clickAction(env5, { a: "bid-step", step: "50" });
@@ -1196,19 +1206,43 @@
     const modalStepped = env5.elements.get("modal-root").innerHTML;
     assert(modalStepped.includes('value="1150"') && hasNum(modalStepped, "Предложить 1 150 ₽") && !modalStepped.includes("1 092 ₽"), "expected -50 step to update centered Предложить CTA to 1150 without Yakut logo");
 
-    // Нажатие «Предложить 1 150 ₽» без авторизации переводит на вход, а после входа возвращает в заявку со ставкой 1150 ₽
+    // Воронка «Предложить 1 150 ₽»: без входа -> Вход/Регистрация -> с 0 ₽ -> Пополнение баланса СБП -> возврат в заявку 1150 ₽ -> отправка
     clickAction(env5, { a: "book-submit" });
     await flushMicrotasks(3);
-    assert(env5.elements.get("modal-root").innerHTML.includes('data-f="auth"'), "expected book-submit while logged out to open auth modal");
+    assert(env5.elements.get("modal-root").innerHTML.includes('data-f="auth"') && env5.elements.get("modal-root").innerHTML.includes("sheet-grabber"), "expected book-submit while logged out to open grabber auth sheet");
     clickAction(env5, { a: "auth-guest" });
     await flushMicrotasks(3);
     assert(env5.elements.get("modal-root").innerHTML.includes('id="bid-submit-btn"') && env5.elements.get("modal-root").innerHTML.includes('value="1150"'), "expected login to resume booking sheet with preserved 1150 ₽ offer");
 
     clickAction(env5, { a: "book-submit" });
+    await flushMicrotasks(3);
+    const balRedirectHtml = env5.elements.get("modal-root").innerHTML;
+    assert(
+      balRedirectHtml.includes("is-balance-sheet") &&
+      balRedirectHtml.includes("sheet-grabber") &&
+      !balRedirectHtml.includes('aria-label="Закрыть"') &&
+      balRedirectHtml.includes('id="bal-modal-title"') &&
+      balRedirectHtml.includes('value="1150"'),
+      "expected book-submit with 0 ₽ balance to redirect to grabber SBP top-up sheet with 1150 ₽ amount"
+    );
+    env5.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "bal-custom" }, elements: { amount: { value: "4590" } } }) }, preventDefault() {} });
     await flushMicrotasks(4);
-    assert(!env5.elements.get("modal-root").innerHTML.trim(), "expected booking modal closed after authenticated submit");
+    assert(
+      env5.elements.get("modal-root").innerHTML.includes('id="bid-submit-btn"') &&
+      env5.elements.get("modal-root").innerHTML.includes('value="1150"'),
+      "expected topping up 4 590 ₽ by SBP to restore booking sheet with preserved 1150 ₽ offer"
+    );
+
+    clickAction(env5, { a: "book-submit" });
+    await flushMicrotasks(4);
+    assert(!env5.elements.get("modal-root").innerHTML.trim(), "expected booking modal closed after funded submit");
     const bookSideToast = env5.elements.get("toast");
-    assert(bookSideToast.className === "toast is-side" && bookSideToast.innerHTML.includes("Предложение передано преподавателю"), "expected side notification after submitting booking bid");
+    assert(
+      bookSideToast.className === "toast is-side" &&
+      bookSideToast.innerHTML.includes("Предложение передано преподавателю") &&
+      bookSideToast.innerHTML.includes("Написали ему в мессенджер (WhatsApp, Telegram, MAX)"),
+      "expected side notification saying Написали ему в мессенджер (WhatsApp, Telegram, MAX)"
+    );
     const afterBookHtml = env5.elements.get("main").innerHTML;
     assert(afterBookHtml.includes("На рассмотрении · уведомим") && hasNum(afterBookHtml, "3 440 ₽"), "expected 1150 ₽ reserved from 4 590 ₽ balance leaving 3 440 ₽");
 
@@ -1229,12 +1263,14 @@
     assert(
       filterSheet.includes("is-fullscreen-sheet") &&
       filterSheet.includes("sheet-grabber") &&
+      !filterSheet.includes('aria-label="Закрыть"') &&
+      !filterSheet.includes(">Закрыть<") &&
       filterSheet.includes("Подняты за последнюю неделю") &&
       filterSheet.includes('data-a="mkt-price-custom"') &&
       !filterSheet.includes("Время занятия") &&
       !filterSheet.includes("День недели") &&
       filterSheet.includes("Показать"),
-      "expected fullscreen filter bottom-sheet with grabber, weekly freshness, expanded price presets + Своя, and without time/day sections"
+      "expected fullscreen filter bottom-sheet with grabber, no close button/cross, weekly freshness, expanded price presets + Своя, and without time/day sections"
     );
     clickAction(env5, { a: "mkt-exam", v: "ЕГЭ" });
     await flushMicrotasks(2);
@@ -1567,7 +1603,12 @@
 
     clickAction(env5, { a: "coop-open" });
     await flushMicrotasks(2);
-    assert(env5.elements.get("modal-root").innerHTML.includes('id="coop-modal-title"'), "expected coop-open to render cooperation modal");
+    assert(
+      env5.elements.get("modal-root").innerHTML.includes('id="coop-modal-title"') &&
+      env5.elements.get("modal-root").innerHTML.includes("sheet-grabber") &&
+      !env5.elements.get("modal-root").innerHTML.includes('aria-label="Закрыть"'),
+      "expected coop-open to render grabber cooperation modal without close cross"
+    );
     clickAction(env5, { a: "coop-to-apply" });
     await flushMicrotasks(2);
     assert(env5.elements.get("modal-root").innerHTML.includes('id="ta-modal-title"'), "expected coop-to-apply to transition into tutor application modal");
@@ -1606,7 +1647,9 @@
     await flushMicrotasks(3);
     const authModalDefault = env5.elements.get("modal-root").innerHTML;
     assert(
-      authModalDefault.includes('class="auth-modal-shell"') &&
+      authModalDefault.includes("auth-modal-shell") &&
+      authModalDefault.includes("is-auth-sheet") &&
+      authModalDefault.includes("sheet-grabber") &&
       authModalDefault.includes('class="hh-seg equal"') &&
       authModalDefault.includes('class="auth-actions-row"') &&
       authModalDefault.includes('class="auth-foot-row"') &&
@@ -1624,9 +1667,9 @@
     assert(studentMainHtml.includes("Тесты ЕГЭ") && !studentMainHtml.slice(0, studentMainHtml.indexOf("grid-3")).includes('data-v="tutor"'), "expected Тесты ЕГЭ hub without duplicate top Справочник button in head");
     assert(!readFileText("frontend/index.html").includes('id="top-market"'), "expected top-market removed from mobile topbar");
 
-    clickAction(env5, { a: "go", v: "market" });
+    clickAction(env5, { a: "brand-go-tutors" });
     await flushMicrotasks(4);
-    assert(env5.elements.get("main").innerHTML.includes("Подбор репетитора"), "expected market view");
+    assert(env5.elements.get("main").innerHTML.includes("Подбор репетитора"), "expected clicking logo (brand-go-tutors) to navigate to tutors catalog");
 
     clickAction(env5, { a: "go", v: "profile" });
     await flushMicrotasks(3);

@@ -273,7 +273,12 @@
       st.balance = Math.max(0, targetBal - reserved);
       if (targetBal >= trialRub) st.initialPaid = true;
       saveMkt();
-      if (ui.balanceModal) { ui.balanceModal = null; renderModal(); }
+      const pending = ui.balanceModal && ui.balanceModal.pendingBooking;
+      if (ui.balanceModal) { ui.balanceModal = null; }
+      if (pending && (Number(st.balance) || 0) >= (Number(pending.offerPrice) || 0)) {
+        ui.booking = pending;
+      }
+      renderModal();
       toast(`Подключён тариф «${plan.name}» (СБП): баланс ${st.balance.toLocaleString("ru-RU")} ₽`);
       scheduleRender();
     },
@@ -281,11 +286,15 @@
       const st = mkt();
       const trialRub = (TDATA && TDATA.TRIAL_PRICE != null) ? Number(TDATA.TRIAL_PRICE) : 490;
       const reason = el && el.dataset && el.dataset.reason === "trial"
-        ? `Пополните счёт по СБП минимум на ${trialRub} ₽ — сумма заморозится на эскроу за полноценный пробный урок 60 мин со 100% гарантией замены.`
+        ? `Пополните счёт по СБП минимум на ${trialRub} ₽ — сумма заморозится на эскроу за занятие.`
         : "";
-      const pendingBooking = ui.booking ? Object.assign({}, ui.booking, { mode: "trial", isTrial: true, offerPrice: trialRub }) : null;
+      const pendingBooking = ui.booking ? Object.assign({}, ui.booking) : null;
+      const minTopup = st.initialPaid ? 100 : trialRub;
+      const customAmt = pendingBooking && Number(pendingBooking.offerPrice) > (Number(st.balance) || 0)
+        ? Math.max(minTopup, Number(pendingBooking.offerPrice) - (Number(st.balance) || 0))
+        : (st.initialPaid ? 500 : trialRub);
       if (pendingBooking) ui.booking = null;
-      ui.balanceModal = { customAmount: st.initialPaid ? 500 : trialRub, error: "", reason, pendingBooking };
+      ui.balanceModal = { customAmount: customAmt, error: "", reason, pendingBooking };
       renderModal();
     },
     "bal-close": () => {
@@ -647,6 +656,21 @@
       if (typeof requireAuthForBid === "function" && requireAuthForBid(Object.assign({}, b, { offerPrice, note: noteText }))) {
         return;
       }
+      if (offerPrice > 0 && (Number(st.balance) || 0) < offerPrice) {
+        const trialRub = (TDATA && TDATA.TRIAL_PRICE != null) ? Number(TDATA.TRIAL_PRICE) : 490;
+        const minTopup = st.initialPaid ? 100 : trialRub;
+        const deficit = Math.max(minTopup, offerPrice - (Number(st.balance) || 0));
+        const pending = Object.assign({}, b, { mode: "paid", isTrial: false, offerPrice, note: noteText });
+        ui.booking = null;
+        ui.balanceModal = {
+          customAmount: deficit,
+          error: "",
+          reason: `Для отправки предложения ${offerPrice.toLocaleString("ru-RU")} ₽/ч пополните баланс по СБП — сумма заморозится на эскроу до проведения урока.`,
+          pendingBooking: pending
+        };
+        renderModal();
+        return;
+      }
       const feeSplit = typeof TDATA.commissionSplit === "function"
         ? TDATA.commissionSplit(offerPrice)
         : { total: offerPrice, fee: Math.round(offerPrice * 0.05), payout: offerPrice - Math.round(offerPrice * 0.05), pct: 5 };
@@ -696,9 +720,7 @@
       const gNote = hasGuarantee ? " · возврат за 1-й урок при отказе" : "";
       notifySide(
         "Предложение передано преподавателю",
-        reserved
-          ? `Ставка ${offerPrice.toLocaleString("ru-RU")} ₽/ч · зарезервировано ${reserved.toLocaleString("ru-RU")} ₽${gNote}`
-          : `Ставка ${offerPrice.toLocaleString("ru-RU")} ₽/ч отправлена${gNote}`
+        `Написали ему в мессенджер (WhatsApp, Telegram, MAX) · ставка ${offerPrice.toLocaleString("ru-RU")} ₽/ч${reserved ? ` · в резерве ${reserved.toLocaleString("ru-RU")} ₽` : ""}${gNote}`
       );
       scheduleRender();
     },

@@ -1275,13 +1275,16 @@
           </div>
           <span class="chip ${minOk ? "confirm" : "gold"}">${minOk ? "✓ СБП-баланс активен" : `Старт на уроки от ${trialRub} ₽`}</span>
         </div>`;
-    return `<div class="modal-back" role="dialog" aria-modal="true" aria-labelledby="bal-modal-title">
-      <div class="modal-card">
-        <div class="modal-head">
-          <div class="row" style="gap:8px">${icon("wallet")}<b id="bal-modal-title">Баланс и пополнение по СБП</b></div>
-          <button type="button" class="icon-btn sm" data-a="bal-close" aria-label="Закрыть">${icon("x")}</button>
+    return `<div class="modal-back is-sheet-back" role="dialog" aria-modal="true" aria-labelledby="bal-modal-title">
+      <div class="modal-card sheet-modal is-balance-sheet" data-sheet-kind="balance">
+        <div class="sheet-grabber-zone" data-sheet-drag="1" role="button" tabindex="0" data-a="bal-close" aria-label="Свернуть окно баланса">
+          <span class="sheet-grabber"></span>
         </div>
-        ${walletSummaryHTML}
+        <div class="sheet-head is-booking-head">
+          <div class="row" style="gap:8px">${icon("wallet")}<b id="bal-modal-title">Баланс и пополнение по СБП</b></div>
+        </div>
+        <div class="sheet-body">
+          ${walletSummaryHTML}
         <div class="hh-notice-card" style="padding:12px 14px;gap:8px">
           <div class="row between" style="gap:6px;flex-wrap:wrap;align-items:center">
             <b class="small">Как работает СБП-оплата и защита баланса</b>
@@ -1324,13 +1327,19 @@
           </div>
           ${bm.error ? `<div class="small" style="color:var(--bad);font-weight:600">${esc(bm.error)}</div>` : ""}
         </form>
+        </div>
       </div>
     </div>`;
   }
   function authModalHTML() {
     if (!ui.authModal) return "";
-    return `<div class="modal-back" role="dialog" aria-modal="true" aria-label="Вход в аккаунт">
-      <div class="auth-modal-shell">${authCard({ modal: true })}</div>
+    return `<div class="modal-back is-sheet-back" role="dialog" aria-modal="true" aria-label="Вход в аккаунт">
+      <div class="modal-card sheet-modal is-auth-sheet" data-sheet-kind="auth">
+        <div class="sheet-grabber-zone" data-sheet-drag="1" role="button" tabindex="0" data-a="auth-modal-close" aria-label="Свернуть окно входа">
+          <span class="sheet-grabber"></span>
+        </div>
+        <div class="sheet-body auth-modal-shell">${authCard({ modal: true })}</div>
+      </div>
     </div>`;
   }
   function tutorApplyModalHTML() {
@@ -1338,57 +1347,63 @@
     const subjects = (TDATA && TDATA.SUBJECTS) ? TDATA.SUBJECTS : [{ id: "eng", name: "Английский язык" }];
     const rate = Math.max(0, Math.min(99999, ta.rate != null ? Number(ta.rate) : 1100));
     const isPro = rate >= 1400;
-    return `<div class="modal-back" role="dialog" aria-modal="true" aria-labelledby="ta-modal-title">
-      <div class="modal-card">
-        <div class="modal-head">
-          <div class="row" style="gap:8px">${icon("users")}<b id="ta-modal-title">Разместить анкету преподавателя</b></div>
-          <button type="button" class="icon-btn sm" data-a="tutor-apply-close" aria-label="Закрыть">${icon("x")}</button>
+    return `<div class="modal-back is-sheet-back" role="dialog" aria-modal="true" aria-labelledby="ta-modal-title">
+      <div class="modal-card sheet-modal" data-sheet-kind="tutor-apply">
+        <div class="sheet-grabber-zone" data-sheet-drag="1" role="button" tabindex="0" data-a="tutor-apply-close" aria-label="Свернуть анкету">
+          <span class="sheet-grabber"></span>
         </div>
-        <form class="stack" style="gap:12px" data-f="tutor-apply">
-          <div class="field">
-            <label for="ta-name">Имя и фамилия</label>
-            <input class="input" id="ta-name" type="text" placeholder="Например, Анна Соколова" value="${esc(ta.name || "")}">
-          </div>
-          <div class="field">
-            <label for="ta-subj">Предмет или направление</label>
-            <select class="select" id="ta-subj">
-              ${subjects.map((s) => `<option value="${esc(s.id)}"${s.id === ta.subject ? " selected" : ""}>${esc(s.name)}</option>`).join("")}
-            </select>
-          </div>
-          <div class="field">
-            <span class="label">Желаемая ставка за урок (₽/ч)</span>
-            <div class="hh-price-stepper compact">
-              <button type="button" class="hh-step-btn" data-a="tutor-apply-step" data-step="-50">−50 ₽</button>
-              <div class="hh-step-readout"><b class="num">${rate.toLocaleString("ru-RU")} ₽/ч</b></div>
-              <button type="button" class="hh-step-btn" data-a="tutor-apply-step" data-step="50">+50 ₽</button>
+        <div class="sheet-head is-booking-head">
+          <div class="row" style="gap:8px">${icon("users")}<b id="ta-modal-title">Разместить анкету преподавателя</b></div>
+        </div>
+        <div class="sheet-body">
+          <form class="stack" style="gap:12px" data-f="tutor-apply">
+            <div class="field">
+              <label for="ta-name">Имя и фамилия</label>
+              <input class="input" id="ta-name" type="text" placeholder="Например, Анна Соколова" value="${esc(ta.name || "")}">
             </div>
-            <span class="hint">${isPro ? `<span class="diff-tag pro">Выше рынка · Профи</span> Анкета получит фиолетовый бейдж высокой квалификации.` : "Базовая ставка каталога · шаг для торга можно ограничить позже."}</span>
-          </div>
-          <div class="field">
-            <label for="ta-contact">Ссылка на анкету (Ykt / Telegram / MAX) или телефон</label>
-            <input class="input" id="ta-contact" type="text" placeholder="t.me/username или +7 9..." value="${esc(ta.contact || "")}">
-          </div>
-          ${ta.error ? `<div class="small" style="color:var(--bad);font-weight:600">${esc(ta.error)}</div>` : ""}
-          <div class="row" style="gap:8px;flex-wrap:wrap">
-            <button type="submit" class="btn">Отправить анкету</button>
-            <button type="button" class="btn ghost" data-a="tutor-apply-close">Отмена</button>
-          </div>
-        </form>
+            <div class="field">
+              <label for="ta-subj">Предмет или направление</label>
+              <select class="select" id="ta-subj">
+                ${subjects.map((s) => `<option value="${esc(s.id)}"${s.id === ta.subject ? " selected" : ""}>${esc(s.name)}</option>`).join("")}
+              </select>
+            </div>
+            <div class="field">
+              <span class="label">Желаемая ставка за урок (₽/ч)</span>
+              <div class="hh-price-stepper compact">
+                <button type="button" class="hh-step-btn" data-a="tutor-apply-step" data-step="-50">−50 ₽</button>
+                <div class="hh-step-readout"><b class="num">${rate.toLocaleString("ru-RU")} ₽/ч</b></div>
+                <button type="button" class="hh-step-btn" data-a="tutor-apply-step" data-step="50">+50 ₽</button>
+              </div>
+              <span class="hint">${isPro ? `<span class="diff-tag pro">Выше рынка · Профи</span> Анкета получит фиолетовый бейдж высокой квалификации.` : "Базовая ставка каталога · шаг для торга можно ограничить позже."}</span>
+            </div>
+            <div class="field">
+              <label for="ta-contact">Ссылка на анкету (Ykt / Telegram / MAX) или телефон</label>
+              <input class="input" id="ta-contact" type="text" placeholder="t.me/username или +7 9..." value="${esc(ta.contact || "")}">
+            </div>
+            ${ta.error ? `<div class="small" style="color:var(--bad);font-weight:600">${esc(ta.error)}</div>` : ""}
+            <div class="row" style="gap:8px;flex-wrap:wrap">
+              <button type="submit" class="btn">Отправить анкету</button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>`;
   }
   function coopModalHTML() {
-    return `<div class="modal-back" role="dialog" aria-modal="true" aria-labelledby="coop-modal-title">
-      <div class="modal-card">
-        <div class="modal-head">
-          <div class="row" style="gap:8px">${icon("users")}<b id="coop-modal-title">Сотрудничество с Вектор</b></div>
-          <button type="button" class="icon-btn sm" data-a="coop-close" aria-label="Закрыть">${icon("x")}</button>
+    return `<div class="modal-back is-sheet-back" role="dialog" aria-modal="true" aria-labelledby="coop-modal-title">
+      <div class="modal-card sheet-modal" data-sheet-kind="coop">
+        <div class="sheet-grabber-zone" data-sheet-drag="1" role="button" tabindex="0" data-a="coop-close" aria-label="Свернуть сотрудничество">
+          <span class="sheet-grabber"></span>
         </div>
-        <p class="small ink2" style="margin:0;line-height:1.55">Работаем со школами, методическими центрами и независимыми преподавателями ЕГЭ и ОГЭ. Размещение анкеты в каталоге, гибкие ставки и расчёты через СБП — напишите на <b>${BUG_EMAIL}</b> или отправьте анкету напрямую.</p>
-        <div class="row" style="gap:8px;flex-wrap:wrap">
-          <a class="btn" href="mailto:${BUG_EMAIL}?subject=${encodeURIComponent("Сотрудничество с Вектор")}" target="_blank" rel="noopener">Написать на ${BUG_EMAIL}</a>
-          <button type="button" class="btn soft" data-a="coop-to-apply">Разместить анкету преподавателя</button>
-          <button type="button" class="btn ghost" data-a="coop-close">Закрыть</button>
+        <div class="sheet-head is-booking-head">
+          <div class="row" style="gap:8px">${icon("users")}<b id="coop-modal-title">Сотрудничество с Вектор</b></div>
+        </div>
+        <div class="sheet-body">
+          <p class="small ink2" style="margin:0;line-height:1.55">Работаем со школами, методическими центрами и независимыми преподавателями ЕГЭ и ОГЭ. Размещение анкеты в каталоге, гибкие ставки и расчёты через СБП — напишите на <b>${BUG_EMAIL}</b> или отправьте анкету напрямую.</p>
+          <div class="row" style="gap:8px;flex-wrap:wrap">
+            <a class="btn" href="mailto:${BUG_EMAIL}?subject=${encodeURIComponent("Сотрудничество с Вектор")}" target="_blank" rel="noopener">Написать на ${BUG_EMAIL}</a>
+            <button type="button" class="btn soft" data-a="coop-to-apply">Разместить анкету преподавателя</button>
+          </div>
         </div>
       </div>
     </div>`;
@@ -1419,41 +1434,47 @@
     if (ui.tutorApplyModal) { root.innerHTML = tutorApplyModalHTML(); restoreModalScroll(); return; }
     if (ui.coopModal) { root.innerHTML = coopModalHTML(); restoreModalScroll(); return; }
     if (ui.bbModal) {
-      root.innerHTML = `<div class="modal-back" role="dialog" aria-modal="true" aria-labelledby="bb-modal-title">
-        <div class="modal-card">
-          <div class="modal-head">
+      root.innerHTML = `<div class="modal-back is-sheet-back" role="dialog" aria-modal="true" aria-labelledby="bb-modal-title">
+        <div class="modal-card sheet-modal" data-sheet-kind="bb">
+          <div class="sheet-grabber-zone" data-sheet-drag="1" role="button" tabindex="0" data-a="bb-modal-close" aria-label="Свернуть окно">
+            <span class="sheet-grabber"></span>
+          </div>
+          <div class="sheet-head is-booking-head">
             <div class="row" style="gap:8px">${icon("cal")}<b id="bb-modal-title">Пример модального окна · Вектор ЕГЭ</b></div>
-            <button type="button" class="icon-btn sm" data-a="bb-modal-close" aria-label="Закрыть">${icon("x")}</button>
           </div>
-          <p class="small ink2">Единый каркас диалогов (<code>.modal-back</code> + <code>.modal-card</code>): ширина до 520 px, безопасный отступ 16 px по краям на телефоне, закрытие по кнопке <code>×</code> или клику по подложке.</p>
-          <div class="field">
-            <label for="bb-modal-inp">Пример поля ввода внутри модалки</label>
-            <input class="input" id="bb-modal-inp" type="text" value="Биология · Суббота 14:00">
-          </div>
-          <div class="row" style="gap:8px;flex-wrap:wrap">
-            <button type="button" class="btn" data-a="bb-modal-close">Подтвердить</button>
-            <button type="button" class="btn ghost" data-a="bb-modal-close">Закрыть</button>
+          <div class="sheet-body">
+            <p class="small ink2">Единый каркас шторки (<code>.modal-back.is-sheet-back</code> + <code>.sheet-modal</code> + <code>.sheet-grabber</code>): свайп вниз за ручку или клик по подложке.</p>
+            <div class="field">
+              <label for="bb-modal-inp">Пример поля ввода внутри модалки</label>
+              <input class="input" id="bb-modal-inp" type="text" value="Биология · Суббота 14:00">
+            </div>
+            <div class="row" style="gap:8px;flex-wrap:wrap">
+              <button type="button" class="btn" data-a="bb-modal-close">Подтвердить</button>
+            </div>
           </div>
         </div>
       </div>`;
       return;
     }
     if (!ui.bug) { root.innerHTML = ""; return; }
-    root.innerHTML = `<div class="modal-back" role="dialog" aria-modal="true" aria-labelledby="bug-modal-title">
-      <div class="modal-card">
-        <div class="modal-head">
+    root.innerHTML = `<div class="modal-back is-sheet-back" role="dialog" aria-modal="true" aria-labelledby="bug-modal-title">
+      <div class="modal-card sheet-modal" data-sheet-kind="bug">
+        <div class="sheet-grabber-zone" data-sheet-drag="1" role="button" tabindex="0" data-a="bug-close" aria-label="Свернуть сообщение о баге">
+          <span class="sheet-grabber"></span>
+        </div>
+        <div class="sheet-head is-booking-head">
           <div class="row" style="gap:8px">${icon("bug")}<b id="bug-modal-title">${esc(ui.bug.title)}</b></div>
-          <button type="button" class="icon-btn sm" data-a="bug-close" aria-label="Закрыть">${icon("x")}</button>
         </div>
-        <div class="small muted">Получатель: <b>${BUG_EMAIL}</b> · Тема: ${esc(ui.bug.subject)}</div>
-        <div class="field">
-          <label for="bug-body">Готовый шаблон письма (можно дополнить перед отправкой)</label>
-          <textarea class="input" id="bug-body" rows="9">${esc(ui.bug.body)}</textarea>
-        </div>
-        <div class="row" style="flex-wrap:wrap;gap:8px">
-          <a class="btn" id="bug-mailto" href="${esc(bugMailtoHref(ui.bug))}" target="_blank" rel="noopener">${icon("bug")}<span>Написать на ${BUG_EMAIL}</span></a>
-          <button type="button" class="btn soft" data-a="bug-copy">Скопировать шаблон</button>
-          <button type="button" class="btn ghost" data-a="bug-close">Закрыть</button>
+        <div class="sheet-body">
+          <div class="small muted">Получатель: <b>${BUG_EMAIL}</b> · Тема: ${esc(ui.bug.subject)}</div>
+          <div class="field">
+            <label for="bug-body">Готовый шаблон письма (можно дополнить перед отправкой)</label>
+            <textarea class="input" id="bug-body" rows="9">${esc(ui.bug.body)}</textarea>
+          </div>
+          <div class="row" style="flex-wrap:wrap;gap:8px">
+            <a class="btn" id="bug-mailto" href="${esc(bugMailtoHref(ui.bug))}" target="_blank" rel="noopener">${icon("bug")}<span>Написать на ${BUG_EMAIL}</span></a>
+            <button type="button" class="btn soft" data-a="bug-copy">Скопировать шаблон</button>
+          </div>
         </div>
       </div>
     </div>`;
@@ -1742,7 +1763,6 @@
           <div class="eyebrow">Аккаунт · Вектор ЕГЭ</div>
           <h2 class="h2">${reg ? "Регистрация" : "Вход в аккаунт"}</h2>
         </div>
-        ${opts.modal ? `<button type="button" class="icon-btn sm" data-a="auth-modal-close" aria-label="Закрыть">${icon("x")}</button>` : ""}
       </div>
       <div class="hh-seg equal" role="group" aria-label="Режим входа">
         <button type="button" data-a="auth-tab" data-tab="login" aria-pressed="${!reg}"><span>Вход</span></button>
@@ -2025,6 +2045,13 @@
     "bug-copy": () => { if (ui.bug) copyText(ui.bug.body, "#bug-body"); },
     "bug-close": () => { ui.bug = null; renderModal(); },
     go: (el) => go(el.dataset.v, { sid: el.dataset.sid, id: el.dataset.id, fromNav: !!(el.closest && el.closest("#side-nav, #tabbar")) }),
+    "brand-go-tutors": () => {
+      if (HOST_SITE === "tutor" || ui.role === "tutor") {
+        go("cabinet");
+        return;
+      }
+      go("market");
+    },
     "toast-close": () => { dismissSideToast(); },
     "auth-tab": (el) => {
       ui.auth.tab = el.dataset.tab === "register" ? "register" : "login";
@@ -2821,11 +2848,18 @@
         cur.sheet.style.transition = "transform .2s ease";
         cur.sheet.style.transform = "translateY(105%)";
       }
-      const kind = cur.sheet && cur.sheet.dataset ? cur.sheet.dataset.sheetKind : "";
       const closeNow = () => {
-        if (kind === "filter") ui.filterModal = false;
-        else if (kind === "booking") ui.booking = null;
-        else { ui.filterModal = false; ui.booking = null; }
+        ui.filterModal = false;
+        ui.booking = null;
+        ui.authModal = false;
+        ui.authPrompt = "";
+        ui.pendingBookingAfterAuth = null;
+        ui.balanceModal = null;
+        ui.tutorApplyModal = false;
+        ui.coopModal = false;
+        ui.bbModal = false;
+        ui.bug = null;
+        ui.payoutModal = null;
         renderModal();
       };
       if (typeof setTimeout === "function") setTimeout(closeNow, 150);

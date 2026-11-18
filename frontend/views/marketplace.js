@@ -240,6 +240,7 @@
           <button type="button" class="hh-step-btn" data-a="card-offer-step" data-id="${esc(t.id)}" data-step="50" aria-label="Повысить цену на 50 рублей">+50 ₽</button>
         </div>
         <button type="button" class="btn tutor-bid-btn${alreadyBooked ? " is-confirmed" : ""}" data-a="card-bid" data-id="${esc(t.id)}" data-offer="${cardPrice}"><span>${esc(plainBidLabel(alreadyBooked, cardPrice))}</span></button>
+        <span class="small muted card-messenger-note">Отправим преподавателю в мессенджер (WA, TG, MAX)</span>
         <div class="tutor-sub-actions">
           ${guaranteeInfo.enabled
             ? `<button type="button" class="btn soft sm trial-guar-btn is-active" data-a="trial-open" data-id="${esc(t.id)}">${icon("check")}<span>Возврат за 1-й урок</span></button>`
@@ -418,7 +419,6 @@
               <span class="small muted">${esc(tutor.subjectName)} · ${esc(tutor.city)} · ★ ${tutor.rating.toFixed(1)} (${tutor.reviews})</span>
             </div>
           </div>
-          <button type="button" class="icon-btn sm" data-a="book-close" aria-label="Закрыть">${icon("x")}</button>
         </div>
 
         <div class="sheet-body">
@@ -457,8 +457,9 @@
           </div>
         </div>
 
-        <div class="sheet-foot is-centered">
+        <div class="sheet-foot is-centered is-stacked">
           <button type="button" class="btn bid-submit-main" id="bid-submit-btn" data-a="book-submit"><span data-bid-lbl="1">${esc(plainBidLabel(false, offerPrice))}</span></button>
+          <span class="small muted bid-messenger-note">Отправим вашу заявку преподавателю в мессенджер (WhatsApp, Telegram, MAX)</span>
         </div>
       </div>
     </div>`;
@@ -529,7 +530,7 @@
           <span class="sheet-grabber"></span>
         </div>
         <div class="sheet-head is-filter-head">
-          <button type="button" class="link-btn small muted" data-a="filter-close">Закрыть</button>
+          <span aria-hidden="true"></span>
           <b id="filter-modal-title" style="text-align:center;font-size:17px">Фильтры</b>
           <button type="button" class="link-btn small" data-a="mkt-reset">Сбросить</button>
         </div>
