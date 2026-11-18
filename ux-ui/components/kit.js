@@ -37,7 +37,7 @@
   ];
 
   const CATALOG_ITEMS = [
-    { id: "logo", targetId: "bb-logo", cat: "brand", title: "Адаптивный логотип + SVG Pack", api: "EGE.ui.brandLockupHTML() / brandLogoSVG()", css: ".brand-lockup .brand-mark .brand-wordmark", desc: "Круг 8-лучевой звезды на белом, чёрном OLED и синем + скачивание SVG и запреты." },
+    { id: "logo", targetId: "bb-logo", cat: "brand", title: "Адаптивный логотип + SVG Pack", api: "EGE.ui.brandLockupHTML() / brandLogoSVG()", css: ".brand-lockup .brand-mark .brand-wordmark", desc: "6-лепестковый вихрь (градиент #6FD5FE→#9375AA на тёмном, #1F1A17 на светлом, #FFF на синем) + вращение при наведении." },
     { id: "surfaces", targetId: "bb-surfaces", cat: "brand", title: "Поверхности, WCAG-контраст и токены", api: "EGE.hh.priceHeadlineHTML(market, offer, true)", css: ".hh-price-old .hh-price-now .diff-tag", desc: "Белый, Чёрный OLED, Синий hh, Золото Саха #C59B5F (--gold), пары контраста AA/AAA и экспорт :root CSS / tokens.json." },
     { id: "fonts", targetId: "bb-fonts", cat: "brand", title: "Типографика Inter + IBM Plex Mono", api: "--font-display / --font-mono / --shadow", css: ".h1 .h2 .small .eyebrow .num", desc: "Иерархия шрифтов, табличные цифры, шкала отступов 4 px, радиусы и 3 уровня теней." },
     { id: "hero", targetId: "bb-hero-banner", cat: "hero", title: "Hero-баннер hh.kz × Ленские столбы", api: "EGE.kit.heroBannerHTML({ ... })", css: ".land-hero-banner .hero-cta-primary .hero-cta-secondary", desc: "Светлое фото без верхнего поисковика, 2 CTA («Найти ниже рынка» синий + «Попробовать бета-тест» золото #C59B5F) и 3 KPI." },

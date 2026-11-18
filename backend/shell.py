@@ -198,6 +198,10 @@ h1{margin:0 0 12px;font-size:24px}h2{margin:20px 0 8px;font-size:17px}p,li{color
                 sub = rest.split("/", 1)[0]
                 target = (ux_ui_dir / rest).resolve()
                 allowed_dir = (ux_ui_dir / sub).resolve()
+            elif rest.startswith("assets/") and rest.lower().endswith((".svg", ".png", ".jpg", ".jpeg", ".webp")):
+                target = (ux_ui_dir / rest).resolve()
+                allowed_dir = (ux_ui_dir / "assets").resolve()
+                media_type = "image/svg+xml; charset=utf-8" if target.suffix.lower() == ".svg" else "application/octet-stream"
             else:
                 raise HTTPException(status_code=404, detail="Not found")
         elif clean in {"app.js", "bank-core.js"}:

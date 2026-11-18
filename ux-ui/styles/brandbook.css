@@ -431,9 +431,22 @@
 .bb-logo-stage[data-surface="blue"] .bb-logo-safe {
   border-color: rgba(255, 255, 255, .58);
 }
-.bb-logo-stage .brand-mark { width: 48px; height: 48px; }
-.bb-logo-stage .brand-mark svg { width: 40px; height: 40px; }
+.bb-logo-stage .brand-mark { width: 52px; height: 52px; }
+.bb-logo-stage .brand-mark svg { width: 52px; height: 52px; }
 .bb-logo-stage .brand-wordmark { height: 25px; }
+.bb-logo-stage:hover .brand-mark svg { animation: vektorLogoSpin 2.6s linear infinite; }
+.bb-svg-showcase-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; min-width: 0; }
+@media (max-width: 820px) { .bb-svg-showcase-grid { grid-template-columns: minmax(0, 1fr); } }
+.bb-svg-showcase-card { display: grid; gap: 8px; padding: 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); min-width: 0; }
+.bb-svg-preview {
+  display: grid; place-items: center; min-height: 112px; border-radius: 12px; border: 1px dashed var(--line-strong);
+  background: var(--surface-2); padding: 14px;
+}
+.bb-svg-preview.is-photo1 { background: #1f1a17; border-color: #362e29; }
+.bb-svg-preview.is-photo2 { background: #ffffff; border-color: #d8dce4; }
+.bb-svg-preview img, .bb-svg-preview svg { width: 68px; height: 68px; display: block; transform-origin: 50% 50%; transform-box: view-box; }
+.bb-svg-showcase-card:hover .bb-svg-preview img,
+.bb-svg-showcase-card:hover .bb-svg-preview svg { animation: vektorLogoSpin 2.6s linear infinite; }
 .bb-scale-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; min-width: 0; }
 @media (max-width: 720px) { .bb-scale-grid { grid-template-columns: minmax(0, 1fr); } }
 .bb-scale-items { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
@@ -602,8 +615,8 @@
 }
 .bb-logo-bad-box.pink { background: #fce7f3; color: #111; }
 .bb-logo-bad-box.skew .brand-mark { transform: scaleX(1.5) rotate(17deg); }
-.bb-logo-bad-box.tiny .brand-mark { width: 18px; height: 18px; border-width: 1px; }
-.bb-logo-bad-box.tiny .brand-mark svg { width: 14px; height: 14px; }
+.bb-logo-bad-box.tiny .brand-mark { width: 18px; height: 18px; }
+.bb-logo-bad-box.tiny .brand-mark svg { width: 18px; height: 18px; }
 
 .bb-wcag-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; min-width: 0; }
 @media (max-width: 820px) { .bb-wcag-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -678,6 +691,12 @@
   animation-duration: 0.01ms !important;
   animation-iteration-count: 1 !important;
   transition-duration: 0.01ms !important;
+}
+#brandbook-page.is-reduced .brand-mark svg,
+#brandbook-page.is-reduced .sakha-gold-emblem svg,
+#brandbook-page.is-reduced .bb-svg-preview img,
+#brandbook-page.is-reduced .bb-svg-preview svg {
+  animation: none !important;
 }
 
 .bb-charts-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; min-width: 0; }

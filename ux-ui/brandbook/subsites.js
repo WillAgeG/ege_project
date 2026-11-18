@@ -4,12 +4,14 @@
 
   const root = typeof globalThis !== "undefined" ? globalThis : window;
   const EGE = (root.EGE = root.EGE || {});
-  const { icon, BRAND_MARK_HTML, brandLockupHTML, sakhaPatternSVG } = EGE.ui || {
+  const { icon, BRAND_MARK_HTML, brandMarkHTML, brandLockupHTML, sakhaPatternSVG } = EGE.ui || {
     icon: () => "",
     BRAND_MARK_HTML: "",
+    brandMarkHTML: () => "",
     brandLockupHTML: () => "",
     sakhaPatternSVG: () => ""
   };
+  const renderMark = () => (typeof brandMarkHTML === "function" ? brandMarkHTML() : BRAND_MARK_HTML);
   const { esc } = EGE.utils || { esc: (s) => String(s || "") };
   const { priceHeadlineHTML, priceDiffTagsHTML, sakhaBidInnerHTML } = EGE.hh || {
     priceHeadlineHTML: () => "",
@@ -307,7 +309,7 @@
     return `<div class="bb-mock-landing-desktop">
       <div class="bb-mock-nav">
         <div class="row" style="gap:8px;align-items:center">
-          ${BRAND_MARK_HTML}
+          ${renderMark()}
           <b style="font-size:14px">Вектор ЕГЭ</b>
           <span class="bb-spec-pill">Якутск · 2027</span>
         </div>
@@ -391,7 +393,7 @@
     const isTutor = role === "tutor";
     return `<div class="bb-mock-app-shell">
       <aside class="bb-mock-app-side">
-        <div class="row" style="gap:8px;align-items:center">${BRAND_MARK_HTML}<b style="font-size:13px">Вектор ЕГЭ</b></div>
+        <div class="row" style="gap:8px;align-items:center">${renderMark()}<b style="font-size:13px">Вектор ЕГЭ</b></div>
         <div class="stack" style="gap:4px">
           ${(isTutor ? ["Заявки (3)", "Календарь", "Мои ученики", "Ученики ищут", "Профиль"] : ["Тесты ЕГЭ", "Справочник", "Репетиторы", "Учёба", "Показатели"]).map((lbl, idx) => `<div class="bb-mock-side-item${idx === (isTutor ? 0 : 2) ? " is-on" : ""}">${esc(lbl)}</div>`).join("")}
         </div>
@@ -436,7 +438,7 @@
 
     return `<div class="bb-mock-landing-mobile">
       <div class="bb-mock-m-header">
-        <div class="row" style="gap:6px;align-items:center">${BRAND_MARK_HTML}<b style="font-size:13.5px">Вектор ЕГЭ</b></div>
+        <div class="row" style="gap:6px;align-items:center">${renderMark()}<b style="font-size:13.5px">Вектор ЕГЭ</b></div>
         <div class="row" style="gap:6px">
           <span class="bb-spec-pill">Якутск</span>
           <button type="button" class="btn soft sm" data-a="bb-demo-toast">Войти</button>
@@ -494,7 +496,7 @@
     const isTutor = role === "tutor";
     return `<div class="bb-mock-role-mobile">
       <div class="bb-mock-m-header">
-        <div class="row" style="gap:6px;align-items:center">${BRAND_MARK_HTML}<b style="font-size:13px">${isTutor ? "Кабинет" : "Репетиторы"}</b></div>
+        <div class="row" style="gap:6px;align-items:center">${renderMark()}<b style="font-size:13px">${isTutor ? "Кабинет" : "Репетиторы"}</b></div>
         <span class="chip confirm num" style="font-size:11.5px">${isTutor ? "16 020 ₽ · Вывод" : "4 590 ₽"}</span>
       </div>
       <div class="card pad stack" style="gap:8px;box-shadow:none">

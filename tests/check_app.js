@@ -1326,10 +1326,18 @@
 
     const directSvg = globalThis.EGE.ui.brandLogoSVG("blue", "lockup");
     const directMarkSvg = globalThis.EGE.ui.brandLogoSVG("dark", "mark");
+    const directLightMarkSvg = globalThis.EGE.ui.brandLogoSVG("light", "mark");
+    const swirlPath = globalThis.EGE.ui.VEKTOR_SWIRL_D || "";
     assert(
       directSvg.startsWith("<svg ") && directSvg.includes('xmlns="http://www.w3.org/2000/svg"') && directSvg.includes('viewBox="0 0 260 72"') && directSvg.includes('fill="#0070ff"') && directSvg.includes("<path d=") &&
-      directMarkSvg.startsWith("<svg ") && directMarkSvg.includes('viewBox="0 0 64 64"') && directMarkSvg.includes('fill="#0b0d12"'),
-      "expected brandLogoSVG to emit valid standalone lockup and mark SVGs"
+      directMarkSvg.startsWith("<svg ") && directMarkSvg.includes('viewBox="0 0 64 64"') && directMarkSvg.includes('fill="#0b0d12"') &&
+      directMarkSvg.includes("#6fd5fe") && directMarkSvg.includes("#9375aa") &&
+      directLightMarkSvg.includes("#1f1a17") &&
+      (swirlPath.match(/M/g) || []).length === 6 &&
+      bbV2Html.includes("logo-photo1-dark.svg") &&
+      bbV2Html.includes("logo-photo2-light.svg") &&
+      bbV2Html.includes("logo-animated.svg"),
+      "expected brandLogoSVG & #bb-logo to emit 6-petal C6 swirl logo with gradient dark, #1f1a17 light, blue surface, and showcase SVG files"
     );
     clickAction(env5, { a: "bb-logo-dl", surface: "blue", kind: "lockup" });
     await flushMicrotasks(2);

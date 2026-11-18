@@ -1561,7 +1561,7 @@
     if (topLockup && topLockup.dataset && !topLockup.dataset.logoReady && typeof topLockup.querySelector === "function") {
       const topMark = topLockup.querySelector(".brand-mark");
       const topName = topLockup.querySelector(".brand-name");
-      if (topMark) topMark.outerHTML = BRAND_MARK_HTML;
+      if (topMark) topMark.outerHTML = typeof EGE.ui.brandMarkHTML === "function" ? EGE.ui.brandMarkHTML() : BRAND_MARK_HTML;
       if (topName) topName.innerHTML = BRAND_WORDMARK_HTML;
       topLockup.dataset.logoReady = "1";
     }

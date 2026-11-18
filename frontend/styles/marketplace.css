@@ -371,8 +371,8 @@ body:not([data-auth="1"]):not([data-fullbleed="1"]):not([data-brandbook="1"]) .l
 @media (max-width: 600px) {
   .land-top { padding: 8px 10px; gap: 6px; }
   .land-top .brand-lockup { gap: 8px; }
-  .land-top .brand-mark { width: 34px; height: 34px; border-radius: 50%; }
-  .land-top .brand-mark svg { width: 29px; height: 29px; }
+  .land-top .brand-mark { width: 34px; height: 34px; border-radius: 0; }
+  .land-top .brand-mark svg { width: 34px; height: 34px; }
   .land-top .brand-wordmark { height: 18px; }
   .land-top .brand-tag { display: none; }
   .land-top .brand-sub { display: none; }

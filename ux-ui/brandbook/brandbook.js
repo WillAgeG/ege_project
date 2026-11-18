@@ -4,7 +4,8 @@
 
   const root = typeof globalThis !== "undefined" ? globalThis : window;
   const EGE = (root.EGE = root.EGE || {});
-  const { icon, sakhaOhyorHTML, sakhaPatternSVG, BRAND_MARK_HTML, BRAND_WORDMARK_HTML, brandLockupHTML, brandLogoSVG, getIconCatalog } = EGE.ui;
+  const { icon, sakhaOhyorHTML, sakhaPatternSVG, BRAND_MARK_HTML, BRAND_WORDMARK_HTML, brandMarkHTML, brandLockupHTML, brandLogoSVG, getIconCatalog } = EGE.ui;
+  const renderMark = () => (typeof brandMarkHTML === "function" ? brandMarkHTML() : BRAND_MARK_HTML);
   const { esc } = EGE.utils || { esc: (s) => String(s || "") };
   const {
     CATALOG_CATEGORIES = [],
@@ -408,17 +409,25 @@
 
   function logoSectionHTML() {
     const surfaces = [
-      ["light", "01 · На белом фоне (#FFFFFF)", "background:#ffffff;color:#0e1116", "Подготовка и репетиторы", "Чёткие чёрные линии орнамента в белом круге без розового оттенка + векторная надпись «Вектор ЕГЭ» сразу после лого."],
-      ["dark", "02 · На чёрном OLED (#000000)", "background:#000000;color:#ffffff", "Dark OLED · Инверсия", "Линии и кольцо круга автоматически становятся чисто-белыми, а «ЕГЭ» подсвечивается в OLED-синий #3B8FFF."],
-      ["blue", "03 · На синем фоне (#0070FF)", "", "Фирменный синий фон", "На синем фоне круг превращается в белый медальон с синим орнаментом #0057D9, а надпись «Вектор ЕГЭ» — в белый вектор."]
+      ["light", "01 · Фото 2 · Белый фон (#FFFFFF)", "background:#ffffff;color:#1f1a17", "Подготовка и репетиторы", "Глубокий графитовый знак #1F1A17 без внешнего круга на белом фоне + векторная надпись «Вектор ЕГЭ». При наведении плавно вращается."],
+      ["dark", "02 · Фото 1 · Тёмный фон (#1F1A17 / #000)", "background:#1f1a17;color:#ffffff", "Dark OLED · Градиент", "Бирюзово-лавандовый градиент #6FD5FE → #81A5D4 → #9375AA без круглой обводки, вращение 360° на :hover."],
+      ["blue", "03 · На синем фоне (#0070FF)", "", "Фирменный синий фон", "На синем фоне 6-лепестковый вихрь и надпись «Вектор ЕГЭ» автоматически становятся чисто-белыми."]
+    ];
+    const assetBase = (typeof root.EGE_HOST === "object" && root.EGE_HOST && root.EGE_HOST.uikitStandalone)
+      ? "assets/"
+      : "/assets/";
+    const svgFiles = [
+      ["1. SVG Фото 1 (Dark Gradient)", "logo-photo1-dark.svg", "is-photo1", "#1F1A17 · градиент #6FD5FE → #81A5D4 → #9375AA · точная кривая C6"],
+      ["2. SVG Фото 2 (Light Ink)", "logo-photo2-light.svg", "is-photo2", "#FFFFFF · глубокий #1F1A17 · симметрия 6×60° без круглой рамки"],
+      ["3. Анимированный Hover SVG", "logo-animated.svg", "is-anim", "Плавное вращение вокруг (32, 32) при наведении + адаптация dark/light"]
     ];
     return `<section class="land-sec" id="bb-logo">
       <div class="land-sec-head">
         <div>
-          <div class="eyebrow">Круглый знак Саха · Кастомный вектор «Вектор ЕГЭ» · SVG Pack</div>
-          <h2 class="h2">Адаптивный логотип: белый, чёрный и синий фоны + скачивание SVG</h2>
+          <div class="eyebrow">6-лепестковый вихрь C6 · Фото 1 &amp; Фото 2 SVG + Hover-анимация</div>
+          <h2 class="h2">Адаптивный логотип: Фото 1, Фото 2, синий фон и вращение на :hover</h2>
         </div>
-        <span class="bb-spec-pill">circle · #0E1116 / #FFF / #0070FF · vector wordmark</span>
+        <span class="bb-spec-pill">C6 swirl · #6FD5FE→#9375AA / #1F1A17 / #FFF · hover spin</span>
       </div>
       <div class="bb-logo-grid">
         ${surfaces.map(([surf, cap, st, sub, desc]) => `<div class="card pad stack" style="gap:8px">
@@ -437,24 +446,42 @@
 
       <div class="card pad stack" style="gap:10px">
         <div class="row between" style="gap:8px;flex-wrap:wrap">
+          <b>Исходные SVG-файлы по шагам (1 → 2 → 3 на сайт · наведи курсор для вращения)</b>
+          <span class="bb-spec-pill pro">Наведи курсор → 360° spin</span>
+        </div>
+        <div class="bb-svg-showcase-grid">
+          ${svgFiles.map(([title, file, cls, note]) => `<div class="bb-svg-showcase-card">
+            <b class="small">${title}</b>
+            <div class="bb-svg-preview ${cls}"><img src="${assetBase}${file}" alt="${title}" loading="lazy"></div>
+            <span class="small muted">${note}</span>
+            <div class="bb-logo-actions">
+              <a class="btn soft sm" href="${assetBase}${file}" target="_blank" rel="noopener">Открыть .svg</a>
+              <a class="btn ghost sm" href="${assetBase}${file}" download="${file}">${icon("download")}<span>Скачать</span></a>
+            </div>
+          </div>`).join("")}
+        </div>
+      </div>
+
+      <div class="card pad stack" style="gap:10px">
+        <div class="row between" style="gap:8px;flex-wrap:wrap">
           <b>Как нельзя использовать логотип (Logo Don&#39;ts)</b>
-          <span class="chip bad">Охранное поле ≥ 8 px · мин. круг 24×24 px</span>
+          <span class="chip bad">Охранное поле ≥ 8 px · без круглой рамки · мин. 24×24 px</span>
         </div>
         <div class="bb-logo-donts">
           <div class="bb-logo-dont-card">
-            <div class="bb-logo-bad-box pink">${BRAND_MARK_HTML}</div>
-            <b class="small">✕ Розовая или грязная подложка</b>
-            <span class="small muted">Круг знака всегда чисто-белый (#FFFFFF) или OLED-чёрный (#0B0D12), без розовых оттенков.</span>
+            <div class="bb-logo-bad-box pink">${renderMark()}</div>
+            <b class="small">✕ Посторонняя розовая подложка</b>
+            <span class="small muted">Используем только чистый белый (#FFFFFF), тёмный (#1F1A17 / #000000), синий (#0070FF) или золотой разделитель.</span>
           </div>
           <div class="bb-logo-dont-card">
-            <div class="bb-logo-bad-box skew">${BRAND_MARK_HTML}</div>
-            <b class="small">✕ Искажение и поворот звезды</b>
-            <span class="small muted">Нельзя растягивать пропорции и сбивать строгую симметрию D4 (45° лучи + 4 кардинала).</span>
+            <div class="bb-logo-bad-box skew">${renderMark()}</div>
+            <b class="small">✕ Искажение пропорций вихря</b>
+            <span class="small muted">Нельзя растягивать ось X/Y и нарушать точную 6-лучевую симметрию C6 (только плавное вращение на :hover).</span>
           </div>
           <div class="bb-logo-dont-card">
-            <div class="bb-logo-bad-box tiny">${BRAND_MARK_HTML}</div>
+            <div class="bb-logo-bad-box tiny">${renderMark()}</div>
             <b class="small">✕ Мельче 24×24 px</b>
-            <span class="small muted">При уменьшении ниже 24 px центр 8-лучевой звезды сливается; минимум favicon — 32×32 px.</span>
+            <span class="small muted">При уменьшении ниже 24 px внутренние лепестки сливаются; минимум в топбаре — 28×28 px, favicon — 32×32 px.</span>
           </div>
         </div>
       </div>
@@ -462,7 +489,7 @@
       <div class="card pad row between" style="gap:10px;flex-wrap:wrap;align-items:center">
         <div class="stack" style="gap:2px">
           <b>Предметные акценты и копируемые токены <code>tokens.json</code></b>
-          <span class="small muted">Топбар: 34–40 px круг · авторизация: 56 px круг · адаптация под Светлую / Тёмную тему</span>
+          <span class="small muted">Топбар: 34–38 px · авторизация: 56 px · авто-переключение Фото 1 (Dark) / Фото 2 (Light) + spin на :hover</span>
         </div>
         <div class="row" style="gap:6px;flex-wrap:wrap">
           <button type="button" class="chip" style="border:1px solid color-mix(in srgb, var(--c-bio) 35%, var(--line));cursor:pointer;background:color-mix(in srgb, var(--c-bio) 14%, var(--surface));color:var(--c-bio)" data-a="bb-copy-token" data-copy="var(--c-bio) · #7C3AED / #A855F7">Биология · --c-bio</button>
