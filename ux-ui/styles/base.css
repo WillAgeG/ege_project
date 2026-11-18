@@ -125,10 +125,13 @@ p { margin: 0; }
 .brand-name { display: inline-flex; align-items: center; gap: 8px; min-width: 0; white-space: nowrap; }
 .brand-wordmark-wrap { display: inline-flex; align-items: center; flex: none; }
 .brand-wordmark {
-  font-family: "Google Sans", "Outfit", var(--font-display); font-weight: 500; font-size: 23px; line-height: 1;
-  letter-spacing: -.02em; height: auto; width: auto;
+  font-family: "Google Sans", "Onest", "Outfit", var(--font-display); font-weight: 500; font-size: 24px; line-height: 1;
+  letter-spacing: -.015em; height: auto; width: auto;
   display: inline-flex; align-items: center; flex: none;
   color: var(--wm-ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 .brand-wordmark .wm-ege { color: var(--wm-ink); opacity: .94; }
 [data-surface="blue"] .brand-wordmark .wm-ege,
@@ -246,7 +249,7 @@ p { margin: 0; }
   .topbar-actions { display: flex; align-items: center; gap: 6px; flex: none; }
   .topbar .brand-mark { width: 32px; height: 32px; border-radius: 0; flex: none; }
   .topbar .brand-mark svg { width: 32px; height: 32px; }
-  .topbar .brand-wordmark { font-size: 20px; height: auto; }
+  .topbar .brand-wordmark { font-size: 22px; height: auto; }
   .topbar .sync { max-width: 170px; }
   .topbar .sync span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
@@ -255,7 +258,7 @@ p { margin: 0; }
   .topbar .brand-lockup { gap: 6px; }
   .topbar .brand-mark { width: 28px; height: 28px; }
   .topbar .brand-mark svg { width: 28px; height: 28px; }
-  .topbar .brand-wordmark { font-size: 18px; height: auto; }
+  .topbar .brand-wordmark { font-size: 20.5px; height: auto; }
   .topbar .brand-tag { display: none; }
   .topbar-actions { gap: 4px; }
   .topbar-actions .icon-btn { width: 28px; height: 28px; }

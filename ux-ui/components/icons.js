@@ -223,7 +223,7 @@
     }
     const lockupCanvas = `<rect width="260" height="72" rx="16" fill="${bgHex}"/>`;
     const wordText =
-      `<text x="80" y="45" font-family="Google Sans, Outfit, Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="30" font-weight="500" letter-spacing="-0.5" fill="${wmInk}">Вектор</text>`;
+      `<text x="80" y="45" font-family="Google Sans, Onest, Outfit, Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="30" font-weight="500" letter-spacing="-0.5" fill="${wmInk}">Вектор</text>`;
     return `<svg xmlns="http://www.w3.org/2000/svg" width="260" height="72" viewBox="0 0 260 72" fill="none">${defs}${lockupCanvas}<g transform="translate(8, 4)">${starLayers}</g>${wordText}</svg>`;
   }
 

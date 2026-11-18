@@ -98,7 +98,7 @@ body:not([data-auth="1"]):not([data-fullbleed="1"]):not([data-brandbook="1"]) .l
 .land-top + .land-hero-banner { margin-top: -8px; }
 .land-top .brand-lockup { flex: none; min-width: 0; }
 .land-top .brand-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.land-top .brand-wordmark { font-size: 23px; height: auto; }
+.land-top .brand-wordmark { font-size: 24px; height: auto; }
 .land-links {
   display: flex; align-items: center; justify-content: center; gap: 4px;
   flex: 1 1 auto; min-width: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
@@ -330,7 +330,7 @@ body:not([data-auth="1"]):not([data-fullbleed="1"]):not([data-brandbook="1"]) .l
   flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 12px;
 }
 .gemini-plans-h2 {
-  margin: 0; font-family: "Google Sans", "Outfit", var(--font-display);
+  margin: 0; font-family: "Google Sans", "Onest", "Outfit", var(--font-display);
   font-size: clamp(28px, 3.8vw, 44px); font-weight: 500; line-height: 1.1; letter-spacing: -.028em;
 }
 .gemini-grad-word {
@@ -360,7 +360,7 @@ body:not([data-auth="1"]):not([data-fullbleed="1"]):not([data-brandbook="1"]) .l
 }
 .plan-card:hover { transform: translateY(-2px); box-shadow: 0 18px 38px -22px rgba(15, 23, 42, .18); }
 .plan-card-head { display: grid; gap: 8px; }
-.plan-title { font-family: "Google Sans", "Outfit", var(--font-display); font-size: 19px; font-weight: 500; line-height: 1.2; margin: 0; }
+.plan-title { font-family: "Google Sans", "Onest", "Outfit", var(--font-display); font-size: 19px; font-weight: 500; line-height: 1.2; margin: 0; }
 .plan-tagline { margin: 0; min-height: 40px; }
 .plan-price-wrap { display: grid; gap: 3px; }
 .plan-cta-wrap { display: grid; gap: 6px; }
@@ -395,7 +395,7 @@ body:not([data-auth="1"]):not([data-fullbleed="1"]):not([data-brandbook="1"]) .l
   .plan-card { padding: 18px; }
   .plan-price { font-size: 22px; }
 }
-.plan-price { font-family: "Google Sans", "Outfit", var(--font-display); font-size: 25px; font-weight: 600; line-height: 1.1; }
+.plan-price { font-family: "Google Sans", "Onest", "Outfit", var(--font-display); font-size: 25px; font-weight: 600; line-height: 1.1; }
 .plan-feats { list-style: none; padding: 0; margin: 0; display: grid; gap: 7px; font-size: 13px; color: var(--ink-2); }
 .plan-feats li { display: flex; align-items: flex-start; gap: 8px; line-height: 1.42; }
 .plan-feats li::before { content: "✓"; color: var(--accent); font-weight: 700; flex: none; }
@@ -514,7 +514,7 @@ body:not([data-auth="1"]):not([data-fullbleed="1"]):not([data-brandbook="1"]) .l
   .land-top .brand-lockup { gap: 8px; }
   .land-top .brand-mark { width: 30px; height: 30px; border-radius: 0; }
   .land-top .brand-mark svg { width: 30px; height: 30px; }
-  .land-top .brand-wordmark { font-size: 19px; height: auto; }
+  .land-top .brand-wordmark { font-size: 22px; height: auto; }
   .land-top .brand-tag { display: none; }
   .land-top .brand-sub { display: none; }
   .land-top-actions { gap: 6px; }
@@ -1544,7 +1544,7 @@ html.reduced-motion .hero-float-drift,
   gap: 18px; max-width: 620px; margin-inline: auto; min-width: 0;
 }
 .hero-banner-h1 {
-  margin: 0; font-family: "Google Sans", "Outfit", var(--font-display); font-weight: 500;
+  margin: 0; font-family: "Google Sans", "Onest", "Outfit", var(--font-display); font-weight: 500;
   font-size: clamp(32px, 4.9vw, 56px); line-height: 1.06; letter-spacing: -.03em;
   color: #ffffff; max-width: 17ch;
 }
@@ -1589,7 +1589,7 @@ html.reduced-motion .hero-float-drift,
 }
 .hero-banner-kpi { display: grid; justify-items: center; text-align: center; gap: 2px; min-width: 0; }
 .hero-banner-kpi b {
-  font-family: "Google Sans", "Outfit", var(--font-display); font-size: clamp(22px, 2.5vw, 30px);
+  font-family: "Google Sans", "Onest", "Outfit", var(--font-display); font-size: clamp(22px, 2.5vw, 30px);
   font-weight: 600; line-height: 1.05; letter-spacing: -.02em; color: #ffffff;
   font-variant-numeric: tabular-nums;
 }
