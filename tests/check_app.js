@@ -996,7 +996,8 @@
     assert(
       landHtml.includes("Назначай цену сам — репетиторы дешевле рынка") &&
       landHtml.includes("Проверенные преподаватели, слоты в любое время и безопасная оплата через СБП") &&
-      landHtml.includes("btn gold hero-cta-primary") &&
+      landHtml.includes("hero-cta-primary") &&
+      landHtml.includes("hero-float-card") &&
       !landHtml.includes("hero-cta-secondary") &&
       !landHtml.includes("Попробовать бета-тест") &&
       !landHtml.includes("15–30%") &&
@@ -1004,7 +1005,7 @@
       landHtml.includes('data-countup="30"') &&
       landHtml.includes('data-countup="24"') &&
       landHtml.includes("Самая большая база проверенных репетиторов"),
-      "expected updated single-gold Hero CTA, countup KPIs, single 30% figure, and big-base subtitle"
+      "expected updated Gemini Hero CTA + cards, countup KPIs, single 30% figure, and big-base subtitle"
     );
     const heroSeen = new Set();
     for (let v = 0; v < 5; v++) {
@@ -1375,17 +1376,17 @@
     const directSvg = globalThis.EGE.ui.brandLogoSVG("blue", "lockup");
     const directMarkSvg = globalThis.EGE.ui.brandLogoSVG("dark", "mark");
     const directLightMarkSvg = globalThis.EGE.ui.brandLogoSVG("light", "mark");
-    const swirlPath = globalThis.EGE.ui.VEKTOR_SWIRL_D || "";
+    const starPath = globalThis.EGE.ui.VEKTOR_STAR_D || "";
     assert(
       directSvg.startsWith("<svg ") && directSvg.includes('xmlns="http://www.w3.org/2000/svg"') && directSvg.includes('viewBox="0 0 260 72"') && directSvg.includes('fill="#0070ff"') && directSvg.includes("<path d=") &&
       directMarkSvg.startsWith("<svg ") && directMarkSvg.includes('viewBox="0 0 64 64"') && directMarkSvg.includes('fill="#0b0d12"') &&
-      directMarkSvg.includes("#6fd5fe") && directMarkSvg.includes("#9375aa") &&
-      directLightMarkSvg.includes("#1f1a17") &&
-      (swirlPath.match(/M/g) || []).length === 6 &&
+      directMarkSvg.includes("#4285f4") && directMarkSvg.includes("#ea4335") && directMarkSvg.includes("#fbbc04") && directMarkSvg.includes("#34a853") &&
+      directLightMarkSvg.includes("#4285f4") && directLightMarkSvg.includes("#ea4335") &&
+      starPath.startsWith("M32.00 4.40") && starPath.endsWith("Z") &&
       bbV2Html.includes("logo-photo1-dark.svg") &&
       bbV2Html.includes("logo-photo2-light.svg") &&
       bbV2Html.includes("logo-animated.svg"),
-      "expected brandLogoSVG & #bb-logo to emit 6-petal C6 swirl logo with gradient dark, #1f1a17 light, blue surface, and showcase SVG files"
+      "expected brandLogoSVG & #bb-logo to emit 6-point Gemini multi-color star logo on dark/light, white on blue, and showcase SVG files"
     );
     const p1200 = (1200).toLocaleString("ru-RU");
     const homeSubHtml = globalThis.EGE.views.brandbook.viewBrandbook(
@@ -1444,8 +1445,8 @@
     clickAction(env5, { a: "go", v: "landing" });
     await flushMicrotasks(2);
     const landFullHtml = env5.elements.get("main").innerHTML;
-    assert(landFullHtml.includes('id="land-match"') && landFullHtml.includes('class="land-hero-banner"'), "expected hero banner and quick match on landing");
-    assert(landFullHtml.includes("Найти ниже рынка") && landFullHtml.includes("btn gold hero-cta-primary") && !landFullHtml.includes("hero-cta-secondary") && !landFullHtml.includes("hero-banner-form"), "expected hero banner single gold CTA without top search form or secondary CTA");
+    assert(landFullHtml.includes('id="land-match"') && landFullHtml.includes('class="land-hero-banner is-gemini-hero"'), "expected hero banner and quick match on landing");
+    assert(landFullHtml.includes("Найти ниже рынка") && landFullHtml.includes("hero-cta-primary") && landFullHtml.includes("hero-float-card") && !landFullHtml.includes("hero-cta-secondary") && !landFullHtml.includes("hero-banner-form"), "expected hero banner Gemini CTA + float cards without top search form or secondary CTA");
     assert(landFullHtml.includes("savings-bar-fill gold-fill") && landFullHtml.includes("savings-gold-txt") && landFullHtml.includes("Вектор ЕГЭ · твоя ставка"), "expected Sakha Gold Вектор ЕГЭ твоя ставка progress bar and text class");
     assert(!landFullHtml.includes("land-search-strip") && !landFullHtml.includes("hh-blue-banner") && !landFullHtml.includes("hero-iphone-bezel") && landFullHtml.includes("/assets/lena-pillars.jpg"), "expected Lena Pillars hero without iPhone or search strip or blue brandbook banner");
     assert(landFullHtml.includes("sakha-divider is-gold-logo") && landFullHtml.includes("sakha-gold-emblem") && !landFullHtml.includes("Оһуор · Саха сирэ · Вектор ЕГЭ"), "expected single gold circular logo bottom divider without text label");

@@ -332,7 +332,7 @@
           <h3>Назначай цену сам — репетиторы дешевле рынка</h3>
           <p class="small">Проверенные преподаватели, слоты в любое время и безопасная оплата через СБП.</p>
           <div class="row" style="gap:8px;flex-wrap:wrap">
-            <button type="button" class="btn gold sm${bb.heroSubmitted ? " is-confirmed" : ""}" data-a="bb-hero-submit">${bb.heroSubmitted ? "✓ Анкеты открыты" : "Найти ниже рынка"}</button>
+            <button type="button" class="btn sm${bb.heroSubmitted ? " is-confirmed" : ""}" style="border-radius:999px" data-a="bb-hero-submit">${bb.heroSubmitted ? "✓ Анкеты открыты" : "Найти ниже рынка"}</button>
           </div>
         </div>
       </div>
@@ -451,8 +451,8 @@
           <span class="bb-mock-hero-pill">Самая большая база · 2 480+ анкет</span>
           <h4>Назначай цену сам — репетиторы дешевле рынка</h4>
           <p class="small">Проверенные преподаватели, слоты в любое время и безопасная оплата через СБП.</p>
-          <div class="stack" style="gap:6px">
-            <button type="button" class="btn gold sm${bb.heroSubmitted ? " is-confirmed" : ""}" style="width:100%" data-a="bb-hero-submit">${bb.heroSubmitted ? "✓ Каталог открыт" : "Найти ниже рынка"}</button>
+          <div class="stack" style="gap:6px;align-items:center">
+            <button type="button" class="btn sm${bb.heroSubmitted ? " is-confirmed" : ""}" style="border-radius:999px" data-a="bb-hero-submit">${bb.heroSubmitted ? "✓ Каталог открыт" : "Найти ниже рынка"}</button>
           </div>
         </div>
       </div>

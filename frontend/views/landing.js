@@ -1050,11 +1050,11 @@
 
     return `<div class="land-page" data-inside="${inside ? 1 : 0}">
       <header class="land-top">
-        ${brandLockupHTML({ sub: "Огромная база · ниже рынка" })}
+        ${brandLockupHTML({})}
         <nav class="land-links" aria-label="Разделы лендинга">
+          <a href="#land-market" data-a="land-scroll" data-target="land-market">Репетиторы</a>
           <a href="#land-match" data-a="land-scroll" data-target="land-match">Подбор</a>
           <a href="#land-rates" data-a="land-scroll" data-target="land-rates">Ставки</a>
-          <a href="#land-market" data-a="land-scroll" data-target="land-market">Репетиторы</a>
           <a href="#land-plans" data-a="land-scroll" data-target="land-plans">Тарифы и СБП</a>
           <a href="#land-faq" data-a="land-scroll" data-target="land-faq">FAQ</a>
           <a href="/student">Для ученика</a>
@@ -1069,6 +1069,8 @@
       </header>
 
       ${heroPhotoBannerHTML({ brandbookDemo: false })}
+
+      ${mktApi ? mktApi.marketSectionHTML({ landing: true }) : ""}
 
       ${marqueeSectionHTML()}
 
@@ -1113,7 +1115,6 @@
 
       ${verifySectionHTML()}
       ${demoSectionHTML(inside)}
-      ${mktApi ? mktApi.marketSectionHTML({ landing: true }) : ""}
       ${mktApi ? mktApi.plansSectionHTML({ landing: true }) : ""}
       ${trustUnderPlansHTML()}
       ${reviewsSectionHTML()}
@@ -1185,7 +1186,7 @@
           <b class="num">Самая большая база · ${catalogTotal}+ анкет</b>
           <span class="small muted num">Ставка 0–99 999 ₽/ч · дешевле на 30%</span>
         </div>
-        <button type="button" class="btn gold sm land-mobile-sticky-btn" data-a="land-scroll" data-target="land-market">Подобрать →</button>
+        <button type="button" class="btn sm land-mobile-sticky-btn" data-a="land-scroll" data-target="land-market">Подобрать →</button>
       </div>
     </div>`;
   }

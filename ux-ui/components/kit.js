@@ -37,10 +37,10 @@
   ];
 
   const CATALOG_ITEMS = [
-    { id: "logo", targetId: "bb-logo", cat: "brand", title: "Адаптивный логотип + SVG Pack", api: "EGE.ui.brandLockupHTML() / brandLogoSVG()", css: ".brand-lockup .brand-mark .brand-wordmark", desc: "6-лепестковый вихрь (градиент #6FD5FE→#9375AA на тёмном, #1F1A17 на светлом, #FFF на синем) + вращение при наведении." },
+    { id: "logo", targetId: "bb-logo", cat: "brand", title: "Адаптивный логотип + SVG Pack", api: "EGE.ui.brandLockupHTML() / brandLogoSVG()", css: ".brand-lockup .brand-mark .brand-wordmark", desc: "6-лучевая цветная звезда в стиле Gemini (#4285F4 · #EA4335 · #FBBC04 · #34A853) в светлой и тёмной темах + плавное вращение на :hover." },
     { id: "surfaces", targetId: "bb-surfaces", cat: "brand", title: "Поверхности, WCAG-контраст и токены", api: "EGE.hh.priceHeadlineHTML(market, offer, true)", css: ".hh-price-old .hh-price-now .diff-tag", desc: "Белый, Чёрный OLED, Синий hh, Золото Саха #C59B5F (--gold), пары контраста AA/AAA и экспорт :root CSS / tokens.json." },
     { id: "fonts", targetId: "bb-fonts", cat: "brand", title: "Типографика Inter + IBM Plex Mono", api: "--font-display / --font-mono / --shadow", css: ".h1 .h2 .small .eyebrow .num", desc: "Иерархия шрифтов, табличные цифры, шкала отступов 4 px, радиусы и 3 уровня теней." },
-    { id: "hero", targetId: "bb-hero-banner", cat: "hero", title: "Hero-баннер hh.kz × Ленские столбы", api: "EGE.kit.heroBannerHTML({ ... })", css: ".land-hero-banner .hero-cta-primary .btn.gold", desc: "Светлое фото без верхнего поисковика, единый золотой CTA («Найти ниже рынка»), 5 маркетинговых заголовков и анимация KPI (2 480+ / 30% / 24/7)." },
+    { id: "hero", targetId: "bb-hero-banner", cat: "hero", title: "Hero-экран в стиле Gemini · 4 визуальные карточки", api: "EGE.kit.heroBannerHTML({ ... })", css: ".land-hero-banner .is-gemini-hero .hero-float-card .hero-cta-primary", desc: "Чистая витрина с 4 карточками, крупной центрированной типографикой, синей пилюлей «Найти ниже рынка», 5 текстами и анимацией KPI." },
     { id: "sakha", targetId: "bb-yakutia", cat: "sakha", title: "Якутские кнопки-узоры Оһуор", api: "EGE.kit.sakhaButtonsHTML({ ... })", css: ".sakha-medallion-btn .sakha-diamond-btn .btn.sakha-pattern", desc: "Күн Оһуор, Сулус и узорная кнопка .btn.sakha-pattern без обрезанных углов." },
     { id: "buttons", targetId: "bb-buttons", cat: "controls", title: "Кнопки отклика, 40 иконок и золотой CTA", api: "EGE.hh.sakhaBidInnerHTML(sent, price) / .btn.gold", css: ".btn.sakha-pattern .btn.gold .is-confirmed .bb-icon-tile", desc: "Плавный .is-confirmed, золотая .btn.gold (#C59B5F), 40 SVG-иконок 1.8 px и оранжевые бейджи." },
     { id: "forms", targetId: "bb-forms", cat: "controls", title: "Формы, Мультивыбор (.hh-multi) и выбор роли", api: "EGE.hh.hhSelectHTML() / hhMultiSelectHTML() / authCard()", css: ".hh-select .hh-multi .hh-seg .switch", desc: "Одиночный и множественный выбор, роль «Как ученик / Как преподаватель» и поля с ошибкой." },
@@ -100,17 +100,38 @@
     const primaryAction = opts.primaryAction || (isDemo ? "bb-hero-primary" : "land-scroll");
     const primaryTarget = opts.primaryTarget || "land-market";
     const feesAction = opts.feesAction || "go";
+    const brandStarHTML = (EGE.ui && typeof EGE.ui.brandMarkHTML === "function") ? EGE.ui.brandMarkHTML() : "";
 
-    return `<section class="land-hero-banner" aria-label="Главный баннер поиска репетиторов на фоне Ленских столбов">
-      <img class="hero-banner-bg" src="/assets/lena-pillars.jpg" alt="Природа Якутии — Ленские столбы на рассвете над рекой Леной" decoding="sync">
-      <div class="hero-banner-scrim" aria-hidden="true"></div>
+    return `<section class="land-hero-banner is-gemini-hero" aria-label="Главный экран Вектор ЕГЭ">
+      <div class="hero-float-card is-c1" aria-hidden="true">
+        <img class="hero-banner-bg" src="/assets/lena-pillars.jpg" alt="" decoding="sync">
+        <div class="hero-float-scrim"></div>
+        <span class="hero-float-badge">−30% к рынку</span>
+      </div>
+      <div class="hero-float-card is-c2" aria-hidden="true">
+        <div class="hero-float-aura"></div>
+        <div class="hero-float-emblem">${brandStarHTML}</div>
+        <span class="hero-float-badge">±50 ₽/ч · Своя ставка</span>
+      </div>
       <div class="hero-banner-top">
         <h1 class="${isDemo ? "h2" : "hero-banner-h1"}">${esc(copy.h1)}</h1>
         <p class="hero-banner-sub">${esc(copy.sub)}</p>
         <div class="hero-banner-ctas" role="group" aria-label="Главное действие">
-          <button type="button" class="btn gold hero-cta-primary${primaryActive ? " is-confirmed" : ""}" data-a="${esc(primaryAction)}" data-target="${esc(primaryTarget)}">${primaryActive ? "✓ Открыт каталог анкет" : "Найти ниже рынка"}</button>
+          <button type="button" class="btn hero-cta-primary${primaryActive ? " is-confirmed" : ""}" data-a="${esc(primaryAction)}" data-target="${esc(primaryTarget)}">${primaryActive ? "✓ Открыт каталог анкет" : "Найти ниже рынка"}</button>
         </div>
-        <p class="hero-banner-note">Самая большая база проверенных репетиторов — назначай свою цену за урок · <a href="/fees" data-a="${esc(feesAction)}" data-v="fees">безопасная оплата СБП</a>.</p>
+      </div>
+      <div class="hero-float-card is-c3" aria-hidden="true">
+        <svg class="hero-float-orb" viewBox="0 0 160 120" fill="none"><circle cx="80" cy="56" r="42" stroke="rgba(66,133,244,.32)" stroke-width="1.2" stroke-dasharray="4 4"/><circle cx="80" cy="56" r="26" stroke="rgba(251,188,4,.36)" stroke-width="1.2"/><circle cx="116" cy="34" r="5" fill="#4285f4"/><circle cx="52" cy="76" r="4" fill="#ea4335"/><circle cx="102" cy="82" r="3.5" fill="#34a853"/></svg>
+        <div class="hero-float-stat"><b>90+</b><span>баллов ЕГЭ · МГУ / МФТИ</span></div>
+        <span class="hero-float-badge">Пробный 490 ₽</span>
+      </div>
+      <div class="hero-float-card is-c4" aria-hidden="true">
+        <div class="hero-float-match">
+          <span class="hero-float-subj">Английский · Химия</span>
+          <span class="hero-float-old num">1 800 ₽</span>
+          <b class="hero-float-now num">1 200 ₽/ч</b>
+          <span class="hero-float-ok">✓ СБП эскроу</span>
+        </div>
       </div>
       <div class="hero-banner-foot">
         <div class="hero-banner-kpis" aria-label="Ключевые показатели платформы">
@@ -118,6 +139,7 @@
           <div class="hero-banner-kpi"><b class="num" data-countup="30" data-suffix="%">30%</b><span>дешевле рынка</span></div>
           <div class="hero-banner-kpi"><b class="num" data-countup="24" data-suffix="/7">24/7</b><span>слоты в любое время</span></div>
         </div>
+        <p class="hero-banner-note">Самая большая база проверенных репетиторов — назначай свою цену за урок · <a href="/fees" data-a="${esc(feesAction)}" data-v="fees">безопасная оплата СБП</a>.</p>
       </div>
     </section>`;
   }

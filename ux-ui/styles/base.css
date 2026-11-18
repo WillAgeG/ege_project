@@ -103,16 +103,14 @@ p { margin: 0; }
   transform-origin: 50% 50%; transform-box: view-box; will-change: transform;
   transition: transform .55s cubic-bezier(.22, 1, .36, 1), filter .25s ease;
 }
-/* Светлая тема и светлые поверхности -> глубокий антрацит #1f1a17 (Фото 2) */
-[data-surface="light"] .brand-mark .bm-glyph,
-.bb-logo-bad-box.pink .brand-mark .bm-glyph,
-.bb-pane.is-light .brand-mark:not([data-surface="dark"] *):not([data-surface="blue"] *) .bm-glyph,
-:root[data-theme="light"] .brand-mark:not(.bb-pane.is-dark *):not([data-surface="dark"]):not([data-surface="dark"] *):not([data-surface="blue"]):not([data-surface="blue"] *):not(.hh-blue-banner *) .bm-glyph {
-  fill: #1f1a17;
+/* Цветная 6-лучевая звезда в стиле Gemini на светлой и тёмной темах; на синем фоне — чисто-белый знак */
+[data-surface="blue"] .brand-mark .bm-gemini-layers,
+.hh-blue-banner .brand-mark .bm-gemini-layers {
+  opacity: 0;
 }
-/* Фирменный синий фон -> чисто-белый вихрь */
-[data-surface="blue"] .brand-mark .bm-glyph,
-.hh-blue-banner .brand-mark .bm-glyph {
+[data-surface="blue"] .brand-mark .bm-mono,
+.hh-blue-banner .brand-mark .bm-mono {
+  opacity: 1;
   fill: #ffffff;
 }
 @keyframes vektorLogoSpin {
@@ -126,9 +124,15 @@ p { margin: 0; }
 }
 .brand-name { display: inline-flex; align-items: center; gap: 8px; min-width: 0; white-space: nowrap; }
 .brand-wordmark-wrap { display: inline-flex; align-items: center; flex: none; }
-.brand-wordmark { height: 26px; width: auto; display: block; flex: none; color: var(--wm-ink); }
-.brand-wordmark .wm-ege,
-.brand-wordmark .wm-diamond { color: var(--wm-accent); }
+.brand-wordmark {
+  font-family: var(--font-display); font-weight: 600; font-size: 21px; line-height: 1.05;
+  letter-spacing: -.03em; height: auto; width: auto;
+  display: inline-flex; align-items: baseline; gap: 5px; flex: none;
+  color: var(--wm-ink);
+}
+.brand-wordmark .wm-ege { color: var(--wm-ink); opacity: .94; }
+[data-surface="blue"] .brand-wordmark .wm-ege,
+.hh-blue-banner .brand-wordmark .wm-ege { color: #ffffff; opacity: 1; }
 .brand-tag {
   display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px;
   font-size: 11px; font-weight: 600; line-height: 1.3;
@@ -239,18 +243,18 @@ p { margin: 0; }
   .topbar .brand-lockup { min-width: 0; flex: 1 1 auto; }
   .topbar .brand-text { min-width: 0; }
   .topbar-actions { display: flex; align-items: center; gap: 6px; flex: none; }
-  .topbar .brand-mark { width: 36px; height: 36px; border-radius: 0; flex: none; }
-  .topbar .brand-mark svg { width: 36px; height: 36px; }
-  .topbar .brand-wordmark { height: 22px; }
+  .topbar .brand-mark { width: 32px; height: 32px; border-radius: 0; flex: none; }
+  .topbar .brand-mark svg { width: 32px; height: 32px; }
+  .topbar .brand-wordmark { font-size: 19px; height: auto; }
   .topbar .sync { max-width: 170px; }
   .topbar .sync span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 @media (max-width: 430px) {
   .topbar { padding-left: max(10px, env(safe-area-inset-left, 0px)); padding-right: max(10px, env(safe-area-inset-right, 0px)); gap: 6px; }
   .topbar .brand-lockup { gap: 6px; }
-  .topbar .brand-mark { width: 31px; height: 31px; }
-  .topbar .brand-mark svg { width: 31px; height: 31px; }
-  .topbar .brand-wordmark { height: 18px; }
+  .topbar .brand-mark { width: 28px; height: 28px; }
+  .topbar .brand-mark svg { width: 28px; height: 28px; }
+  .topbar .brand-wordmark { font-size: 17px; height: auto; }
   .topbar .brand-tag { display: none; }
   .topbar-actions { gap: 4px; }
   .topbar-actions .icon-btn { width: 28px; height: 28px; }
@@ -888,7 +892,7 @@ body[data-auth="1"] .main {
 .auth-brand { justify-items: center; text-align: center; display: grid; gap: 8px; }
 .auth-brand .brand-mark { width: 56px; height: 56px; border-radius: 0; }
 .auth-brand .brand-mark svg { width: 56px; height: 56px; }
-.auth-brand .brand-wordmark { height: 28px; }
+.auth-brand .brand-wordmark { font-size: 24px; height: auto; }
 .auth-perks { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 2px; }
 .auth-card { width: 100%; box-shadow: var(--shadow); }
 .auth-sep { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; color: var(--muted); font-size: 12.5px; }

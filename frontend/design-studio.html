@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru" data-theme="light">
+<html lang="ru" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -186,8 +186,8 @@ button, a { font: inherit; color: inherit; }
         <button type="button" data-mw="430" aria-pressed="false">430 px</button>
       </div>
       <div class="seg" role="group" aria-label="Тема">
-        <button type="button" data-theme-pick="light" aria-pressed="true">Светлая</button>
-        <button type="button" data-theme-pick="dark" aria-pressed="false">OLED Dark</button>
+        <button type="button" data-theme-pick="light" aria-pressed="false">Светлая</button>
+        <button type="button" data-theme-pick="dark" aria-pressed="true">OLED Dark</button>
       </div>
       <a class="pill-btn primary" id="open-direct" href="/landing?guest=1" target="_blank" rel="noopener">↗ Открыть экран</a>
     </div>
@@ -254,7 +254,7 @@ button, a { font: inherit; color: inherit; }
   let mode = "split";
   let screen = "/landing?guest=1";
   let mobWidth = 390;
-  let theme = "light";
+  let theme = "dark";
 
   try {
     const qp = new URLSearchParams(window.location.search || "");
@@ -264,13 +264,19 @@ button, a { font: inherit; color: inherit; }
     if (sc && sc.startsWith("/")) screen = sc;
     const th = qp.get("theme");
     if (th === "dark" || th === "light") theme = th;
-    else if (localStorage.getItem("vektor-ege:theme") === "dark") theme = "dark";
+    else {
+      const savedStudio = localStorage.getItem("vektor-studio:theme");
+      if (savedStudio === "dark" || savedStudio === "light") theme = savedStudio;
+    }
   } catch (e) {}
 
   function applyTheme(t, reloadIfNeeded) {
-    theme = t === "dark" ? "dark" : "light";
+    theme = t === "light" ? "light" : "dark";
     document.documentElement.dataset.theme = theme;
-    try { localStorage.setItem("vektor-ege:theme", theme); } catch (e) {}
+    try {
+      localStorage.setItem("vektor-studio:theme", theme);
+      localStorage.setItem("vektor-ege:theme", theme);
+    } catch (e) {}
     document.querySelectorAll("[data-theme-pick]").forEach((b) => {
       b.setAttribute("aria-pressed", String(b.dataset.themePick === theme));
     });

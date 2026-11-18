@@ -409,25 +409,25 @@
 
   function logoSectionHTML() {
     const surfaces = [
-      ["light", "01 · Фото 2 · Белый фон (#FFFFFF)", "background:#ffffff;color:#1f1a17", "Подготовка и репетиторы", "Глубокий графитовый знак #1F1A17 без внешнего круга на белом фоне + векторная надпись «Вектор ЕГЭ». При наведении плавно вращается."],
-      ["dark", "02 · Фото 1 · Тёмный фон (#1F1A17 / #000)", "background:#1f1a17;color:#ffffff", "Dark OLED · Градиент", "Бирюзово-лавандовый градиент #6FD5FE → #81A5D4 → #9375AA без круглой обводки, вращение 360° на :hover."],
-      ["blue", "03 · На синем фоне (#0070FF)", "", "Фирменный синий фон", "На синем фоне 6-лепестковый вихрь и надпись «Вектор ЕГЭ» автоматически становятся чисто-белыми."]
+      ["light", "01 · Белый фон (#FFFFFF)", "background:#ffffff;color:#0e1116", "Подготовка и репетиторы", "6-лучевая цветная звезда в стиле Gemini (#4285F4 · #EA4335 · #FBBC04 · #34A853) + чистый шрифт «Вектор ЕГЭ». При наведении плавно вращается."],
+      ["dark", "02 · Тёмный OLED фон (#06070A / #000)", "background:#06070a;color:#ffffff", "Dark OLED · Gemini-палитра", "Цветная 6-лучевая звезда на глубоком чёрном OLED фоне без круглой рамки, вращение 360° на :hover."],
+      ["blue", "03 · На синем фоне (#0070FF)", "", "Фирменный синий фон", "На сплошном синем фоне 6-лучевая звезда и надпись «Вектор ЕГЭ» автоматически становятся чисто-белыми."]
     ];
     const assetBase = (typeof root.EGE_HOST === "object" && root.EGE_HOST && root.EGE_HOST.uikitStandalone)
       ? "assets/"
       : "/assets/";
     const svgFiles = [
-      ["1. SVG Фото 1 (Dark Gradient)", "logo-photo1-dark.svg", "is-photo1", "#1F1A17 · градиент #6FD5FE → #81A5D4 → #9375AA · точная кривая C6"],
-      ["2. SVG Фото 2 (Light Ink)", "logo-photo2-light.svg", "is-photo2", "#FFFFFF · глубокий #1F1A17 · симметрия 6×60° без круглой рамки"],
-      ["3. Анимированный Hover SVG", "logo-animated.svg", "is-anim", "Плавное вращение вокруг (32, 32) при наведении + адаптация dark/light"]
+      ["1. SVG Dark OLED", "logo-photo1-dark.svg", "is-photo1", "#06070A · цветная 6-лучевая звезда Gemini (#4285F4 · #EA4335 · #FBBC04 · #34A853)"],
+      ["2. SVG Light Card", "logo-photo2-light.svg", "is-photo2", "#FFFFFF · та же цветная 6-лучевая звезда на светлом скруглённом тайле"],
+      ["3. Анимированный Hover SVG", "logo-animated.svg", "is-anim", "Чистая прозрачная звезда без подложки с плавным вращением вокруг (32, 32) на :hover"]
     ];
     return `<section class="land-sec" id="bb-logo">
       <div class="land-sec-head">
         <div>
-          <div class="eyebrow">6-лепестковый вихрь C6 · Фото 1 &amp; Фото 2 SVG + Hover-анимация</div>
-          <h2 class="h2">Адаптивный логотип: Фото 1, Фото 2, синий фон и вращение на :hover</h2>
+          <div class="eyebrow">6-лучевая цветная звезда C6 · Палитра Gemini + Hover-анимация</div>
+          <h2 class="h2">Адаптивный логотип: 6-лучевая звезда (Light / Dark / Blue) и вращение на :hover</h2>
         </div>
-        <span class="bb-spec-pill">C6 swirl · #6FD5FE→#9375AA / #1F1A17 / #FFF · hover spin</span>
+        <span class="bb-spec-pill">C6 star · #4285F4 #EA4335 #FBBC04 #34A853 · hover spin</span>
       </div>
       <div class="bb-logo-grid">
         ${surfaces.map(([surf, cap, st, sub, desc]) => `<div class="card pad stack" style="gap:8px">
@@ -997,8 +997,8 @@
       out += `<section class="land-sec" id="bb-hero-banner" aria-label="Эталон Hero-баннера">
         <div class="land-sec-head">
           <div>
-            <div class="eyebrow">Первый экран /landing · Фото-баннер hh.kz × Ленские столбы</div>
-            <h2 class="h2">Hero-баннер /assets/lena-pillars.jpg · единый золотой CTA и 5 текстов</h2>
+            <div class="eyebrow">Первый экран /landing · Gemini Spatial Layout</div>
+            <h2 class="h2">Hero-экран с 4 карточками, синей пилюлей CTA и 5 текстами</h2>
           </div>
           <button type="button" class="bb-spec-pill" data-a="bb-copy-token" data-copy="EGE.kit.heroBannerHTML()">Копировать EGE.kit.heroBannerHTML()</button>
         </div>
@@ -1008,8 +1008,8 @@
           primaryActive: !!bb.heroSubmitted
         })}
         <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
-          <span class="bb-spec-pill">.hero-banner-scrim · светлый градиент справа (0% над скалами)</span>
-          <span class="bb-spec-pill confirm">1 золотой CTA: «Найти ниже рынка» (.btn.gold.hero-cta-primary)</span>
+          <span class="bb-spec-pill">.hero-float-card × 4 · фото Ленских столбов, сияющая звезда, орбита и СБП-матч</span>
+          <span class="bb-spec-pill confirm">Пилюля CTA: «Найти ниже рынка» (.hero-cta-primary)</span>
           <span class="bb-spec-pill">30% дешевле рынка · 2 480+ анкет · 24/7 (анимация счёта)</span>
         </div>
       </section>`;

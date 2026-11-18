@@ -433,7 +433,7 @@
 }
 .bb-logo-stage .brand-mark { width: 52px; height: 52px; }
 .bb-logo-stage .brand-mark svg { width: 52px; height: 52px; }
-.bb-logo-stage .brand-wordmark { height: 25px; }
+.bb-logo-stage .brand-wordmark { font-size: 22px; height: auto; }
 .bb-logo-stage:hover .brand-mark svg { animation: vektorLogoSpin 2.6s linear infinite; }
 .bb-svg-showcase-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; min-width: 0; }
 @media (max-width: 820px) { .bb-svg-showcase-grid { grid-template-columns: minmax(0, 1fr); } }
@@ -442,7 +442,7 @@
   display: grid; place-items: center; min-height: 112px; border-radius: 12px; border: 1px dashed var(--line-strong);
   background: var(--surface-2); padding: 14px;
 }
-.bb-svg-preview.is-photo1 { background: #1f1a17; border-color: #362e29; }
+.bb-svg-preview.is-photo1 { background: #06070a; border-color: #202430; }
 .bb-svg-preview.is-photo2 { background: #ffffff; border-color: #d8dce4; }
 .bb-svg-preview img, .bb-svg-preview svg { width: 68px; height: 68px; display: block; transform-origin: 50% 50%; transform-box: view-box; }
 .bb-svg-showcase-card:hover .bb-svg-preview img,
