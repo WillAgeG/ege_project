@@ -750,10 +750,38 @@
     clickAction(env4, { a: "bal-open" });
     await flushMicrotasks(2);
     const balModalHtml = env4.elements.get("modal-root").innerHTML;
-    assert(balModalHtml.includes("Баланс и пополнение") && balModalHtml.includes("Только СБП") && balModalHtml.includes("первый платёж от 490 ₽"), "expected SBP top-up modal requiring 490 ₽ first payment");
+    assert(
+      balModalHtml.includes("Баланс и пополнение") &&
+      balModalHtml.includes("первый платёж от 490 ₽") &&
+      balModalHtml.includes('data-a="bal-method" data-v="sbp"') &&
+      balModalHtml.includes('data-a="bal-method" data-v="card"') &&
+      balModalHtml.includes("+3%") &&
+      balModalHtml.indexOf('data-v="card"') < balModalHtml.indexOf('id="bal-custom-amount"') &&
+      balModalHtml.includes("bal-flat-sec") &&
+      !balModalHtml.includes("bal-plan-grid") &&
+      !balModalHtml.includes("wallet-bar") &&
+      !balModalHtml.includes("hh-notice-card") &&
+      !balModalHtml.includes("notice warn"),
+      "expected tariffless flat top-up sheet with method selector (SBP 0% vs Card +3%) above amount input and no rounded wrapper boxes"
+    );
     env4.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "bal-custom" }, elements: { amount: { value: "300" } } }) }, preventDefault() {} });
     await flushMicrotasks(2);
-    assert(env4.elements.get("modal-root").innerHTML.includes("Первое пополнение на занятия — минимум 490 ₽ по СБП"), "expected first top-up below 490 ₽ to be rejected");
+    assert(env4.elements.get("modal-root").innerHTML.includes("Первое пополнение на занятия — минимум 490 ₽"), "expected first top-up below 490 ₽ to be rejected");
+    clickAction(env4, { a: "bal-method", v: "card" });
+    await flushMicrotasks(2);
+    const balCardHtml = env4.elements.get("modal-root").innerHTML;
+    assert(
+      balCardHtml.includes('id="bal-card-num"') &&
+      balCardHtml.includes('id="bal-card-exp"') &&
+      balCardHtml.includes('id="bal-card-cvc"') &&
+      balCardHtml.includes("Комиссия карты 3%"),
+      "expected selecting Add Card to reveal card inputs and +3% fee calculation"
+    );
+    env4.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "bal-custom" }, elements: { amount: { value: "1000" } } }) }, preventDefault() {} });
+    await flushMicrotasks(2);
+    assert(env4.elements.get("modal-root").innerHTML.includes("Укажите 16 цифр карты"), "expected incomplete card fields to be rejected when card method is active");
+    clickAction(env4, { a: "bal-method", v: "sbp" });
+    await flushMicrotasks(2);
     env4.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "bal-custom" }, elements: { amount: { value: "6500" } } }) }, preventDefault() {} });
     await flushMicrotasks(3);
     assert(hasNum(env4.elements.get("side-foot").innerHTML, "6 500") && hasNum(env4.elements.get("top-balance-slot").innerHTML, "6 500"), "expected custom top-up to reach 6500 ₽ and sync both bottom-left & top-right student balance");
@@ -780,9 +808,29 @@
     clickAction(env4, { a: "bal-open" });
     await flushMicrotasks(2);
     assert(env4.elements.get("modal-root").innerHTML.includes("от 100 ₽"), "expected subsequent top-ups from 100 ₽ once initial 490 ₽ is paid");
-    env4.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "bal-custom" }, elements: { amount: { value: "100" } } }) }, preventDefault() {} });
+    clickAction(env4, { a: "bal-method", v: "card" });
+    await flushMicrotasks(2);
+    env4.emitDoc("submit", {
+      target: {
+        closest: () => ({
+          dataset: { f: "bal-custom" },
+          elements: {
+            amount: { value: "100" },
+            cardNum: { value: "4276 1234 5678 9012" },
+            cardExp: { value: "12/28" },
+            cardCvc: { value: "789" }
+          }
+        })
+      },
+      preventDefault() {}
+    });
     await flushMicrotasks(3);
-    assert(hasNum(env4.elements.get("side-foot").innerHTML, "5 400") && hasNum(env4.elements.get("top-balance-slot").innerHTML, "5 400"), "expected subsequent 100 ₽ custom top-up to reach 5400 ₽ cleanly in both balance slots");
+    assert(
+      hasNum(env4.elements.get("side-foot").innerHTML, "5 400") &&
+      hasNum(env4.elements.get("top-balance-slot").innerHTML, "5 400") &&
+      env4.elements.get("toast").innerHTML.includes("+3%"),
+      "expected subsequent 100 ₽ card top-up (+3% gateway fee) to credit 100 ₽ cleanly to reach 5400 ₽ in both balance slots"
+    );
 
     clickAction(env4, { a: "go", v: "study" });
     await flushMicrotasks(4);

@@ -1239,7 +1239,7 @@
     }
     const funded = (Number(st.balance) || 0) >= 5000;
     return `<div class="top-bal-wrap" aria-label="Баланс ученика">
-      <button type="button" class="top-bal-pill${funded ? " is-funded" : ""}" data-a="bal-open" title="Баланс и тарифы">
+      <button type="button" class="top-bal-pill${funded ? " is-funded" : ""}" data-a="bal-open" title="Баланс и пополнение">
         ${icon("wallet")}
         ${compact ? "" : `<span class="top-bal-lbl muted">Баланс:</span>`}
         <b class="num">${st.balance.toLocaleString("ru-RU")} ₽</b>
@@ -1247,86 +1247,127 @@
       <button type="button" class="top-bal-btn" data-a="bal-open" aria-label="Пополнить баланс" title="Пополнить баланс">${icon("plus")}<span>Пополнить</span></button>
     </div>`;
   }
+  function calcBalanceTopupMeta(rawAmount, method) {
+    const clean = String(rawAmount == null ? "" : rawAmount).replace(/\D+/g, "");
+    const amt = clean === "" ? 0 : Math.max(0, Math.min(200000, Math.round(Number(clean) || 0)));
+    const isCard = method === "card";
+    const fee = isCard ? Math.round(amt * 0.03) : 0;
+    const total = amt + fee;
+    return {
+      amt,
+      isCard,
+      fee,
+      total,
+      feeText: isCard
+        ? `На баланс: ${amt.toLocaleString("ru-RU")} ₽ · Комиссия карты 3%: +${fee.toLocaleString("ru-RU")} ₽ · К списанию: ${total.toLocaleString("ru-RU")} ₽`
+        : `Комиссия 0% · На баланс зачислится ровно ${amt.toLocaleString("ru-RU")} ₽`,
+      btnText: isCard
+        ? `Пополнить на ${amt.toLocaleString("ru-RU")} ₽ · Карта (${total.toLocaleString("ru-RU")} ₽)`
+        : `Пополнить на ${amt.toLocaleString("ru-RU")} ₽ по СБП`
+    };
+  }
+  function updateBalanceModalLive() {
+    if (!ui.balanceModal || typeof document === "undefined") return;
+    const meta = calcBalanceTopupMeta(ui.balanceModal.customAmount, ui.balanceModal.method);
+    const feeEl = typeof document.getElementById === "function" ? document.getElementById("bal-fee-line") : null;
+    if (feeEl) feeEl.textContent = meta.feeText;
+    const btnEl = typeof document.getElementById === "function" ? document.getElementById("bal-submit-btn") : null;
+    if (btnEl) btnEl.textContent = meta.btnText;
+    if (typeof document.querySelectorAll === "function") {
+      document.querySelectorAll('[data-a="bal-chip"]').forEach((chip) => {
+        const cv = Number(chip.getAttribute && chip.getAttribute("data-v"));
+        const on = meta.amt > 0 && cv === meta.amt;
+        if (chip.classList) chip.classList.toggle("is-on", on);
+      });
+    }
+  }
   function balanceModalHTML() {
     const bm = ui.balanceModal;
     if (!bm) return "";
     const st = mkt();
     const trialRub = (TDATA && TDATA.TRIAL_PRICE != null) ? Number(TDATA.TRIAL_PRICE) : 490;
-    const minOk = (Number(st.balance) || 0) >= trialRub;
     const minTopup = st.initialPaid ? 100 : trialRub;
-    const chipVals = st.initialPaid ? [100, 490, 1000, 4590] : [490, 2190, 4590, 8900];
-    const plans = (TDATA && TDATA.PLANS) || [];
+    const method = bm.method === "card" ? "card" : "sbp";
+    const savedCard = st.savedCard && st.savedCard.last4 ? st.savedCard : null;
+    const showNewCard = !savedCard || !!bm.addingNewCard;
     const customVal = bm.customAmount != null ? String(bm.customAmount) : String(minTopup);
-    const payProv = EGEPayments && EGEPayments.provider === "demo"
-      ? "Только СБП (QR / банк без карт · 0% карточной наценки) · АЭБ, Сбер, Т-Банк, ВТБ"
-      : `СБП-шлюз (${EGEPayments.provider}) · без карточных переплат`;
-    const walletSummaryHTML = (EGE.kit && typeof EGE.kit.walletSummaryBarHTML === "function")
-      ? EGE.kit.walletSummaryBarHTML({
-          label: "Текущий баланс ученика (СБП-эскроу)",
-          amountRub: st.balance,
-          subNote: payProv,
-          badge: { text: minOk ? "✓ СБП-баланс активен" : `Старт на уроки от ${trialRub} ₽`, cls: minOk ? "confirm" : "gold" }
-        })
-      : `<div class="wallet-bar">
-          <div class="stack" style="gap:2px">
-            <span class="small muted">Текущий баланс ученика (СБП-эскроу)</span>
-            <span class="wallet-num num">${st.balance.toLocaleString("ru-RU")} ₽</span>
-            <span class="small muted">${esc(payProv)}</span>
-          </div>
-          <span class="chip ${minOk ? "confirm" : "gold"}">${minOk ? "✓ СБП-баланс активен" : `Старт на уроки от ${trialRub} ₽`}</span>
-        </div>`;
+    const meta = calcBalanceTopupMeta(customVal, method);
+    const chipVals = st.initialPaid ? [500, 1000, 1500, 3000] : [trialRub, 1000, 2150, 4590];
+    if (meta.amt >= minTopup && !chipVals.includes(meta.amt)) chipVals.unshift(meta.amt);
+    const cardSectionHTML = method === "card"
+      ? (showNewCard
+        ? `<div class="bal-card-box">
+            <input class="input num" id="bal-card-num" name="cardNum" type="text" inputmode="numeric" autocomplete="cc-number" maxlength="19" placeholder="Номер карты · 0000 0000 0000 0000" value="${esc(bm.cardNum || "")}">
+            <div class="bal-card-row2">
+              <input class="input num" id="bal-card-exp" name="cardExp" type="text" inputmode="numeric" autocomplete="cc-exp" maxlength="5" placeholder="ММ/ГГ" value="${esc(bm.cardExp || "")}">
+              <input class="input num" id="bal-card-cvc" name="cardCvc" type="password" inputmode="numeric" autocomplete="cc-csc" maxlength="3" placeholder="CVC" value="${esc(bm.cardCvc || "")}">
+            </div>
+            <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
+              <label class="row small" style="gap:8px;cursor:pointer">
+                <input type="checkbox" id="bal-save-card" ${bm.saveCard !== false ? "checked" : ""}>
+                <span>Сохранить карту</span>
+              </label>
+              ${savedCard ? `<button type="button" class="link-btn small" data-a="bal-card-use-saved">Сохранённая •• ${esc(savedCard.last4)}</button>` : ""}
+            </div>
+          </div>`
+        : `<div class="bal-saved-card">
+            <span class="small"><b>Карта •••• ${esc(savedCard.last4)}</b>${savedCard.exp ? ` · до ${esc(savedCard.exp)}` : ""}</span>
+            <button type="button" class="link-btn small" data-a="bal-card-new">+ Новая карта</button>
+          </div>`)
+      : "";
     return `<div class="modal-back is-sheet-back" role="dialog" aria-modal="true" aria-labelledby="bal-modal-title">
       <div class="modal-card sheet-modal is-balance-sheet" data-sheet-kind="balance">
         <div class="sheet-grabber-zone" data-sheet-drag="1" role="button" tabindex="0" data-a="bal-close" aria-label="Свернуть окно баланса">
           <span class="sheet-grabber"></span>
         </div>
         <div class="sheet-head is-booking-head">
-          <div class="row" style="gap:8px">${icon("wallet")}<b id="bal-modal-title">Баланс и пополнение по СБП</b></div>
+          <div class="row" style="gap:8px">${icon("wallet")}<b id="bal-modal-title">Баланс и пополнение</b></div>
         </div>
         <div class="sheet-body">
-          ${walletSummaryHTML}
-        <div class="hh-notice-card" style="padding:12px 14px;gap:8px">
-          <div class="row between" style="gap:6px;flex-wrap:wrap;align-items:center">
-            <b class="small">Как работает СБП-оплата и защита баланса</b>
-            <span class="chip confirm" style="font-size:11px">Только СБП · 0% за карты</span>
+          <div class="bal-flat-sec">
+            <span class="small muted">Баланс ученика</span>
+            <strong class="bal-flat-amount num">${(Number(st.balance) || 0).toLocaleString("ru-RU")} ₽</strong>
+            ${bm.reason ? `<span class="bal-flat-need">${esc(bm.reason)}</span>` : ""}
           </div>
-          <span class="small ink2">Пополнение проходит напрямую по СБП (АЭБ, СберБанк, Т-Банк, ВТБ) и хранится на эскроу: преподаватель получает оплату только после занятия, контакты WA / TG / MAX открываются сразу после бронирования слота, а на пробном уроке 60 мин за ${trialRub.toLocaleString("ru-RU")} ₽ действует 100% гарантия бесплатной замены.</span>
-          <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
-            <span class="small muted">Базовый расчёт: 5% сервис + 1% шлюз СБП</span>
-            <button type="button" class="link-btn small" data-a="go-fees">Подробнее о СБП и сборе →</button>
+          <div class="bal-flat-sec">
+            <b class="small">Как работает оплата и защита счёта</b>
+            <p class="bal-flat-copy">Деньги хранятся на защищённом счёте и переводятся преподавателю только после проведения урока. Контакты в WhatsApp, Telegram и MAX открываются сразу после отправки заявки.</p>
           </div>
-        </div>
-        ${bm.reason ? `<div class="notice warn"><b>Требуется от ${trialRub} ₽ на балансе (СБП)</b><span class="small">${esc(bm.reason)}</span></div>` : `<p class="small ink2">${st.initialPaid ? "Баланс открыт: далее можно пополнять счёт по СБП на любую сумму от <b>100 ₽</b>. Средства бронируются поурочно." : `Для пробного урока 60 мин и откликов репетиторов старт от <b>${trialRub} ₽</b> по СБП (или «ИИ-Старт ЕГЭ» за <b>390 ₽/мес</b>). После старта доплаты от <b>100 ₽</b>.`}</p>`}
-        <div class="stack" style="gap:8px">
-          <span class="label">Тарифы запуска · оплата по СБП</span>
-          <div class="bal-plan-grid">
-            ${plans.map((p) => {
-              const picked = st.planId === p.id;
-              return `<div class="card pad stack" style="gap:8px;box-shadow:none${p.super ? ";border-color:var(--accent)" : ""}">
-                <div class="row between" style="gap:4px">
-                  <b class="small">${esc(p.name)}</b>
-                  <span class="chip ${p.super ? "accent" : (p.kind === "ai" ? "pro" : (p.balance ? "gold" : ""))}" style="font-size:11px">${esc(p.badge)}</span>
-                </div>
-                <b class="num" style="font-size:19px">${esc(p.priceLabel)}</b>
-                <span class="small muted">${esc(p.tagline)}</span>
-                <button type="button" class="btn ${p.super || p.featured ? "" : "soft"} sm" data-a="bal-topup-preset" data-amount="${p.balance}" data-plan="${esc(p.id)}"${picked && st.initialPaid ? ' aria-current="true"' : ""}>Пополнить по СБП +${p.balance.toLocaleString("ru-RU")} ₽</button>
-              </div>`;
-            }).join("")}
-          </div>
-        </div>
-        <form class="stack" style="gap:10px" data-f="bal-custom">
-          <div class="row between" style="gap:8px;flex-wrap:wrap">
-            <label for="bal-custom-amount" class="label">Любая сумма по СБП (${st.initialPaid ? "от 100 ₽" : `первый платёж от ${trialRub} ₽`})</label>
-            <div class="row" style="gap:6px;flex-wrap:wrap">
-              ${chipVals.map((v) => `<button type="button" class="chip-btn" data-a="bal-chip" data-v="${v}">${v.toLocaleString("ru-RU")} ₽</button>`).join("")}
+          <div class="stack" style="gap:8px">
+            <span class="label">Способ оплаты</span>
+            <div class="bal-method-list" role="radiogroup" aria-label="Способ оплаты">
+              <button type="button" class="bal-method-opt${method === "sbp" ? " is-on" : ""}" data-a="bal-method" data-v="sbp" role="radio" aria-checked="${method === "sbp" ? "true" : "false"}">
+                <span class="bal-method-main">
+                  <b>СБП · Быстрый платёж</b>
+                  <span>СберБанк, Т-Банк, АЭБ, ВТБ</span>
+                </span>
+                <span class="bal-method-right is-free">0%<i class="bal-radio" aria-hidden="true"></i></span>
+              </button>
+              <button type="button" class="bal-method-opt${method === "card" ? " is-on" : ""}" data-a="bal-method" data-v="card" role="radio" aria-checked="${method === "card" ? "true" : "false"}">
+                <span class="bal-method-main">
+                  <b>${savedCard && !bm.addingNewCard ? `Карта •• ${esc(savedCard.last4)}` : "Добавить карту"}</b>
+                  <span>Банковская карта РФ · комиссия 3%</span>
+                </span>
+                <span class="bal-method-right is-fee">+3%<i class="bal-radio" aria-hidden="true"></i></span>
+              </button>
             </div>
+            ${cardSectionHTML}
           </div>
-          <div class="row" style="gap:8px;flex-wrap:wrap">
-            <input class="input num" id="bal-custom-amount" name="amount" type="number" min="${minTopup}" max="200000" step="10" inputmode="numeric" value="${esc(customVal)}" placeholder="${st.initialPaid ? "От 100 ₽" : `От ${trialRub} ₽`}" style="flex:1 1 160px">
-            <button type="submit" class="btn">${icon("wallet")}<span>Оплатить по СБП</span></button>
-          </div>
-          ${bm.error ? `<div class="small" style="color:var(--bad);font-weight:600">${esc(bm.error)}</div>` : ""}
-        </form>
+          <form class="stack" style="gap:10px" data-f="bal-custom">
+            <div class="stack" style="gap:8px">
+              <label for="bal-custom-amount" class="label">Сумма зачисления (${st.initialPaid ? "от 100 ₽" : `первый платёж от ${trialRub} ₽`})</label>
+              <div class="chip-rail">
+                ${chipVals.map((v) => `<button type="button" class="chip-btn${meta.amt === v ? " is-on" : ""}" data-a="bal-chip" data-v="${v}">${v.toLocaleString("ru-RU")} ₽</button>`).join("")}
+              </div>
+            </div>
+            <div class="bal-amount-box">
+              <input class="bal-amount-inp num" id="bal-custom-amount" name="amount" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" value="${esc(customVal)}" placeholder="${st.initialPaid ? "От 100" : `От ${trialRub}`}">
+              <span class="bal-amount-cur">₽</span>
+            </div>
+            <div class="bal-fee-line" id="bal-fee-line">${esc(meta.feeText)}</div>
+            ${bm.error ? `<div class="small" style="color:var(--bad);font-weight:600">${esc(bm.error)}</div>` : ""}
+            <button type="submit" class="btn bal-submit-btn" id="bal-submit-btn">${esc(meta.btnText)}</button>
+          </form>
         </div>
       </div>
     </div>`;
@@ -2004,10 +2045,16 @@
     setGatewayHandler(fn) { this.gatewayHandler = typeof fn === "function" ? fn : null; },
     createTopupIntent(params) {
       const amount = Math.round(Number(params && params.amount) || 0);
+      const method = (params && params.method) === "card" ? "card" : "sbp";
+      const fee = Math.round(Number(params && params.fee) || 0);
+      const totalCharged = Math.round(Number(params && params.totalCharged) || (amount + fee));
       const intent = {
         id: "pay-" + Date.now(),
         provider: this.provider,
+        method,
         amount,
+        fee,
+        totalCharged,
         planId: (params && params.planId) || "",
         currency: "RUB",
         status: "succeeded",
@@ -2274,18 +2321,62 @@
       const st = mkt();
       const trialRub = (TDATA && TDATA.TRIAL_PRICE != null) ? Number(TDATA.TRIAL_PRICE) : 490;
       const minAmt = st.initialPaid ? 100 : trialRub;
-      const bm = ui.balanceModal || (ui.balanceModal = { customAmount: minAmt, error: "", reason: "", pendingBooking: null });
+      const bm = ui.balanceModal || (ui.balanceModal = {
+        method: "sbp",
+        customAmount: minAmt,
+        addingNewCard: !(st.savedCard && st.savedCard.last4),
+        cardNum: "",
+        cardExp: "",
+        cardCvc: "",
+        saveCard: true,
+        error: "",
+        reason: "",
+        pendingBooking: null
+      });
       const rawEl = (form && form.elements && form.elements.amount) || $("#bal-custom-amount");
-      const raw = rawEl ? Number(rawEl.value) : Number(bm.customAmount);
+      const rawStr = rawEl ? String(rawEl.value || "").replace(/\D+/g, "") : String(bm.customAmount == null ? "" : bm.customAmount).replace(/\D+/g, "");
+      const raw = rawStr === "" ? NaN : Number(rawStr);
+      if (rawStr !== "") bm.customAmount = rawStr;
       if (!Number.isFinite(raw) || raw < minAmt) {
         bm.error = !st.initialPaid
-          ? `Первое пополнение на занятия — минимум ${trialRub} ₽ по СБП (пробный 60 мин). Далее можно от 100 ₽.`
-          : "Введите сумму пополнения по СБП от 100 ₽.";
+          ? `Первое пополнение на занятия — минимум ${trialRub} ₽. Далее можно от 100 ₽.`
+          : "Введите сумму пополнения от 100 ₽.";
         renderModal();
         return;
       }
+      const method = bm.method === "card" ? "card" : "sbp";
+      if (method === "card") {
+        const useSaved = !!(st.savedCard && st.savedCard.last4 && !bm.addingNewCard);
+        if (!useSaved) {
+          const numEl = (form && form.elements && form.elements.cardNum) || $("#bal-card-num");
+          const expEl = (form && form.elements && form.elements.cardExp) || $("#bal-card-exp");
+          const cvcEl = (form && form.elements && form.elements.cardCvc) || $("#bal-card-cvc");
+          const saveEl = $("#bal-save-card");
+          const cardDigits = String((numEl && numEl.value) || bm.cardNum || "").replace(/\D+/g, "");
+          const expRawDigits = String((expEl && expEl.value) || bm.cardExp || "").replace(/\D+/g, "").slice(0, 4);
+          const expNorm = expRawDigits.length >= 3
+            ? (expRawDigits.slice(0, 2) + "/" + expRawDigits.slice(2, 4))
+            : String((expEl && expEl.value) || bm.cardExp || "").trim();
+          const cvcDigits = String((cvcEl && cvcEl.value) || bm.cardCvc || "").replace(/\D+/g, "");
+          const saveCard = saveEl != null ? !!saveEl.checked : (bm.saveCard !== false);
+          bm.cardNum = cardDigits.slice(0, 16).replace(/(\d{4})(?=\d)/g, "$1 ");
+          bm.cardExp = expNorm;
+          bm.cardCvc = cvcDigits.slice(0, 3);
+          bm.saveCard = saveCard;
+          if (cardDigits.length !== 16 || !/^(0[1-9]|1[0-2])\/\d{2}$/.test(expNorm) || cvcDigits.length !== 3) {
+            bm.error = "Укажите 16 цифр карты, срок ММ/ГГ и 3 цифры CVC.";
+            renderModal();
+            return;
+          }
+          if (saveCard) {
+            st.savedCard = { last4: cardDigits.slice(-4), exp: expNorm };
+          }
+        }
+      }
       const amt = Math.min(200000, Math.round(raw));
-      EGEPayments.createTopupIntent({ amount: amt, planId: st.planId || "trial5k" });
+      const fee = method === "card" ? Math.round(amt * 0.03) : 0;
+      const totalCharged = amt + fee;
+      EGEPayments.createTopupIntent({ amount: amt, fee, totalCharged, method, planId: st.planId || "trial5k" });
       st.balance = (Number(st.balance) || 0) + amt;
       if (st.balance >= trialRub) st.initialPaid = true;
       if (st.balance >= 8900) st.planId = "month10k";
@@ -2300,7 +2391,11 @@
         ui.booking = Object.assign({}, pending, { offerPrice: pOffer });
       }
       renderModal();
-      notifySide("Баланс пополнен по СБП", `+${amt.toLocaleString("ru-RU")} ₽ · на счёте ${st.balance.toLocaleString("ru-RU")} ₽`);
+      if (method === "card") {
+        notifySide("Баланс пополнен картой", `+${amt.toLocaleString("ru-RU")} ₽ (списано ${totalCharged.toLocaleString("ru-RU")} ₽, +3%) · на счёте ${st.balance.toLocaleString("ru-RU")} ₽`);
+      } else {
+        notifySide("Баланс пополнен по СБП", `+${amt.toLocaleString("ru-RU")} ₽ · на счёте ${st.balance.toLocaleString("ru-RU")} ₽`);
+      }
       scheduleRender();
     },
     "student-lead": (form) => {
@@ -2465,6 +2560,44 @@
     const h = FORMS[f.dataset.f];
     if (h) h(f);
   });
+  function handleBalanceFieldInput(el) {
+    if (!el || !el.id) return false;
+    if (el.id === "bal-custom-amount") {
+      const digits = String(el.value || "").replace(/\D+/g, "").slice(0, 6);
+      if (el.value !== digits) el.value = digits;
+      if (ui.balanceModal) {
+        ui.balanceModal.customAmount = digits;
+        ui.balanceModal.error = "";
+        updateBalanceModalLive();
+      }
+      return true;
+    }
+    if (el.id === "bal-card-num") {
+      const digits = String(el.value || "").replace(/\D+/g, "").slice(0, 16);
+      const formatted = digits.replace(/(\d{4})(?=\d)/g, "$1 ");
+      if (el.value !== formatted) el.value = formatted;
+      if (ui.balanceModal) { ui.balanceModal.cardNum = formatted; ui.balanceModal.error = ""; }
+      return true;
+    }
+    if (el.id === "bal-card-exp") {
+      const digits = String(el.value || "").replace(/\D+/g, "").slice(0, 4);
+      const formatted = digits.length > 2 ? (digits.slice(0, 2) + "/" + digits.slice(2)) : digits;
+      if (el.value !== formatted) el.value = formatted;
+      if (ui.balanceModal) { ui.balanceModal.cardExp = formatted; ui.balanceModal.error = ""; }
+      return true;
+    }
+    if (el.id === "bal-card-cvc") {
+      const digits = String(el.value || "").replace(/\D+/g, "").slice(0, 3);
+      if (el.value !== digits) el.value = digits;
+      if (ui.balanceModal) { ui.balanceModal.cardCvc = digits; ui.balanceModal.error = ""; }
+      return true;
+    }
+    if (el.id === "bal-save-card") {
+      if (ui.balanceModal) ui.balanceModal.saveCard = !!el.checked;
+      return true;
+    }
+    return false;
+  }
   document.addEventListener("input", (e) => {
     const el = e.target;
     const inpAct = (el && el.dataset && el.dataset.a) || "";
@@ -2568,7 +2701,7 @@
       scheduleRender();
       return;
     }
-    if (el.id === "bal-custom-amount") { if (ui.balanceModal) { ui.balanceModal.customAmount = el.value; ui.balanceModal.error = ""; } return; }
+    if (handleBalanceFieldInput(el)) return;
     if (el.id === "lead-price") { if (ui.leadDraft) ui.leadDraft.targetPrice = Number(el.value) || 1000; return; }
     if (el.id === "lead-wa") {
       const fn = EGE.tutors && EGE.tutors.formatPhoneMask;
@@ -2728,7 +2861,7 @@
       }
       return;
     }
-    if (el.id === "bal-custom-amount") { if (ui.balanceModal) { ui.balanceModal.customAmount = el.value; ui.balanceModal.error = ""; } return; }
+    if (handleBalanceFieldInput(el)) return;
     if (el.id === "lead-price") { if (ui.leadDraft) ui.leadDraft.targetPrice = Number(el.value) || 1000; return; }
     if (el.id === "lead-wa") {
       const fn = EGE.tutors && EGE.tutors.formatPhoneMask;

@@ -286,7 +286,7 @@
       const st = mkt();
       const trialRub = (TDATA && TDATA.TRIAL_PRICE != null) ? Number(TDATA.TRIAL_PRICE) : 490;
       const reason = el && el.dataset && el.dataset.reason === "trial"
-        ? `Пополните счёт по СБП минимум на ${trialRub} ₽ — сумма заморозится на эскроу за занятие.`
+        ? `Пополните баланс минимум на ${trialRub} ₽ для записи на занятие.`
         : "";
       const pendingBooking = ui.booking ? Object.assign({}, ui.booking) : null;
       const minTopup = st.initialPaid ? 100 : trialRub;
@@ -294,7 +294,18 @@
         ? Math.max(minTopup, Number(pendingBooking.offerPrice) - (Number(st.balance) || 0))
         : (st.initialPaid ? 500 : trialRub);
       if (pendingBooking) ui.booking = null;
-      ui.balanceModal = { customAmount: customAmt, error: "", reason, pendingBooking };
+      ui.balanceModal = {
+        method: "sbp",
+        customAmount: customAmt,
+        addingNewCard: !(st.savedCard && st.savedCard.last4),
+        cardNum: "",
+        cardExp: "",
+        cardCvc: "",
+        saveCard: true,
+        error: "",
+        reason,
+        pendingBooking
+      };
       renderModal();
     },
     "bal-close": () => {
@@ -309,6 +320,34 @@
       const trialRub = (TDATA && TDATA.TRIAL_PRICE != null) ? Number(TDATA.TRIAL_PRICE) : 490;
       const minAmt = mkt().initialPaid ? 100 : trialRub;
       ui.balanceModal.customAmount = Math.max(minAmt, Math.min(200000, Number(el.dataset.v) || minAmt));
+      ui.balanceModal.error = "";
+      renderModal();
+    },
+    "bal-method": (el) => {
+      if (!ui.balanceModal) return;
+      const st = mkt();
+      const amtEl = typeof document !== "undefined" && document.getElementById ? document.getElementById("bal-custom-amount") : null;
+      if (amtEl && amtEl.value != null) {
+        const digits = String(amtEl.value).replace(/\D+/g, "").slice(0, 6);
+        if (digits !== "") ui.balanceModal.customAmount = digits;
+      }
+      const next = el && el.dataset && el.dataset.v === "card" ? "card" : "sbp";
+      ui.balanceModal.method = next;
+      ui.balanceModal.error = "";
+      if (next === "card" && !(st.savedCard && st.savedCard.last4)) {
+        ui.balanceModal.addingNewCard = true;
+      }
+      renderModal();
+    },
+    "bal-card-new": () => {
+      if (!ui.balanceModal) return;
+      ui.balanceModal.addingNewCard = true;
+      ui.balanceModal.error = "";
+      renderModal();
+    },
+    "bal-card-use-saved": () => {
+      if (!ui.balanceModal) return;
+      ui.balanceModal.addingNewCard = false;
       ui.balanceModal.error = "";
       renderModal();
     },
@@ -663,9 +702,15 @@
         const pending = Object.assign({}, b, { mode: "paid", isTrial: false, offerPrice, note: noteText });
         ui.booking = null;
         ui.balanceModal = {
+          method: "sbp",
           customAmount: deficit,
+          addingNewCard: !(st.savedCard && st.savedCard.last4),
+          cardNum: "",
+          cardExp: "",
+          cardCvc: "",
+          saveCard: true,
           error: "",
-          reason: `Для отправки предложения ${offerPrice.toLocaleString("ru-RU")} ₽/ч пополните баланс по СБП — сумма заморозится на эскроу до проведения урока.`,
+          reason: `Нужно пополнить баланс для отправки заявки преподавателю (${offerPrice.toLocaleString("ru-RU")} ₽/ч).`,
           pendingBooking: pending
         };
         renderModal();
