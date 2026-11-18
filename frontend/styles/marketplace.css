@@ -1,11 +1,11 @@
 /* Лендинг /landing, моушен-торг, маркетплейс репетиторов, степпер ±50 ₽, ползунок времени, тарифы и /fees. */
 /* ---------- лендинг, маркетплейс репетиторов и календарь-кружочки ---------- */
-:root:not([data-theme="dark"]) body[data-auth="1"],
-:root:not([data-theme="dark"]) body[data-auth="1"] .main {
+:root:not([data-theme="dark"]) body[data-auth="1"]:not(:has(.land-page:not(#brandbook-page):not(.is-white-stage))),
+:root:not([data-theme="dark"]) body[data-auth="1"]:not(:has(.land-page:not(#brandbook-page):not(.is-white-stage))) .main {
   background: #ffffff;
   color: #1f1f1f;
 }
-:root:not([data-theme="dark"]) .land-page:not(#brandbook-page) {
+body:not([data-user-dark="1"]) .land-page:not(#brandbook-page).is-white-stage {
   --bg: #ffffff;
   --surface: #ffffff;
   --surface-2: #f0f4f9;
@@ -593,7 +593,43 @@ body:not([data-auth="1"]):not([data-fullbleed="1"]):not([data-brandbook="1"]) .l
 .fav-btn svg { width: 20px; height: 20px; }
 
 .tutor-rate { font-size: 21px; font-weight: 700; letter-spacing: -.01em; color: var(--ink); line-height: 1.2; }
-.tutor-name-line { display: flex; align-items: center; gap: 6px; font-size: 14.5px; color: var(--ink-2); flex-wrap: wrap; }
+.tutor-name-line { display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: center; gap: 12px; font-size: 14.5px; color: var(--ink-2); }
+.tutor-name-line .tutor-avatar,
+.tutor-name-line .tutor-avatar-ph { flex: none; margin: 0; }
+.tutor-person-meta { min-width: 0; display: grid; gap: 2px; }
+.tutor-title-inline { display: flex; align-items: center; gap: 6px; min-width: 0; flex-wrap: nowrap; }
+.tutor-person-name { color: var(--ink); font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tutor-title-inline .verified-badge { flex: none; }
+.tutor-modal-head { display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: center; gap: 10px; min-width: 0; flex: 1; }
+.trial-guar-btn.is-active {
+  background: color-mix(in srgb, var(--good) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--good) 32%, var(--line));
+  color: var(--good); font-weight: 600;
+}
+.trial-guar-btn.is-active:hover { background: color-mix(in srgb, var(--good) 16%, var(--surface)); }
+.trial-guar-btn.is-grey {
+  background: var(--surface-2, #F3F5F8);
+  border: 1px solid var(--line);
+  color: var(--muted); font-weight: 500;
+}
+.trial-guar-box {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 10px;
+  padding: 11px 13px; border-radius: 12px; font-size: 13px; line-height: 1.45;
+}
+.trial-guar-box:not(:has(> svg)) { grid-template-columns: minmax(0, 1fr); }
+.trial-guar-box > svg { width: 16px; height: 16px; flex: none; margin-top: 2px; }
+.trial-guar-box.is-active {
+  background: color-mix(in srgb, var(--good) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--good) 30%, var(--line));
+  color: var(--good);
+}
+.trial-guar-box.is-active b { color: var(--good); }
+.trial-guar-box.is-grey {
+  background: var(--surface-2, #F3F5F8);
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+.trial-guar-box.is-grey b { color: var(--ink-2); font-size: 13px; }
 .tutor-tags { display: flex; flex-wrap: wrap; gap: 6px; }
 .tutor-tag-pill {
   display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px;
@@ -1688,3 +1724,111 @@ html.reduced-motion .hero-float-drift,
   .tc-payout-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
+
+/* ---------- Плавный переход Чёрный (Hero) -> Белый (Подбор) на /landing ---------- */
+body:has(.land-page:not(#brandbook-page)),
+body:has(.land-page:not(#brandbook-page)) .main,
+.land-page:not(#brandbook-page),
+.land-page:not(#brandbook-page) .land-sec,
+.land-page:not(#brandbook-page) .tutor-card,
+.land-page:not(#brandbook-page) .hh-search-box,
+.land-page:not(#brandbook-page) .land-plain-line,
+.land-page:not(#brandbook-page) .land-footer.is-minimal {
+  transition: background-color 0.78s cubic-bezier(.22, 1, .36, 1),
+              color 0.58s cubic-bezier(.22, 1, .36, 1),
+              border-color 0.58s ease;
+}
+:root body:has(.land-page:not(#brandbook-page):not(.is-white-stage)):not(.is-land-white),
+:root body:has(.land-page:not(#brandbook-page):not(.is-white-stage)):not(.is-land-white) .main {
+  background-color: #000000;
+  color: #F5F7FA;
+}
+:root .land-page:not(#brandbook-page):not(.is-white-stage) {
+  background-color: #000000;
+  color: #F5F7FA;
+  --bg: #000000;
+  --surface: #12151C;
+  --surface-2: #1A1F2A;
+  --ink: #F5F7FA;
+  --ink-2: #CFD6E4;
+  --muted: #98A2B3;
+  --line: rgba(255, 255, 255, .12);
+  --line-strong: rgba(255, 255, 255, .20);
+  --chip: #1B202C;
+  --seg-bg: #1B202C;
+  --seg-active: #262D3D;
+}
+:root body:not([data-user-dark="1"]).is-land-white,
+:root body:not([data-user-dark="1"]).is-land-white .main,
+:root body:not([data-user-dark="1"]) .land-page:not(#brandbook-page).is-white-stage {
+  background-color: #FFFFFF;
+  color: #111622;
+  --bg: #FFFFFF;
+  --surface: #FFFFFF;
+  --surface-2: #F4F6FA;
+  --ink: #111622;
+  --ink-2: #3F4756;
+  --muted: #667085;
+  --line: rgba(17, 22, 34, .10);
+  --line-strong: rgba(17, 22, 34, .18);
+  --chip: #F1F4F9;
+  --seg-bg: #F0F4F9;
+  --seg-active: #FFFFFF;
+  --accent: #0B57D0;
+  --accent-ink: #FFFFFF;
+  --accent-soft: rgba(11, 87, 208, .09);
+  --shadow-sm: 0 2px 10px rgba(17, 22, 34, .05);
+}
+.land-page:not(#brandbook-page) .land-hero-banner {
+  background: #000000;
+  color: #F5F7FA;
+  border-radius: 26px;
+}
+@media (max-width: 760px) {
+  .land-page:not(#brandbook-page) .land-hero-banner { padding-bottom: 92px; }
+}
+
+/* ---------- Модалка записи без горизонтального скролла на мобильных ---------- */
+.modal-card .field,
+.modal-card .stack,
+.modal-card .row,
+.modal-card .hh-price-row,
+.modal-card .hh-diff-strip { min-width: 0; max-width: 100%; }
+.modal-card .hh-price-stepper {
+  width: 100%; max-width: 100%;
+  grid-template-columns: 68px minmax(0, 1fr) 68px;
+  gap: 4px; box-sizing: border-box;
+}
+.modal-card .hh-step-readout { min-width: 0; padding: 2px 4px; justify-content: center; }
+.modal-card .bid-input { width: 5.2ch; min-width: 0; max-width: 100%; }
+#bid-signal { min-width: 0; max-width: 100%; }
+#bid-signal .chip {
+  display: block; width: 100%; max-width: 100%;
+  white-space: normal; height: auto; padding: 6px 10px;
+  line-height: 1.35; box-sizing: border-box; text-align: left;
+}
+
+/* ---------- Бесконечный скролл каталога и минимальный 4-ссылочный футер ---------- */
+.mkt-scroll-sentinel { display: flex; justify-content: center; padding: 14px 0 4px; }
+.mkt-feed-end {
+  text-align: center; padding: 14px 0 2px;
+  font-size: 13px; font-weight: 600; color: var(--muted);
+}
+.land-plain-line {
+  border: 0; height: 1px; background: var(--line-strong); margin: 18px 0 0;
+}
+.land-footer.is-minimal {
+  border-top: 0; padding: 16px 4px 28px;
+  display: flex; justify-content: center;
+}
+.land-footer-links.is-plain {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 22px;
+}
+.land-foot-plain {
+  background: none; border: 0; padding: 4px 2px;
+  font: inherit; font-size: 13px; color: var(--muted);
+  text-decoration: none; cursor: pointer; transition: color .14s ease;
+}
+.land-foot-plain:hover {
+  color: var(--ink); text-decoration: underline; text-underline-offset: 3px;
+}

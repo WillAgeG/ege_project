@@ -346,15 +346,47 @@
     } catch (e) { /* игнор */ }
   }
 
+  let _infiniteObserver = null;
+
+  function syncInfiniteMarket() {
+    try {
+      if (typeof document === "undefined") return;
+      if (_infiniteObserver) {
+        _infiniteObserver.disconnect();
+        _infiniteObserver = null;
+      }
+      const ui = getUi();
+      if (ui.view !== "landing") return;
+      const sentinel = typeof document.getElementById === "function" ? document.getElementById("mkt-scroll-sentinel") : null;
+      if (!sentinel || (sentinel.dataset && sentinel.dataset.hasMore !== "1")) return;
+      if (typeof IntersectionObserver === "function") {
+        let busy = false;
+        _infiniteObserver = new IntersectionObserver((entries) => {
+          const entry = entries && entries[0];
+          if (!entry || !entry.isIntersecting || busy) return;
+          busy = true;
+          ui.mktVisibleCount = (Number(ui.mktVisibleCount) || 8) + 8;
+          if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+        }, { rootMargin: "220px 0px" });
+        _infiniteObserver.observe(sentinel);
+      }
+    } catch (e) { /* игнор */ }
+  }
+
   function syncHeroMotion() {
+    const ui = getUi();
+    const onLanding = ui.view === "landing";
+    if (typeof document !== "undefined" && document.body && document.body.classList) {
+      document.body.classList.toggle("is-land-white", !!(onLanding && ui.landWhiteStage));
+    }
     if (EGE.kit && typeof EGE.kit.animateHeroCounters === "function") {
       EGE.kit.animateHeroCounters(typeof document !== "undefined" ? document : null);
     }
     if (EGE.kit && typeof EGE.kit.initHeroFloaters === "function") {
       EGE.kit.initHeroFloaters();
     }
+    syncInfiniteMarket();
     syncMobileSticky();
-    const ui = getUi();
     const TDATA = getTDATA();
     const stage = typeof document.getElementById === "function" ? document.getElementById("hero-motion-stage") : null;
     if (!stage || typeof stage.querySelector !== "function") {
@@ -1048,20 +1080,16 @@
     const mktApi = EGE.views && EGE.views.marketplace;
 
     const ui = getUi();
-    const minSamplePrice = (TDATA && TDATA.LIST && TDATA.LIST.length) ? Math.min(...TDATA.LIST.map((t) => t.price)) : 900;
-    const tutorApplied = ui.tutorApplyDone || null;
+    const totalNum = (TDATA && TDATA.CATALOG_TOTAL) ? Number(TDATA.CATALOG_TOTAL) : 2480;
 
-    return `<div class="land-page" data-inside="${inside ? 1 : 0}">
-      <header class="land-top">
+    return `<div class="land-page${ui.landWhiteStage ? " is-white-stage" : ""}" data-inside="${inside ? 1 : 0}">
+      <header class="land-top${ui.landWhiteStage ? " is-scrolled-light" : ""}">
         ${brandLockupHTML({})}
         <nav class="land-links" aria-label="Разделы лендинга">
           <a href="#land-market" data-a="land-scroll" data-target="land-market">Репетиторы</a>
-          <a href="#land-match" data-a="land-scroll" data-target="land-match">Подбор</a>
-          <a href="#land-rates" data-a="land-scroll" data-target="land-rates">Ставки</a>
-          <a href="#land-plans" data-a="land-scroll" data-target="land-plans">Тарифы и СБП</a>
-          <a href="#land-faq" data-a="land-scroll" data-target="land-faq">FAQ</a>
           <a href="/student">Для ученика</a>
           <a href="/tutor">Для преподавателя</a>
+          <a href="/fees" data-a="go" data-v="fees">Условия оплаты</a>
         </nav>
         <div class="land-top-actions">
           <button type="button" class="icon-btn sm" data-a="theme-toggle" aria-label="Сменить тему" title="Сменить тему">${icon(dark ? "sun" : "moon")}</button>
@@ -1075,119 +1103,21 @@
 
       ${mktApi ? mktApi.marketSectionHTML({ landing: true }) : ""}
 
-      ${marqueeSectionHTML()}
+      <hr class="land-plain-line" aria-hidden="true">
 
-      <div class="hero-stage-wrap" id="hero-stage-wrap">
-        <span class="hero-orb a" aria-hidden="true"></span>
-        <span class="hero-orb b" aria-hidden="true"></span>
-        <section class="land-below-grid" id="land-motion-showcase">
-          <div class="land-hero-copy">
-            <h2 class="land-h1" style="font-size:clamp(24px,3vw,33px)">Самая большая база репетиторов — <span class="land-h1-grad">ставь свою цену за урок</span></h2>
-            <p class="land-lead">Выбирай проверенного преподавателя напрямую без посредников: двигай ставку от 0 до 99 999 ₽/ч шагом ±50 ₽ и оплачивай занятия безопасно через СБП после подтверждения.</p>
-            <div class="land-hero-ctas">
-              <button type="button" class="btn" data-a="land-scroll" data-target="land-market">К каталогу анкет</button>
-            </div>
-            <div class="land-stats">
-              <div class="land-stat"><b>${catalogTotal}+ анкет</b><span>Ykt, Telegram, WhatsApp, MAX</span></div>
-              <div class="land-stat"><b>Шаг ±50 ₽</b><span>Ставка от 0 до 99 999 ₽/ч</span></div>
-              <div class="land-stat"><b>30% дешевле</b><span>Прямой отклик без посредников</span></div>
-            </div>
-          </div>
-          ${heroMotionStageHTML()}
-        </section>
-      </div>
-
-      ${quickMatchSectionHTML()}
-      ${ratesAnalyticsHTML()}
-      ${savingsSectionHTML()}
-
-      <section class="land-sec" id="land-how">
-        <div class="land-sec-head">
-          <div>
-            <div class="eyebrow">Как это устроено</div>
-            <h2 class="h2">От своей ставки в каталоге до урока по СБП — без лишних созвонов</h2>
-          </div>
-        </div>
-        <div class="how-grid">
-          <div class="card how-card"><span class="how-num">01</span><b>Самая большая база анкет</b><p class="small ink2">Собираем проверенных преподавателей с Доски Ykt, Telegram, WhatsApp и MAX в одну понятную ленту с открытыми условиями.</p></div>
-          <div class="card how-card"><span class="how-num">02</span><b>Своя ставка от 0 до 99 999 ₽/ч</b><p class="small ink2">Выбираешь преподавателя и предлагаешь свою ставку шагом ±50 ₽ либо пробный урок за 490 ₽ (или бесплатно).</p></div>
-          <div class="card how-card"><span class="how-num">03</span><b>Оплата по СБП в защищённый эскроу</b><p class="small ink2">Пополняешь баланс по СБП без карточных наценок — бронь урока сразу открывает WhatsApp, Telegram и MAX в «Учёбе».</p></div>
-          <div class="card how-card"><span class="how-num">04</span><b>Поурочное списание и отчёт родителю</b><p class="small ink2">Деньги переводятся преподавателю только после занятия, маме уходит отчёт в мессенджер, а замена работает в 1 клик.</p></div>
-        </div>
-      </section>
-
-      ${verifySectionHTML()}
-      ${demoSectionHTML(inside)}
-      ${mktApi ? mktApi.plansSectionHTML({ landing: true }) : ""}
-      ${trustUnderPlansHTML()}
-      ${reviewsSectionHTML()}
-
-      <section class="land-sec" id="land-tutors">
-        <div class="card pad-lg stack" style="gap:16px">
-          <div class="land-sec-head">
-            <div>
-              <div class="eyebrow">Для преподавателей</div>
-              <h2 class="h2">Готовые ученики по СБП, гибкий пробный от 0 ₽ и PRO-выделение</h2>
-            </div>
-            <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
-              <a href="/tutor" class="btn ghost sm">Кабинет преподавателя →</a>
-              <a href="/fees" class="btn soft sm" data-a="go" data-v="fees">Условия оплаты и СБП →</a>
-              <button type="button" class="btn sm${tutorApplied ? " is-confirmed" : ""}" data-a="tutor-apply-open">${tutorApplied ? "✓ Анкета отправлена (" + esc(tutorApplied.name) + ")" : "Разместить анкету за 1 минуту"}</button>
-            </div>
-          </div>
-          <div class="tutor-perks-grid">
-            <div class="tutor-perk-card">
-              <span class="tutor-perk-ico" aria-hidden="true">${icon("clock")}</span>
-              <div class="stack" style="gap:4px"><b>Ученики после пробного 490 ₽ или бесплатно</b><p class="small ink2">Преподаватель сам задаёт стоимость пробного (по умолчанию 490 ₽, бесплатно 0 ₽ или без пробного): заявки приходят с подтверждённой ставкой.</p></div>
-            </div>
-            <div class="tutor-perk-card">
-              <span class="tutor-perk-ico" aria-hidden="true">${icon("flame")}</span>
-              <div class="stack" style="gap:4px"><b>PRO-выделение и мини-группы</b><p class="small ink2">Мягкое синее выделение анкеты в каталоге без навязчивых баннеров + право набирать мини-группы 3–5 чел. с доходом до ~2 015 ₽/ч чистыми.</p></div>
-            </div>
-            <div class="tutor-perk-card">
-              <span class="tutor-perk-ico" aria-hidden="true">${icon("shield")}</span>
-              <div class="stack" style="gap:4px"><b>Поурочный СБП-эскроу и чек НПД</b><p class="small ink2">Вывод средств на СБП от 500 ₽ с автоматическим чеком НПД («Мой налог»). <a href="/fees" data-a="go" data-v="fees" style="color:var(--accent);font-weight:600">Подробнее об оплате →</a></p></div>
-            </div>
-          </div>
-          ${(() => {
-            const tPlans = (TDATA && Array.isArray(TDATA.TUTOR_PLANS) && TDATA.TUTOR_PLANS) || [];
-            if (!tPlans.length) return "";
-            return `<div class="grid-2">${tPlans.map((tp) => `<div class="card pad stack${tp.pro ? " plan-card featured" : ""}" style="gap:10px;box-shadow:none">
-              <div class="row between" style="gap:8px;flex-wrap:wrap">
-                <b>${esc(tp.name)}</b>
-                <span class="chip ${tp.pro ? "pro" : ""}">${esc(tp.badge)}</span>
-              </div>
-              <div class="row" style="gap:8px;align-items:baseline;flex-wrap:wrap">
-                <b class="num" style="font-size:22px">${esc(tp.priceLabel)}</b>
-                <span class="small muted">${esc(tp.subLabel)}</span>
-              </div>
-              <ul class="plan-feats">${(tp.features || []).map((f) => `<li><span>${esc(f)}</span></li>`).join("")}</ul>
-            </div>`).join("")}</div>`;
-          })()}
-        </div>
-      </section>
-
-      ${faqSectionHTML()}
-
-      ${sakhaOhyorHTML("Вектор ЕГЭ · Саха", { goldLogo: true })}
-
-      <footer class="land-footer small muted">
-        <span>Вектор ЕГЭ · тесты, конспекты и маркетплейс репетиторов</span>
-        <div class="land-footer-links">
-          <a href="/student" class="land-foot-link">${icon("book")}<span>Для ученика</span></a>
-          <a href="/tutor" class="land-foot-link">${icon("users")}<span>Для преподавателя</span></a>
-          <a href="/admin" class="land-foot-link">${icon("shield")}<span>Админ-панель</span></a>
-          <a href="/brandbook" class="land-foot-link">${icon("spark")}<span>UI Kit / Brandbook</span></a>
-          <a href="/fees" class="land-foot-link" data-a="go" data-v="fees">${icon("shield")}<span>Условия оплаты и сбор системы</span></a>
-          <a href="/privacy" class="land-foot-link is-sakha">${icon("ohyorCross")}<span>Политика конфиденциальности</span></a>
-          <button type="button" class="land-foot-link" data-a="bug-site">${icon("bug")}<span>Сообщить о баге (${esc(_ctx.BUG_EMAIL || "willagegg@gmail.com")})</span></button>
+      <footer class="land-footer is-minimal small muted">
+        <div class="land-footer-links is-plain">
+          <button type="button" class="land-foot-plain" data-a="bug-site">Сообщить о баге</button>
+          <button type="button" class="land-foot-plain" data-a="coop-open">Сотрудничество</button>
+          <a href="/fees" class="land-foot-plain" data-a="go" data-v="fees">Условия оплаты</a>
+          <a href="/privacy" class="land-foot-plain">Политика конфиденциальности</a>
         </div>
       </footer>
 
       <div class="land-mobile-sticky" id="land-mobile-sticky" role="region" aria-label="Быстрый переход к подбору">
         <div class="land-mobile-sticky-copy">
-          <b class="num">Самая большая база · ${catalogTotal}+ анкет</b>
-          <span class="small muted num">Ставка 0–99 999 ₽/ч · дешевле на 30%</span>
+          <b class="num">Самая большая база · <span class="num" data-countup="${totalNum}">${catalogTotal}</span>+ анкет</b>
+          <span class="small muted num">Ставка 0–99 999 ₽/ч · дешевле на <span class="num" data-countup="30">30</span>%</span>
         </div>
         <button type="button" class="btn sm land-mobile-sticky-btn" data-a="land-scroll" data-target="land-market">Подобрать →</button>
       </div>

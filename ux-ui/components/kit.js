@@ -160,10 +160,19 @@
       if (landPage && typeof landPage.querySelector === "function") {
         const topbar = landPage.querySelector(".land-top");
         const heroEl = landPage.querySelector(":scope > .land-hero-banner") || landPage.querySelector(".land-hero-banner");
-        if (topbar && topbar.classList && heroEl && typeof heroEl.getBoundingClientRect === "function") {
+        if (heroEl && typeof heroEl.getBoundingClientRect === "function") {
           const rect = heroEl.getBoundingClientRect();
-          const pastHero = rect.bottom <= 74;
-          topbar.classList.toggle("is-scrolled-light", pastHero);
+          const vh = (typeof window !== "undefined" && Number(window.innerHeight)) || 800;
+          const lockUntil = landPage.dataset ? Number(landPage.dataset.whiteLockUntil || 0) : 0;
+          const lockedWhite = lockUntil > Date.now();
+          const scrolledPastHero = sy > 110 || rect.bottom <= Math.round(vh * 0.72);
+          const whiteStage = lockedWhite || scrolledPastHero;
+          const pastHero = rect.bottom <= 74 || whiteStage;
+          if (topbar && topbar.classList) topbar.classList.toggle("is-scrolled-light", pastHero);
+          if (landPage.classList) landPage.classList.toggle("is-white-stage", whiteStage);
+          if (typeof document !== "undefined" && document.body && document.body.classList) {
+            document.body.classList.toggle("is-land-white", whiteStage);
+          }
         }
       }
     } catch (e) { /* игнор без DOM */ }

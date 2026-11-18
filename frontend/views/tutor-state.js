@@ -396,9 +396,10 @@
         expYears: 6,
         avgScore: 86,
         highScorers: 14,
-        trialMode: "paid",
-        trialPrice: 490,
-        trialFree: false,
+        firstLessonGuarantee: true,
+        trialMode: "free",
+        trialPrice: 0,
+        trialFree: true,
         customSkills: "Задания ФИПИ 2027, №28 Генетика, разбор пробников, медвуз",
         price: 1200,
         minFair: 900,
@@ -473,20 +474,15 @@
       _cache.waSettings.channels = normalizeChannelList(_cache.waSettings.channels);
       _cache.profile.whatsapp = formatPhone(_cache.profile.whatsapp || def.profile.whatsapp);
       _cache.profile.telegram = formatTelegram(_cache.profile.telegram || def.profile.telegram);
-      if (!["paid", "free", "none"].includes(_cache.profile.trialMode)) {
-        _cache.profile.trialMode = saved.profile && saved.profile.trialFree === true ? "free" : "paid";
+      if (typeof _cache.profile.firstLessonGuarantee !== "boolean") {
+        _cache.profile.firstLessonGuarantee = !!(
+          (saved.profile && (saved.profile.trialMode === "free" || saved.profile.trialFree === true)) ||
+          def.profile.firstLessonGuarantee
+        );
       }
-      if (_cache.profile.trialMode === "none") {
-        _cache.profile.trialPrice = null;
-        _cache.profile.trialFree = false;
-      } else if (_cache.profile.trialMode === "free") {
-        _cache.profile.trialPrice = 0;
-        _cache.profile.trialFree = true;
-      } else {
-        const tp = Number(_cache.profile.trialPrice);
-        _cache.profile.trialPrice = Number.isFinite(tp) && tp > 0 ? Math.min(99999, Math.round(tp)) : 490;
-        _cache.profile.trialFree = false;
-      }
+      _cache.profile.trialFree = _cache.profile.firstLessonGuarantee;
+      _cache.profile.trialMode = _cache.profile.firstLessonGuarantee ? "free" : "none";
+      _cache.profile.trialPrice = _cache.profile.firstLessonGuarantee ? 0 : null;
       _cache.lastAutoBumpAt = Number(_cache.lastAutoBumpAt || _cache.lastBumpAt) || def.lastAutoBumpAt;
       _cache.lastBumpAt = _cache.lastAutoBumpAt;
       _cache.lastManualBumpAt = Number(_cache.lastManualBumpAt) || 0;
@@ -673,9 +669,10 @@
       telegram: p.telegram || "",
       price: p.price != null ? Number(p.price) : 1200,
       minFair: Math.min(p.price != null ? Number(p.price) : 1200, p.minFair != null ? Number(p.minFair) : 900),
-      trialMode: ["paid", "free", "none"].includes(p.trialMode) ? p.trialMode : "paid",
-      trialPrice: p.trialMode === "none" ? null : (p.trialMode === "free" ? 0 : (Number(p.trialPrice) > 0 ? Math.min(99999, Math.round(Number(p.trialPrice))) : 490)),
-      trialFree: p.trialMode === "free",
+      firstLessonGuarantee: p.firstLessonGuarantee !== false,
+      trialMode: p.firstLessonGuarantee !== false ? "free" : "none",
+      trialPrice: p.firstLessonGuarantee !== false ? 0 : null,
+      trialFree: p.firstLessonGuarantee !== false,
       marketPrice: isPro ? Math.max(1150, Math.round(((Number(p.price) || 1200) * 0.85) / 50) * 50) : Math.round(((Number(p.price) || 1200) * 1.28) / 50) * 50,
       tier: isPro ? "pro" : "budget",
       qualBadge: isPro ? "Профиль · Эксперт" : "Проверенная анкета",

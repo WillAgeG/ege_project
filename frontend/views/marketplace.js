@@ -123,18 +123,22 @@
     </section>`;
   }
 
-  function resolveTutorTrial(t, TDATA) {
-    const defPrice = (TDATA && TDATA.TRIAL_PRICE != null) ? Number(TDATA.TRIAL_PRICE) : 490;
-    if (!t || t.trialMode === "none" || t.trialPrice === null || t.trialPrice === false) {
-      return { enabled: false, free: false, price: null, label: "" };
-    }
-    if (t.trialMode === "free" || Number(t.trialPrice) === 0 || t.trialFree === true) {
-      return { enabled: true, free: true, price: 0, label: "Пробный · Бесплатно" };
-    }
-    const tp = (typeof t.trialPrice === "number" && Number.isFinite(t.trialPrice) && t.trialPrice > 0)
-      ? Math.min(99999, Math.round(t.trialPrice))
-      : defPrice;
-    return { enabled: true, free: false, price: tp, label: `Пробный · ${tp.toLocaleString("ru-RU")} ₽` };
+  function resolveTutorGuarantee(t) {
+    const enabled = !!(t && t.firstLessonGuarantee);
+    return {
+      enabled,
+      free: enabled,
+      price: enabled ? 0 : null,
+      badgeLabel: enabled ? "Возврат за 1-й урок" : "Без бесплатного 1-го",
+      label: enabled ? "✓ Возврат за 1-й урок" : "Без бесплатного 1-го",
+      modalNote: enabled
+        ? "Если первый урок не понравится — вернём 100% оплаты из резерва СБП на баланс сразу после обращения."
+        : "Преподаватель не хочет проводить первый урок бесплатно — занятие бронируется по обычной часовой ставке."
+    };
+  }
+
+  function resolveTutorTrial(t) {
+    return resolveTutorGuarantee(t);
   }
 
   function cardDiffTagsHTML(t, offerPrice) {
@@ -175,7 +179,7 @@
     const isProCard = !!(t.tier === "pro" || Number(t.price) > (Number(t.marketPrice) || Number(t.price)) || (t.bumpedToday && Number(t.rating) >= 4.9));
     const expandedMap = ui.expandedBios || {};
     const isBioOpen = !!expandedMap[t.id];
-    const trialInfo = resolveTutorTrial(t, TDATA);
+    const guaranteeInfo = resolveTutorGuarantee(t);
     const alreadyBooked = Array.isArray(st.bookings) && st.bookings.some((bk) => bk.tutorId === t.id);
 
     return `<article class="card tutor-card${isProCard ? " is-pro" : ""}" data-tutor-id="${esc(t.id)}">
@@ -198,9 +202,9 @@
         <div class="tutor-name-line">
           ${tutorAvatarHTML(t)}
           <div class="tutor-person-meta">
-            <div class="row" style="gap:6px;align-items:center;flex-wrap:wrap">
-              <b style="color:var(--ink)">${esc(t.name)}</b>
-              ${t.verified ? `<span class="verified-badge" title="Проверенная анкета">${icon("check")}</span>` : ""}
+            <div class="tutor-title-inline">
+              <b class="tutor-person-name">${esc(t.name)}</b>
+              ${t.verified ? `<span class="verified-badge" title="Преподаватель лично ведёт кабинет на платформе">${icon("check")}</span>` : ""}
             </div>
             <span class="small muted">${esc(t.city)} · ${esc(t.exp)} · ★ ${t.rating.toFixed(1)} (${t.reviews})</span>
           </div>
@@ -222,8 +226,10 @@
           <button type="button" class="hh-step-btn" data-a="card-offer-step" data-id="${esc(t.id)}" data-step="50" aria-label="Повысить цену на 50 рублей">+50 ₽</button>
         </div>
         <button type="button" class="btn sakha-pattern tutor-bid-btn${alreadyBooked ? " is-confirmed" : ""}" data-a="book-open" data-id="${esc(t.id)}" data-offer="${cardPrice}">${sakhaBidInnerHTML(alreadyBooked, cardPrice)}</button>
-        <div class="tutor-sub-actions${trialInfo.enabled ? "" : " is-single"}">
-          ${trialInfo.enabled ? `<button type="button" class="btn soft sm" data-a="trial-open" data-id="${esc(t.id)}">${icon("spark")}<span>${esc(trialInfo.label)}</span></button>` : ""}
+        <div class="tutor-sub-actions">
+          ${guaranteeInfo.enabled
+            ? `<button type="button" class="btn soft sm trial-guar-btn is-active" data-a="trial-open" data-id="${esc(t.id)}">${icon("check")}<span>Возврат за 1-й урок</span></button>`
+            : `<button type="button" class="btn ghost sm trial-guar-btn is-grey" data-a="book-open" data-id="${esc(t.id)}" data-offer="${cardPrice}"><span>Без бесплатного 1-го</span></button>`}
           <button type="button" class="btn ghost sm" data-a="book-open" data-id="${esc(t.id)}" data-offer="${cardPrice}">Подробнее</button>
         </div>
       </div>
@@ -380,55 +386,53 @@
     if (!ui.booking || !TDATA) return "";
     const b = ui.booking, tutor = TDATA.LIST.find((x) => x.id === b.tutorId);
     if (!tutor) return "";
-    const st = getMkt();
-    const trialInfo = resolveTutorTrial(tutor, TDATA);
-    const isTrial = trialInfo.enabled && (b.mode === "trial" || !!b.isTrial);
+    const gInfo = resolveTutorGuarantee(tutor);
     const offerPrice = Math.max(0, Math.min(99999, b.offerPrice != null ? Math.round(Number(b.offerPrice)) : (Number(tutor.price) || 1200)));
     const sig = TDATA.offerSignal(tutor.price, offerPrice);
-    const trialNeedsBal = isTrial && !trialInfo.free && (Number(st.balance) || 0) < trialInfo.price;
 
     return `<div class="modal-back" role="dialog" aria-modal="true" aria-labelledby="book-modal-title">
       <div class="modal-card">
         <div class="modal-head">
-          <div class="stack" style="gap:2px;min-width:0">
-            <b id="book-modal-title">Запись · ${esc(tutor.name)}</b>
-            <span class="small muted">${esc(tutor.subjectName)} · ${esc(tutor.city)} · ★ ${tutor.rating.toFixed(1)} (${tutor.reviews})</span>
+          <div class="tutor-modal-head">
+            ${tutorAvatarHTML(tutor)}
+            <div class="stack" style="gap:2px;min-width:0">
+              <div class="tutor-title-inline">
+                <b id="book-modal-title">${esc(tutor.name)}</b>
+                ${tutor.verified ? `<span class="verified-badge" title="Преподаватель лично ведёт кабинет на платформе">${icon("check")}</span>` : ""}
+              </div>
+              <span class="small muted">${esc(tutor.subjectName)} · ${esc(tutor.city)} · ★ ${tutor.rating.toFixed(1)} (${tutor.reviews})</span>
+            </div>
           </div>
           <button type="button" class="icon-btn sm" data-a="book-close" aria-label="Закрыть">${icon("x")}</button>
         </div>
 
         <p class="small ink2" style="margin:0;line-height:1.5">${esc(tutor.bio)}</p>
 
-        ${trialInfo.enabled ? `<div class="hh-seg equal" role="group" aria-label="Формат записи">
-          <button type="button" data-a="book-mode" data-v="paid" aria-pressed="${!isTrial}"><span>Своя цена за урок</span></button>
-          <button type="button" data-a="book-mode" data-v="trial" aria-pressed="${isTrial}">${icon("spark")}<span>${esc(trialInfo.label)}</span></button>
-        </div>` : ""}
-
-        ${trialNeedsBal ? `<div class="notice warn">
-          <b>Нужно от ${trialInfo.price.toLocaleString("ru-RU")} ₽ на балансе (СБП)</b>
-          <span class="small">Сумма заморозится на эскроу за пробный урок и защищена 100% гарантией замены.</span>
-          <div><button type="button" class="btn sm" data-a="bal-open" data-reason="trial">${icon("wallet")}<span>Пополнить по СБП от ${trialInfo.price.toLocaleString("ru-RU")} ₽</span></button></div>
-        </div>` : ""}
+        <div class="trial-guar-box ${gInfo.enabled ? "is-active" : "is-grey"}" id="bid-guarantee-box">
+          ${gInfo.enabled ? icon("check") : ""}
+          <div class="stack" style="gap:2px;min-width:0">
+            <b>${esc(gInfo.badgeLabel)}</b>
+            <span class="small">${esc(gInfo.modalNote)}</span>
+          </div>
+        </div>
 
         <div class="field">
-          <label for="bid-price">${isTrial ? "Стоимость пробного урока" : "Твоя цена за урок (0 – 99 999 ₽/ч)"}</label>
-          ${isTrial
-            ? `<div class="hh-notice-card" style="padding:12px 14px"><b class="num">${trialInfo.free ? "Бесплатно (0 ₽) — пробный урок-знакомство" : `${trialInfo.price.toLocaleString("ru-RU")} ₽ — пробный урок 60 мин (СБП-эскроу)`}</b><span class="small ink2">${trialInfo.free ? "Преподаватель проводит первое занятие бесплатно — пополнение баланса не требуется." : `Сумма замораживается на балансе (${st.balance.toLocaleString("ru-RU")} ₽) до завершения урока.`}</span></div>`
-            : `<div class="hh-price-row" id="bid-price-row" style="margin-bottom:4px">
-                ${priceHeadlineHTML(tutor.marketPrice, offerPrice, false)}
-              </div>
-              <div class="hh-diff-strip" id="bid-diff-strip" style="margin-bottom:4px">
-                ${cardDiffTagsHTML(tutor, offerPrice)}
-              </div>
-              <div class="hh-price-stepper">
-                <button type="button" class="hh-step-btn" data-a="bid-step" data-step="-50">−50 ₽</button>
-                <div class="hh-step-readout is-inline">
-                  <input class="input bid-input num" id="bid-price" type="number" min="0" max="99999" step="50" inputmode="numeric" value="${offerPrice}">
-                  <span class="hh-step-unit">₽/ч</span>
-                </div>
-                <button type="button" class="hh-step-btn" data-a="bid-step" data-step="50">+50 ₽</button>
-              </div>
-              <div id="bid-signal" class="small"><span class="chip ${sig.tone}">${esc(sig.label)}</span></div>`}
+          <label for="bid-price">Твоя цена за урок (0 – 99 999 ₽/ч)</label>
+          <div class="hh-price-row" id="bid-price-row" style="margin-bottom:4px">
+            ${priceHeadlineHTML(tutor.marketPrice, offerPrice, false)}
+          </div>
+          <div class="hh-diff-strip" id="bid-diff-strip" style="margin-bottom:4px">
+            ${cardDiffTagsHTML(tutor, offerPrice)}
+          </div>
+          <div class="hh-price-stepper">
+            <button type="button" class="hh-step-btn" data-a="bid-step" data-step="-50">−50 ₽</button>
+            <div class="hh-step-readout is-inline">
+              <input class="input bid-input num" id="bid-price" type="number" min="0" max="99999" step="50" inputmode="numeric" value="${offerPrice}">
+              <span class="hh-step-unit">₽/ч</span>
+            </div>
+            <button type="button" class="hh-step-btn" data-a="bid-step" data-step="50">+50 ₽</button>
+          </div>
+          <div id="bid-signal" class="small"><span class="chip ${sig.tone}">${esc(sig.label)}</span></div>
         </div>
 
         <div class="field">
@@ -438,7 +442,7 @@
 
         <div class="row between" style="flex-wrap:wrap;gap:8px;align-items:center">
           <div class="row" style="flex-wrap:wrap;gap:8px">
-            <button type="button" class="btn sakha-pattern" id="bid-submit-btn" data-a="book-submit">${isTrial ? `<span>Сөп · ${trialInfo.free ? "Записаться бесплатно" : `Пробный ${trialInfo.price.toLocaleString("ru-RU")} ₽`}</span>` : sakhaBidInnerHTML(false, offerPrice, { attr: 'data-bid-lbl="1"' })}</button>
+            <button type="button" class="btn sakha-pattern" id="bid-submit-btn" data-a="book-submit">${sakhaBidInnerHTML(false, offerPrice, { attr: 'data-bid-lbl="1"' })}</button>
             <button type="button" class="btn ghost" data-a="book-close">Отмена</button>
           </div>
           <button type="button" class="link-btn small muted" data-a="go-fees">Защита оплаты СБП →</button>
@@ -453,8 +457,6 @@
     if (!ui.booking || !TDATA) return;
     const b = ui.booking, tutor = TDATA.LIST.find((x) => x.id === b.tutorId);
     if (!tutor) return;
-    const trialInfo = resolveTutorTrial(tutor, TDATA);
-    const isTrial = trialInfo.enabled && (b.mode === "trial" || !!b.isTrial);
     const offerPrice = Math.max(0, Math.min(99999, b.offerPrice != null ? Math.round(Number(b.offerPrice)) : (Number(tutor.price) || 1200)));
 
     const priceEl = document.getElementById("bid-price");
@@ -472,13 +474,9 @@
     }
     const subBtn = document.getElementById("bid-submit-btn");
     if (subBtn) {
-      if (isTrial) {
-        subBtn.innerHTML = `<span>Сөп · ${trialInfo.free ? "Записаться бесплатно" : `Пробный ${trialInfo.price.toLocaleString("ru-RU")} ₽`}</span>`;
-      } else {
-        const subLbl = subBtn.querySelector && (subBtn.querySelector("[data-bid-lbl]") || subBtn.querySelector("span"));
-        if (subLbl) subLbl.textContent = bidBtnLabelHTML(false, offerPrice);
-        else subBtn.innerHTML = sakhaBidInnerHTML(false, offerPrice, { attr: 'data-bid-lbl="1"' });
-      }
+      const subLbl = subBtn.querySelector && (subBtn.querySelector("[data-bid-lbl]") || subBtn.querySelector("span"));
+      if (subLbl) subLbl.textContent = bidBtnLabelHTML(false, offerPrice);
+      else subBtn.innerHTML = sakhaBidInnerHTML(false, offerPrice, { attr: 'data-bid-lbl="1"' });
     }
     const sigEl = document.getElementById("bid-signal");
     if (sigEl) {
@@ -568,14 +566,20 @@
     </div>`;
   }
 
-  function marketSectionHTML() {
+  function marketSectionHTML(opts) {
     const TDATA = getTDATA();
     if (!TDATA) return "";
+    const isLanding = !!(opts && opts.landing);
+    const ui = getUi();
     const st = getMkt();
     const days = TDATA.buildCalendarDays(7);
-    const activeDayObj = st.day !== "all" ? (days.find((d) => d.iso === st.day) || null) : null;
     const list = TDATA.filterTutors(st, days);
     const fCount = activeFilterCount(st);
+    const pageSize = 8;
+    const visibleLimit = isLanding ? Math.max(pageSize, Number(ui.mktVisibleCount) || pageSize) : list.length;
+    const visibleList = isLanding ? list.slice(0, visibleLimit) : list;
+    const hasMore = isLanding && visibleList.length < list.length;
+    const totalCatalog = Number(TDATA.CATALOG_TOTAL) || 2480;
 
     const activeChips = [];
     if (st.subject !== "all") {
@@ -589,8 +593,15 @@
     if (st.hour !== "all") activeChips.push(`<button type="button" class="chip-btn on" data-a="mkt-reset-chip" data-k="hour">${esc(st.hour)} ×</button>`);
 
     const sortLabels = { actual: "По соответствию", price_asc: "Сначала дешевле", rating_desc: "По рейтингу" };
+    const feedTailHTML = (list.length && isLanding)
+      ? (hasMore
+          ? `<div class="mkt-scroll-sentinel" id="mkt-scroll-sentinel" data-has-more="1">
+              <button type="button" class="btn ghost sm" data-a="mkt-load-more">Показать ещё (${visibleList.length} из ${list.length})</button>
+            </div>`
+          : `<div class="mkt-feed-end" id="mkt-feed-end">Конец списка</div>`)
+      : "";
     const cardsHTML = list.length
-      ? `<div class="tutor-grid">${list.map((t) => tutorCardHTML(t)).join("")}</div>`
+      ? `<div class="tutor-grid" id="mkt-tutor-grid">${visibleList.map((t) => tutorCardHTML(t)).join("")}</div>${feedTailHTML}`
       : `<div class="empty">
           <b>По выбранным фильтрам пока никого нет.</b>
           <span>Попробуй расширить бюджет или сбросить фильтры.</span>
@@ -609,7 +620,7 @@
     return `<section class="land-sec" id="land-market" aria-label="Маркетплейс репетиторов">
       <div class="land-sec-head">
         <div>
-          <div class="eyebrow">Огромная база · ${TDATA.CATALOG_TOTAL ? TDATA.CATALOG_TOTAL.toLocaleString("ru-RU") + "+ анкет" : "Ykt, Telegram, WhatsApp, MAX и др."}</div>
+          <div class="eyebrow">Огромная база · <span class="num" data-countup="${totalCatalog}">${totalCatalog.toLocaleString("ru-RU")}</span>+ анкет</div>
           <h2 class="h2">Ищи репетиторов ниже рынка для любой задачи</h2>
         </div>
       </div>
@@ -1203,6 +1214,7 @@
   EGE.views.marketplace = {
     configure,
     hasMinBalance,
+    resolveTutorGuarantee,
     resolveTutorTrial,
     cardDiffTagsHTML,
     bookingModalHTML,

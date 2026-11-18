@@ -188,13 +188,36 @@
         }
         return;
       }
+      if (id === "land-market") {
+        ui.landWhiteStage = true;
+        if (typeof document !== "undefined") {
+          if (document.body && document.body.classList) document.body.classList.add("is-land-white");
+          const lp = typeof document.querySelector === "function" ? document.querySelector(".land-page:not(#brandbook-page)") : null;
+          if (lp && lp.dataset) lp.dataset.whiteLockUntil = String(Date.now() + 1400);
+          if (lp && lp.classList) lp.classList.add("is-white-stage");
+          const top = lp && typeof lp.querySelector === "function" ? lp.querySelector(".land-top") : null;
+          if (top && top.classList) top.classList.add("is-scrolled-light");
+          const bar = typeof document.getElementById === "function" ? document.getElementById("land-mobile-sticky") : null;
+          if (bar && bar.classList) bar.classList.add("is-hidden");
+        }
+      }
       if (node && typeof node.scrollIntoView === "function") {
         node.scrollIntoView({ behavior: "smooth", block: "start" });
       }
-      if (id === "land-market" && typeof document.getElementById === "function") {
-        const bar = document.getElementById("land-mobile-sticky");
-        if (bar && bar.classList) bar.classList.add("is-hidden");
-      }
+    },
+    "mkt-load-more": () => {
+      ui.mktVisibleCount = (Number(ui.mktVisibleCount) || 8) + 8;
+      scheduleRender();
+    },
+    "coop-open": () => { ui.coopModal = true; renderModal(); },
+    "coop-close": () => { ui.coopModal = false; renderModal(); },
+    "coop-to-apply": () => {
+      ui.coopModal = false;
+      ui.tutorApply = ui.tutorApply || { name: "", subject: "eng", rate: 1100, contact: "", error: "" };
+      ui.tutorApply.error = "";
+      ui.tutorApplyModal = true;
+      ui.focusNext = "ta-name";
+      renderModal();
     },
     "hero-copy-next": () => {
       if (EGE.views && EGE.views.landing && typeof EGE.views.landing.nextHeroVariant === "function") {
@@ -323,12 +346,13 @@
       saveMkt();
       scheduleRender();
     },
-    "mkt-clear-q": () => { mkt().q = ""; saveMkt(); ui.focusNext = "mkt-q"; scheduleRender(); },
-    "mkt-bumped-set": (el) => { mkt().onlyBumped = el.dataset.v === "1"; saveMkt(); scheduleRender(); },
+    "mkt-clear-q": () => { mkt().q = ""; ui.mktVisibleCount = 8; saveMkt(); ui.focusNext = "mkt-q"; scheduleRender(); },
+    "mkt-bumped-set": (el) => { mkt().onlyBumped = el.dataset.v === "1"; ui.mktVisibleCount = 8; saveMkt(); scheduleRender(); },
     "mkt-sort-cycle": () => {
       const order = ["actual", "price_asc", "rating_desc"];
       const st = mkt();
       st.sort = order[(order.indexOf(st.sort) + 1) % order.length];
+      ui.mktVisibleCount = 8;
       saveMkt();
       scheduleRender();
     },
@@ -337,6 +361,7 @@
       if (!k) return;
       const def = defaultMarketState();
       if (Object.prototype.hasOwnProperty.call(def, k)) st[k] = def[k];
+      ui.mktVisibleCount = 8;
       saveMkt();
       scheduleRender();
     },
@@ -359,19 +384,20 @@
       st.onlyBumped = false;
       st.day = sat ? sat.iso : "all";
       st.hour = "10:00";
+      ui.mktVisibleCount = 8;
       saveMkt();
       toast("Фильтр: Английский · ЕГЭ · Сб 10:00");
       scheduleRender();
     },
-    "mkt-exam": (el) => { mkt().exam = el.dataset.v || "all"; saveMkt(); scheduleRender(); },
-    "mkt-format": (el) => { mkt().format = el.dataset.v || "all"; saveMkt(); scheduleRender(); },
-    "mkt-city": (el) => { mkt().city = el.dataset.v || "all"; saveMkt(); scheduleRender(); },
-    "mkt-subj": (el) => { mkt().subject = el.dataset.v || "all"; saveMkt(); scheduleRender(); },
-    "mkt-price": (el) => { mkt().maxPrice = Number(el.dataset.v) || 2000; saveMkt(); scheduleRender(); },
-    "mkt-bumped": () => { const st = mkt(); st.onlyBumped = !st.onlyBumped; saveMkt(); scheduleRender(); },
-    "mkt-sort": (el) => { mkt().sort = el.dataset.v || "actual"; saveMkt(); scheduleRender(); },
-    "mkt-day": (el) => { mkt().day = el.dataset.v || "all"; saveMkt(); scheduleRender(); },
-    "mkt-hour": (el) => { mkt().hour = el.dataset.v || "all"; saveMkt(); scheduleRender(); },
+    "mkt-exam": (el) => { mkt().exam = el.dataset.v || "all"; ui.mktVisibleCount = 8; saveMkt(); scheduleRender(); },
+    "mkt-format": (el) => { mkt().format = el.dataset.v || "all"; ui.mktVisibleCount = 8; saveMkt(); scheduleRender(); },
+    "mkt-city": (el) => { mkt().city = el.dataset.v || "all"; ui.mktVisibleCount = 8; saveMkt(); scheduleRender(); },
+    "mkt-subj": (el) => { mkt().subject = el.dataset.v || "all"; ui.mktVisibleCount = 8; saveMkt(); scheduleRender(); },
+    "mkt-price": (el) => { mkt().maxPrice = Number(el.dataset.v) || 2000; ui.mktVisibleCount = 8; saveMkt(); scheduleRender(); },
+    "mkt-bumped": () => { const st = mkt(); st.onlyBumped = !st.onlyBumped; ui.mktVisibleCount = 8; saveMkt(); scheduleRender(); },
+    "mkt-sort": (el) => { mkt().sort = el.dataset.v || "actual"; ui.mktVisibleCount = 8; saveMkt(); scheduleRender(); },
+    "mkt-day": (el) => { mkt().day = el.dataset.v || "all"; ui.mktVisibleCount = 8; saveMkt(); scheduleRender(); },
+    "mkt-hour": (el) => { mkt().hour = el.dataset.v || "all"; ui.mktVisibleCount = 8; saveMkt(); scheduleRender(); },
     "mkt-reset": () => {
       const cur = mkt(), fresh = defaultMarketState();
       fresh.planId = cur.planId;
@@ -381,6 +407,7 @@
       fresh.favs = cur.favs;
       fresh.bookings = cur.bookings;
       ui.market = fresh;
+      ui.mktVisibleCount = 8;
       saveMkt();
       scheduleRender();
     },
@@ -432,15 +459,10 @@
       const tutor = TDATA.LIST.find((x) => x.id === el.dataset.id);
       if (!tutor) return;
       const mktViews = EGE.views && EGE.views.marketplace;
-      const trialInfo = mktViews && typeof mktViews.resolveTutorTrial === "function"
-        ? mktViews.resolveTutorTrial(tutor, TDATA)
-        : { enabled: tutor.trialMode !== "none" && tutor.trialPrice !== null, free: tutor.trialMode === "free" || Number(tutor.trialPrice) === 0, price: tutor.trialMode === "free" ? 0 : ((TDATA && TDATA.TRIAL_PRICE != null) ? Number(TDATA.TRIAL_PRICE) : 490) };
-      if (!trialInfo.enabled) {
-        toast("Этот преподаватель работает без пробного урока — предложите свою ставку");
-        return;
-      }
+      const gInfo = mktViews && typeof mktViews.resolveTutorGuarantee === "function"
+        ? mktViews.resolveTutorGuarantee(tutor)
+        : { enabled: !!tutor.firstLessonGuarantee };
       const st = mkt();
-      const trialRub = trialInfo.price;
       const days = TDATA.buildCalendarDays(7);
       const pickDay = (st.day !== "all" ? days.find((d) => d.iso === st.day) : null)
         || days.find((d) => TDATA.tutorSlotsForDay(tutor, d.dow).length > 0)
@@ -450,50 +472,14 @@
       const hour = isValidHHMM(wantedHour) ? wantedHour : (daySlots[0] || "10:00");
       const exam = st.exam !== "all" && tutor.exams.includes(st.exam) ? st.exam : tutor.exams[0];
       const format = st.format !== "all" && tutor.formats.includes(st.format) ? st.format : tutor.formats[0];
-      const draft = { tutorId: tutor.id, mode: "trial", isTrial: true, exam, format, dayIso: pickDay.iso, hour, offerPrice: trialRub, note: "" };
-      if (!trialInfo.free && trialRub > 0 && (Number(st.balance) || 0) < trialRub) {
-        ui.balanceModal = {
-          customAmount: trialRub,
-          error: "",
-          reason: `Для записи на пробный урок 60 мин (${trialRub} ₽) пополните баланс по СБП — сумма заморозится на эскроу и защищена 100% гарантией замены.`,
-          pendingBooking: draft
-        };
-        renderModal();
-        return;
-      }
-      ui.booking = draft;
-      renderModal();
-    },
-    "book-mode": (el) => {
-      if (!ui.booking || !TDATA) return;
-      const tutor = TDATA.LIST.find((x) => x.id === ui.booking.tutorId);
-      const mktViews = EGE.views && EGE.views.marketplace;
-      const trialInfo = mktViews && typeof mktViews.resolveTutorTrial === "function"
-        ? mktViews.resolveTutorTrial(tutor, TDATA)
-        : { enabled: tutor && tutor.trialMode !== "none" && tutor.trialPrice !== null, free: tutor && (tutor.trialMode === "free" || Number(tutor.trialPrice) === 0), price: tutor && tutor.trialMode === "free" ? 0 : ((TDATA && TDATA.TRIAL_PRICE != null) ? Number(TDATA.TRIAL_PRICE) : 490) };
-      const mode = el.dataset.v === "trial" ? "trial" : "paid";
-      if (mode === "trial" && !trialInfo.enabled) return;
-      const st = mkt();
-      const trialRub = trialInfo.price != null ? trialInfo.price : 0;
-      if (mode === "trial" && !trialInfo.free && trialRub > 0 && (Number(st.balance) || 0) < trialRub) {
-        const pending = Object.assign({}, ui.booking, { mode: "trial", isTrial: true, offerPrice: trialRub });
-        ui.booking = null;
-        ui.balanceModal = {
-          customAmount: trialRub,
-          error: "",
-          reason: `Пополните баланс по СБП минимум на ${trialRub} ₽ — сумма удерживается на эскроу за полноценный пробный урок 60 мин с 100% гарантией замены.`,
-          pendingBooking: pending
-        };
-        renderModal();
-        return;
-      }
       const cardOffers = ui.cardOffers || {};
-      const regularOffer = tutor && cardOffers[tutor.id] != null
+      const offerPrice = (cardOffers[tutor.id] != null && Number.isFinite(Number(cardOffers[tutor.id])))
         ? Math.max(0, Math.min(99999, Math.round(Number(cardOffers[tutor.id]))))
-        : Math.max(0, (tutor && Number(tutor.price)) || 1200);
-      ui.booking.mode = mode;
-      ui.booking.isTrial = mode === "trial";
-      ui.booking.offerPrice = mode === "trial" ? trialRub : regularOffer;
+        : Math.max(0, Number(tutor.price) || 1200);
+      ui.booking = { tutorId: tutor.id, mode: "paid", firstLessonGuarantee: !!gInfo.enabled, exam, format, dayIso: pickDay.iso, hour, offerPrice, note: "" };
+      if (!gInfo.enabled) {
+        toast("Преподаватель не проводит первый урок бесплатно — запись по обычной ставке");
+      }
       renderModal();
     },
     "go-student-lead": () => {
@@ -596,31 +582,18 @@
       if (!tutor) return;
       const st = mkt();
       const mktViews = EGE.views && EGE.views.marketplace;
-      const trialInfo = mktViews && typeof mktViews.resolveTutorTrial === "function"
-        ? mktViews.resolveTutorTrial(tutor, TDATA)
-        : { enabled: tutor.trialMode !== "none" && tutor.trialPrice !== null, free: tutor.trialMode === "free" || Number(tutor.trialPrice) === 0, price: tutor.trialMode === "free" ? 0 : ((TDATA && TDATA.TRIAL_PRICE != null) ? Number(TDATA.TRIAL_PRICE) : 490) };
-      const isTrial = trialInfo.enabled && (b.mode === "trial" || !!b.isTrial);
-      const trialRub = trialInfo.price != null ? trialInfo.price : 490;
-      if (isTrial && !trialInfo.free && trialRub > 0 && (Number(st.balance) || 0) < trialRub) {
-        const pending = Object.assign({}, b, { mode: "trial", isTrial: true, offerPrice: trialRub });
-        ui.booking = null;
-        ui.balanceModal = {
-          customAmount: trialRub,
-          error: "",
-          reason: `Пополните баланс по СБП минимум на ${trialRub} ₽ для записи на пробный урок 60 мин (СБП-эскроу).`,
-          pendingBooking: pending
-        };
-        renderModal();
-        return;
-      }
+      const gInfo = mktViews && typeof mktViews.resolveTutorGuarantee === "function"
+        ? mktViews.resolveTutorGuarantee(tutor)
+        : { enabled: !!tutor.firstLessonGuarantee };
+      const hasGuarantee = !!gInfo.enabled;
       const days = TDATA.buildCalendarDays(7);
       const dayObj = days.find((d) => d.iso === b.dayIso) || days[0];
       const daySlots = TDATA.tutorSlotsForDay(tutor, dayObj.dow);
       const hour = isValidHHMM(b.hour) ? b.hour : (daySlots[0] || "10:00");
       const domPriceEl = $("#bid-price");
       const domNoteEl = $("#bid-note");
-      const rawPriceVal = !isTrial && domPriceEl && domPriceEl.value !== "" ? Number(domPriceEl.value) : (b.offerPrice != null ? Number(b.offerPrice) : tutor.price);
-      const offerPrice = isTrial ? trialRub : Math.max(0, Math.min(99999, Number.isFinite(rawPriceVal) ? Math.round(rawPriceVal) : tutor.price));
+      const rawPriceVal = domPriceEl && domPriceEl.value !== "" ? Number(domPriceEl.value) : (b.offerPrice != null ? Number(b.offerPrice) : tutor.price);
+      const offerPrice = Math.max(0, Math.min(99999, Number.isFinite(rawPriceVal) ? Math.round(rawPriceVal) : tutor.price));
       const noteText = String((domNoteEl ? domNoteEl.value : b.note) || "").trim();
       const feeSplit = typeof TDATA.commissionSplit === "function"
         ? TDATA.commissionSplit(offerPrice)
@@ -642,7 +615,8 @@
         dayLabel: dayObj.shortLabel,
         hour,
         offerPrice,
-        isTrial,
+        isTrial: false,
+        firstLessonGuarantee: hasGuarantee,
         fee: feeSplit.fee,
         payout: feeSplit.payout,
         tutorPrice: tutor.price,
@@ -660,22 +634,19 @@
         EGE.realtime.publish({
           channel: "tutor",
           eventType: "market.bid.created",
-          title: isTrial ? (trialRub === 0 ? "Новая заявка на бесплатный пробный урок" : `Новая заявка на пробный урок (${trialRub} ₽)`) : "Новая ставка от ученика",
-          message: `${tutor.name} · ${dayObj.shortLabel}, ${hour} (${offerPrice === 0 ? "Бесплатно" : offerPrice.toLocaleString("ru-RU") + " ₽/ч"})`,
+          title: "Новая ставка от ученика",
+          message: `${tutor.name} · ${dayObj.shortLabel}, ${hour} (${offerPrice.toLocaleString("ru-RU")} ₽/ч)`,
           tutorSlug: String(tutor.id || ""),
           payload: Object.assign({}, newBooking)
         });
       }
       renderModal();
+      const gNote = hasGuarantee ? " · возврат за 1-й урок при отказе" : "";
       notifySide(
-        isTrial ? (trialRub === 0 ? "Заявка на бесплатный пробный отправлена" : `Заявка на пробный урок (${trialRub} ₽ · СБП-эскроу) отправлена`) : "Предложение передано преподавателю",
-        isTrial
-          ? (trialRub === 0
-              ? `${tutor.name} · бесплатный пробный урок · уведомим о подтверждении`
-              : `${tutor.name} · заморожено на эскроу ${reserved.toLocaleString("ru-RU")} ₽ (100% гарантия замены)`)
-          : (reserved
-              ? `Ставка ${offerPrice.toLocaleString("ru-RU")} ₽/ч · зарезервировано ${reserved.toLocaleString("ru-RU")} ₽ · уведомим о подтверждении`
-              : `Ставка ${offerPrice.toLocaleString("ru-RU")} ₽/ч отправлена — уведомим о подтверждении`)
+        "Предложение передано преподавателю",
+        reserved
+          ? `Ставка ${offerPrice.toLocaleString("ru-RU")} ₽/ч · зарезервировано ${reserved.toLocaleString("ru-RU")} ₽${gNote}`
+          : `Ставка ${offerPrice.toLocaleString("ru-RU")} ₽/ч отправлена${gNote}`
       );
       scheduleRender();
     },

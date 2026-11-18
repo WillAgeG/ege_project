@@ -784,6 +784,9 @@
   function setTheme(mode, silent) {
     themeMode = mode === "light" || mode === "dark" ? mode : "auto";
     try { localStorage.setItem(THEME_LS, themeMode); } catch (e) { /* недоступно */ }
+    if (!silent && typeof document !== "undefined" && document.body && document.body.dataset) {
+      document.body.dataset.userDark = themeMode === "dark" ? "1" : "0";
+    }
     applyTheme();
     scheduleRender();
     if (!silent) toast(themeMode === "dark" ? "Включена тёмная тема" : themeMode === "light" ? "Включена светлая тема" : "Тема как в системе");
@@ -868,6 +871,9 @@
     motion: { playing: true, preset: "design", step: 0, slot: "10:00", offer: 1200, sent: false, clicking: false, hitTarget: "" },
     savings: { freq: 2, marketRate: 1350, offerRate: 1000 },
     bbModal: false,
+    coopModal: false,
+    mktVisibleCount: 8,
+    landWhiteStage: false,
     brandbook: { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, vpWidth: 390, chipOn: true, sent: false, fav: true, switchVal: "online", multiSubjs: ["bio", "chem"], multiMenuOpen: false, pickedPlan: "month10k", quizOpt: 1, marketDemoAccepted: false, reducedMotion: false, balFunded: true, chartStyle: "sticks", chartDataset: "income", chartActiveIdx: 3, chartLines: 1, chartPoints: 7, linePtIdx: 3, donutDataset: "channels", donutSliceIdx: 0, tableCols: 5, tableFilter: "all", tableSearch: "", maskPhone: "+7 (914) 210-05-11", maskTg: "@aytal_bio", maskMax: "aytal_ege", payMethod: "sbp", payState: "frozen", payInitialDone: false, tablePreset: "requests", confirmedRows: {}, essayOpenIdx: 0 }
   };
   const MARKET_LS_KEY = "vektor-ege:market";
@@ -1361,6 +1367,22 @@
       </div>
     </div>`;
   }
+  function coopModalHTML() {
+    return `<div class="modal-back" role="dialog" aria-modal="true" aria-labelledby="coop-modal-title">
+      <div class="modal-card">
+        <div class="modal-head">
+          <div class="row" style="gap:8px">${icon("users")}<b id="coop-modal-title">Сотрудничество с Вектор</b></div>
+          <button type="button" class="icon-btn sm" data-a="coop-close" aria-label="Закрыть">${icon("x")}</button>
+        </div>
+        <p class="small ink2" style="margin:0;line-height:1.55">Работаем со школами, методическими центрами и независимыми преподавателями ЕГЭ и ОГЭ. Размещение анкеты в каталоге, гибкие ставки и расчёты через СБП — напишите на <b>${BUG_EMAIL}</b> или отправьте анкету напрямую.</p>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <a class="btn" href="mailto:${BUG_EMAIL}?subject=${encodeURIComponent("Сотрудничество с Вектор")}" target="_blank" rel="noopener">Написать на ${BUG_EMAIL}</a>
+          <button type="button" class="btn soft" data-a="coop-to-apply">Разместить анкету преподавателя</button>
+          <button type="button" class="btn ghost" data-a="coop-close">Закрыть</button>
+        </div>
+      </div>
+    </div>`;
+  }
   function renderModal() {
     const root = $("#modal-root");
     if (!root) return;
@@ -1385,6 +1407,7 @@
     if (ui.filterModal) { root.innerHTML = filterModalHTML(); restoreModalScroll(); return; }
     if (ui.booking) { root.innerHTML = bookingModalHTML(); restoreModalScroll(); return; }
     if (ui.tutorApplyModal) { root.innerHTML = tutorApplyModalHTML(); restoreModalScroll(); return; }
+    if (ui.coopModal) { root.innerHTML = coopModalHTML(); restoreModalScroll(); return; }
     if (ui.bbModal) {
       root.innerHTML = `<div class="modal-back" role="dialog" aria-modal="true" aria-labelledby="bb-modal-title">
         <div class="modal-card">
@@ -2319,7 +2342,7 @@
   document.addEventListener("click", (e) => {
     if (closeSelectMenus(e.target)) scheduleRender();
     if (e.target && e.target.classList && e.target.classList.contains("modal-back")) {
-      ui.bug = null; ui.booking = null; ui.authModal = false; ui.filterModal = false; ui.bbModal = false; ui.tutorApplyModal = false; ui.balanceModal = null; ui.payoutModal = null;
+      ui.bug = null; ui.booking = null; ui.authModal = false; ui.filterModal = false; ui.bbModal = false; ui.tutorApplyModal = false; ui.coopModal = false; ui.balanceModal = null; ui.payoutModal = null;
       renderModal();
       return;
     }
@@ -2411,7 +2434,7 @@
     }
     if (el.id === "subj-q") { ui.subjQ = el.value; scheduleRender(); return; }
     if (el.id === "guide-q") { ui.guideQ = el.value; scheduleRender(); return; }
-    if (el.id === "mkt-q" || el.id === "mkt-q-modal") { mkt().q = el.value; saveMkt(); scheduleRender(); return; }
+    if (el.id === "mkt-q" || el.id === "mkt-q-modal") { mkt().q = el.value; ui.mktVisibleCount = 8; saveMkt(); scheduleRender(); return; }
     if (el.id === "hero-banner-q") { ui.heroQuickQ = el.value; return; }
     if (el.id === "bb-hero-demo-q") { bbState().heroQ = el.value; return; }
     if (el.id === "bb-catalog-q") { bbState().catQ = el.value; scheduleRender(); return; }
@@ -2662,13 +2685,13 @@
     if (e.key === "Escape" && closeSelectMenus(null)) {
       scheduleRender();
     }
-    if (e.key === "Escape" && (ui.bug || ui.booking || ui.authModal || ui.filterModal || ui.bbModal || ui.tutorApplyModal || ui.balanceModal || ui.payoutModal)) {
+    if (e.key === "Escape" && (ui.bug || ui.booking || ui.authModal || ui.filterModal || ui.bbModal || ui.tutorApplyModal || ui.coopModal || ui.balanceModal || ui.payoutModal)) {
       e.preventDefault();
-      ui.bug = null; ui.booking = null; ui.authModal = false; ui.filterModal = false; ui.bbModal = false; ui.tutorApplyModal = false; ui.balanceModal = null; ui.payoutModal = null;
+      ui.bug = null; ui.booking = null; ui.authModal = false; ui.filterModal = false; ui.bbModal = false; ui.tutorApplyModal = false; ui.coopModal = false; ui.balanceModal = null; ui.payoutModal = null;
       renderModal();
       return;
     }
-    if (ui.bug || ui.booking || ui.authModal || ui.filterModal || ui.bbModal || ui.tutorApplyModal || ui.balanceModal || ui.payoutModal) return;
+    if (ui.bug || ui.booking || ui.authModal || ui.filterModal || ui.bbModal || ui.tutorApplyModal || ui.coopModal || ui.balanceModal || ui.payoutModal) return;
     if (e.target && e.target.id === "chat-input" && e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(ui.chat.draft); return; }
     if (ui.view !== "quiz" || !ui.quiz || ui.quiz.done || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.target && e.target.id === "self-text") return; // в поле развёрнутого ответа Enter — перенос строки

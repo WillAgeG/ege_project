@@ -600,23 +600,12 @@
         </div>
 
         <div class="field">
-          <span class="label">Пробный урок для новых учеников (по умолчанию 490 ₽)</span>
-          <div class="hh-seg" role="group" aria-label="Формат пробного урока">
-            <button type="button" data-a="tc-trial-mode" data-v="paid" aria-pressed="${!p.trialMode || p.trialMode === "paid"}">По своей цене (490 ₽)</button>
-            <button type="button" data-a="tc-trial-mode" data-v="free" aria-pressed="${p.trialMode === "free"}">Бесплатно (0 ₽)</button>
-            <button type="button" data-a="tc-trial-mode" data-v="none" aria-pressed="${p.trialMode === "none"}">Без пробного</button>
+          <span class="label">Первый урок с гарантией возврата</span>
+          <div class="hh-seg equal" role="group" aria-label="Гарантия первого урока">
+            <button type="button" data-a="tc-guarantee-set" data-v="1" aria-pressed="${p.firstLessonGuarantee !== false}">Готов вернуть за 1-й урок</button>
+            <button type="button" data-a="tc-guarantee-set" data-v="0" aria-pressed="${p.firstLessonGuarantee === false}">Без бесплатного 1-го</button>
           </div>
-          ${(!p.trialMode || p.trialMode === "paid") ? `<div class="row" style="gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px">
-            <div class="hh-price-stepper compact" style="max-width:290px;flex:1 1 220px">
-              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="trialPrice" data-step="-50">−50 ₽</button>
-              <label class="hh-step-readout is-inline" for="tc-trial-price-inp">
-                <input class="demo-rate-input num" id="tc-trial-price-inp" name="trialPrice" data-tc="trialPrice" type="number" min="0" max="99999" step="50" value="${Number(p.trialPrice) > 0 ? Number(p.trialPrice) : 490}" style="max-width:78px">
-                <span class="hh-step-unit">₽</span>
-              </label>
-              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="trialPrice" data-step="50">+50 ₽</button>
-            </div>
-            <span class="small muted">0 ₽ автоматически сделает пробный бесплатным.</span>
-          </div>` : `<span class="small muted" style="margin-top:4px">${p.trialMode === "free" ? "На вашей карточке будет кнопка «Пробный · Бесплатно»." : "Кнопка пробного урока скрыта с вашей анкеты — сразу запись по ставке."}</span>`}
+          <span class="small muted" style="margin-top:4px">${p.firstLessonGuarantee !== false ? "Если первый урок не понравится ученику, платформа вернёт 100% оплаты из резерва СБП." : "На анкете будет серый статус «Без бесплатного 1-го» — все занятия оплачиваются по обычной ставке."}</span>
         </div>
 
         <div class="bid-fee-row">${feeSplitHTML(p.price, TDATA)}</div>
@@ -1015,19 +1004,14 @@
       return true;
     }
 
-    if (act === "tc-trial-mode") {
-      const m = ["paid", "free", "none"].includes(d.v) ? d.v : "paid";
-      st.profile.trialMode = m;
-      if (m === "none") {
-        st.profile.trialPrice = null;
-        st.profile.trialFree = false;
-      } else if (m === "free") {
-        st.profile.trialPrice = 0;
-        st.profile.trialFree = true;
-      } else {
-        st.profile.trialPrice = Number(st.profile.trialPrice) > 0 ? Math.min(99999, Math.round(Number(st.profile.trialPrice))) : 490;
-        st.profile.trialFree = false;
-      }
+    if (act === "tc-guarantee-set" || act === "tc-trial-mode") {
+      const enabled = act === "tc-guarantee-set"
+        ? (d.v === "1" || d.v === "true")
+        : d.v === "free";
+      st.profile.firstLessonGuarantee = enabled;
+      st.profile.trialMode = enabled ? "free" : "none";
+      st.profile.trialPrice = enabled ? 0 : null;
+      st.profile.trialFree = enabled;
       syncPublishedTutor(st);
       saveState();
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
@@ -1035,21 +1019,9 @@
     }
 
     if (act === "tc-rate-step") {
-      const which = d.which === "minFair" ? "minFair" : (d.which === "trialPrice" ? "trialPrice" : "price");
+      const which = d.which === "minFair" ? "minFair" : "price";
       const step = Number(d.step) || 0;
-      if (which === "trialPrice") {
-        const base = Number(st.profile.trialPrice) > 0 ? Number(st.profile.trialPrice) : 490;
-        const nextTp = clampStep(base, step, 0, 99999);
-        if (nextTp === 0) {
-          st.profile.trialMode = "free";
-          st.profile.trialPrice = 0;
-          st.profile.trialFree = true;
-        } else {
-          st.profile.trialMode = "paid";
-          st.profile.trialPrice = nextTp;
-          st.profile.trialFree = false;
-        }
-      } else if (which === "price") {
+      if (which === "price") {
         st.profile.price = clampStep(st.profile.price, step, 0, 99999);
         if (st.profile.minFair > st.profile.price) st.profile.minFair = Math.max(0, st.profile.price - 50);
       } else {
@@ -1559,16 +1531,12 @@
     else if (key === "expYears") p.expYears = Math.max(1, Math.min(50, Number(el.value) || 1));
     else if (key === "avgScore") p.avgScore = Math.max(40, Math.min(100, Number(el.value) || 80));
     else if (key === "highScorers") p.highScorers = Math.max(0, Math.min(500, Number(el.value) || 0));
-    else if (key === "trialPrice") {
-      const raw = Number(el.value);
-      if (Number.isFinite(raw)) {
-        const clamped = Math.max(0, Math.min(99999, Math.round(raw)));
-        p.trialPrice = clamped;
-        p.trialMode = clamped === 0 ? "free" : "paid";
-        p.trialFree = clamped === 0;
-      }
+    else if (key === "firstLessonGuarantee" || key === "trialFree") {
+      p.firstLessonGuarantee = !!el.checked;
+      p.trialFree = p.firstLessonGuarantee;
+      p.trialMode = p.firstLessonGuarantee ? "free" : "none";
+      p.trialPrice = p.firstLessonGuarantee ? 0 : null;
     }
-    else if (key === "trialFree") p.trialFree = !!el.checked;
     else if (key === "badge0" || key === "badge1") {
       if (!Array.isArray(p.customBadges)) p.customBadges = ["", ""];
       p.customBadges[key === "badge0" ? 0 : 1] = String(el.value || "").slice(0, 36);
@@ -1746,16 +1714,12 @@
     if (els.expYears) p.expYears = Math.max(1, Math.min(50, Number(els.expYears.value) || p.expYears));
     if (els.avgScore) p.avgScore = Math.max(40, Math.min(100, Number(els.avgScore.value) || p.avgScore));
     if (els.highScorers) p.highScorers = Math.max(0, Math.min(500, Number(els.highScorers.value) || 0));
-    if (els.trialPrice) {
-      const tp = Number(els.trialPrice.value);
-      if (Number.isFinite(tp)) {
-        const cl = Math.max(0, Math.min(99999, Math.round(tp)));
-        p.trialPrice = cl;
-        p.trialMode = cl === 0 ? "free" : "paid";
-        p.trialFree = cl === 0;
-      }
-    } else if (els.trialFree) {
-      p.trialFree = !!els.trialFree.checked;
+    if (els.firstLessonGuarantee || els.trialFree) {
+      const g = !!(els.firstLessonGuarantee ? els.firstLessonGuarantee.checked : els.trialFree.checked);
+      p.firstLessonGuarantee = g;
+      p.trialFree = g;
+      p.trialMode = g ? "free" : "none";
+      p.trialPrice = g ? 0 : null;
     }
     if (els.badge0 || els.badge1) {
       if (!Array.isArray(p.customBadges)) p.customBadges = ["", ""];
