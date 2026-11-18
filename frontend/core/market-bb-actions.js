@@ -169,6 +169,14 @@
       let node = id ? document.getElementById(id) : null;
       if (!node && ui.view === "brandbook" && id) {
         const bb = bbState();
+        const subApi = EGE.brandbookSubsites;
+        if (bb.subsite && bb.subsite !== "all" && subApi && typeof subApi.subsiteForSection === "function") {
+          const targetSub = subApi.subsiteForSection(id);
+          if (targetSub && targetSub !== "all") {
+            bb.subsite = targetSub;
+            if (typeof subApi.syncSubsiteUrl === "function") subApi.syncSubsiteUrl(targetSub, false);
+          }
+        }
         bb.cat = "all";
         bb.catQ = "";
         scheduleRender();

@@ -13,14 +13,20 @@ body[data-auth="1"] .auth-wrap { margin: 8vh auto; padding: 0 16px; }
   display: grid; grid-template-columns: minmax(0, 1fr); gap: 36px;
 }
 .land-top {
-  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 25;
-  display: flex; align-items: center; justify-content: space-between; gap: 14px;
-  padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--r);
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
-  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-  min-width: 0; max-width: 100%;
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30;
+  width: 100vw; margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw);
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 12px max(24px, calc((100vw - 1340px) / 2));
+  border: 0; border-bottom: 1px solid var(--line); border-radius: 0;
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  min-width: 0;
 }
-.land-top + .land-hero-banner { margin-top: -16px; }
+body:not([data-auth="1"]):not([data-fullbleed="1"]):not([data-brandbook="1"]) .land-top {
+  width: calc(100% + 32px); margin-left: -16px; margin-right: -16px; margin-top: -30px;
+  padding-inline: 20px;
+}
+.land-top + .land-hero-banner { margin-top: -8px; }
 .land-top .brand-lockup { flex: none; min-width: 0; }
 .land-top .brand-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .land-links {
@@ -739,10 +745,15 @@ body[data-auth="1"] .auth-wrap { margin: 8vh auto; padding: 0 16px; }
 
 /* единый сегментный степпер цены -100 ₽ / +100 ₽ без двойных рамок */
 .hh-price-stepper {
-  display: grid; grid-template-columns: 88px minmax(0, 1fr) 88px; gap: 3px; align-items: stretch;
+  display: grid;
+  grid-template-columns: minmax(64px, auto) minmax(max-content, 1fr) minmax(64px, auto);
+  gap: 4px; align-items: center;
   min-height: 44px; padding: 3px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2);
 }
-.hh-price-stepper.compact { grid-template-columns: 76px minmax(0, 1fr) 76px; min-height: 38px; }
+.hh-price-stepper.compact {
+  grid-template-columns: minmax(52px, auto) minmax(max-content, 1fr) minmax(52px, auto);
+  min-height: 38px;
+}
 .hh-step-btn {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 0; min-height: 36px; padding: 0 10px; border-radius: 9px; border: 0;
@@ -751,14 +762,18 @@ body[data-auth="1"] .auth-wrap { margin: 8vh auto; padding: 0 16px; }
   box-shadow: 0 1px 2px rgba(20, 21, 23, .06);
   transition: transform .12s ease, background-color .15s ease, color .15s ease;
 }
-.hh-price-stepper.compact .hh-step-btn { min-height: 30px; font-size: 13px; padding: 0 8px; }
+.hh-price-stepper.compact .hh-step-btn { min-height: 30px; font-size: 12.5px; padding: 0 8px; }
 .hh-step-btn:hover { background: var(--accent-soft); color: var(--accent); }
 .hh-step-btn:active, .hh-step-btn.is-hit { transform: scale(.96); background: var(--accent); color: #fff; }
 .hh-step-readout {
-  display: grid; align-content: center; justify-items: center; text-align: center;
-  gap: 1px; line-height: 1.15; padding: 2px 6px; min-width: 0;
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  gap: 4px; line-height: 1.15; padding: 2px 6px; min-width: 0; white-space: nowrap;
 }
-.hh-step-readout b { font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
+.hh-step-readout b {
+  font-size: 15.5px; font-weight: 700; letter-spacing: -.01em;
+  white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.hh-price-stepper.compact .hh-step-readout b { font-size: 14px; }
 
 .motion-bid-btn {
   position: relative; overflow: visible; width: 100%; justify-content: center;
@@ -1142,8 +1157,8 @@ body[data-auth="1"] .auth-wrap { margin: 8vh auto; padding: 0 16px; }
   .land-below-grid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 680px) {
-  .land-top { border-radius: 14px; padding: 8px 10px; }
-  .land-top + .land-hero-banner { margin-top: -10px; }
+  .land-top { padding: 10px 14px; border-radius: 0; }
+  .land-top + .land-hero-banner { margin-top: -12px; }
   .land-hero-banner {
     min-height: 430px; padding: 22px 18px 20px; border-radius: 20px; gap: 24px;
     justify-content: flex-end;

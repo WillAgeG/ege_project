@@ -81,8 +81,8 @@
       <img class="hero-banner-bg" src="/assets/lena-pillars.jpg" alt="Природа Якутии — Ленские столбы на рассвете над рекой Леной" decoding="sync">
       <div class="hero-banner-scrim" aria-hidden="true"></div>
       <div class="hero-banner-top">
-        <h1 class="${isDemo ? "h2" : "hero-banner-h1"}">Ищи репетиторов ниже рынка для подготовки к чему угодно</h1>
-        <p class="hero-banner-sub">Единая база анкет с Доски Ykt, Telegram, WhatsApp и MAX: выбирай час 10:00–20:00 и предлагай свою ставку шагом ±100 ₽.</p>
+        <h1 class="${isDemo ? "h2" : "hero-banner-h1"}">Назначай цену сам — репетиторы дешевле рынка на 15–30%</h1>
+        <p class="hero-banner-sub">Проверенные преподаватели, слоты по часу 10:00–20:00 и безопасная оплата через СБП после подтверждения.</p>
         <div class="hero-banner-ctas" role="group" aria-label="Главные действия">
           <button type="button" class="btn hero-cta-primary${primaryActive ? " is-confirmed" : ""}" data-a="${esc(primaryAction)}" data-target="${esc(primaryTarget)}">${primaryActive ? "✓ Открыт каталог анкет" : "Найти ниже рынка"}</button>
           <button type="button" class="btn hero-cta-secondary${betaActive ? " is-confirmed" : ""}" data-a="${esc(betaAction)}" data-target="${esc(betaTarget)}">${icon("spark")}<span>${betaActive ? "✓ Бета-тест запущен" : "Попробовать бета-тест"}</span></button>

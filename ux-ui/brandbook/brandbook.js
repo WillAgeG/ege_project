@@ -94,6 +94,11 @@
   ];
 
   const BB_DEFAULTS = {
+    subsite: "",
+    deviceView: "split",
+    deviceScreen: "landing",
+    deviceTheme: "light",
+    apiGroup: "all",
     mode: "both",
     hour: 14,
     price: 1200,
@@ -154,6 +159,10 @@
     dualRole: "student"
   };
 
+  function subSitesAPI() {
+    return (root.EGE && root.EGE.brandbookSubsites) || null;
+  }
+
   function ensureBrandbookState(ui) {
     const bb = ui.brandbook || (ui.brandbook = {});
     for (const k in BB_DEFAULTS) {
@@ -161,6 +170,14 @@
         const defVal = BB_DEFAULTS[k];
         bb[k] = Array.isArray(defVal) ? defVal.slice() : (defVal && typeof defVal === "object" ? {} : defVal);
       }
+    }
+    if (!bb.subsite) {
+      const subApi = subSitesAPI();
+      const resolved = subApi && typeof subApi.resolveInitialRoute === "function"
+        ? subApi.resolveInitialRoute()
+        : { subsite: "all", deviceView: null };
+      bb.subsite = resolved.subsite || "all";
+      if (resolved.deviceView) bb.deviceView = resolved.deviceView;
     }
     if (!bb.confirmedRows || typeof bb.confirmedRows !== "object") bb.confirmedRows = {};
     bb.chartLines = Math.max(1, Math.min(20, Math.round(Number(bb.chartLines) || 1)));
@@ -221,7 +238,11 @@
         </label>
       </div>
       ${hits.length ? `<div class="bb-catalog-grid">
-        ${hits.map((it) => `<article class="bb-catalog-card">
+        ${hits.map((it) => {
+          const subApi = subSitesAPI();
+          const secSub = subApi && typeof subApi.subsiteForSection === "function" ? subApi.subsiteForSection(it.targetId) : "";
+          const routeTag = secSub && subApi && typeof subApi.subsiteHref === "function" ? subApi.subsiteHref(secSub) : "";
+          return `<article class="bb-catalog-card">
           <div class="stack" style="gap:4px">
             <div class="row between" style="gap:6px;align-items:flex-start">
               <b style="font-size:13.5px;line-height:1.25">${esc(it.title)}</b>
@@ -230,13 +251,17 @@
             <p class="small muted" style="margin:0;line-height:1.35">${esc(it.desc)}</p>
           </div>
           <div class="stack" style="gap:6px">
-            <code class="bb-catalog-code">${esc(it.api)}</code>
+            <div class="row between" style="gap:6px;align-items:center">
+              <code class="bb-catalog-code">${esc(it.api)}</code>
+              ${routeTag ? `<span class="small muted num" style="font-family:var(--font-mono);font-size:10.5px">${esc(routeTag)}</span>` : ""}
+            </div>
             <div class="row between" style="gap:6px">
               <button type="button" class="btn soft sm" data-a="bb-copy-token" data-copy="${esc(it.api)}">Копировать API</button>
-              <button type="button" class="btn ghost sm" data-a="land-scroll" data-target="${esc(it.targetId)}">К разделу ↓</button>
+              <button type="button" class="btn ghost sm" data-a="land-scroll" data-target="${esc(it.targetId)}">Открыть ↓</button>
             </div>
           </div>
-        </article>`).join("")}
+        </article>`;
+        }).join("")}
       </div>` : `<div class="empty"><b>По запросу «${esc(curQ)}» компоненты не найдены</b><span>Попробуй: Hero, Оһуор, WCAG, /market, slider или Do/Don't.</span><button type="button" class="btn soft sm" data-a="bb-cat-clear">Показать все разделы</button></div>`}
     </section>`;
   }
@@ -2399,12 +2424,24 @@
     const panes = (mode === "light" || mode === "both" ? brandbookPaneHTML(false, bb) : "") +
       (mode === "dark" || mode === "both" ? brandbookPaneHTML(true, bb) : "");
 
+    const subApi = subSitesAPI();
+    const subsite = bb.subsite || "all";
+    const subMeta = subApi && typeof subApi.getSubsiteMeta === "function" ? subApi.getSubsiteMeta(subsite) : null;
+    const allowedSecs = (subMeta && Array.isArray(subMeta.sections) && subMeta.sections[0] !== "*")
+      ? new Set(subMeta.sections)
+      : null;
     const iconCatalog = getIconCatalog(dark);
     const activeIconItem = bb.activeIcon ? iconCatalog.find((it) => it[0] === bb.activeIcon) : null;
     const catHits = filterCatalogItems(bb);
     const hasFilter = (bb.cat && bb.cat !== "all") || String(bb.catQ || "").trim().length > 0;
     const matchTargetIds = new Set(catHits.map((it) => it.targetId));
     const showSec = (id) => {
+      if (subsite === "hub") {
+        if (!hasFilter) return false;
+        if (matchTargetIds.has(id)) return true;
+        return !String(bb.catQ || "").trim() && bb.cat && bb.cat !== "all" && BB_SECTION_CATS[id] === bb.cat;
+      }
+      if (allowedSecs && !allowedSecs.has(id)) return false;
       if (!hasFilter) return true;
       if (matchTargetIds.has(id)) return true;
       if (!String(bb.catQ || "").trim() && bb.cat && bb.cat !== "all") {
@@ -2510,54 +2547,43 @@
       ["bb-compare", "Light vs Dark"]
     ];
 
-    return `<div class="land-page${bb.reducedMotion ? " is-reduced" : ""}" id="brandbook-page">
-      <header class="land-top">
-        ${brandLockupHTML({ tag: "Брендбук", sub: "UX/UI дизайн-система Вектор ЕГЭ" })}
-        <nav class="land-links" aria-label="Разделы брендбука">
-          <a href="#bb-catalog" data-a="land-scroll" data-target="bb-catalog">Каталог</a>
-          <a href="#bb-logo" data-a="land-scroll" data-target="bb-logo">Лого</a>
-          <a href="#bb-surfaces" data-a="land-scroll" data-target="bb-surfaces">Цвета</a>
-          <a href="#bb-hero-banner" data-a="land-scroll" data-target="bb-hero-banner">Hero Ленские</a>
-          <a href="#bb-yakutia" data-a="land-scroll" data-target="bb-yakutia">Узоры Саха</a>
-          <a href="#bb-market-app" data-a="land-scroll" data-target="bb-market-app">/market</a>
-          <a href="#bb-cabinet" data-a="land-scroll" data-target="bb-cabinet">Кабинет</a>
-          <a href="#bb-data-viz" data-a="land-scroll" data-target="bb-data-viz">Графики и таблица</a>
-          <a href="#bb-payments" data-a="land-scroll" data-target="bb-payments">Оплата</a>
-          <a href="#bb-ui-kit-shells" data-a="land-scroll" data-target="bb-ui-kit-shells">Shell-виджеты</a>
-          <a href="#bb-telemetry-etl" data-a="land-scroll" data-target="bb-telemetry-etl">ETL и Логи</a>
-          <a href="#bb-admin-kit" data-a="land-scroll" data-target="bb-admin-kit">Админ</a>
-          <a href="#bb-arch-split" data-a="land-scroll" data-target="bb-arch-split">UI Kit ↔ API</a>
-          <a href="#bb-ege-timers" data-a="land-scroll" data-target="bb-ege-timers">ЕГЭ-2027</a>
-          <a href="#bb-a11y" data-a="land-scroll" data-target="bb-a11y">A11y</a>
-          <a href="#bb-dodont" data-a="land-scroll" data-target="bb-dodont">Правила</a>
-        </nav>
-        <div class="land-top-actions">
-          <button type="button" class="btn ghost sm" data-a="go" data-v="landing">На /landing</button>
-          <button type="button" class="icon-btn sm" data-a="theme-toggle" aria-label="Сменить тему" title="Сменить тему">${icon(dark ? "sun" : "moon")}</button>
-          ${inside ? `<button type="button" class="btn sm" data-a="go" data-v="${ctx.ui && ctx.ui.role === "tutor" ? "cabinet" : "tests"}">В кабинет</button>` : `<button type="button" class="btn sm" data-a="auth-modal-open">Войти</button>`}
-        </div>
-      </header>
+    const anchorLinks = subsite === "all"
+      ? tocLinks
+      : (allowedSecs ? tocLinks.filter(([id]) => allowedSecs.has(id)) : []);
+    const showCatalogNav = ["hub", "ui-kit", "all"].includes(subsite);
+    const showDeviceStage = ["hub", "home"].includes(subsite) && !hasFilter;
+    const showHubCards = subsite === "hub" && !hasFilter;
+    const showApiPortal = subsite === "api";
 
-      <section class="card pad-lg stack" style="gap:14px">
-        <div class="row between" style="gap:12px;flex-wrap:wrap">
-          <div class="stack" style="gap:6px">
-            <div class="eyebrow">UI Kit &amp; Brandbook · hh.ru</div>
-            <h1 class="h1">Дизайн-система: Белый, Чёрный, Синий + переходы и границы</h1>
-            <p class="lead">Единые правила пространства, видимых границ и живых переходов: Синий #0070FF переходит в Зелёный «Подтверждено», «Подробнее» углубляется без сливания с фоном, выше рынка отмечено фиолетовым (высокая квалификация), а уведомления строго оранжевые.</p>
-          </div>
-          <div class="row" style="gap:6px;flex-wrap:wrap">
-            <button type="button" class="chip-btn${mode === "both" ? " on" : ""}" data-a="bb-mode" data-v="both">Белый + Чёрный рядом</button>
-            <button type="button" class="chip-btn${mode === "light" ? " on" : ""}" data-a="bb-mode" data-v="light">Только белый вид</button>
-            <button type="button" class="chip-btn${mode === "dark" ? " on" : ""}" data-a="bb-mode" data-v="dark">Только чёрный вид</button>
-          </div>
-        </div>
-      </section>
+    return `<div class="land-page${bb.reducedMotion ? " is-reduced" : ""}" id="brandbook-page" data-bb-subsite="${esc(subsite)}">
+      ${subApi && typeof subApi.portalHeaderHTML === "function"
+        ? subApi.portalHeaderHTML(bb, { dark, inside, ui: ctx.ui || {} })
+        : `<header class="land-top">
+            ${brandLockupHTML({ tag: "Брендбук", sub: "UX/UI дизайн-система Вектор ЕГЭ" })}
+            <div class="land-top-actions">
+              <button type="button" class="btn ghost sm" data-a="go" data-v="landing">На /landing</button>
+              <button type="button" class="icon-btn sm" data-a="theme-toggle" aria-label="Сменить тему">${icon(dark ? "sun" : "moon")}</button>
+              ${inside ? `<button type="button" class="btn sm" data-a="go" data-v="${ctx.ui && ctx.ui.role === "tutor" ? "cabinet" : "tests"}">В кабинет</button>` : `<button type="button" class="btn sm" data-a="auth-modal-open">Войти</button>`}
+            </div>
+          </header>`}
 
-      ${catalogNavigatorHTML(bb)}
+      ${subApi && typeof subApi.subsiteHeroHTML === "function"
+        ? subApi.subsiteHeroHTML(bb, anchorLinks)
+        : `<section class="card pad-lg stack" style="gap:14px"><h1 class="h1">Дизайн-система Вектор ЕГЭ</h1></section>`}
 
-      <nav class="bb-toc" id="bb-toc" aria-label="Быстрый переход по разделам брендбука">
-        ${tocLinks.map(([id, lbl]) => `<a class="bb-toc-link" href="#${id}" data-a="land-scroll" data-target="${id}">${lbl}</a>`).join("")}
-      </nav>
+      ${showDeviceStage && subApi && typeof subApi.deviceShowcaseSectionHTML === "function"
+        ? subApi.deviceShowcaseSectionHTML(bb)
+        : ""}
+
+      ${showHubCards && subApi && typeof subApi.hubDirectoryHTML === "function"
+        ? subApi.hubDirectoryHTML(bb)
+        : ""}
+
+      ${showApiPortal && subApi && typeof subApi.apiPortalSectionHTML === "function"
+        ? subApi.apiPortalSectionHTML(bb)
+        : ""}
+
+      ${showCatalogNav ? catalogNavigatorHTML(bb) : ""}
 
       ${showSec("bb-logo") ? logoSectionHTML() : ""}
 
@@ -3127,6 +3153,8 @@
         <div class="${mode === "both" ? "bb-cols" : "stack"}">${panes}</div>
       </section>` : ""}
 
+      ${subApi && typeof subApi.subsitePagerHTML === "function" ? subApi.subsitePagerHTML(subsite) : ""}
+
       ${blueBannerHTML({
         title: "Готово по брендбуку — посмотри собранный сайт /landing",
         subtitle: "Все секции /landing теперь собираются напрямую из единого каталога EGE.kit (/brandbook) без дублирующей разметки.",
@@ -3286,6 +3314,50 @@
     const toast = typeof hooks.toast === "function" ? hooks.toast : (() => {});
     const copy = typeof hooks.copy === "function" ? hooks.copy : (() => {});
 
+    if (act === "bb-subsite") {
+      const subApi = subSitesAPI();
+      const raw = ds.v || (el && el.getAttribute && el.getAttribute("href")) || "hub";
+      const cleanRaw = String(raw).replace(/^\/brandbook\/?/, "");
+      const parsed = subApi && typeof subApi.parseSubsiteInput === "function"
+        ? subApi.parseSubsiteInput(cleanRaw || "hub")
+        : { subsite: cleanRaw || "hub", deviceView: null };
+      bb.subsite = parsed.subsite;
+      if (parsed.deviceView) bb.deviceView = parsed.deviceView;
+      bb.cat = "all";
+      bb.catQ = "";
+      if (subApi && typeof subApi.syncSubsiteUrl === "function") {
+        const urlSlug = parsed.deviceView || parsed.subsite;
+        subApi.syncSubsiteUrl(urlSlug, false);
+      }
+      try {
+        if (typeof window !== "undefined" && typeof window.scrollTo === "function") {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+      } catch (e) { /* игнор */ }
+      render();
+      return true;
+    }
+    if (act === "bb-dev-view") {
+      bb.deviceView = ["split", "desktop", "mobile"].includes(ds.v) ? ds.v : "split";
+      render();
+      return true;
+    }
+    if (act === "bb-dev-screen") {
+      bb.deviceScreen = ["landing", "student", "tutor"].includes(ds.v) ? ds.v : "landing";
+      render();
+      return true;
+    }
+    if (act === "bb-dev-theme") {
+      bb.deviceTheme = ds.v === "dark" ? "dark" : "light";
+      render();
+      return true;
+    }
+    if (act === "bb-api-group") {
+      const v = ds.v || "all";
+      bb.apiGroup = ["all", "auth", "realtime", "calendar", "admin"].includes(v) ? v : "all";
+      render();
+      return true;
+    }
     if (act === "bb-mode") {
       bb.mode = ["both", "light", "dark"].includes(ds.v) ? ds.v : "both";
       render();

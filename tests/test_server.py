@@ -93,6 +93,7 @@ def test_static_asset_allowlist(tmp_path: Path) -> None:
             "/ux-ui/components/charts.js",
             "/ux-ui/components/tables.js",
             "/ux-ui/components/kit.js",
+            "/ux-ui/brandbook/subsites.js",
             "/ux-ui/brandbook/brandbook.js",
             "/data/plan.js",
             "/data/essay.js",
@@ -696,7 +697,26 @@ def test_landing_and_tutors_catalog(tmp_path: Path) -> None:
         assert r_bb.status_code == 200
         assert "<title>Вектор ЕГЭ — Брендбук</title>" in r_bb.text
         assert 'window.EGE_HOST={backend:true,site:"brandbook"};' in r_bb.text
+        assert 'src="ux-ui/brandbook/subsites.js"' in r_bb.text
         assert 'src="app.js"' in r_bb.text
+
+        for sub_slug in (
+            "api",
+            "ui-kit",
+            "home",
+            "mobile",
+            "desktop",
+            "marketplace",
+            "dataviz",
+            "admin",
+            "data",
+            "all",
+        ):
+            r_sub = client.get(f"/brandbook/{sub_slug}")
+            assert r_sub.status_code == 200, sub_slug
+            assert f'bbSite:"{sub_slug}"' in r_sub.text
+
+        assert client.get("/brandbook/nonexistent-page").status_code == 404
 
         r_fees = client.get("/fees")
         assert r_fees.status_code == 200

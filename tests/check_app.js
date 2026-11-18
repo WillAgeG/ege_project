@@ -977,6 +977,7 @@
     assert(new Set(globalThis.EGE.tutors.LIST.map((t) => t.source)).size >= 3 && globalThis.EGE.tutors.LIST.every((t) => Boolean(t.source) && t.availableFrom && t.availableTo && (t.tier === "pro" ? (t.price > t.marketPrice && t.abovePct > 0 && t.aboveRub > 0) : (t.marketPrice > t.price && t.belowPct > 0 && t.belowRub > 0))), "expected multi-channel sources, window and below/above-market metadata on all tutors");
 
     const landHtml = env5.elements.get("main").innerHTML;
+    assert(landHtml.includes("Назначай цену сам — репетиторы дешевле рынка на 15–30%") && landHtml.includes("Проверенные преподаватели, слоты по часу 10:00–20:00 и безопасная оплата через СБП после подтверждения"), "expected updated Hero headline and SBP subtitle on landing");
     assert(!landHtml.includes("Бесплатная") && landHtml.includes("ИИ-Старт ЕГЭ") && landHtml.includes("Пробный урок · 60 мин") && landHtml.includes("Мини-группа Саха") && landHtml.includes("Стандарт · 4 урока") && landHtml.includes("Интенсив · Месяц под ключ"), "expected 5-tier SBP subscription ladder without free tutor plan on landing");
     assert(landHtml.includes("Супер-подписка") && landHtml.includes("plan-card featured super"), "expected distinct super class and badge on flagship tariff");
     assert(landHtml.includes("390 ₽/мес") && landHtml.includes("990 ₽") && landHtml.includes("2 190 ₽") && landHtml.includes("4 590 ₽") && landHtml.includes("8 900 ₽") && landHtml.includes('id="sbp-escrow-explainer"') && landHtml.includes("Верхняя полоса PRO") && landHtml.includes("1 490 ₽/мес"), "expected 390/990/2190/4590/8900 prices, SBP escrow explainer and tutor PRO plan on landing");
@@ -1844,6 +1845,38 @@
     clickAction(env5, { a: "bb-dual-role", v: "student" });
     await flushMicrotasks(1);
 
+    // Подсайты брендбука (/brandbook/*), чистые превью Desktop/Mobile и контракты API
+    clickAction(env5, { a: "bb-subsite", v: "hub" });
+    await flushMicrotasks(2);
+    const bbHubHtml = env5.elements.get("main").innerHTML;
+    assert(bbHubHtml.includes('id="bb-device-showcase"') && bbHubHtml.includes('id="bb-hub-directory"') && !bbHubHtml.includes('id="bb-data-viz"'), "expected bb-subsite=hub to render device showcase and hub directory");
+
+    clickAction(env5, { a: "bb-subsite", v: "home" });
+    await flushMicrotasks(2);
+    const bbHomeHtml = env5.elements.get("main").innerHTML;
+    assert(bbHomeHtml.includes('id="bb-device-showcase"') && bbHomeHtml.includes('id="bb-hero-banner"') && bbHomeHtml.includes("Назначай цену сам — репетиторы дешевле рынка на 15–30%"), "expected bb-subsite=home to render device showcase, updated hero headline and hero showcase");
+    clickAction(env5, { a: "bb-dev-view", v: "desktop" });
+    await flushMicrotasks(2);
+    const bbDesktopOnly = env5.elements.get("main").innerHTML;
+    assert(bbDesktopOnly.includes('data-device="desktop"') && !bbDesktopOnly.includes('data-device="mobile"'), "expected bb-dev-view=desktop to show isolated desktop preview");
+    clickAction(env5, { a: "bb-dev-view", v: "mobile" });
+    await flushMicrotasks(2);
+    const bbMobileOnly = env5.elements.get("main").innerHTML;
+    assert(bbMobileOnly.includes('data-device="mobile"') && !bbMobileOnly.includes('data-device="desktop"'), "expected bb-dev-view=mobile to show isolated mobile preview");
+
+    clickAction(env5, { a: "bb-subsite", v: "api" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes('id="bb-api-contracts"') && env5.elements.get("main").innerHTML.includes("/api/admin/overview") && !env5.elements.get("main").innerHTML.includes('id="bb-data-viz"'), "expected bb-subsite=api to show API contracts portal");
+    clickAction(env5, { a: "bb-api-group", v: "calendar" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("/api/calendar/{token}.ics") && !env5.elements.get("main").innerHTML.includes("/api/auth/login"), "expected bb-api-group=calendar to filter API endpoints");
+
+    for (const sid of ["ui-kit", "dataviz", "admin", "data", "all"]) {
+      clickAction(env5, { a: "bb-subsite", v: sid });
+      await flushMicrotasks(2);
+      assert(env5.elements.get("main").innerHTML.includes('data-bb-subsite="' + sid + '"'), "expected bb-subsite=" + sid + " active");
+    }
+
     // Живой тренажёр масок контактов (#bb-mask-trainer)
     clickAction(env5, { a: "bb-mask-sample", phone: "89245553311", tg: "@sakha_tutor", max: "sakha_max" });
     await flushMicrotasks(2);
@@ -2138,6 +2171,7 @@
       "ux-ui/components/charts.js",
       "ux-ui/components/tables.js",
       "ux-ui/components/kit.js",
+      "ux-ui/brandbook/subsites.js",
       "ux-ui/brandbook/brandbook.js"
     ];
     for (const uif of uiKitFiles) {

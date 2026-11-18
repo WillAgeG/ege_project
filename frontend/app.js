@@ -804,7 +804,7 @@
       if (p === "/student") return "student";
       if (p === "/tutor" || p === "/teacher" || p === "/cabinet" || p === "/fees") return "tutor";
       if (p === "/admin") return "admin";
-      if (p === "/brandbook") return "brandbook";
+      if (p === "/brandbook" || p.indexOf("/brandbook/") === 0) return "brandbook";
     } catch (e) { /* игнор */ }
     return "";
   }
@@ -999,7 +999,7 @@
     }
     try {
       if (!h && typeof location !== "undefined") {
-        if (location.pathname === "/brandbook" || HOST_SITE === "brandbook") { ui.view = "brandbook"; return; }
+        if (location.pathname === "/brandbook" || (location.pathname && location.pathname.indexOf("/brandbook/") === 0) || HOST_SITE === "brandbook") { ui.view = "brandbook"; return; }
         if (location.pathname === "/fees" || (typeof window !== "undefined" && window.EGE_HOST && window.EGE_HOST.view === "fees")) {
           if (HOST_SITE === "tutor") ui.role = "tutor";
           ui.view = "fees";
@@ -1034,6 +1034,7 @@
     writeHash();
   }
   function writeHash() {
+    if (HOST_SITE === "brandbook" && ui.view === "brandbook") return;
     const tcTab = ui.view === "cabinet" && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.getTab === "function" ? EGE.views.tutorCabinet.getTab() : "";
     const admTab = ui.view === "admin" && EGE.views.admin && typeof EGE.views.admin.getTab === "function" ? EGE.views.admin.getTab() : "";
     const tok = ui.view === "cabinet"
@@ -1071,6 +1072,17 @@
     const sameView = lastRenderedView === ui.view;
     const savedScrollY = (!scrollTopPending && sameView && typeof window !== "undefined" && typeof window.scrollY === "number") ? window.scrollY : null;
     const authGate = store.backend && !store.user && !ui.guest;
+    try {
+      if (document.body && document.body.dataset) {
+        if (ui.view === "brandbook" && HOST_SITE === "brandbook") document.body.dataset.brandbook = "1";
+        else delete document.body.dataset.brandbook;
+        if (ui.view === "landing" || (ui.view === "fees" && !(HOST_SITE === "tutor" || ui.role === "tutor"))) {
+          document.body.dataset.fullbleed = "1";
+        } else {
+          delete document.body.dataset.fullbleed;
+        }
+      }
+    } catch (e) { /* игнор */ }
     setAuthLayout(authGate);
     if (!authGate) renderChrome();
     const main = $("#main");
@@ -2309,8 +2321,9 @@
     const el = e.target.closest("[data-a]") || e.target.closest("[data-act]");
     if (!el || el.disabled) return;
     const hrefAttr = el.tagName === "A" ? el.getAttribute("href") : "";
-    const isExtLink = !!(hrefAttr && !hrefAttr.startsWith("#"));
     const act = (el.dataset && (el.dataset.a || el.dataset.act)) || "";
+    const isModifiedClick = !!(e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || (typeof e.button === "number" && e.button !== 0));
+    const isExtLink = !!(hrefAttr && !hrefAttr.startsWith("#") && !(act === "bb-subsite" && hrefAttr.indexOf("/brandbook") === 0 && !isModifiedClick));
     if (act && act.indexOf("tc-") === 0 && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.handleAction === "function") {
       if (EGE.views.tutorCabinet.handleAction(act, el)) { if (!isExtLink) e.preventDefault(); return; }
     }
@@ -2783,6 +2796,24 @@
   EGE.views.progress.configure(appCtx);
   EGE.views.progress.registerActions(ACTIONS);
   EGE.registerMarketBbActions(appCtx, ACTIONS);
+  try {
+    if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+      window.addEventListener("popstate", () => {
+        if (typeof location !== "undefined" && location.pathname && (location.pathname === "/brandbook" || location.pathname.indexOf("/brandbook/") === 0)) {
+          const subApi = EGE.brandbookSubsites;
+          const slug = location.pathname === "/brandbook" ? "hub" : location.pathname.slice("/brandbook/".length);
+          const parsed = subApi && typeof subApi.parseSubsiteInput === "function"
+            ? subApi.parseSubsiteInput(slug)
+            : { subsite: slug || "hub", deviceView: null };
+          if (!ui.brandbook) ui.brandbook = {};
+          ui.brandbook.subsite = parsed.subsite;
+          if (parsed.deviceView) ui.brandbook.deviceView = parsed.deviceView;
+          ui.view = "brandbook";
+          scheduleRender(true);
+        }
+      });
+    }
+  } catch (e) { /* игнор */ }
   // ---------- запуск ----------
   readHash();
   readQueryError();

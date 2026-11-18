@@ -27,6 +27,31 @@ SITE_TITLES = {
     "brandbook": "Вектор ЕГЭ — Брендбук",
 }
 
+BB_SUBSITE_TITLES = {
+    "hub": "Обзор системы",
+    "home": "Главная · Mobile & Desktop",
+    "mobile": "Mobile Главная (390 px)",
+    "desktop": "Desktop Главная (1440 px)",
+    "landing": "Главная · Mobile & Desktop",
+    "showcase": "Главная · Mobile & Desktop",
+    "ui-kit": "UI Kit & Токены",
+    "tokens": "UI Kit & Токены",
+    "components": "UI Kit & Токены",
+    "marketplace": "Маркетплейс & СБП",
+    "product": "Маркетплейс & СБП",
+    "payments": "Маркетплейс & СБП",
+    "dataviz": "DataViz & Таблицы",
+    "charts": "DataViz & Таблицы",
+    "tables": "DataViz & Таблицы",
+    "api": "API & Контракты",
+    "architecture": "API & Контракты",
+    "admin": "Admin UI Kit",
+    "data": "Data Platform & ETL",
+    "etl": "Data Platform & ETL",
+    "telemetry": "Data Platform & ETL",
+    "all": "Полный индекс",
+}
+
 
 def render_index_html(
     root_dir: Path = ROOT_DIR,
@@ -34,12 +59,15 @@ def render_index_html(
     landing: bool = False,
     site: str | None = None,
     view: str | None = None,
+    bb_site: str | None = None,
 ) -> str:
     frontend_dir = root_dir / "frontend"
     raw = (frontend_dir / "index.html").read_text(encoding="utf-8")
 
     if site == "tutor" and view == "fees":
         page_title = "Вектор ЕГЭ — Выплаты преподавателя"
+    elif site == "brandbook" and bb_site and bb_site in BB_SUBSITE_TITLES:
+        page_title = f"Вектор ЕГЭ — Брендбук · {BB_SUBSITE_TITLES[bb_site]}"
     else:
         page_title = SITE_TITLES.get(site or "")
     if page_title:
@@ -57,6 +85,8 @@ def render_index_html(
         parts.append(f"site:{json.dumps(site)}")
     if view:
         parts.append(f"view:{json.dumps(view)}")
+    if bb_site:
+        parts.append(f"bbSite:{json.dumps(bb_site)}")
     flag_script = "<script>window.EGE_HOST={" + ",".join(parts) + "};</script>"
 
     target = '<script src="app.js"></script>'
@@ -106,6 +136,16 @@ def register_shell_routes(app: FastAPI, root_dir: Path = ROOT_DIR) -> None:
     async def brandbook_page() -> HTMLResponse:
         return HTMLResponse(
             content=render_index_html(root_dir, site="brandbook"),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @app.get("/brandbook/{subsite}", response_class=HTMLResponse)
+    async def brandbook_subsite_page(subsite: str) -> HTMLResponse:
+        slug = (subsite or "").strip().lower()
+        if slug not in BB_SUBSITE_TITLES:
+            raise HTTPException(status_code=404, detail="Not found")
+        return HTMLResponse(
+            content=render_index_html(root_dir, site="brandbook", bb_site=slug),
             headers={"Cache-Control": "no-store"},
         )
 
