@@ -362,7 +362,7 @@
             <div class="hh-step-readout"><b class="num">${price.toLocaleString("ru-RU")} ₽/ч</b></div>
             <button type="button" class="hh-step-btn" data-a="bb-step" data-step="50">+50 ₽</button>
           </div>
-          <button type="button" class="btn sakha-pattern sm${sent ? " is-confirmed" : ""}" data-a="bb-bid">${sakhaBidInnerHTML(sent, price, { short: true, size: 15 })}</button>
+          <button type="button" class="btn sakha-pattern sm${sent ? " is-confirmed" : ""}" data-a="bb-bid">${sakhaBidInnerHTML(sent, price, { size: 15 })}</button>
         </article>
 
         <article class="card pad stack" style="gap:8px;box-shadow:none">
@@ -477,11 +477,11 @@
         <div class="hh-price-row">${priceHeadlineHTML(market, price, false)}</div>
         <div class="hh-diff-strip">${priceDiffTagsHTML({ tutorPrice: tutorRate, marketPrice: market, offerPrice: price, qualBadge: "Эксперт 95+" })}</div>
         <div class="hh-price-stepper compact">
-          <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-50">−50</button>
-          <div class="hh-step-readout"><b class="num">${price.toLocaleString("ru-RU")} ₽</b></div>
-          <button type="button" class="hh-step-btn" data-a="bb-step" data-step="50">+50</button>
+          <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-50">−50 ₽</button>
+          <div class="hh-step-readout"><b class="num">${price.toLocaleString("ru-RU")} ₽/ч</b></div>
+          <button type="button" class="hh-step-btn" data-a="bb-step" data-step="50">+50 ₽</button>
         </div>
-        <button type="button" class="btn sakha-pattern sm${sent ? " is-confirmed" : ""}" style="width:100%" data-a="bb-bid">${sakhaBidInnerHTML(sent, price, { short: true, size: 15 })}</button>
+        <button type="button" class="btn sakha-pattern sm${sent ? " is-confirmed" : ""}" style="width:100%" data-a="bb-bid">${sakhaBidInnerHTML(sent, price, { size: 15 })}</button>
       </article>
 
       <div class="bb-iphone-sticky-cta">

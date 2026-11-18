@@ -1410,6 +1410,16 @@ body:not([data-brandbook="1"]):not([data-auth="1"]):not([data-fullbleed="1"]) .b
   grid-template-columns: minmax(52px, auto) minmax(max-content, 1fr) minmax(52px, auto);
   min-height: 38px;
 }
+.hh-step-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 0; min-height: 36px; padding: 0 10px; border-radius: 9px; border: 0;
+  background: var(--surface); color: var(--ink); font-size: 13.5px; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(20, 21, 23, .06);
+  transition: transform .12s ease, background-color .15s ease, color .15s ease;
+}
+.hh-step-btn:hover { background: var(--accent-soft); color: var(--accent); }
+.hh-step-btn:active, .hh-step-btn.is-hit { transform: scale(.96); background: var(--accent); color: #fff; }
 .hh-price-stepper.compact .hh-step-btn { min-height: 30px; font-size: 12.5px; padding: 0 8px; white-space: nowrap; }
 .hh-step-readout {
   display: flex; align-items: center; justify-content: center; text-align: center;
@@ -1420,6 +1430,24 @@ body:not([data-brandbook="1"]):not([data-auth="1"]):not([data-fullbleed="1"]) .b
   white-space: nowrap; font-variant-numeric: tabular-nums;
 }
 .hh-price-stepper.compact .hh-step-readout b { font-size: 14px; }
+.hh-price-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; line-height: 1.15; }
+.hh-price-old { color: var(--muted); font-size: 15px; font-weight: 500; text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.hh-price-old.lg { font-size: 17px; }
+.hh-price-now { font-size: 23px; font-weight: 800; letter-spacing: -.02em; color: var(--ink); }
+.hh-price-now.lg { font-size: 27px; }
+.hh-diff-strip { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.diff-tag {
+  display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px;
+  border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid transparent; white-space: nowrap;
+}
+.diff-tag.market { background: var(--surface-2); border-color: var(--line); color: var(--muted); text-decoration: line-through; }
+.diff-tag.rate { background: var(--surface-2); border-color: var(--line); color: var(--ink-2); }
+.diff-tag.save-hot { background: var(--notif-soft); border-color: color-mix(in srgb, var(--notif) 30%, transparent); color: var(--notif); }
+.diff-tag.save-cool,
+.diff-tag.save-cyan { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 24%, transparent); color: var(--accent); }
+.diff-tag.pro { background: var(--pro-soft); border-color: color-mix(in srgb, var(--pro) 34%, transparent); color: var(--pro); }
+.diff-tag.confirm { background: var(--confirm-soft); border-color: color-mix(in srgb, var(--confirm) 32%, transparent); color: var(--confirm); }
+.bb-mock-cards-3 .btn.sakha-pattern.sm { font-size: 12.5px; padding-inline: 10px; white-space: nowrap; width: 100%; justify-content: center; }
 
 .bb-mock-app-shell {
   display: grid; grid-template-columns: 205px minmax(0, 1fr); gap: 12px; min-height: 310px;

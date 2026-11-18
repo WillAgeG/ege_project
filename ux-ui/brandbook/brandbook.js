@@ -2629,7 +2629,7 @@
             </div>
             <div class="hh-price-stepper compact" style="min-width:min(240px,100%)">
               <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-50">−50 ₽</button>
-              <div class="hh-step-readout"><b class="num">${bb.price.toLocaleString("ru-RU")} ₽</b></div>
+              <div class="hh-step-readout"><b class="num">${bb.price.toLocaleString("ru-RU")} ₽/ч</b></div>
               <button type="button" class="hh-step-btn" data-a="bb-step" data-step="50">+50 ₽</button>
             </div>
           </div>
@@ -2981,7 +2981,7 @@
               <div class="bb-bp-zone">
                 <div class="hh-price-stepper compact">
                   <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-50">−50 ₽</button>
-                  <div class="hh-step-readout"><b class="num">${bb.price.toLocaleString("ru-RU")} ₽</b></div>
+                  <div class="hh-step-readout"><b class="num">${bb.price.toLocaleString("ru-RU")} ₽/ч</b></div>
                   <button type="button" class="hh-step-btn" data-a="bb-step" data-step="50">+50 ₽</button>
                 </div>
               </div>

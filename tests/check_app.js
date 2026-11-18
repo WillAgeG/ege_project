@@ -1339,6 +1339,20 @@
       bbV2Html.includes("logo-animated.svg"),
       "expected brandLogoSVG & #bb-logo to emit 6-petal C6 swirl logo with gradient dark, #1f1a17 light, blue surface, and showcase SVG files"
     );
+    const p1200 = (1200).toLocaleString("ru-RU");
+    const homeSubHtml = globalThis.EGE.views.brandbook.viewBrandbook(
+      { inside: false },
+      { dark: false, ui: { role: "student", brandbook: { subsite: "home" } } }
+    );
+    assert(
+      homeSubHtml.includes("−50 ₽") &&
+      homeSubHtml.includes("+50 ₽") &&
+      homeSubHtml.includes(p1200 + " ₽/ч") &&
+      homeSubHtml.includes("Сөп · Предложить " + p1200 + " ₽") &&
+      !homeSubHtml.includes(">−50<") &&
+      !homeSubHtml.includes(">+50<"),
+      "expected canonical −50 ₽ / +50 ₽ / 1 200 ₽/ч / Сөп · Предложить 1 200 ₽ in home subsite"
+    );
     clickAction(env5, { a: "bb-logo-dl", surface: "blue", kind: "lockup" });
     await flushMicrotasks(2);
     assert(env5.elements.get("toast").innerHTML.includes("Экспорт SVG"), "expected bb-logo-dl to trigger SVG export side toast");
