@@ -549,14 +549,14 @@
       },
       {
         key: "rateStepper",
-        label: "Ставка ±100 ₽",
+        label: "Ставка ±50 ₽",
         num: true,
         render: (r) => {
           const rate = rowRateValue(r);
           return `<div class="hh-price-stepper compact">
-            <button type="button" class="hh-step-btn" data-a="bb-tbl-step" data-id="${esc(r.id || "")}" data-step="-100">−100 ₽</button>
+            <button type="button" class="hh-step-btn" data-a="bb-tbl-step" data-id="${esc(r.id || "")}" data-step="-50">−50 ₽</button>
             <div class="hh-step-readout"><b class="num">${rate.toLocaleString("ru-RU")} ₽/ч</b></div>
-            <button type="button" class="hh-step-btn" data-a="bb-tbl-step" data-id="${esc(r.id || "")}" data-step="100">+100 ₽</button>
+            <button type="button" class="hh-step-btn" data-a="bb-tbl-step" data-id="${esc(r.id || "")}" data-step="50">+50 ₽</button>
           </div>`;
         }
       },
@@ -715,7 +715,17 @@
       (root.EGE && root.EGE.kit && typeof root.EGE.kit.messengerLinksHTML === "function" && root.EGE.kit.messengerLinksHTML) ||
       null;
 
-    const allRows = Array.isArray(opts.rows) ? opts.rows : preset.rows;
+    const rawRows = Array.isArray(opts.rows) ? opts.rows : preset.rows;
+    const rateOverrides = (opts.rateOverrides && typeof opts.rateOverrides === "object") ? opts.rateOverrides : null;
+    const allRows = rateOverrides
+      ? rawRows.map((r) => {
+          const ov = r && r.id ? rateOverrides[r.id] : null;
+          if (!(Number(ov) > 0)) return r;
+          const rate = Math.round(Number(ov));
+          const net = Math.round(rate * 0.95);
+          return Object.assign({}, r, { rate, net, fee: rate - net });
+        })
+      : rawRows;
     const allFilters = Array.isArray(opts.filters) ? opts.filters : (hasCustomSchema ? [] : preset.filters);
     const rawColumns = hasCustomColumns
       ? opts.columns

@@ -613,7 +613,7 @@
             <button type="button" class="btn soft sm" data-a="adm-refresh"${state.loading ? " disabled" : ""}>${icon("repeat")}<span>${state.loading ? "Обновление…" : "Обновить"}</span></button>
           </div>
         </div>
-        <p class="lead">Модерация анкет, заявки и ставки ±100 ₽, выплаты НПД (95% / 5%) и контроль границ сервисов и аутбокса Kafka.</p>
+        <p class="lead">Модерация анкет, заявки и ставки ±50 ₽, выплаты НПД (95% / 5%) и контроль границ сервисов и аутбокса Kafka.</p>
       </div>
       ${roleBanner}
       <div class="hh-seg" role="group" aria-label="Разделы админ-панели" style="flex-wrap:wrap">
@@ -645,7 +645,7 @@
       { label: "GMV ₽", value: fmtRub(kpi.gmvRub), delta: "+18% · 100%", tone: "accent", note: "Подтверждённые уроки (эскроу)", action: "adm-tab", actionVal: "requests" },
       { label: "Выплаты 95% ₽", value: fmtRub(kpi.payoutRub), delta: "На руки репетитору", tone: "confirm", note: "СБП и Карта Мир ≥ 500 ₽", action: "adm-tab", actionVal: "payouts" },
       { label: "Сбор 5% ₽", value: fmtRub(kpi.feeRub), delta: "Комиссия 5%", tone: "gold", note: "Сервисный сбор платформы", action: "adm-tab", actionVal: "payouts" },
-      { label: "Активных заявок", value: String(kpi.pendingRequestsCount != null ? kpi.pendingRequestsCount : 0), delta: `Всего ${kpi.requestsCount || 0}`, tone: "notif", note: "Ожидают решения или торга ±100 ₽", action: "adm-tab", actionVal: "requests" },
+      { label: "Активных заявок", value: String(kpi.pendingRequestsCount != null ? kpi.pendingRequestsCount : 0), delta: `Всего ${kpi.requestsCount || 0}`, tone: "notif", note: "Ожидают решения или торга ±50 ₽", action: "adm-tab", actionVal: "requests" },
       { label: "Outbox Pending", value: String(kpi.outboxPending != null ? kpi.outboxPending : 0), delta: "Kafka v1", tone: "pro", note: "outbox.kafka_outbox (PG17)", action: "adm-tab", actionVal: "system" }
     ];
 
@@ -760,7 +760,7 @@
       },
       {
         key: "price",
-        label: "Ставка ±100 ₽",
+        label: "Ставка ±50 ₽",
         num: true,
         render: (r) => {
           const eff = Number(r.finalPriceRub || r.counterPriceRub || r.offerPriceRub || 0);
@@ -798,7 +798,7 @@
       id: "adm-requests-table",
       cardWrap: false,
       showPresetSwitch: false,
-      eyebrow: "Единый поток заявок · Торг ±100 ₽ и эскроу",
+      eyebrow: "Единый поток заявок · Торг ±50 ₽ и эскроу",
       title: "Заявки на занятия и статусы учеников",
       filter: state.filter,
       query: state.query,
@@ -865,7 +865,7 @@
       },
       {
         key: "rate",
-        label: "Ставка ±100 ₽",
+        label: "Ставка ±50 ₽",
         num: true,
         render: (t) => `<div class="stack" style="gap:2px"><b class="num">${fmtRub(t.baseRateRub)}/ч</b><span class="small muted num">рынок ${fmtRub(t.marketRateRub)}</span></div>`
       },

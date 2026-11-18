@@ -350,9 +350,9 @@
         <div class="hh-time-ticks" aria-hidden="true"><span>10:00</span><span>12:00</span><span>14:00</span><span>16:00</span><span>18:00</span><span>20:00</span></div>
       </div>
       <div class="hh-price-stepper">
-        <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-100">−100 ₽</button>
+        <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-50">−50 ₽</button>
         <div class="hh-step-readout"><b class="num">${bb.price.toLocaleString("ru-RU")} ₽/ч</b><span class="small muted">твоя ставка за час</span></div>
-        <button type="button" class="hh-step-btn" data-a="bb-step" data-step="100">+100 ₽</button>
+        <button type="button" class="hh-step-btn" data-a="bb-step" data-step="50">+50 ₽</button>
       </div>
       <article class="card tutor-card" style="box-shadow:none">
         <div class="stack" style="gap:8px">
@@ -388,12 +388,12 @@
 
       <div class="stack" style="gap:8px;padding-top:4px">
         <div class="hh-price-stepper compact">
-          <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-100">−100 ₽</button>
+          <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-50">−50 ₽</button>
           <label class="hh-step-readout is-inline">
-            <input class="demo-rate-input num" type="number" min="500" max="3000" step="100" value="${Number(bb.price) || 1200}" readonly aria-label="Ставка">
+            <input class="demo-rate-input num" type="number" min="500" max="3000" step="50" value="${Number(bb.price) || 1200}" readonly aria-label="Ставка">
             <span class="hh-step-unit">₽/ч</span>
           </label>
-          <button type="button" class="hh-step-btn" data-a="bb-step" data-step="100">+100 ₽</button>
+          <button type="button" class="hh-step-btn" data-a="bb-step" data-step="50">+50 ₽</button>
         </div>
         <div class="tc-autobump-card" style="padding:10px 12px">
           <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
@@ -594,7 +594,7 @@
           <button type="button" class="btn sm" data-a="bb-modal-open">Открыть пример модалки</button>
         </div>
       </div>
-      <div class="grid-2">
+      <div class="bb-plans-grid">
         ${plans.map(([id, price, name, badge, perks, extraCls]) => {
           const isPick = picked === id;
           const btnCls = isPick ? "btn sm is-confirmed" : (extraCls ? "btn sm" : "btn soft sm");
@@ -914,7 +914,7 @@
             </div>
             <div class="row between small muted" style="gap:6px;flex-wrap:wrap">
               <span>Готов уступить при записи на месяц</span>
-              <span class="num">Можно −100 ₽ от 900 ₽/ч</span>
+              <span class="num">Можно −50 ₽ от 900 ₽/ч</span>
             </div>
             <div class="slot-mini-row">
               <span class="small muted">Слоты:</span>
@@ -1006,7 +1006,7 @@
             <span class="bb-spec-pill">1 золотая линия · без двойных полос</span>
           </div>
           ${sakhaOhyorHTML("Вектор ЕГЭ · Саха", { goldLogo: true })}
-          <span class="small muted">Используется в подвале лендинга, под фильтрами и для отделения блоков — строго одна линия градиента Саха (#C59B5F) и золотой круглый знак по центру.</span>
+          <span class="small muted">Используется в подвале лендинга, под фильтрами и для отделения блоков — строго одна линия градиента Саха (#C59B5F) и золотой знак Саха по центру без круглой рамки.</span>
         </div>
       </section>`;
     }
@@ -1108,12 +1108,12 @@
           </div>
           <div class="stack" style="gap:6px">
             <div class="hh-price-stepper compact demo-rate-stepper">
-              <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-100">−100 ₽</button>
+              <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-50">−50 ₽</button>
               <label class="hh-step-readout is-inline" for="bb-inline-rate">
-                <input class="demo-rate-input num" id="bb-inline-rate" type="number" min="500" max="3000" step="100" value="${pRate}" readonly aria-label="Ставка в одну строку">
+                <input class="demo-rate-input num" id="bb-inline-rate" type="number" min="500" max="3000" step="50" value="${pRate}" readonly aria-label="Ставка в одну строку">
                 <span class="hh-step-unit">₽/ч</span>
               </label>
-              <button type="button" class="hh-step-btn" data-a="bb-step" data-step="100">+100 ₽</button>
+              <button type="button" class="hh-step-btn" data-a="bb-step" data-step="50">+50 ₽</button>
             </div>
             <span class="small muted">Число и «₽/ч» всегда в одну строку через <code>inline-flex</code>.</span>
           </div>
@@ -1545,7 +1545,8 @@
           showPresetSwitch: true,
           filter: tblFilter,
           query: tblQuery,
-          confirmedIds: bb.confirmedRows || {}
+          confirmedIds: bb.confirmedRows || {},
+          rateOverrides: bb.tableRates || null
         }) : ""}
       </div>
     </section>`;
@@ -1832,7 +1833,7 @@
         throughput: "1 850 rows/s",
         freshness: "< 1 s",
         target: "oltp.lesson_requests · outbox.kafka_outbox",
-        notes: "Транзакционное ядро анкет, торгов ±100 ₽, эскроу 95%/5% и outbox-таблица."
+        notes: "Транзакционное ядро анкет, торгов ±50 ₽, эскроу 95%/5% и outbox-таблица."
       },
       {
         engine: "polars",
@@ -2066,7 +2067,7 @@
       <div class="card pad stack" style="margin-top:12px;gap:12px">
         <div class="bb-dual-role-head">
           <div class="stack" style="gap:2px">
-            <b>${dualRole === "tutor" ? "Перспектива преподавателя · Мои ученики и автоуведомления" : "Перспектива ученика · Отправленные заявки и ставки ±100 ₽"}</b>
+            <b>${dualRole === "tutor" ? "Перспектива преподавателя · Мои ученики и автоуведомления" : "Перспектива ученика · Отправленные заявки и ставки ±50 ₽"}</b>
             <span class="small muted">${dualRole === "tutor" ? "Тот же schema-driven компонент EGE.charts.dataTableHTML в кабинете преподавателя" : "Единая таблица EGE.charts.dataTableHTML в кабинете ученика (/market и /study)"}</span>
           </div>
           <span class="bb-spec-pill">${dualRole === "tutor" ? "preset: students" : "preset: requests"}</span>
@@ -2458,7 +2459,7 @@
       ["Вторичная «Подробнее» (.btn.soft)", "Тинт темнеет при hover + подъём −2 px", ""],
       ["Воздух рельсы дней (.cal-days)", "pad-top 6 px · z-index 2 при hover", ""],
       ["Кружок дня календаря (.day-dot)", "38×38 px · число без слов: 7, 14, 15", ""],
-      ["Сегментный степпер ±100 ₽", "88 / 1fr / 88 px (моб. 72 px) · pad 3 px", ""],
+      ["Сегментный степпер ±50 ₽", "88 / 1fr / 88 px (моб. 72 px) · pad 3 px", ""],
       ["Выше рынка (высокая квалификация)", "Фиолетовый профи #7C3AED / #A78BFA", "pro"],
       ["Уведомления и ожидание ответа", "Строго оранжевый #F97316 / #FB923C", "notif"]
     ];
@@ -2600,9 +2601,9 @@
               <button type="button" class="chip-btn${bb.price === 2400 ? " on" : ""}" data-a="bb-preset" data-price="2400">2 400 ₽ · Выше рынка</button>
             </div>
             <div class="hh-price-stepper compact" style="min-width:min(240px,100%)">
-              <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-100">−100 ₽</button>
+              <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-50">−50 ₽</button>
               <div class="hh-step-readout"><b class="num">${bb.price.toLocaleString("ru-RU")} ₽</b></div>
-              <button type="button" class="hh-step-btn" data-a="bb-step" data-step="100">+100 ₽</button>
+              <button type="button" class="hh-step-btn" data-a="bb-step" data-step="50">+50 ₽</button>
             </div>
           </div>
         </div>
@@ -2944,7 +2945,7 @@
           </div>
 
           <div class="bb-bp-card${showBounds ? "" : " hide-guides"}">
-            <div class="row between"><b>3. Коридор ползунка и степпер ±100 ₽</b><span class="bb-spec-pill">88 / 1fr / 88 px</span></div>
+            <div class="row between"><b>3. Коридор ползунка и степпер ±50 ₽</b><span class="bb-spec-pill">88 / 1fr / 88 px</span></div>
             <div class="bb-bp-stage">
               <span class="bb-bp-tag">track area 29 px · thumb 10×24 px</span>
               <div class="bb-bp-zone">
@@ -2952,9 +2953,9 @@
               </div>
               <div class="bb-bp-zone">
                 <div class="hh-price-stepper compact">
-                  <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-100">−100 ₽</button>
+                  <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-50">−50 ₽</button>
                   <div class="hh-step-readout"><b class="num">${bb.price.toLocaleString("ru-RU")} ₽</b></div>
-                  <button type="button" class="hh-step-btn" data-a="bb-step" data-step="100">+100 ₽</button>
+                  <button type="button" class="hh-step-btn" data-a="bb-step" data-step="50">+50 ₽</button>
                 </div>
               </div>
             </div>
@@ -3022,9 +3023,9 @@
                     ${sliderTicksHTML(bb.hour, sStyle)}
                   </div>
                   <div class="hh-price-stepper" style="grid-template-columns:72px minmax(0,1fr) 72px">
-                    <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-100">−100 ₽</button>
+                    <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-50">−50 ₽</button>
                     <div class="hh-step-readout"><b class="num" style="font-size:15px">${bb.price.toLocaleString("ru-RU")} ₽/ч</b></div>
-                    <button type="button" class="hh-step-btn" data-a="bb-step" data-step="100">+100 ₽</button>
+                    <button type="button" class="hh-step-btn" data-a="bb-step" data-step="50">+50 ₽</button>
                   </div>
                   <button type="button" class="btn sakha-pattern${bb.sent ? " is-confirmed" : ""}" style="width:100%" data-a="bb-bid">${sakhaBidInnerHTML(bb.sent, bb.price)}</button>
                 </div>
@@ -3087,9 +3088,9 @@
                     ${priceDiffTagsHTML({ tutorPrice: tutorRate, marketPrice: market, offerPrice: bb.price, qualBadge: "Эксперт ЕГЭ 95+" })}
                   </div>
                   <div class="hh-price-stepper compact">
-                    <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-100">−100 ₽</button>
+                    <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-50">−50 ₽</button>
                     <div class="hh-step-readout"><b class="num">${bb.price.toLocaleString("ru-RU")} ₽/ч</b></div>
-                    <button type="button" class="hh-step-btn" data-a="bb-step" data-step="100">+100 ₽</button>
+                    <button type="button" class="hh-step-btn" data-a="bb-step" data-step="50">+50 ₽</button>
                   </div>
                 </div>
 
@@ -3655,6 +3656,22 @@
       if (!bb.confirmedRows || typeof bb.confirmedRows !== "object") bb.confirmedRows = {};
       if (bb.confirmedRows[rowId]) delete bb.confirmedRows[rowId];
       else bb.confirmedRows[rowId] = true;
+      render();
+      return true;
+    }
+    if (act === "bb-tbl-step") {
+      const rowId = ds.id;
+      if (!rowId) return false;
+      const step = Number(ds.step) || 0;
+      const presets = chartsAPI().TABLE_PRESETS || {};
+      const preset = presets[bb.tablePreset || "requests"] || presets.requests;
+      const rows = preset && Array.isArray(preset.rows) ? preset.rows : [];
+      const row = rows.find((r) => r && r.id === rowId);
+      const base = (bb.tableRates && Number(bb.tableRates[rowId]) > 0)
+        ? Number(bb.tableRates[rowId])
+        : (row && (Number(row.rate) || Number(row.gross)) || 1200);
+      if (!bb.tableRates || typeof bb.tableRates !== "object") bb.tableRates = {};
+      bb.tableRates[rowId] = Math.max(500, Math.min(5000, Math.round(base / 50) * 50 + step));
       render();
       return true;
     }

@@ -986,28 +986,28 @@
     assert(landHtml.includes('id="land-demo"') && landHtml.includes("Доска Ykt") && landHtml.includes("Telegram") && landHtml.includes("MAX") && !landHtml.includes("Комиссия 5%") && !landHtml.includes("760 ₽") && landHtml.includes('data-v="fees"'), "expected interactive beta demo, multi-channel sources (Ykt/TG/WA/MAX), hidden 5% commission on landing and separate /fees link");
     assert(landHtml.includes('id="hero-motion-stage"') && landHtml.includes('id="hero-motion-bid-btn"') && landHtml.includes('id="hero-hour-range"') && landHtml.includes('id="hero-price-minus"') && !landHtml.includes("01 Выбор") && landHtml.includes("hh-price-old") && !landHtml.includes("hh-blue-banner") && landHtml.includes("btn sakha-pattern motion-bid-btn") && hasNum(landHtml, "Сөп · Предложить 1 200 ₽") && landHtml.includes("Денис Ковалёв") && landHtml.includes("marquee-band") && landHtml.includes('id="land-savings"') && !landHtml.includes('data-target="land-motion-showcase"') && !landHtml.includes(">Моушен<") && !landHtml.includes(">Брендбук<") && landHtml.includes("UX/UI и Figma"), "expected clean hh-style UX/UI stage with Sakha Предложить CTA, strikethrough price, no Моушен/Брендбук links in header, and Денис Ковалёв");
 
-    clickAction(env5, { a: "motion-step-price", step: "-100" });
+    clickAction(env5, { a: "motion-step-price", step: "-50" });
     await flushMicrotasks(2);
     const motionSteppedHtml = env5.elements.get("main").innerHTML;
-    assert(hasNum(motionSteppedHtml, "Сөп · Предложить 1 100 ₽") && motionSteppedHtml.includes("на 100 ₽ ниже анкеты") && motionSteppedHtml.includes("ниже рынка"), "expected -100 ₽ stepper to update Sakha Предложить CTA and separate colored diff tags");
+    assert(hasNum(motionSteppedHtml, "Сөп · Предложить 1 150 ₽") && motionSteppedHtml.includes("на 50 ₽ ниже анкеты") && motionSteppedHtml.includes("ниже рынка"), "expected -50 ₽ stepper to update Sakha Предложить CTA and separate colored diff tags");
     clickAction(env5, { a: "motion-bid-press" });
     await flushMicrotasks(2);
     const motionBidHtml = env5.elements.get("main").innerHTML;
     const motionSideToast = env5.elements.get("toast");
     assert(motionBidHtml.includes("is-confirmed") && motionBidHtml.includes("Подтверждено") && motionBidHtml.includes("Предложение передано преподавателю") && motionBidHtml.includes("bb-pulse-dot") && motionBidHtml.includes("chip notif") && !motionBidHtml.includes("Заявка отправлена · уведомим"), "expected pressing Предложить to transition smoothly into green Подтверждено CTA with orange Brandbook notification below");
     assert(motionSideToast.className === "toast is-side" && motionSideToast.innerHTML.includes("Предложение передано преподавателю") && !motionSideToast.innerHTML.includes("WhatsApp"), "expected side notification without literal WhatsApp word on motion bid");
-    for (let k = 0; k < 10; k += 1) clickAction(env5, { a: "motion-step-price", step: "100" });
+    for (let k = 0; k < 18; k += 1) clickAction(env5, { a: "motion-step-price", step: "50" });
     await flushMicrotasks(2);
     const motionProHtml = env5.elements.get("main").innerHTML;
-    assert(hasNum(motionProHtml, "2 100 ₽") && motionProHtml.includes("выше рынка") && motionProHtml.includes("diff-tag pro"), "expected stepping above market on hero motion card to switch into purple above-market qualification state");
+    assert(hasNum(motionProHtml, "2 050 ₽") && motionProHtml.includes("выше рынка") && motionProHtml.includes("diff-tag pro"), "expected stepping above market on hero motion card to switch into purple above-market qualification state");
     clickAction(env5, { a: "motion-preset", v: "inf" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes("Роман Лебедев"), "expected motion preset switch to Python/IT tutor");
-    clickAction(env5, { a: "save-step", which: "off", step: "-100" });
+    clickAction(env5, { a: "save-step", which: "off", step: "-50" });
     clickAction(env5, { a: "save-freq", v: "3" });
     await flushMicrotasks(2);
     const saveHtml = env5.elements.get("main").innerHTML;
-    assert(hasNum(saveHtml, "16 200 ₽/мес") && hasNum(saveHtml, "10 800 ₽/мес"), "expected savings comparator ±100 ₽ steppers and freq=3 to recalculate monthly savings");
+    assert(hasNum(saveHtml, "16 200 ₽/мес") && hasNum(saveHtml, "11 400 ₽/мес"), "expected savings comparator ±50 ₽ steppers and freq=3 to recalculate monthly savings");
 
     clickAction(env5, { a: "demo-pick", i: "0" });
     await flushMicrotasks(2);
@@ -1059,10 +1059,10 @@
     clickAction(env5, { a: "book-time-pick", v: "14:30" });
     await flushMicrotasks(2);
     assert(env5.elements.get("modal-root").innerHTML.includes("14:30") && !env5.elements.get("modal-root").innerHTML.includes('data-a="book-time-pick"'), "expected picked time 14:30 to update pill and close dropdown");
-    clickAction(env5, { a: "bid-step", step: "-100" });
+    clickAction(env5, { a: "bid-step", step: "-50" });
     await flushMicrotasks(2);
     const modalStepped = env5.elements.get("modal-root").innerHTML;
-    assert(modalStepped.includes('value="900"') && hasNum(modalStepped, "900 ₽/ч") && !modalStepped.includes("855 ₽") && !modalStepped.includes("45 ₽"), "expected -100 step to update offerPrice to 900 without showing commission split");
+    assert(modalStepped.includes('value="950"') && hasNum(modalStepped, "950 ₽/ч") && !modalStepped.includes("902 ₽") && !modalStepped.includes("48 ₽"), "expected -50 step to update offerPrice to 950 without showing commission split");
 
     clickAction(env5, { a: "book-submit" });
     await flushMicrotasks(4);
@@ -1070,7 +1070,7 @@
     const bookSideToast = env5.elements.get("toast");
     assert(bookSideToast.className === "toast is-side" && bookSideToast.innerHTML.includes("Предложение передано преподавателю"), "expected side notification after submitting booking bid");
     const afterBookHtml = env5.elements.get("main").innerHTML;
-    assert(afterBookHtml.includes("На рассмотрении · уведомим") && hasNum(afterBookHtml, "3 690 ₽"), "expected 900 ₽ reserved from 4 590 ₽ balance leaving 3 690 ₽");
+    assert(afterBookHtml.includes("На рассмотрении · уведомим") && hasNum(afterBookHtml, "3 640 ₽"), "expected 950 ₽ reserved from 4 590 ₽ balance leaving 3 640 ₽");
 
     const acceptIdMatch = /data-a="mkt-sim-accept" data-id="([^"]+)"/.exec(afterBookHtml);
     assert(acceptIdMatch, "expected sim-accept button for pending booking");
@@ -1232,9 +1232,9 @@
     clickAction(env5, { a: "bb-fav" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes('aria-pressed="false"'), "expected brandbook heart favorite toggle");
-    clickAction(env5, { a: "bb-step", step: "-100" });
+    clickAction(env5, { a: "bb-step", step: "-50" });
     await flushMicrotasks(2);
-    assert(hasNum(env5.elements.get("main").innerHTML, "2 300 ₽"), "expected brandbook price stepper from 2400 to 2300");
+    assert(hasNum(env5.elements.get("main").innerHTML, "2 350 ₽"), "expected brandbook price stepper from 2400 to 2350");
     clickAction(env5, { a: "bb-mode", v: "dark" });
     await flushMicrotasks(2);
     const bbDarkOnly = env5.elements.get("main").innerHTML;
@@ -1406,9 +1406,9 @@
     await flushMicrotasks(2);
     const demoCalcHtml = env5.elements.get("main").innerHTML;
     assert(demoCalcHtml.includes('id="demo-calc-box"') && demoCalcHtml.includes("demo-rate-stepper") && demoCalcHtml.includes('data-a="demo-step"') && !demoCalcHtml.includes("09:00"), "expected structured rate calculator with brandbook stepper and 10:00-20:00 window");
-    clickAction(env5, { a: "demo-step", step: "100" });
+    clickAction(env5, { a: "demo-step", step: "50" });
     await flushMicrotasks(2);
-    assert(hasNum(env5.elements.get("main").innerHTML, "1 100 ₽/ч"), "expected demo-step action to increment calculator rate cleanly");
+    assert(hasNum(env5.elements.get("main").innerHTML, "1 050 ₽/ч"), "expected demo-step action to increment calculator rate cleanly");
 
     clickAction(env5, { a: "land-faq", i: "1" });
     await flushMicrotasks(2);
@@ -1417,9 +1417,12 @@
     clickAction(env5, { a: "tutor-apply-open" });
     await flushMicrotasks(2);
     assert(env5.elements.get("modal-root").innerHTML.includes('id="ta-modal-title"'), "expected tutor application modal to open");
-    clickAction(env5, { a: "tutor-apply-step", step: "100" });
-    clickAction(env5, { a: "tutor-apply-step", step: "100" });
-    clickAction(env5, { a: "tutor-apply-step", step: "100" });
+    clickAction(env5, { a: "tutor-apply-step", step: "50" });
+    clickAction(env5, { a: "tutor-apply-step", step: "50" });
+    clickAction(env5, { a: "tutor-apply-step", step: "50" });
+    clickAction(env5, { a: "tutor-apply-step", step: "50" });
+    clickAction(env5, { a: "tutor-apply-step", step: "50" });
+    clickAction(env5, { a: "tutor-apply-step", step: "50" });
     await flushMicrotasks(2);
     assert(hasNum(env5.elements.get("modal-root").innerHTML, "1 400 ₽/ч") && env5.elements.get("modal-root").innerHTML.includes("Выше рынка · Профи"), "expected tutor apply stepper to reach 1 400 ₽/ч with Pro qualification hint");
     env5.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "tutor-apply" } }) }, preventDefault() {} });
@@ -1530,9 +1533,9 @@
     await flushMicrotasks(3);
     assert(env5.elements.get("main").innerHTML.includes('id="tc-first-pending"') && env5.elements.get("side-nav").innerHTML.includes('data-v="tutor-requests" aria-current="page"'), "expected clicking pending count badge (2) to auto-jump straight to Заявки");
 
-    clickAction(env5, { a: "tc-req-step", id: "tc-req-1", step: "100" });
+    clickAction(env5, { a: "tc-req-step", id: "tc-req-1", step: "50" });
     await flushMicrotasks(2);
-    assert(hasNum(env5.elements.get("main").innerHTML, "1 200 ₽/ч") && env5.elements.get("main").innerHTML.includes("Отправить контр-ставку"), "expected tc-req-step to step incoming offer +100 and reveal counter CTA");
+    assert(hasNum(env5.elements.get("main").innerHTML, "1 150 ₽/ч") && env5.elements.get("main").innerHTML.includes("Отправить контр-ставку"), "expected tc-req-step to step incoming offer +50 and reveal counter CTA");
 
     clickAction(env5, { a: "tc-req-accept", id: "tc-req-1" });
     await flushMicrotasks(2);
@@ -1618,7 +1621,7 @@
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes("Максим Р.") && env5.elements.get("main").innerHTML.includes("Генетика №28"), "expected manually booked student to appear in hourly calendar");
 
-    // Вкладка преподавателя «Ученики ищут» (контр-цена ±100 ₽ tc-lead-step + tc-lead-offer, без tc-bump и без 3/7 колонок)
+    // Вкладка преподавателя «Ученики ищут» (контр-цена ±50 ₽ tc-lead-step + tc-lead-offer, без tc-bump и без 3/7 колонок)
     clickAction(env5, { a: "go", v: "tutor-leads" });
     await flushMicrotasks(2);
     const tcLeadsHtml = env5.elements.get("main").innerHTML;
@@ -1633,11 +1636,11 @@
       tcLeadsHtml.includes('data-a="tc-leads-mode"') &&
       tcLeadsHtml.includes('data-a="tc-lead-step"') &&
       tcLeadsHtml.includes("Химия"),
-      "expected clean student requests tab in Ученики ищут with tc-lead-step ±100 ₽ stepper and no bump/cols switch"
+      "expected clean student requests tab in Ученики ищут with tc-lead-step ±50 ₽ stepper and no bump/cols switch"
     );
     const mLeadOffer = /data-a="tc-lead-offer" data-id="([^"]+)"/.exec(tcLeadsHtml);
     assert(Boolean(mLeadOffer), "expected tc-lead-offer response CTA button on student lead row");
-    clickAction(env5, { a: "tc-lead-step", id: mLeadOffer[1], step: "100" });
+    clickAction(env5, { a: "tc-lead-step", id: mLeadOffer[1], step: "50" });
     await flushMicrotasks(2);
     clickAction(env5, { a: "tc-lead-offer", id: mLeadOffer[1] });
     await flushMicrotasks(2);

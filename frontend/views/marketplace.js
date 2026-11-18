@@ -179,7 +179,7 @@
         <p class="tutor-bio">${esc(t.bio)}</p>
         <div class="row between small muted" style="gap:6px;flex-wrap:wrap">
           <span>${esc(t.bumpText)}</span>
-          <span class="num">Можно −100 ₽ от ${t.minFair} ₽/ч</span>
+          <span class="num">Можно −50 ₽ от ${t.minFair} ₽/ч</span>
         </div>
         ${daySlots.length ? `<div class="slot-mini-row">
           <span class="small muted">${opts.dayLabel ? esc(opts.dayLabel) + ":" : "Слоты:"}</span>
@@ -298,7 +298,7 @@
       cardWrap: false,
       showPresetSwitch: false,
       eyebrow: "Мои заявки",
-      title: "Отправленные отклики и ставки ±100 ₽",
+      title: "Отправленные отклики и ставки ±50 ₽",
       cols: bkCols,
       filter: bkFilter,
       query: ui.mktBkQuery || "",
@@ -454,9 +454,9 @@
                 ${priceDiffTagsHTML({ tutorPrice: tutor.price, marketPrice: tutor.marketPrice || tutor.price, offerPrice: b.offerPrice, qualBadge: tutor.qualBadge, customBadges: tutor.customBadges })}
               </div>
               <div class="hh-price-stepper">
-                <button type="button" class="hh-step-btn" data-a="bid-step" data-step="-100">−100 ₽</button>
+                <button type="button" class="hh-step-btn" data-a="bid-step" data-step="-50">−50 ₽</button>
                 <input class="input bid-input num" id="bid-price" type="number" min="500" max="5000" step="50" inputmode="numeric" value="${b.offerPrice}">
-                <button type="button" class="hh-step-btn" data-a="bid-step" data-step="100">+100 ₽</button>
+                <button type="button" class="hh-step-btn" data-a="bid-step" data-step="50">+50 ₽</button>
               </div>
               <div id="bid-signal" class="small"><span class="chip ${sig.tone}">${esc(sig.label)}</span></div>`}
         </div>

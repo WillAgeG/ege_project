@@ -777,11 +777,11 @@
       const step = Number(el.dataset.step) || 0;
       if (which === "marketRate") {
         ui.savings.marketRate = Math.max(1000, Math.min(3500, (Number(ui.savings.marketRate) || 1350) + step));
-        if ((Number(ui.savings.offerRate) || 1000) > ui.savings.marketRate - 100) {
-          ui.savings.offerRate = Math.max(600, ui.savings.marketRate - 100);
+        if ((Number(ui.savings.offerRate) || 1000) > ui.savings.marketRate - 50) {
+          ui.savings.offerRate = Math.max(600, ui.savings.marketRate - 50);
         }
       } else {
-        const cap = Math.max(600, (Number(ui.savings.marketRate) || 1350) - 100);
+        const cap = Math.max(600, (Number(ui.savings.marketRate) || 1350) - 50);
         ui.savings.offerRate = Math.max(600, Math.min(cap, (Number(ui.savings.offerRate) || 1000) + step));
       }
       patchSavingsDOM();
@@ -1332,6 +1332,22 @@
         on ? "Запись подтверждена ✓" : "Подтверждение сброшено",
         on ? `Запись ${rowId} переведена в статус «Подтверждено ✓»` : `Запись ${rowId} возвращена в исходный статус`
       );
+    },
+    "bb-tbl-step": (el) => {
+      const bb = bbState();
+      const rowId = el.dataset && el.dataset.id;
+      if (!rowId) return;
+      const step = Number(el.dataset && el.dataset.step) || 0;
+      const presets = (EGE.charts && EGE.charts.TABLE_PRESETS) || {};
+      const preset = presets[bb.tablePreset || "requests"] || presets.requests;
+      const rows = preset && Array.isArray(preset.rows) ? preset.rows : [];
+      const row = rows.find((r) => r && r.id === rowId);
+      const base = (bb.tableRates && Number(bb.tableRates[rowId]) > 0)
+        ? Number(bb.tableRates[rowId])
+        : (row && (Number(row.rate) || Number(row.gross)) || 1200);
+      if (!bb.tableRates || typeof bb.tableRates !== "object") bb.tableRates = {};
+      bb.tableRates[rowId] = Math.max(500, Math.min(5000, Math.round(base / 50) * 50 + step));
+      scheduleRender();
     },
     "bb-tbl-filter": (el) => {
       const bb = bbState();

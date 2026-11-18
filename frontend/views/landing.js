@@ -66,7 +66,7 @@
     };
     const market = tutor.marketPrice || Math.round(((tutor.price || 1200) * 1.45) / 50) * 50;
     const tutorPrice = tutor.price || 1200;
-    const minOffer = Math.max(500, Math.round(((tutor.minFair || tutorPrice * 0.72) - 100) / 100) * 100);
+    const minOffer = Math.max(500, Math.round(((tutor.minFair || tutorPrice * 0.72) - 50) / 50) * 50);
     const maxOffer = Math.max(market + 600, tutorPrice + 600);
     const offer = Math.max(minOffer, Math.min(maxOffer, Number(m.offer) || preset.defaultOffer || tutorPrice));
     const belowMarketRub = Math.max(0, market - offer);
@@ -151,12 +151,12 @@
           <div class="hh-time-ticks" aria-hidden="true"><span>10:00</span><span>12:00</span><span>14:00</span><span>16:00</span><span>18:00</span><span>20:00</span></div>
         </div>
         <div class="hh-price-stepper">
-          <button type="button" class="hh-step-btn${m.hitTarget === "minus" ? " is-hit" : ""}" id="hero-price-minus" data-a="motion-step-price" data-step="-100" data-mstep-target="1" aria-label="Снизить цену на 100 рублей">−100 ₽</button>
+          <button type="button" class="hh-step-btn${m.hitTarget === "minus" ? " is-hit" : ""}" id="hero-price-minus" data-a="motion-step-price" data-step="-50" data-mstep-target="1" aria-label="Снизить цену на 50 рублей">−50 ₽</button>
           <div class="hh-step-readout">
             <b class="num" data-m="offer-val">${offer.toLocaleString("ru-RU")} ₽/ч</b>
             <span class="small muted">твоя ставка</span>
           </div>
-          <button type="button" class="hh-step-btn${m.hitTarget === "plus" ? " is-hit" : ""}" id="hero-price-plus" data-a="motion-step-price" data-step="100" aria-label="Повысить цену на 100 рублей">+100 ₽</button>
+          <button type="button" class="hh-step-btn${m.hitTarget === "plus" ? " is-hit" : ""}" id="hero-price-plus" data-a="motion-step-price" data-step="50" aria-label="Повысить цену на 50 рублей">+50 ₽</button>
         </div>
         <button type="button" class="btn sakha-pattern motion-bid-btn${(m.clicking && m.hitTarget === "bid") ? " is-pressed" : ""}${m.sent ? " is-confirmed" : ""}" id="hero-motion-bid-btn" data-a="motion-bid-press" data-mstep-target="2">
           ${sakhaBidInnerHTML(m.sent, offer, { attr: 'data-m="offer-btn-lbl"' })}
@@ -345,7 +345,7 @@
       }
 
       if (nextStep === 1) {
-        ui.motion.offer = Math.max(meta.minOffer, meta.tutorPrice - 100);
+        ui.motion.offer = Math.max(meta.minOffer, meta.tutorPrice - 50);
         ui.motion.clicking = true;
         ui.motion.hitTarget = "minus";
       } else if (nextStep === 2) {
@@ -430,17 +430,17 @@
           <div class="stack" style="gap:6px">
             <span class="small muted">Средняя ставка на рынке</span>
             <div class="hh-price-stepper">
-              <button type="button" class="hh-step-btn" data-a="save-step" data-which="mkt" data-step="-100">−100 ₽</button>
+              <button type="button" class="hh-step-btn" data-a="save-step" data-which="mkt" data-step="-50">−50 ₽</button>
               <div class="hh-step-readout"><b class="num" data-s="mkt-val">${st.mktRate.toLocaleString("ru-RU")} ₽/ч</b></div>
-              <button type="button" class="hh-step-btn" data-a="save-step" data-which="mkt" data-step="100">+100 ₽</button>
+              <button type="button" class="hh-step-btn" data-a="save-step" data-which="mkt" data-step="50">+50 ₽</button>
             </div>
           </div>
           <div class="stack" style="gap:6px">
             <span class="small muted">Твоя цена на платформе</span>
             <div class="hh-price-stepper">
-              <button type="button" class="hh-step-btn" data-a="save-step" data-which="off" data-step="-100">−100 ₽</button>
+              <button type="button" class="hh-step-btn" data-a="save-step" data-which="off" data-step="-50">−50 ₽</button>
               <div class="hh-step-readout"><b class="num savings-gold-txt" data-s="off-val">${st.offRate.toLocaleString("ru-RU")} ₽/ч</b></div>
-              <button type="button" class="hh-step-btn" data-a="save-step" data-which="off" data-step="100">+100 ₽</button>
+              <button type="button" class="hh-step-btn" data-a="save-step" data-which="off" data-step="50">+50 ₽</button>
             </div>
           </div>
           <div class="chip gold" style="justify-content:space-between;width:100%;white-space:normal;padding:6px 12px;border-radius:10px" data-s="split-txt">При ${st.offRate} ₽/ч экономия с каждого урока: ${Math.max(0, st.mktRate - st.offRate)} ₽</div>
@@ -571,12 +571,12 @@
                 ${rates.map((r) => `<button type="button" class="chip-btn${rate === r ? " on" : ""}" data-a="demo-rate" data-rate="${r}">${r.toLocaleString("ru-RU")} ₽/ч</button>`).join("")}
               </div>
               <div class="hh-price-stepper compact demo-rate-stepper">
-                <button type="button" class="hh-step-btn" data-a="demo-step" data-step="-100" aria-label="Снизить ставку на 100 рублей">−100 ₽</button>
+                <button type="button" class="hh-step-btn" data-a="demo-step" data-step="-50" aria-label="Снизить ставку на 50 рублей">−50 ₽</button>
                 <label class="hh-step-readout is-inline" for="demo-rate-inp">
                   <input class="demo-rate-input num" id="demo-rate-inp" type="number" min="500" max="3000" step="50" value="${rate}" aria-label="Своя ставка в рублях">
                   <span class="hh-step-unit">₽/ч</span>
                 </label>
-                <button type="button" class="hh-step-btn" data-a="demo-step" data-step="100" aria-label="Повысить ставку на 100 рублей">+100 ₽</button>
+                <button type="button" class="hh-step-btn" data-a="demo-step" data-step="50" aria-label="Повысить ставку на 50 рублей">+50 ₽</button>
               </div>
             </div>
             <div class="fee-split-box">
@@ -722,7 +722,7 @@
       newPrice: 1000,
       rating: "5.0",
       badge: "−26% к рынку · Слот 16:00",
-      text: "Выбрал на ползунке час 16:00 и предложил 1 000 ₽/ч кнопками ±100 ₽. После уроков повторял темы и конспекты в этом же кабинете — пробник написал на 86 баллов.",
+      text: "Выбрал на ползунке час 16:00 и предложил 1 000 ₽/ч кнопками ±50 ₽. После уроков повторял темы и конспекты в этом же кабинете — пробник написал на 86 баллов.",
       pro: false
     },
     {
@@ -759,7 +759,7 @@
       hasFeesLink: false
     },
     {
-      q: "Что делать, если преподаватель не согласился на −100 ₽ или не подошёл по темпу?",
+      q: "Что делать, если преподаватель не согласился на −50 ₽ или не подошёл по темпу?",
       a: "Преподаватель может предложить встречное время или свою цену, а вы — в 1 клик перенести бронь на соседнего репетитора на тот же час без потери средств на балансе. При отмене ≥ 4 ч до урока 100% суммы мгновенно возвращается на ваш счёт.",
       hasFeesLink: true
     }
@@ -909,7 +909,7 @@
   function verifySectionHTML() {
     const steps = [
       ["01", "Сбор и дедупликация", "Объединяем дублирующие объявления преподавателя с Доски Ykt, Telegram, WhatsApp и MAX в одну карточку с реальной историей откликов."],
-      ["02", "Проверка контакта и торга", "Фильтруем неактуальные номера и заниженные «цены-приманки» — показываем честный коридор цены с шагом ±100 ₽."],
+      ["02", "Проверка контакта и торга", "Фильтруем неактуальные номера и заниженные «цены-приманки» — показываем честный коридор цены с шагом ±50 ₽."],
       ["03", "Кнопка «Актуален сегодня»", "Преподаватели подтверждают свободные окна каждые 24 часа. Свежие анкеты получают приоритет и оранжевые уведомления об ответе."]
     ];
     return `<section class="land-sec" id="land-verify" aria-label="Как проверяются анкеты">
@@ -1020,11 +1020,11 @@
         <section class="land-below-grid" id="land-motion-showcase">
           <div class="land-hero-copy">
             <div class="row" style="gap:6px;flex-wrap:wrap">
-              <span class="chip accent">${icon("ohyorCross")}<span>Живой подбор · шаг ±100 ₽</span></span>
+              <span class="chip accent">${icon("ohyorCross")}<span>Живой подбор · шаг ±50 ₽</span></span>
               <span class="chip pro">Без комиссии при выборе</span>
             </div>
             <h2 class="land-h1" style="font-size:clamp(24px,3vw,33px)">Назначай свою цену <span class="land-h1-grad">в один клик</span> и смотри отклики</h2>
-            <p class="land-lead">Ниже баннера — интерактивный виджет выбора преподавателя: двигай ползунок удобного времени 10:00–20:00, нажимай −100 ₽ / +100 ₽ и нажимай узорную кнопку «Сөп · Предложить» с мгновенным подтверждением и уведомлением.</p>
+            <p class="land-lead">Ниже баннера — интерактивный виджет выбора преподавателя: двигай ползунок удобного времени 10:00–20:00, нажимай −50 ₽ / +50 ₽ и нажимай узорную кнопку «Сөп · Предложить» с мгновенным подтверждением и уведомлением.</p>
             <div class="land-hero-ctas">
               <button type="button" class="btn" data-a="land-scroll" data-target="land-market">К каталогу анкет</button>
               <button type="button" class="btn gold" data-a="land-scroll" data-target="land-demo">${icon("spark")}<span>Попробовать бета-тест</span></button>
@@ -1034,7 +1034,7 @@
             </div>
             <div class="land-stats">
               <div class="land-stat"><b>${catalogTotal}+ анкет</b><span>Ykt, Telegram, WhatsApp, MAX</span></div>
-              <div class="land-stat"><b>Шаг ±100 ₽</b><span>Гибкая ставка ученика</span></div>
+              <div class="land-stat"><b>Шаг ±50 ₽</b><span>Гибкая ставка ученика</span></div>
               <div class="land-stat"><b>10:00 – 20:00</b><span>Почасовая сетка окон</span></div>
             </div>
           </div>
@@ -1055,7 +1055,7 @@
         </div>
         <div class="how-grid">
           <div class="card how-card"><span class="how-num">01</span><b>Видео-визитка 60 сек в анкете</b><p class="small ink2">Собираем анкеты с Доски Ykt, Telegram, WhatsApp и MAX: смотришь подачу педагога до оплаты без пустых 15-минутных созвонов.</p></div>
-          <div class="card how-card"><span class="how-num">02</span><b>Слот 10:00–20:00 и шаг ±100 ₽</b><p class="small ink2">Выбираешь удобный час и предлагаешь свою ставку либо полноценный пробный урок 60 мин за 990 ₽ с гарантией замены.</p></div>
+          <div class="card how-card"><span class="how-num">02</span><b>Слот 10:00–20:00 и шаг ±50 ₽</b><p class="small ink2">Выбираешь удобный час и предлагаешь свою ставку либо полноценный пробный урок 60 мин за 990 ₽ с гарантией замены.</p></div>
           <div class="card how-card"><span class="how-num">03</span><b>Оплата по СБП в защищённый эскроу</b><p class="small ink2">Пополняешь баланс по СБП без карточных наценок — бронь слота сразу открывает WhatsApp, Telegram и MAX в «Учёбе».</p></div>
           <div class="card how-card"><span class="how-num">04</span><b>Поурочное списание и отчёт родителю</b><p class="small ink2">Деньги переводятся преподавателю только после занятия, маме уходит отчёт в мессенджер, а замена работает в 1 клик.</p></div>
         </div>
@@ -1133,7 +1133,7 @@
       <div class="land-mobile-sticky" role="region" aria-label="Быстрый переход к подбору">
         <div class="stack" style="gap:1px;min-width:0">
           <b class="num" style="font-size:14px">От ${minSamplePrice.toLocaleString("ru-RU")} ₽/ч · ${catalogTotal}+ анкет</b>
-          <span class="small muted" style="font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Ставка ±100 ₽ · слоты 10:00–20:00</span>
+          <span class="small muted" style="font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Ставка ±50 ₽ · слоты 10:00–20:00</span>
         </div>
         <button type="button" class="btn sm" style="flex:none" data-a="land-scroll" data-target="land-market">Подобрать →</button>
       </div>

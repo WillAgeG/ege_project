@@ -115,7 +115,7 @@
         <div class="tc-two-col">
           <div class="field">
             <label for="tc-add-price">Ставка за урок (₽/ч)</label>
-            <input class="input num" id="tc-add-price" name="offerPrice" type="number" min="500" max="5000" step="100" value="${st.profile.price}">
+            <input class="input num" id="tc-add-price" name="offerPrice" type="number" min="500" max="5000" step="50" value="${st.profile.price}">
           </div>
           <div class="field">
             <label for="tc-add-note">Тема / ДЗ</label>
@@ -240,15 +240,13 @@
         label: "Ученик и ЕГЭ",
         render: (s) => {
           const gain = (Number(s.curScore) || 0) - (Number(s.startScore) || 0);
-          return `<div class="row" style="gap:10px;align-items:flex-start;min-width:0">
-            <span class="tutor-avatar" aria-hidden="true">${esc(initials(s.name))}</span>
-            <div class="stack" style="gap:3px;min-width:0">
-              <div class="row" style="gap:6px;flex-wrap:wrap">
-                <b>${esc(s.name)}</b>
-                <span class="chip confirm num">+${gain} б.</span>
-              </div>
-              <span class="small muted">${esc(s.exam)} · ${s.lessonsDone} ${plural(s.lessonsDone, "урок", "урока", "уроков")} проведено</span>
+          return `<div style="display:grid;gap:5px;min-width:155px">
+            <div class="row" style="gap:8px;align-items:center;flex-wrap:nowrap">
+              <span class="tutor-avatar" aria-hidden="true">${esc(initials(s.name))}</span>
+              <b>${esc(s.name)}</b>
+              <span class="chip confirm num">+${gain} б.</span>
             </div>
+            <span class="small muted">${esc(s.exam)} · ${s.lessonsDone} ${plural(s.lessonsDone, "урок", "урока", "уроков")} проведено</span>
           </div>`;
         }
       },
@@ -257,13 +255,13 @@
         label: "Прогресс баллов",
         render: (s) => {
           const pct = Math.max(8, Math.min(100, Math.round((s.curScore / Math.max(1, s.targetScore)) * 100)));
-          return `<div class="stack" style="gap:6px;min-width:160px">
+          return `<div style="display:grid;gap:6px;min-width:165px;max-width:225px">
             <div class="row between small">
               <span class="muted">Старт: <b class="num">${s.startScore}</b> → <b class="num savings-gold-txt">${s.curScore}</b></span>
               <span class="muted">Цель: <b class="num">${s.targetScore}</b></span>
             </div>
             <div class="tc-score-track"><div class="tc-score-fill" style="width:${pct}%"></div></div>
-            ${s.hw ? `<div class="small muted">${esc(s.hw)}</div>` : ""}
+            ${s.hw ? `<div class="small muted" style="line-height:1.4">${esc(s.hw)}</div>` : ""}
             <div class="row" style="gap:6px;flex-wrap:wrap">
               <button type="button" class="btn soft sm" data-a="tc-student-score" data-id="${esc(s.id)}" data-delta="2">+2 б.</button>
               <button type="button" class="btn ghost sm" data-a="tc-student-lesson" data-id="${esc(s.id)}">+1 урок</button>
@@ -277,14 +275,14 @@
         render: (s) => {
           const day = s.lessonDay || "Воскресенье";
           const time = s.lessonTime || "10:00";
-          return `<div style="display:grid;grid-template-columns:1.2fr 0.8fr;gap:6px;min-width:170px">
+          return `<div style="display:grid;gap:6px;width:128px">
             <div class="field" style="gap:3px;min-width:0">
               <label class="small muted" for="st-day-${esc(s.id)}">День</label>
-              <input class="input" id="st-day-${esc(s.id)}" data-tc-student="lessonDay" data-id="${esc(s.id)}" value="${esc(day)}" maxlength="24" placeholder="Воскресенье" style="min-height:34px;padding:6px 9px;font-size:13px">
+              <input class="input" id="st-day-${esc(s.id)}" data-tc-student="lessonDay" data-id="${esc(s.id)}" value="${esc(day)}" maxlength="24" placeholder="Воскресенье" style="min-height:32px;padding:5px 9px;font-size:13px">
             </div>
             <div class="field" style="gap:3px;min-width:0">
               <label class="small muted" for="st-time-${esc(s.id)}">Время</label>
-              <input class="input num" id="st-time-${esc(s.id)}" data-tc-student="lessonTime" data-id="${esc(s.id)}" value="${esc(time)}" maxlength="12" placeholder="10:00" style="min-height:34px;padding:6px 9px;font-size:13px">
+              <input class="input num" id="st-time-${esc(s.id)}" data-tc-student="lessonTime" data-id="${esc(s.id)}" value="${esc(time)}" maxlength="12" placeholder="10:00" style="min-height:32px;padding:5px 9px;font-size:13px">
             </div>
           </div>`;
         }
@@ -292,14 +290,14 @@
       {
         key: "contacts",
         label: "Контакты",
-        render: (s) => `<div class="stack" style="gap:6px;min-width:168px">
+        render: (s) => `<div style="display:grid;gap:6px;width:170px">
           <div class="field" style="gap:3px">
             <label class="small muted" for="st-wa-${esc(s.id)}">Телефон (WA / MAX)</label>
-            <input class="input num" id="st-wa-${esc(s.id)}" data-tc-student="whatsapp" data-id="${esc(s.id)}" value="${esc(formatPhone(s.whatsapp || "79142100511"))}" maxlength="22" placeholder="+7 (914) 000-00-00" style="min-height:34px;padding:6px 9px;font-size:13px">
+            <input class="input num" id="st-wa-${esc(s.id)}" data-tc-student="whatsapp" data-id="${esc(s.id)}" value="${esc(formatPhone(s.whatsapp || "79142100511"))}" maxlength="22" placeholder="+7 (914) 000-00-00" style="min-height:32px;padding:5px 9px;font-size:13px">
           </div>
           <div class="field" style="gap:3px">
             <label class="small muted" for="st-tg-${esc(s.id)}">Telegram (@ или +7)</label>
-            <input class="input" id="st-tg-${esc(s.id)}" data-tc-student="telegram" data-id="${esc(s.id)}" value="${esc(formatTelegram(s.telegram || ""))}" maxlength="36" placeholder="@username или +7 (914) 000-00-00" style="min-height:34px;padding:6px 9px;font-size:13px">
+            <input class="input" id="st-tg-${esc(s.id)}" data-tc-student="telegram" data-id="${esc(s.id)}" value="${esc(formatTelegram(s.telegram || ""))}" maxlength="36" placeholder="@login или +7..." style="min-height:32px;padding:5px 9px;font-size:13px">
           </div>
         </div>`
       },
@@ -313,19 +311,19 @@
           const stChannels = normalizeChannelList(s.autoChannels);
           const chBadgeTxt = stChannels.map((cid) => (AUTO_CHANNELS.find((c) => c.id === cid) || {}).short || cid.toUpperCase()).join(" · ");
           const waHref = studentWaHref(st, s);
-          return `<div class="stack" style="gap:6px">
-            <div class="auto-ch-bar" role="group" aria-label="Каналы автоуведомления ученика">
-              ${AUTO_CHANNELS.map((ch) => {
-                const on = stChannels.includes(ch.id);
-                return `<button type="button" class="auto-ch-pill${on ? " is-on" : ""}" data-a="tc-student-autochannel" data-id="${esc(s.id)}" data-ch="${ch.id}" aria-pressed="${on}">${on ? "✓ " : ""}${esc(ch.name)}</button>`;
-              }).join("")}
-            </div>
-            <div class="row" style="gap:6px;flex-wrap:wrap">
-              <button type="button" class="btn ${s.autoNotify ? "gold" : "soft"} sm" data-a="tc-student-autonotify" data-id="${esc(s.id)}" aria-pressed="${!!s.autoNotify}">
-                ${icon("bell")}<span>${s.autoNotify ? `✓ Авто: ${esc(chBadgeTxt)}` : "Вкл. автоуведомление"}</span>
+          return `<div style="display:grid;gap:7px;justify-items:start;min-width:225px">
+            <div class="row" style="gap:5px;flex-wrap:wrap;align-items:center">
+              <button type="button" class="btn ${s.autoNotify ? "gold" : "soft"} sm" data-a="tc-student-autonotify" data-id="${esc(s.id)}" aria-pressed="${!!s.autoNotify}" style="min-height:26px;padding:0 9px;font-size:11.5px">
+                ${icon("bell")}<span>${s.autoNotify ? `Авто: ${esc(chBadgeTxt)}` : "Вкл. авто"}</span>
               </button>
-              <button type="button" class="btn confirm sm" data-a="tc-student-remind" data-id="${esc(s.id)}">${icon("msg")}<span>Напомнить (${esc(day)}, ${esc(time)})</span></button>
+              <div class="auto-ch-bar" role="group" aria-label="Каналы автоуведомления ученика">
+                ${AUTO_CHANNELS.map((ch) => {
+                  const on = stChannels.includes(ch.id);
+                  return `<button type="button" class="auto-ch-pill${on ? " is-on" : ""}" data-a="tc-student-autochannel" data-id="${esc(s.id)}" data-ch="${ch.id}" aria-pressed="${on}">${on ? "✓ " : ""}${esc(ch.short || ch.name)}</button>`;
+                }).join("")}
+              </div>
             </div>
+            <button type="button" class="btn confirm sm" data-a="tc-student-remind" data-id="${esc(s.id)}" style="white-space:nowrap">${icon("msg")}<span>Напомнить (${esc(day)}, ${esc(time)})</span></button>
             ${EGE.kit && typeof EGE.kit.messengerLinksHTML === "function"
               ? EGE.kit.messengerLinksHTML({
                   entity: s,
@@ -455,34 +453,48 @@
 
     const leadColumns = [
       {
-        key: "student",
-        label: "Ученик и экзамен",
-        render: (lead) => `<div class="stack" style="gap:4px">
-          <div class="row" style="gap:6px;flex-wrap:wrap">
-            <b>${esc(lead.studentName)}</b>
-            <span class="chip">${esc(lead.exam)} · ${esc(lead.format)}</span>
-            ${lead.mine ? '<span class="chip gold">Свежая из кабинета ученика</span>' : ""}
-          </div>
-        </div>`
-      },
-      {
-        key: "subjects",
-        label: "Предметы",
+        key: "studentSubjects",
+        label: "Ученик и предметы",
         render: (lead) => {
           const subjIds = Array.isArray(lead.subjects) ? lead.subjects : [];
           const subjNames = TDATA && typeof TDATA.subjectNamesForIds === "function" ? TDATA.subjectNamesForIds(subjIds) : subjIds;
-          return `<div class="row" style="gap:4px;flex-wrap:wrap">${subjNames.map((nm, idx) => `<span class="chip ${tutorSubjSet.has(subjIds[idx]) ? "accent" : ""}">${esc(nm)}</span>`).join("")}</div>`;
+          return `<div style="display:grid;gap:6px;min-width:165px">
+            <div class="row" style="gap:8px;align-items:center;flex-wrap:nowrap">
+              <span class="tutor-avatar" aria-hidden="true">${esc(initials(lead.studentName))}</span>
+              <div style="display:grid;gap:2px;min-width:0">
+                <b>${esc(lead.studentName)}</b>
+                <span class="small muted">${esc(lead.exam)} · ${esc(lead.format)}</span>
+              </div>
+            </div>
+            <div class="row" style="gap:4px;flex-wrap:wrap">
+              ${subjNames.map((nm, idx) => `<span class="chip ${tutorSubjSet.has(subjIds[idx]) ? "accent" : ""}">${esc(nm)}</span>`).join("")}
+              ${lead.mine ? '<span class="chip gold">Свежая из кабинета ученика</span>' : ""}
+            </div>
+          </div>`;
         }
       },
       {
         key: "comment",
         label: "Запрос ученика",
-        render: (lead) => `<div class="small ink2">${esc(lead.comment || "—")}</div>`
+        render: (lead) => `<div class="small ink2" style="min-width:170px;max-width:260px;line-height:1.45">${esc(lead.comment || "—")}</div>`
+      },
+      {
+        key: "scheduleAndBudget",
+        label: "График и бюджет",
+        render: (lead) => {
+          const budget = Number(lead.targetPrice) || st.profile.price;
+          return `<div style="display:grid;gap:4px;min-width:125px">
+            <b class="small" style="white-space:nowrap">${esc(lead.scheduleNote || "Гибкий график")}</b>
+            <span class="small muted">${esc(lead.createdAt || "Сегодня")}</span>
+            <span class="small muted num" style="white-space:nowrap">Бюджет: <b style="color:var(--ink)">${budget.toLocaleString("ru-RU")} ₽/ч</b></span>
+          </div>`;
+        }
       },
       {
         key: "counterPrice",
-        label: "Ваша контр-цена ±100 ₽",
+        label: "Ваша контр-цена ±50 ₽",
         num: true,
+        align: "left",
         render: (lead) => {
           const budget = Number(lead.targetPrice) || st.profile.price;
           const counterRate = getLeadCounterRate(lead);
@@ -491,27 +503,18 @@
             ? "= бюджету"
             : (delta > 0 ? `+${delta.toLocaleString("ru-RU")} ₽ к бюджету` : `−${Math.abs(delta).toLocaleString("ru-RU")} ₽`);
           const sp = TDATA && typeof TDATA.commissionSplit === "function" ? TDATA.commissionSplit(counterRate) : { payout: Math.round(counterRate * 0.95) };
-          return `<div class="stack" style="gap:5px;min-width:190px">
-            <span class="small muted num">Бюджет ученика: <b>${budget.toLocaleString("ru-RU")} ₽/ч</b></span>
+          return `<div style="display:grid;gap:6px;justify-items:start;min-width:210px">
             <div class="hh-price-stepper compact">
-              <button type="button" class="hh-step-btn" data-a="tc-lead-step" data-id="${esc(lead.id)}" data-step="-100">−100 ₽</button>
+              <button type="button" class="hh-step-btn" data-a="tc-lead-step" data-id="${esc(lead.id)}" data-step="-50">−50 ₽</button>
               <div class="hh-step-readout" style="gap:3px">
-                <input class="num" type="number" step="100" min="500" max="5000" data-a="tc-lead-rate" data-id="${esc(lead.id)}" value="${counterRate}" aria-label="Ваша контр-цена для ${esc(lead.studentName)}" style="width:62px;border:0;background:transparent;text-align:right;font:inherit;font-weight:700;color:var(--ink);padding:0;outline:none">
+                <input class="num" type="number" step="50" min="500" max="5000" data-a="tc-lead-rate" data-id="${esc(lead.id)}" value="${counterRate}" aria-label="Ваша контр-цена для ${esc(lead.studentName)}" style="width:52px;border:0;background:transparent;text-align:right;font:inherit;font-weight:700;color:var(--ink);padding:0;outline:none">
                 <span class="small muted">₽/ч</span>
               </div>
-              <button type="button" class="hh-step-btn" data-a="tc-lead-step" data-id="${esc(lead.id)}" data-step="100">+100 ₽</button>
+              <button type="button" class="hh-step-btn" data-a="tc-lead-step" data-id="${esc(lead.id)}" data-step="50">+50 ₽</button>
             </div>
-            <span class="small muted num"><span data-tc-lead-delta="${esc(lead.id)}">${deltaLabel}</span> · На руки 95%: <b class="savings-gold-txt" data-tc-lead-payout="${esc(lead.id)}">${sp.payout.toLocaleString("ru-RU")} ₽</b></span>
+            <span class="small muted num" style="white-space:nowrap"><span data-tc-lead-delta="${esc(lead.id)}">${deltaLabel}</span> · На руки 95%: <b class="savings-gold-txt" data-tc-lead-payout="${esc(lead.id)}">${sp.payout.toLocaleString("ru-RU")} ₽</b></span>
           </div>`;
         }
-      },
-      {
-        key: "scheduleAndDate",
-        label: "График и дата",
-        render: (lead) => `<div class="stack" style="gap:3px">
-          <span class="small"><b>${esc(lead.scheduleNote || "Гибкий график")}</b></span>
-          <span class="small muted">${esc(lead.createdAt || "Сегодня")}</span>
-        </div>`
       },
       {
         key: "actions",
@@ -522,23 +525,26 @@
           const waHref = TDATA && typeof TDATA.studentLeadWhatsappUrl === "function"
             ? TDATA.studentLeadWhatsappUrl(lead, `Здравствуйте, ${lead.studentName}! Я преподаватель ${st.profile.name} (${tutorSubjLabels}). Готов(а) провести урок по вашей заявке (${counterRate} ₽/ч).`)
             : "";
-          return `<div class="stack" style="gap:6px">
+          return `<div style="display:grid;gap:7px;justify-items:start;min-width:205px">
             ${lead.responded ? '<span class="bb-tbl-st is-confirmed">✓ Вы написали ученику</span>' : '<span class="bb-tbl-st is-pending">Ищет преподавателя</span>'}
-            <div class="row" style="gap:6px;flex-wrap:wrap">
-              ${waHref ? (EGE.kit && typeof EGE.kit.messengerLinksHTML === "function"
-                ? EGE.kit.messengerLinksHTML({
-                    entity: { id: lead.id, name: lead.studentName, whatsapp: lead.whatsapp || "79142100511" },
-                    message: `Здравствуйте, ${lead.studentName}! Вижу ваш запрос по предмету ${lead.subjectName || "ЕГЭ"}. Готов(а) провести урок по ставке ${counterRate} ₽/ч.`,
-                    primaryLabel: "Написать ученику · WA",
-                    compact: true
-                  })
-                : `<a class="btn confirm sm" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>Написать ученику</span></a>`) : ""}
-              <button type="button" class="btn ${lead.responded ? "soft" : ""} sm" data-a="tc-lead-offer" data-id="${esc(lead.id)}">${lead.responded ? `✓ Отклик ${counterRate} ₽` : `Предложить ${counterRate.toLocaleString("ru-RU")} ₽/ч`}</button>
-            </div>
+            <button type="button" class="btn ${lead.responded ? "soft" : ""} sm" data-a="tc-lead-offer" data-id="${esc(lead.id)}">${lead.responded ? `✓ Отклик ${counterRate} ₽` : `Предложить ${counterRate.toLocaleString("ru-RU")} ₽/ч`}</button>
+            ${waHref ? (EGE.kit && typeof EGE.kit.messengerLinksHTML === "function"
+              ? EGE.kit.messengerLinksHTML({
+                  entity: { id: lead.id, name: lead.studentName, whatsapp: lead.whatsapp || "79142100511" },
+                  message: `Здравствуйте, ${lead.studentName}! Вижу ваш запрос по предмету ${lead.subjectName || "ЕГЭ"}. Готов(а) провести урок по ставке ${counterRate} ₽/ч.`,
+                  primaryLabel: "Написать ученику · WA",
+                  compact: true
+                })
+              : `<a class="btn confirm sm" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>Написать ученику</span></a>`) : ""}
           </div>`;
         }
       }
     ];
+
+    const leadsModeSwitchHtml = `<div class="hh-seg" role="group" aria-label="Фильтр заявок учеников">
+      <button type="button" data-a="tc-leads-mode" data-v="all" aria-pressed="${!mineOnly}">Все заявки (${leadsAll.length})</button>
+      <button type="button" data-a="tc-leads-mode" data-v="mine" aria-pressed="${mineOnly}">По моим предметам</button>
+    </div>`;
 
     const leadsTableHtml = filtered.length
       ? renderDataTable({
@@ -546,8 +552,9 @@
           cardWrap: false,
           showPresetSwitch: false,
           showColsSwitch: false,
-          eyebrow: "",
-          title: "",
+          eyebrow: "Встречный поток из кабинета ученика",
+          title: `Заявки учеников, которые ищут преподавателя (${filtered.length})`,
+          toolbarExtraHTML: leadsModeSwitchHtml,
           query: st.leadsTblQuery || "",
           filterAction: "tc-leads-tbl-filter",
           searchAction: "tc-leads-tbl-q",
@@ -563,27 +570,19 @@
           },
           emptyText: "По поисковому запросу заявок учеников не найдено."
         })
-      : `<div class="empty"><b>По выбранному предмету заявок учеников пока нет</b><span>Отключите фильтр или дождитесь новых запросов из кабинета ученика.</span></div>`;
-
-    return `<div class="stack" style="gap:14px">
-      <div class="card stack" style="gap:10px">
-        <div class="row between" style="gap:10px;flex-wrap:wrap;align-items:center">
+      : `<div class="row between" style="gap:10px;flex-wrap:wrap;align-items:center">
           <div>
             <div class="eyebrow">Встречный поток из кабинета ученика</div>
-            <h2 class="h2">Заявки учеников, которые ищут преподавателя (${filtered.length})</h2>
+            <h2 class="h2">Заявки учеников, которые ищут преподавателя (0)</h2>
           </div>
-          <div class="hh-seg" role="group" aria-label="Фильтр заявок учеников">
-            <button type="button" data-a="tc-leads-mode" data-v="all" aria-pressed="${!mineOnly}">Все заявки (${leadsAll.length})</button>
-            <button type="button" data-a="tc-leads-mode" data-v="mine" aria-pressed="${mineOnly}">По моим предметам</button>
-          </div>
+          ${leadsModeSwitchHtml}
         </div>
-        <div class="small muted">Ваши предметы из «Профиля»: <b>${esc(tutorSubjLabels)}</b>. Фильтр по предметам находится в левом меню вашей анкеты, без дублирования на экране.</div>
-      </div>
+        <div class="empty"><b>По выбранному предмету заявок учеников пока нет</b><span>Отключите фильтр или дождитесь новых запросов из кабинета ученика.</span></div>`;
 
-      <section class="card stack" style="gap:12px" aria-label="Таблица заявок учеников">
-        ${leadsTableHtml}
-      </section>
-    </div>`;
+    return `<section class="card stack" style="gap:12px" aria-label="Таблица заявок учеников">
+      ${leadsTableHtml}
+      <div class="small muted">Ваши предметы из «Профиля»: <b>${esc(tutorSubjLabels)}</b>.</div>
+    </section>`;
   }
 
 

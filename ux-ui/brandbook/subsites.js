@@ -55,7 +55,7 @@
       badge: "7 секций",
       eyebrow: "Секция /brandbook/marketplace · Продуктовые потоки",
       title: "Маркетплейс репетиторов, кабинеты и СБП-эскроу",
-      desc: "Продуктовые модули: линейка тарифов от 390 ₽, торг ±100 ₽, кабинет преподавателя с балансом внизу слева, СБП-сплит, маски контактов WA/TG/MAX и таймеры ЕГЭ-2027.",
+      desc: "Продуктовые модули: линейка тарифов от 390 ₽, торг ±50 ₽, кабинет преподавателя с балансом внизу слева, СБП-сплит, маски контактов WA/TG/MAX и таймеры ЕГЭ-2027.",
       sections: ["bb-cards-sys", "bb-market-app", "bb-cabinet", "bb-payments", "bb-mask-trainer", "bb-study-states", "bb-ege-timers"]
     },
     {
@@ -153,7 +153,7 @@
     { group: "auth", method: "GET", path: "/api/auth/google/start", port: ":8771", desc: "Инициализация OAuth 2.0 + PKCE входа через Google." },
     { group: "auth", method: "GET", path: "/api/docs", port: ":8771", desc: "Загрузка JSONB-документов профиля, прогресса, плана и кабинета." },
     { group: "auth", method: "PATCH", path: "/api/docs/{doc_id}", port: ":8771", desc: "Атомарное deep-merge обновление документа с проверкой квоты." },
-    { group: "realtime", method: "SSE", path: "/api/realtime/stream", port: ":8771", desc: "Серверный поток событий (Server-Sent Events) для ставок ±100 ₽." },
+    { group: "realtime", method: "SSE", path: "/api/realtime/stream", port: ":8771", desc: "Серверный поток событий (Server-Sent Events) для ставок ±50 ₽." },
     { group: "realtime", method: "WS", path: "/api/realtime/ws", port: ":8771", desc: "Двунаправленный сокет-канал мгновенных откликов репетитора и чата." },
     { group: "realtime", method: "POST", path: "/api/realtime/publish", port: ":8771", desc: "Публикация доменного события и запись в outbox.kafka_outbox." },
     { group: "realtime", method: "GET", path: "/api/realtime/recent", port: ":8771", desc: "Последние доставленные уведомления для восстановления после офлайна." },
@@ -356,9 +356,9 @@
           <div class="hh-price-row">${priceHeadlineHTML(market, price, false)}</div>
           <div class="hh-diff-strip">${priceDiffTagsHTML({ tutorPrice: tutorRate, marketPrice: market, offerPrice: price, qualBadge: "Эксперт 95+" })}</div>
           <div class="hh-price-stepper compact">
-            <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-100">−100 ₽</button>
+            <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-50">−50 ₽</button>
             <div class="hh-step-readout"><b class="num">${price.toLocaleString("ru-RU")} ₽/ч</b></div>
-            <button type="button" class="hh-step-btn" data-a="bb-step" data-step="100">+100 ₽</button>
+            <button type="button" class="hh-step-btn" data-a="bb-step" data-step="50">+50 ₽</button>
           </div>
           <button type="button" class="btn sakha-pattern sm${sent ? " is-confirmed" : ""}" data-a="bb-bid">${sakhaBidInnerHTML(sent, price, { short: true, size: 15 })}</button>
         </article>
@@ -407,7 +407,7 @@
         <div class="row between" style="gap:8px;flex-wrap:wrap">
           <div class="stack" style="gap:2px">
             <span class="eyebrow" style="margin:0">${isTutor ? "Кабинет преподавателя" : "Витрина ученика"}</span>
-            <b style="font-size:15px">${isTutor ? "Входящие заявки и торг ±100 ₽ (5 колонок)" : "Подбор репетиторов и активные брони"}</b>
+            <b style="font-size:15px">${isTutor ? "Входящие заявки и торг ±50 ₽ (5 колонок)" : "Подбор репетиторов и активные брони"}</b>
           </div>
           <span class="bb-spec-pill confirm">Синхронизировано · UTC+9</span>
         </div>
@@ -475,9 +475,9 @@
         <div class="hh-price-row">${priceHeadlineHTML(market, price, false)}</div>
         <div class="hh-diff-strip">${priceDiffTagsHTML({ tutorPrice: tutorRate, marketPrice: market, offerPrice: price, qualBadge: "Эксперт 95+" })}</div>
         <div class="hh-price-stepper compact">
-          <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-100">−100</button>
+          <button type="button" class="hh-step-btn" data-a="bb-step" data-step="-50">−50</button>
           <div class="hh-step-readout"><b class="num">${price.toLocaleString("ru-RU")} ₽</b></div>
-          <button type="button" class="hh-step-btn" data-a="bb-step" data-step="100">+100</button>
+          <button type="button" class="hh-step-btn" data-a="bb-step" data-step="50">+50</button>
         </div>
         <button type="button" class="btn sakha-pattern sm${sent ? " is-confirmed" : ""}" style="width:100%" data-a="bb-bid">${sakhaBidInnerHTML(sent, price, { short: true, size: 15 })}</button>
       </article>
@@ -563,7 +563,7 @@
           <div class="card pad stack" style="gap:4px;box-shadow:none">
             <span class="bb-spec-pill pro">${devTheme === "dark" ? "OLED Dark #000000" : "Light #F4F5F7"}</span>
             <b>Токенизированная палитра</b>
-            <p class="small muted" style="margin:0">Живой интерактивный степпер ±100 ₽ и кнопка Саха работают прямо внутри этого макета.</p>
+            <p class="small muted" style="margin:0">Живой интерактивный степпер ±50 ₽ и кнопка Саха работают прямо внутри этого макета.</p>
           </div>
         </div>`
       : "";

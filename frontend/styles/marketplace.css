@@ -1,4 +1,4 @@
-/* Лендинг /landing, моушен-торг, маркетплейс репетиторов, степпер ±100 ₽, ползунок времени, тарифы и /fees. */
+/* Лендинг /landing, моушен-торг, маркетплейс репетиторов, степпер ±50 ₽, ползунок времени, тарифы и /fees. */
 /* ---------- лендинг, маркетплейс репетиторов и календарь-кружочки ---------- */
 body[data-auth="1"] .main {
   display: block;
@@ -98,38 +98,41 @@ body:not([data-auth="1"]):not([data-fullbleed="1"]):not([data-brandbook="1"]) .l
 .cal-days {
   display: grid; grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 8px; align-items: stretch; min-width: 0; max-width: 100%;
-  padding: 5px 2px 7px;
+  padding: 4px 0 6px;
+}
+.cal-days.is-7days {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
 }
 @media (max-width: 759px) {
-  .cal-days {
+  .cal-days,
+  .cal-days.is-7days {
     display: flex; gap: 8px; align-items: stretch; width: 100%; min-width: 0; max-width: 100%;
     overflow-x: auto; overflow-y: visible; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
-    padding: 5px 4px 8px; scrollbar-width: none;
+    padding: 4px 2px 6px; scrollbar-width: none;
   }
   .cal-days::-webkit-scrollbar { display: none; }
   .day-cir { flex: 0 0 68px; scroll-snap-align: start; }
 }
 .day-cir {
-  position: relative; min-width: 0; display: grid; justify-items: center; gap: 5px; padding: 9px 6px;
-  border-radius: 14px; border: 1px solid var(--line); background: var(--surface);
+  position: relative; min-width: 0; display: grid; justify-items: center; gap: 3px; padding: 8px 6px;
+  border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2);
   color: var(--ink-2); cursor: pointer;
-  transition: border-color .18s ease, background-color .18s ease, box-shadow .18s ease, transform .2s cubic-bezier(.22, 1, .36, 1);
+  transition: border-color .16s ease, background-color .16s ease, transform .16s ease;
 }
 .day-cir:hover {
-  border-color: var(--accent); transform: translateY(-2px); z-index: 2;
-  box-shadow: 0 8px 18px -10px color-mix(in srgb, var(--accent) 44%, transparent);
+  border-color: var(--accent); transform: translateY(-1px); z-index: 2;
 }
 .day-wd { font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
 .day-dot {
-  width: 38px; height: 38px; border-radius: 50%;
-  display: grid; place-items: center; font-weight: 700; font-size: 15px; line-height: 1;
+  width: auto; height: auto; min-height: 22px; border-radius: 0;
+  display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; line-height: 1.1;
   white-space: nowrap; font-variant-numeric: tabular-nums;
-  background: var(--surface-2); color: var(--ink); border: 1px solid var(--line);
+  background: transparent; color: var(--ink); border: 0; box-shadow: none;
 }
-.day-dot.all-badge { font-size: 12px; letter-spacing: .01em; }
+.day-dot.all-badge { font-size: 13px; letter-spacing: .01em; }
 .day-cnt { font-size: 11px; color: var(--muted); white-space: nowrap; }
-.day-cir.on { border-color: var(--accent); background: var(--accent-soft); color: var(--ink); }
-.day-cir.on .day-dot { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+.day-cir.on { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: var(--accent-soft); color: var(--ink); }
+.day-cir.on .day-dot { background: transparent; border: 0; color: var(--accent); box-shadow: none; }
 .day-cir.on .day-cnt { color: var(--accent); font-weight: 600; }
 
 .hour-circles {
@@ -139,20 +142,20 @@ body:not([data-auth="1"]):not([data-fullbleed="1"]):not([data-brandbook="1"]) .l
 @media (max-width: 1060px) { .hour-circles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (max-width: 600px) { .hour-circles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .hr-cir {
-  position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  width: 100%; min-width: 0; min-height: 42px; padding: 6px 10px;
+  position: relative; display: inline-flex; align-items: center; justify-content: space-between; gap: 6px;
+  width: 100%; min-width: 0; min-height: 36px; padding: 6px 10px;
   white-space: nowrap; font-variant-numeric: tabular-nums;
-  border-radius: 999px; border: 1px solid var(--line-strong); background: var(--surface);
-  color: var(--ink); font-family: var(--font-mono); font-size: 13.5px; font-weight: 500;
+  border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2);
+  color: var(--ink); font-family: var(--font-mono); font-size: 13px; font-weight: 500;
   transition: border-color .12s ease, background-color .12s ease, color .12s ease;
 }
 .hr-cir:hover { border-color: var(--accent); }
 .hr-cir .hr-cnt {
-  display: inline-grid; place-items: center; min-width: 19px; height: 19px; padding: 0 5px;
-  border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: 11px; font-weight: 600;
+  display: inline-flex; align-items: center; justify-content: center; min-width: auto; height: auto; padding: 0;
+  border-radius: 0; background: transparent; color: var(--muted); font-size: 12px; font-weight: 600;
 }
 .hr-cir.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
-.hr-cir.on .hr-cnt { background: rgba(255,255,255,.22); color: var(--accent-ink); }
+.hr-cir.on .hr-cnt { background: transparent; color: var(--accent-ink); }
 .hr-cir.empty-slot { opacity: .45; }
 
 /* карточки репетиторов */
@@ -324,6 +327,30 @@ body:not([data-auth="1"]):not([data-fullbleed="1"]):not([data-brandbook="1"]) .l
 }
 .fee-pill span { font-size: 11.5px; color: var(--muted); }
 .fee-pill b { font-family: var(--font-display); font-size: 16px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.bid-fee-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  overflow: hidden;
+  min-width: 0;
+}
+.bid-fee-row .fee-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+}
+.bid-fee-row .fee-pill:last-child { border-bottom: 0; }
+.bid-fee-row .fee-pill span { font-size: 12.5px; color: var(--ink-2); }
+.bid-fee-row .fee-pill b { font-size: 14.5px; font-weight: 700; color: var(--ink); }
+.bid-fee-row .fee-pill:nth-child(2) b { color: var(--confirm); }
 .bid-time-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
 .hour-circles.compact { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
 .hour-circles.compact .hr-cir { min-height: 32px; padding: 4px 8px; font-size: 12.5px; }
@@ -743,7 +770,7 @@ body:not([data-auth="1"]):not([data-fullbleed="1"]):not([data-brandbook="1"]) .l
   color: var(--muted); font-family: var(--font-mono); line-height: 1;
 }
 
-/* единый сегментный степпер цены -100 ₽ / +100 ₽ без двойных рамок */
+/* единый сегментный степпер цены -50 ₽ / +50 ₽ без двойных рамок */
 .hh-price-stepper {
   display: grid;
   grid-template-columns: minmax(64px, auto) minmax(max-content, 1fr) minmax(64px, auto);
@@ -908,7 +935,7 @@ body:not([data-auth="1"]):not([data-fullbleed="1"]):not([data-brandbook="1"]) .l
   .hh-step-btn { padding: 0 6px; font-size: 12.5px; }
   .hh-step-readout b { font-size: 14.5px; }
   .day-cir { min-width: 54px; padding: 6px 4px; }
-  .day-dot { width: 34px; height: 34px; font-size: 14px; }
+  .day-dot { width: auto; height: auto; font-size: 14px; }
 }
 
 /* ---------- Расширение лендинга: Квиз-подбор, Аналитика ставок, ИИ, Антифейк, Отзывы, Гарантии, FAQ, Mobile Sticky ---------- */

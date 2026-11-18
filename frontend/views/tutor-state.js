@@ -48,7 +48,7 @@
     },
     {
       id: "tpl-counter",
-      title: "Вежливый встречный торг ±100 ₽",
+      title: "Вежливый встречный торг ±50 ₽",
       build: (p) => `Добрый день! На это время у меня высокий спрос, готов(а) провести урок за ${Math.max(p.minFair, p.price - 100).toLocaleString("ru-RU")} ₽/ч — в стоимость уже входят проверка ДЗ и конспекты ФИПИ.`
     },
     {
@@ -594,7 +594,7 @@
   }
 
   function clampStep(val, delta, lo, hi) {
-    const cur = Math.round((Number(val) || lo) / 100) * 100;
+    const cur = Math.round((Number(val) || lo) / 50) * 50;
     return Math.max(lo, Math.min(hi, cur + delta));
   }
 

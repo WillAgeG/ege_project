@@ -73,9 +73,9 @@
 
       ${(isPending || isCountered) ? `
         <div class="hh-price-stepper compact">
-          <button type="button" class="hh-step-btn" data-a="tc-req-step" data-id="${esc(req.id)}" data-step="-100">−100 ₽</button>
+          <button type="button" class="hh-step-btn" data-a="tc-req-step" data-id="${esc(req.id)}" data-step="-50">−50 ₽</button>
           <div class="hh-step-readout"><b class="num">${bidRate.toLocaleString("ru-RU")} ₽/ч</b><span class="small muted">ваша цена</span></div>
-          <button type="button" class="hh-step-btn" data-a="tc-req-step" data-id="${esc(req.id)}" data-step="100">+100 ₽</button>
+          <button type="button" class="hh-step-btn" data-a="tc-req-step" data-id="${esc(req.id)}" data-step="50">+50 ₽</button>
         </div>
         <div class="row" style="gap:8px;flex-wrap:wrap">
           <button type="button" class="btn confirm sm" data-a="tc-req-accept" data-id="${esc(req.id)}">${icon("check")}<span>Подтвердить ${bidRate.toLocaleString("ru-RU")} ₽</span></button>
@@ -114,7 +114,7 @@
         </div>
         <span class="chip accent num">${esc(activeDayObj.wd)}: ${daySlots.length} ч</span>
       </div>
-      <div class="cal-days" aria-label="День недели">
+      <div class="cal-days is-7days" aria-label="День недели">
         ${DAY_LIST.map((d) => {
           const cnt = Array.isArray(st.slots[d.dow]) ? st.slots[d.dow].length : 0;
           return `<button type="button" class="day-cir${st.activeDow === d.dow ? " on" : ""}" data-a="tc-day" data-dow="${d.dow}">
@@ -159,13 +159,13 @@
       {
         key: "student",
         label: "Ученик и предмет",
-        render: (req) => `<div class="row" style="gap:10px;align-items:flex-start;min-width:0">
-          <span class="tutor-avatar" aria-hidden="true">${esc(initials(req.studentName))}</span>
-          <div class="stack" style="gap:3px;min-width:0">
-            <div class="row" style="gap:6px;flex-wrap:wrap">
-              <b>${esc(req.studentName)}</b>
-              <span class="chip">${esc(req.exam)} · ${esc(req.subjectName)}</span>
-            </div>
+        render: (req) => `<div style="display:grid;gap:5px;min-width:155px">
+          <div class="row" style="gap:8px;align-items:center;flex-wrap:nowrap">
+            <span class="tutor-avatar" aria-hidden="true">${esc(initials(req.studentName))}</span>
+            <b>${esc(req.studentName)}</b>
+          </div>
+          <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center">
+            <span class="chip">${esc(req.exam)} · ${esc(req.subjectName)}</span>
             <span class="small muted">${esc(req.createdLabel || "новое")}</span>
           </div>
         </div>`
@@ -173,25 +173,26 @@
       {
         key: "slot",
         label: "Слот",
-        render: (req) => `<div class="stack" style="gap:2px">
-          <b class="num">${esc(req.dayLabel)} · ${esc(req.hour)}</b>
-          <span class="small muted">${esc(req.format || "Онлайн")}</span>
+        render: (req) => `<div style="display:grid;gap:3px;min-width:112px">
+          <b class="num" style="white-space:nowrap">${esc(req.dayLabel)}</b>
+          <span class="small muted num" style="white-space:nowrap">${esc(req.hour)} · ${esc(req.format || "Онлайн")}</span>
         </div>`
       },
       {
         key: "rate",
-        label: "Ставка ±100 ₽",
+        label: "Ставка ±50 ₽",
         num: true,
+        align: "left",
         render: (req) => {
           const { bidRate, sp } = reqMetrics(req);
           const canStep = req.status === "pending" || req.status === "countered";
-          return `<div class="stack" style="gap:6px">
+          return `<div style="display:grid;gap:6px;justify-items:start;min-width:205px">
             ${canStep ? `<div class="hh-price-stepper compact">
-              <button type="button" class="hh-step-btn" data-a="tc-req-step" data-id="${esc(req.id)}" data-step="-100">−100 ₽</button>
+              <button type="button" class="hh-step-btn" data-a="tc-req-step" data-id="${esc(req.id)}" data-step="-50">−50 ₽</button>
               <div class="hh-step-readout"><b class="num">${bidRate.toLocaleString("ru-RU")} ₽/ч</b></div>
-              <button type="button" class="hh-step-btn" data-a="tc-req-step" data-id="${esc(req.id)}" data-step="100">+100 ₽</button>
+              <button type="button" class="hh-step-btn" data-a="tc-req-step" data-id="${esc(req.id)}" data-step="50">+50 ₽</button>
             </div>` : `<b class="num">${bidRate.toLocaleString("ru-RU")} ₽/ч</b>`}
-            <span class="small muted num">На руки 95%: <b style="color:var(--confirm)">${sp.payout.toLocaleString("ru-RU")} ₽</b></span>
+            <span class="small muted num" style="white-space:nowrap">На руки 95%: <b style="color:var(--confirm)">${sp.payout.toLocaleString("ru-RU")} ₽</b></span>
           </div>`;
         }
       },
@@ -200,11 +201,11 @@
         label: "Рынок и заметка",
         render: (req) => {
           const { bidRate, tutorRate, mktRate } = reqMetrics(req);
-          return `<div class="stack" style="gap:5px;min-width:0">
+          return `<div style="display:grid;gap:5px;min-width:185px;max-width:290px">
             <div class="hh-diff-strip">
               ${priceDiffTagsHTML({ tutorPrice: tutorRate, marketPrice: mktRate, offerPrice: bidRate, qualBadge: "Повышенная ставка · Профи" })}
             </div>
-            ${req.note ? `<div class="small ink2">${esc(req.note)}</div>` : `<span class="small muted">Без комментария</span>`}
+            ${req.note ? `<div class="small ink2" style="line-height:1.45">${esc(req.note)}</div>` : `<span class="small muted">Без комментария</span>`}
           </div>`;
         }
       },
@@ -226,7 +227,7 @@
                 : `<span class="bb-tbl-st is-pending">Ожидает ответа</span>`;
 
           if (isPending || isCountered) {
-            return `<div class="stack" style="gap:6px">
+            return `<div style="display:grid;gap:6px;justify-items:start;min-width:190px">
               ${statusChip}
               <div class="row" style="gap:6px;flex-wrap:wrap">
                 <button type="button" class="btn confirm sm" data-a="tc-req-accept" data-id="${esc(req.id)}">${icon("check")}<span>Подтвердить ${bidRate.toLocaleString("ru-RU")} ₽</span></button>
@@ -236,7 +237,7 @@
             </div>`;
           }
           if (isAccepted) {
-            return `<div class="stack" style="gap:6px">
+            return `<div style="display:grid;gap:6px;justify-items:start;min-width:190px">
               ${statusChip}
               <span class="small muted num">К выплате: <b>${sp.payout.toLocaleString("ru-RU")} ₽</b></span>
               ${EGE.kit && typeof EGE.kit.messengerLinksHTML === "function"
@@ -249,7 +250,7 @@
                 : `<button type="button" class="btn confirm sm" data-a="tc-req-msg" data-id="${esc(req.id)}">${icon("msg")}<span>Написать ученику</span></button>`}
             </div>`;
           }
-          return `<div class="stack" style="gap:6px">
+          return `<div style="display:grid;gap:6px;justify-items:start;min-width:190px">
             ${statusChip}
             <button type="button" class="btn soft sm" data-a="tc-req-restore" data-id="${esc(req.id)}">Вернуть в рассмотрение</button>
           </div>`;
@@ -330,17 +331,17 @@
           <div class="field">
             <span class="label">Стандартная ставка (₽/ч)</span>
             <div class="hh-price-stepper compact">
-              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="price" data-step="-100">−100 ₽</button>
+              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="price" data-step="-50">−50 ₽</button>
               <div class="hh-step-readout"><b class="num">${p.price.toLocaleString("ru-RU")} ₽/ч</b></div>
-              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="price" data-step="100">+100 ₽</button>
+              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="price" data-step="50">+50 ₽</button>
             </div>
           </div>
           <div class="field">
             <span class="label">Минимальный порог торга от учеников</span>
             <div class="hh-price-stepper compact">
-              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="minFair" data-step="-100">−100 ₽</button>
+              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="minFair" data-step="-50">−50 ₽</button>
               <div class="hh-step-readout"><b class="num">${p.minFair.toLocaleString("ru-RU")} ₽/ч</b></div>
-              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="minFair" data-step="100">+100 ₽</button>
+              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="minFair" data-step="50">+50 ₽</button>
             </div>
           </div>
           <div class="bid-fee-row">${feeSplitHTML(p.price, TDATA)}</div>
@@ -578,22 +579,22 @@
           </div>
         </div>
 
-        <div class="eyebrow" style="margin-top:4px">3. Ставка, торг ±100 ₽ и описание методики</div>
+        <div class="eyebrow" style="margin-top:4px">3. Ставка, торг ±50 ₽ и описание методики</div>
         <div class="tc-two-col">
           <div class="field">
             <span class="label">Базовая ставка (₽/ч)</span>
             <div class="hh-price-stepper compact">
-              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="price" data-step="-100">−100 ₽</button>
+              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="price" data-step="-50">−50 ₽</button>
               <div class="hh-step-readout"><b class="num">${p.price.toLocaleString("ru-RU")} ₽/ч</b></div>
-              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="price" data-step="100">+100 ₽</button>
+              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="price" data-step="50">+50 ₽</button>
             </div>
           </div>
           <div class="field">
             <span class="label">Минимальный порог торга</span>
             <div class="hh-price-stepper compact">
-              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="minFair" data-step="-100">−100 ₽</button>
+              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="minFair" data-step="-50">−50 ₽</button>
               <div class="hh-step-readout"><b class="num">${p.minFair.toLocaleString("ru-RU")} ₽/ч</b></div>
-              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="minFair" data-step="100">+100 ₽</button>
+              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="minFair" data-step="50">+50 ₽</button>
             </div>
           </div>
         </div>
@@ -668,7 +669,7 @@
             ${rtPillHtml}
           </div>
         </div>
-        <p class="lead">Управляйте заявками ±100 ₽, собирайте профиль и фото, ведите календарь записанных учеников и отправляйте автоуведомления в WhatsApp.</p>
+        <p class="lead">Управляйте заявками ±50 ₽, собирайте профиль и фото, ведите календарь записанных учеников и отправляйте автоуведомления в WhatsApp.</p>
       </div>
 
       ${sakhaOhyorHTML("Вектор ЕГЭ · Саха", { goldLogo: true })}
@@ -1004,7 +1005,7 @@
       const step = Number(d.step) || 0;
       if (which === "price") {
         st.profile.price = clampStep(st.profile.price, step, 600, 3500);
-        if (st.profile.minFair > st.profile.price) st.profile.minFair = Math.max(500, st.profile.price - 100);
+        if (st.profile.minFair > st.profile.price) st.profile.minFair = Math.max(500, st.profile.price - 50);
       } else {
         st.profile.minFair = clampStep(st.profile.minFair, step, 500, st.profile.price);
       }

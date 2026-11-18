@@ -1,4 +1,4 @@
-/* Авто-адаптивный табличный движок (1..15+ колонок), липкая первая колонка и защита степпера ±100 ₽ */
+/* Авто-адаптивный табличный движок (1..15+ колонок), липкая первая колонка и защита степпера ±50 ₽ */
 
 .bb-table-shell {
   container-type: inline-size;
@@ -59,8 +59,15 @@
 }
 
 .bb-data-table td {
-  vertical-align: middle;
+  vertical-align: top;
   overflow-wrap: break-word;
+  box-sizing: border-box;
+}
+
+.bb-data-table:not(.is-single-col) td > .stack,
+.bb-data-table:not(.is-single-col) td .stack {
+  grid-template-columns: minmax(min-content, 1fr);
+  min-width: min-content;
 }
 
 .bb-data-table td .bb-tbl-st,
@@ -113,27 +120,33 @@
   gap: 8px 12px;
 }
 
-/* Починка сжатия степпера ±100 ₽ внутри табличных ячеек */
+/* Починка сжатия степпера ±50 ₽ внутри табличных ячеек */
 .bb-data-table td .hh-price-stepper.compact {
   display: inline-grid;
-  grid-template-columns: auto minmax(92px, max-content) auto;
+  grid-template-columns: auto minmax(78px, max-content) auto;
   width: max-content;
   max-width: none;
   min-width: 0;
+  gap: 3px;
+  padding: 3px;
+  min-height: 34px;
   white-space: nowrap;
-  align-items: stretch;
+  align-items: center;
 }
 
 .bb-data-table td .hh-price-stepper.compact .hh-step-btn {
   flex-shrink: 0;
   white-space: nowrap;
   min-width: max-content;
-  padding: 0 10px;
+  min-height: 28px;
+  padding: 0 8px;
+  font-size: 12px;
 }
 
 .bb-data-table td .hh-price-stepper.compact .hh-step-readout {
   white-space: nowrap;
-  padding: 0 8px;
+  min-height: 28px;
+  padding: 0 6px;
 }
 
 .bb-data-table td .hh-price-stepper.compact .hh-step-readout b {
@@ -253,6 +266,13 @@
   .bb-data-table.is-adaptive td > .stack {
     justify-items: end;
     flex: 1 1 52%;
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+  }
+
+  .bb-data-table.is-adaptive td .stack {
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
   }
 
   .bb-data-table.is-adaptive td .field {
@@ -266,6 +286,12 @@
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
+  }
+
+  .bb-data-table.is-adaptive td > .stack,
+  .bb-data-table.is-adaptive td .stack {
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
   }
 
   .bb-data-table.is-adaptive td .btn {
@@ -333,6 +359,12 @@
 
   .bb-data-table.is-single-col .bb-tbl-single-card {
     width: 100%;
+  }
+
+  .bb-data-table.is-adaptive td > .stack,
+  .bb-data-table.is-adaptive td .stack {
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
   }
 
   .bb-data-table.is-adaptive td .btn {

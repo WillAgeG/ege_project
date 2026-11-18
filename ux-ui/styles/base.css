@@ -596,13 +596,11 @@ p { margin: 0; }
   background: linear-gradient(90deg, rgba(197, 155, 95, .06), #e8c77f 35%, #c59b5f 55%, rgba(197, 155, 95, .06));
 }
 .sakha-gold-emblem {
-  display: inline-grid; place-items: center; flex: none;
-  width: 46px; height: 46px; border-radius: 999px;
-  background: radial-gradient(circle at 32% 28%, rgba(252, 226, 166, .28), rgba(197, 155, 95, .14) 64%, transparent), var(--bg);
-  color: #d6ab67;
-  box-shadow: 0 0 0 4px var(--bg);
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  padding: 0 4px; background: transparent; border: 0; border-radius: 0; box-shadow: none;
+  color: #C59B5F;
 }
-.sakha-gold-emblem svg { width: 42px; height: 42px; display: block; }
+.sakha-gold-emblem svg { width: 32px; height: 32px; display: block; }
 .chip svg { width: 13px; height: 13px; flex: none; display: block; }
 .notif-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--notif); flex: none; }
 
@@ -992,11 +990,22 @@ body[data-auth="1"] .top-bal-slot { display: none !important; }
   position: static;
   width: 100%;
   max-width: 100%;
-  justify-content: space-between;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
   flex-wrap: wrap;
   box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+}
+.tutor-bal-dock.is-inline-preview .tutor-bal-meta {
+  flex: 1 1 170px;
+  min-width: 0;
+}
+.tutor-bal-dock.is-inline-preview .btn {
+  margin-left: auto;
+  flex: 0 0 auto;
 }
 .tutor-bal-ico {
   width: 36px;

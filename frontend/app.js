@@ -1341,9 +1341,9 @@
           <div class="field">
             <span class="label">Желаемая ставка за урок (₽/ч)</span>
             <div class="hh-price-stepper compact">
-              <button type="button" class="hh-step-btn" data-a="tutor-apply-step" data-step="-100">−100 ₽</button>
+              <button type="button" class="hh-step-btn" data-a="tutor-apply-step" data-step="-50">−50 ₽</button>
               <div class="hh-step-readout"><b class="num">${rate.toLocaleString("ru-RU")} ₽/ч</b></div>
-              <button type="button" class="hh-step-btn" data-a="tutor-apply-step" data-step="100">+100 ₽</button>
+              <button type="button" class="hh-step-btn" data-a="tutor-apply-step" data-step="50">+50 ₽</button>
             </div>
             <span class="hint">${isPro ? `<span class="diff-tag pro">Выше рынка · Профи</span> Анкета получит фиолетовый бейдж высокой квалификации.` : "Базовая ставка каталога · шаг для торга можно ограничить позже."}</span>
           </div>
