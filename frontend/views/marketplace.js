@@ -141,6 +141,20 @@
     return resolveTutorGuarantee(t);
   }
 
+  function plainBidLabel(alreadyBooked, price) {
+    const p = Math.max(0, Math.round(Number(price) || 0)).toLocaleString("ru-RU");
+    return alreadyBooked ? `✓ Предложено ${p} ₽` : `Предложить ${p} ₽`;
+  }
+
+  function priceFilterLabel(st) {
+    const minP = Number(st && st.minPrice) || 0;
+    const maxP = Number(st && st.maxPrice) || 0;
+    if (minP > 0 && maxP > 0) return `от ${minP.toLocaleString("ru-RU")} до ${maxP.toLocaleString("ru-RU")} ₽/ч`;
+    if (minP > 0) return `от ${minP.toLocaleString("ru-RU")} ₽/ч`;
+    if (maxP > 0) return `до ${maxP.toLocaleString("ru-RU")} ₽/ч`;
+    return "Любая";
+  }
+
   function cardDiffTagsHTML(t, offerPrice) {
     const marketP = Number(t.marketPrice) || Number(t.price) || 1200;
     const customBadges = Array.isArray(t.customBadges)
@@ -225,7 +239,7 @@
           <div class="hh-step-readout"><b class="num" data-card-val="${esc(t.id)}">${cardPrice.toLocaleString("ru-RU")} ₽/ч</b></div>
           <button type="button" class="hh-step-btn" data-a="card-offer-step" data-id="${esc(t.id)}" data-step="50" aria-label="Повысить цену на 50 рублей">+50 ₽</button>
         </div>
-        <button type="button" class="btn sakha-pattern tutor-bid-btn${alreadyBooked ? " is-confirmed" : ""}" data-a="book-open" data-id="${esc(t.id)}" data-offer="${cardPrice}">${sakhaBidInnerHTML(alreadyBooked, cardPrice)}</button>
+        <button type="button" class="btn tutor-bid-btn${alreadyBooked ? " is-confirmed" : ""}" data-a="card-bid" data-id="${esc(t.id)}" data-offer="${cardPrice}"><span>${esc(plainBidLabel(alreadyBooked, cardPrice))}</span></button>
         <div class="tutor-sub-actions">
           ${guaranteeInfo.enabled
             ? `<button type="button" class="btn soft sm trial-guar-btn is-active" data-a="trial-open" data-id="${esc(t.id)}">${icon("check")}<span>Возврат за 1-й урок</span></button>`
@@ -372,10 +386,8 @@
     if (st.format && st.format !== "all") n++;
     if (st.city && st.city !== "all") n++;
     if (st.subject && st.subject !== "all") n++;
-    if (st.maxPrice && st.maxPrice < 2000) n++;
+    if (Number(st.minPrice) > 0 || Number(st.maxPrice) > 0) n++;
     if (st.onlyBumped) n++;
-    if (st.day && st.day !== "all") n++;
-    if (st.hour && st.hour !== "all") n++;
     if (st.q && String(st.q).trim()) n++;
     return n;
   }
@@ -390,9 +402,12 @@
     const offerPrice = Math.max(0, Math.min(99999, b.offerPrice != null ? Math.round(Number(b.offerPrice)) : (Number(tutor.price) || 1200)));
     const sig = TDATA.offerSignal(tutor.price, offerPrice);
 
-    return `<div class="modal-back" role="dialog" aria-modal="true" aria-labelledby="book-modal-title">
-      <div class="modal-card">
-        <div class="modal-head">
+    return `<div class="modal-back is-sheet-back" role="dialog" aria-modal="true" aria-labelledby="book-modal-title">
+      <div class="modal-card sheet-modal is-booking-sheet" data-sheet-kind="booking">
+        <div class="sheet-grabber-zone" data-sheet-drag="1" role="button" tabindex="0" data-a="book-close" aria-label="Свернуть окно">
+          <span class="sheet-grabber"></span>
+        </div>
+        <div class="sheet-head is-booking-head">
           <div class="tutor-modal-head">
             ${tutorAvatarHTML(tutor)}
             <div class="stack" style="gap:2px;min-width:0">
@@ -406,46 +421,44 @@
           <button type="button" class="icon-btn sm" data-a="book-close" aria-label="Закрыть">${icon("x")}</button>
         </div>
 
-        <p class="small ink2" style="margin:0;line-height:1.5">${esc(tutor.bio)}</p>
+        <div class="sheet-body">
+          <p class="small ink2" style="margin:0;line-height:1.5">${esc(tutor.bio)}</p>
 
-        <div class="trial-guar-box ${gInfo.enabled ? "is-active" : "is-grey"}" id="bid-guarantee-box">
-          ${gInfo.enabled ? icon("check") : ""}
-          <div class="stack" style="gap:2px;min-width:0">
-            <b>${esc(gInfo.badgeLabel)}</b>
-            <span class="small">${esc(gInfo.modalNote)}</span>
-          </div>
-        </div>
-
-        <div class="field">
-          <label for="bid-price">Твоя цена за урок (0 – 99 999 ₽/ч)</label>
-          <div class="hh-price-row" id="bid-price-row" style="margin-bottom:4px">
-            ${priceHeadlineHTML(tutor.marketPrice, offerPrice, false)}
-          </div>
-          <div class="hh-diff-strip" id="bid-diff-strip" style="margin-bottom:4px">
-            ${cardDiffTagsHTML(tutor, offerPrice)}
-          </div>
-          <div class="hh-price-stepper">
-            <button type="button" class="hh-step-btn" data-a="bid-step" data-step="-50">−50 ₽</button>
-            <div class="hh-step-readout is-inline">
-              <input class="input bid-input num" id="bid-price" type="number" min="0" max="99999" step="50" inputmode="numeric" value="${offerPrice}">
-              <span class="hh-step-unit">₽/ч</span>
+          <div class="trial-guar-box ${gInfo.enabled ? "is-active" : "is-grey"}" id="bid-guarantee-box">
+            ${gInfo.enabled ? icon("check") : ""}
+            <div class="stack" style="gap:2px;min-width:0">
+              <b>${esc(gInfo.badgeLabel)}</b>
+              <span class="small">${esc(gInfo.modalNote)}</span>
             </div>
-            <button type="button" class="hh-step-btn" data-a="bid-step" data-step="50">+50 ₽</button>
           </div>
-          <div id="bid-signal" class="small"><span class="chip ${sig.tone}">${esc(sig.label)}</span></div>
+
+          <div class="field">
+            <label for="bid-price">Твоя цена за урок (0 – 99 999 ₽/ч)</label>
+            <div class="hh-price-row" id="bid-price-row" style="margin-bottom:4px">
+              ${priceHeadlineHTML(tutor.marketPrice, offerPrice, false)}
+            </div>
+            <div class="hh-diff-strip" id="bid-diff-strip" style="margin-bottom:4px">
+              ${cardDiffTagsHTML(tutor, offerPrice)}
+            </div>
+            <div class="hh-price-stepper">
+              <button type="button" class="hh-step-btn" data-a="bid-step" data-step="-50">−50 ₽</button>
+              <div class="hh-step-readout is-inline">
+                <input class="input bid-input num" id="bid-price" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" autocomplete="off" value="${offerPrice}">
+                <span class="hh-step-unit">₽/ч</span>
+              </div>
+              <button type="button" class="hh-step-btn" data-a="bid-step" data-step="50">+50 ₽</button>
+            </div>
+            <div id="bid-signal" class="small"><span class="chip ${sig.tone}">${esc(sig.label)}</span></div>
+          </div>
+
+          <div class="field">
+            <label for="bid-note">Твоя цель и почему хочешь заниматься у этого преподавателя</label>
+            <textarea class="input" id="bid-note" rows="3" maxlength="240" placeholder="Например: цель 85+ баллов, нужно подтянуть сложные темы и разбирать варианты раз в неделю">${esc(b.note || "")}</textarea>
+          </div>
         </div>
 
-        <div class="field">
-          <label for="bid-note">Твоя цель и почему хочешь заниматься у этого преподавателя</label>
-          <textarea class="input" id="bid-note" rows="3" maxlength="240" placeholder="Например: цель 85+ баллов, нужно подтянуть сложные темы и разбирать варианты раз в неделю">${esc(b.note || "")}</textarea>
-        </div>
-
-        <div class="row between" style="flex-wrap:wrap;gap:8px;align-items:center">
-          <div class="row" style="flex-wrap:wrap;gap:8px">
-            <button type="button" class="btn sakha-pattern" id="bid-submit-btn" data-a="book-submit">${sakhaBidInnerHTML(false, offerPrice, { attr: 'data-bid-lbl="1"' })}</button>
-            <button type="button" class="btn ghost" data-a="book-close">Отмена</button>
-          </div>
-          <button type="button" class="link-btn small muted" data-a="go-fees">Защита оплаты СБП →</button>
+        <div class="sheet-foot is-centered">
+          <button type="button" class="btn bid-submit-main" id="bid-submit-btn" data-a="book-submit"><span data-bid-lbl="1">${esc(plainBidLabel(false, offerPrice))}</span></button>
         </div>
       </div>
     </div>`;
@@ -475,8 +488,9 @@
     const subBtn = document.getElementById("bid-submit-btn");
     if (subBtn) {
       const subLbl = subBtn.querySelector && (subBtn.querySelector("[data-bid-lbl]") || subBtn.querySelector("span"));
-      if (subLbl) subLbl.textContent = bidBtnLabelHTML(false, offerPrice);
-      else subBtn.innerHTML = sakhaBidInnerHTML(false, offerPrice, { attr: 'data-bid-lbl="1"' });
+      const txt = plainBidLabel(false, offerPrice);
+      if (subLbl) subLbl.textContent = txt;
+      else subBtn.innerHTML = `<span data-bid-lbl="1">${esc(txt)}</span>`;
     }
     const sigEl = document.getElementById("bid-signal");
     if (sigEl) {
@@ -491,13 +505,31 @@
     if (!ui.filterModal || !TDATA) return "";
     const st = getMkt();
     const days = TDATA.buildCalendarDays(7);
-    const activeDayObj = st.day !== "all" ? (days.find((d) => d.iso === st.day) || null) : null;
     const list = TDATA.filterTutors(st, days);
     const totalWord = plural(list.length, "репетитора", "репетиторов", "репетиторов");
-    return `<div class="modal-back" role="dialog" aria-modal="true" aria-labelledby="filter-modal-title">
-      <div class="modal-card sheet-modal">
-        <div class="sheet-head">
-          <button type="button" class="icon-btn sm" data-a="filter-close" aria-label="Назад">${icon("back")}</button>
+    const visibleSubjects = typeof TDATA.subjectsForExam === "function" ? TDATA.subjectsForExam(st.exam) : TDATA.SUBJECTS;
+    const pricePresets = [
+      [0, "Любая"],
+      [800, "до 800 ₽"],
+      [1000, "до 1 000 ₽"],
+      [1200, "до 1 200 ₽"],
+      [1500, "до 1 500 ₽"],
+      [2000, "до 2 000 ₽"],
+      [3000, "до 3 000 ₽"]
+    ];
+    const minP = Number(st.minPrice) || 0;
+    const maxP = Number(st.maxPrice) || 0;
+    const isPresetMax = minP === 0 && pricePresets.some(([v]) => v === maxP);
+    const isCustomPrice = !!(st.priceCustom || !isPresetMax);
+    const priceReadout = priceFilterLabel(st);
+
+    return `<div class="modal-back is-sheet-back" role="dialog" aria-modal="true" aria-labelledby="filter-modal-title">
+      <div class="modal-card sheet-modal is-fullscreen-sheet" data-sheet-kind="filter">
+        <div class="sheet-grabber-zone" data-sheet-drag="1" role="button" tabindex="0" data-a="filter-close" aria-label="Свернуть фильтры">
+          <span class="sheet-grabber"></span>
+        </div>
+        <div class="sheet-head is-filter-head">
+          <button type="button" class="link-btn small muted" data-a="filter-close">Закрыть</button>
           <b id="filter-modal-title" style="text-align:center;font-size:17px">Фильтры</b>
           <button type="button" class="link-btn small" data-a="mkt-reset">Сбросить</button>
         </div>
@@ -516,14 +548,14 @@
             <div class="small muted">Актуальность анкеты</div>
             <div class="chip-rail">
               <button type="button" class="chip-btn${!st.onlyBumped ? " on" : ""}" data-a="mkt-bumped-set" data-v="0">За всё время</button>
-              <button type="button" class="chip-btn${st.onlyBumped ? " on" : ""}" data-a="mkt-bumped-set" data-v="1">Подняты сегодня</button>
+              <button type="button" class="chip-btn${st.onlyBumped ? " on" : ""}" data-a="mkt-bumped-set" data-v="1">Подняты за последнюю неделю</button>
             </div>
           </div>
           <div class="stack" style="gap:8px">
-            <div class="small muted">Предмет</div>
+            <div class="small muted">${(st.exam === "ЕГЭ" || st.exam === "ОГЭ") ? `Предметы (${esc(st.exam)})` : "Предмет и направление"}</div>
             <div class="chip-rail">
               <button type="button" class="chip-btn${st.subject === "all" ? " on" : ""}" data-a="mkt-subj" data-v="all">Все</button>
-              ${TDATA.SUBJECTS.map((sb) => `<button type="button" class="chip-btn${st.subject === sb.id ? " on" : ""}" data-a="mkt-subj" data-v="${sb.id}">${esc(sb.short)}</button>`).join("")}
+              ${visibleSubjects.map((sb) => `<button type="button" class="chip-btn${st.subject === sb.id ? " on" : ""}" data-a="mkt-subj" data-v="${sb.id}">${esc(sb.short)}</button>`).join("")}
             </div>
           </div>
           <div class="stack" style="gap:8px">
@@ -539,28 +571,27 @@
             </div>
           </div>
           <div class="stack" style="gap:8px">
-            <div class="row between"><span class="small muted">Ставка до</span><b class="num">${st.maxPrice >= 2000 ? "до 2 000+ ₽/ч" : "до " + st.maxPrice + " ₽/ч"}</b></div>
+            <div class="row between"><span class="small muted">Ставка за урок (₽/ч)</span><b class="num" id="filter-price-readout">${esc(priceReadout)}</b></div>
             <div class="chip-rail">
-              ${[1000, 1300, 1600, 2000].map((pr) => `<button type="button" class="chip-btn${st.maxPrice === pr ? " on" : ""}" data-a="mkt-price" data-v="${pr}">${pr >= 2000 ? "Любая" : "до " + pr + " ₽"}</button>`).join("")}
+              ${pricePresets.map(([pr, lbl]) => `<button type="button" class="chip-btn${(!isCustomPrice && maxP === pr && minP === 0) ? " on" : ""}" data-a="mkt-price" data-v="${pr}">${lbl}</button>`).join("")}
+              <button type="button" class="chip-btn${isCustomPrice ? " on" : ""}" data-a="mkt-price-custom">Своя</button>
             </div>
-          </div>
-          <div class="stack" style="gap:8px">
-            <div class="small muted">Время занятия</div>
-            <div class="hour-circles">
-              <button type="button" class="hr-cir${st.hour === "all" ? " on" : ""}" data-a="mkt-hour" data-v="all">Любое</button>
-              ${TDATA.HOURS.map((h) => `<button type="button" class="hr-cir${st.hour === h ? " on" : ""}" data-a="mkt-hour" data-v="${esc(h)}">${esc(h)}</button>`).join("")}
-            </div>
-          </div>
-          <div class="stack" style="gap:8px">
-            <div class="small muted">День недели (${activeDayObj ? esc(activeDayObj.shortLabel) : "все 7 дней"})</div>
-            <div class="cal-days">
-              <button type="button" class="day-cir${st.day === "all" ? " on" : ""}" data-a="mkt-day" data-v="all"><span class="day-wd">Все</span><span class="day-dot">7</span></button>
-              ${days.map((d) => `<button type="button" class="day-cir${st.day === d.iso ? " on" : ""}" data-a="mkt-day" data-v="${d.iso}"><span class="day-wd">${esc(d.wd)}</span><span class="day-dot">${d.num}</span></button>`).join("")}
-            </div>
+            ${isCustomPrice ? `<div class="filter-price-inputs">
+              <label class="filter-num-box" for="mkt-price-min">
+                <span class="small muted">От</span>
+                <input class="input filter-num-inp num" id="mkt-price-min" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" autocomplete="off" placeholder="0" value="${minP > 0 ? minP : ""}">
+                <span class="small muted">₽</span>
+              </label>
+              <label class="filter-num-box" for="mkt-price-max">
+                <span class="small muted">До</span>
+                <input class="input filter-num-inp num" id="mkt-price-max" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" autocomplete="off" placeholder="99999" value="${maxP > 0 ? maxP : ""}">
+                <span class="small muted">₽</span>
+              </label>
+            </div>` : ""}
           </div>
         </div>
         <div class="sheet-foot">
-          <button type="button" class="btn" style="width:100%" data-a="filter-close">Показать ${list.length} ${totalWord}</button>
+          <button type="button" class="btn" id="filter-submit-btn" style="width:100%" data-a="filter-close">Показать ${list.length} ${totalWord}</button>
         </div>
       </div>
     </div>`;
@@ -580,6 +611,7 @@
     const visibleList = isLanding ? list.slice(0, visibleLimit) : list;
     const hasMore = isLanding && visibleList.length < list.length;
     const totalCatalog = Number(TDATA.CATALOG_TOTAL) || 2480;
+    const visibleSubjects = typeof TDATA.subjectsForExam === "function" ? TDATA.subjectsForExam(st.exam) : TDATA.SUBJECTS;
 
     const activeChips = [];
     if (st.subject !== "all") {
@@ -588,17 +620,15 @@
     }
     if (st.format !== "all") activeChips.push(`<button type="button" class="chip-btn on" data-a="mkt-reset-chip" data-k="format">${esc(st.format)} ×</button>`);
     if (st.city && st.city !== "all") activeChips.push(`<button type="button" class="chip-btn on" data-a="mkt-reset-chip" data-k="city">${esc(st.city)} ×</button>`);
-    if (st.maxPrice < 2000) activeChips.push(`<button type="button" class="chip-btn on" data-a="mkt-reset-chip" data-k="maxPrice">до ${st.maxPrice} ₽ ×</button>`);
-    if (st.onlyBumped) activeChips.push(`<button type="button" class="chip-btn on" data-a="mkt-reset-chip" data-k="onlyBumped">Подняты сегодня ×</button>`);
-    if (st.hour !== "all") activeChips.push(`<button type="button" class="chip-btn on" data-a="mkt-reset-chip" data-k="hour">${esc(st.hour)} ×</button>`);
+    if (Number(st.minPrice) > 0 || Number(st.maxPrice) > 0) {
+      activeChips.push(`<button type="button" class="chip-btn on" data-a="mkt-reset-chip" data-k="price">${esc(priceFilterLabel(st))} ×</button>`);
+    }
+    if (st.onlyBumped) activeChips.push(`<button type="button" class="chip-btn on" data-a="mkt-reset-chip" data-k="onlyBumped">Подняты за неделю ×</button>`);
 
-    const sortLabels = { actual: "По соответствию", price_asc: "Сначала дешевле", rating_desc: "По рейтингу" };
-    const feedTailHTML = (list.length && isLanding)
-      ? (hasMore
-          ? `<div class="mkt-scroll-sentinel" id="mkt-scroll-sentinel" data-has-more="1">
-              <button type="button" class="btn ghost sm" data-a="mkt-load-more">Показать ещё (${visibleList.length} из ${list.length})</button>
-            </div>`
-          : `<div class="mkt-feed-end" id="mkt-feed-end">Конец списка</div>`)
+    const feedTailHTML = (list.length && isLanding && hasMore)
+      ? `<div class="mkt-scroll-sentinel" id="mkt-scroll-sentinel" data-has-more="1">
+          <button type="button" class="btn ghost sm" data-a="mkt-load-more">Показать ещё (${visibleList.length} из ${list.length})</button>
+        </div>`
       : "";
     const cardsHTML = list.length
       ? `<div class="tutor-grid" id="mkt-tutor-grid">${visibleList.map((t) => tutorCardHTML(t)).join("")}</div>${feedTailHTML}`
@@ -625,12 +655,12 @@
         </div>
       </div>
       <div class="hh-seg" role="group" aria-label="Цель подготовки">
-        ${[["all", "Любая цель"], ["ЕГЭ", "ЕГЭ"], ["ОГЭ", "ОГЭ"], ["Навыки", "Навыки и ВУЗ"]].map(([v, l]) => `<button type="button" data-a="mkt-exam" data-v="${v}" aria-pressed="${st.exam === v}">${l}</button>`).join("")}
+        ${[["all", "Все"], ["ЕГЭ", "ЕГЭ"], ["ОГЭ", "ОГЭ"]].map(([v, l]) => `<button type="button" data-a="mkt-exam" data-v="${v}" aria-pressed="${st.exam === v}">${l}</button>`).join("")}
       </div>
 
       <div class="hh-search-box">
         <span class="hh-search-ico">${icon("search")}</span>
-        <input class="hh-search-input" id="mkt-q" type="search" autocomplete="off" spellcheck="false" value="${esc(st.q || "")}" placeholder="ЕГЭ, Python, UX/UI, моушен-дизайн, вокал, физика или имя репетитора">
+        <input class="hh-search-input" id="mkt-q" type="search" autocomplete="off" spellcheck="false" value="${esc(st.q || "")}" placeholder="ЕГЭ, Python, UX/UI, вокал, дзюдо, физика или имя репетитора">
         ${st.q ? `<button type="button" class="search-clear" data-a="mkt-clear-q" aria-label="Очистить">${icon("x")}</button>` : ""}
       </div>
 
@@ -638,15 +668,19 @@
         <button type="button" class="chip-btn${fCount ? " on" : ""}" data-a="filter-open">${icon("sliders")}<span>${fCount ? fCount : "Фильтры"}</span></button>
         ${activeChips.join("")}
         ${(!st.city || st.city === "all") ? (((TDATA && TDATA.CITIES) || ["Якутск", "Москва"]).map((c) => `<button type="button" class="chip-btn" data-a="mkt-city" data-v="${esc(c)}">+ ${esc(c)}</button>`).join("")) : ""}
-        ${!st.onlyBumped ? `<button type="button" class="chip-btn" data-a="mkt-bumped">+ Актуальные сегодня</button>` : ""}
-        ${st.maxPrice >= 2000 ? `<button type="button" class="chip-btn" data-a="mkt-price" data-v="1300">+ До 1 300 ₽</button>` : ""}
+        ${!st.onlyBumped ? `<button type="button" class="chip-btn" data-a="mkt-bumped">+ Подняты за неделю</button>` : ""}
+        ${!(Number(st.maxPrice) > 0 || Number(st.minPrice) > 0) ? `<button type="button" class="chip-btn" data-a="mkt-price" data-v="1200">+ До 1 200 ₽</button>` : ""}
         <button type="button" class="chip-btn" data-a="mkt-preset">+ Английский ЕГЭ</button>
-        ${TDATA.SUBJECTS.filter((sb) => sb.id !== st.subject).map((sb) => `<button type="button" class="chip-btn" data-a="mkt-subj" data-v="${sb.id}">+ ${esc(sb.short)}</button>`).join("")}
+        ${visibleSubjects.filter((sb) => sb.id !== st.subject).map((sb) => `<button type="button" class="chip-btn" data-a="mkt-subj" data-v="${sb.id}">+ ${esc(sb.short)}</button>`).join("")}
       </div>
 
       <div class="hh-sort-row">
         <span class="small muted">${list.length} ${plural(list.length, "репетитор", "репетитора", "репетиторов")}</span>
-        <button type="button" class="hh-sort-btn" data-a="mkt-sort-cycle">${esc(sortLabels[st.sort] || "По соответствию")} ${icon("sort")}</button>
+        <div class="hh-seg hh-sort-seg" role="group" aria-label="Сортировка анкет">
+          <button type="button" data-a="mkt-sort" data-v="actual" aria-pressed="${(st.sort || "actual") === "actual"}">По соответствию</button>
+          <button type="button" data-a="mkt-sort" data-v="price_asc" aria-pressed="${st.sort === "price_asc"}">Дешевле</button>
+          <button type="button" data-a="mkt-sort" data-v="rating_desc" aria-pressed="${st.sort === "rating_desc"}">По рейтингу</button>
+        </div>
       </div>
 
       ${cardsHTML}
@@ -1216,6 +1250,8 @@
     hasMinBalance,
     resolveTutorGuarantee,
     resolveTutorTrial,
+    plainBidLabel,
+    priceFilterLabel,
     cardDiffTagsHTML,
     bookingModalHTML,
     activeFilterCount,

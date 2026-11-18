@@ -9,9 +9,44 @@
   const { bidBtnLabelHTML, isValidHHMM } = EGE.hh;
 
   let EGEPayments, MOTION_PRESETS, TDATA, ai, defaultMarketState, draft, go;
-  let heroMotionMeta, mkt, notifySide, patchHeroMotionDOM, patchSavingsDOM;
-  let renderModal, saveMkt, scheduleRender, stopMotionTimers, tile, toast, ui;
+  let heroMotionMeta, isUserAuthenticated, mkt, notifySide, patchHeroMotionDOM, patchSavingsDOM;
+  let renderModal, requireAuthForBid, saveMkt, scheduleRender, stopMotionTimers, tile, toast, ui;
   let updateBookingModalLive;
+
+  function buildBookingDraft(tutor, el, TDATA_ref, mkt_ref, ui_ref) {
+    const st = mkt_ref();
+    const daysList = TDATA_ref.buildCalendarDays(7);
+    const pickDay = (st.day !== "all" ? daysList.find((d) => d.iso === st.day) : null)
+      || daysList.find((d) => TDATA_ref.tutorSlotsForDay(tutor, d.dow).length > 0)
+      || daysList[0];
+    const daySlots = TDATA_ref.tutorSlotsForDay(tutor, pickDay.dow);
+    const wantedHour = (el && el.dataset && el.dataset.hour) || (st.hour !== "all" ? st.hour : "");
+    const hour = isValidHHMM(wantedHour) ? wantedHour : (daySlots[0] || "10:00");
+    const exam = st.exam !== "all" && tutor.exams.includes(st.exam) ? st.exam : tutor.exams[0];
+    const format = st.format !== "all" && tutor.formats.includes(st.format) ? st.format : tutor.formats[0];
+    const cardOffers = (ui_ref && ui_ref.cardOffers) || {};
+    const dataOffer = el && el.dataset && el.dataset.offer != null ? Number(el.dataset.offer) : NaN;
+    const offerPrice = (cardOffers[tutor.id] != null && Number.isFinite(Number(cardOffers[tutor.id])))
+      ? Math.max(0, Math.min(99999, Math.round(Number(cardOffers[tutor.id]))))
+      : (Number.isFinite(dataOffer)
+          ? Math.max(0, Math.min(99999, Math.round(dataOffer)))
+          : Math.max(0, Number(tutor.price) || 1200));
+    const mktViews = EGE.views && EGE.views.marketplace;
+    const gInfo = mktViews && typeof mktViews.resolveTutorGuarantee === "function"
+      ? mktViews.resolveTutorGuarantee(tutor)
+      : { enabled: !!tutor.firstLessonGuarantee };
+    return {
+      tutorId: tutor.id,
+      mode: "paid",
+      firstLessonGuarantee: !!gInfo.enabled,
+      exam,
+      format,
+      dayIso: pickDay.iso,
+      hour,
+      offerPrice,
+      note: ""
+    };
+  }
 
   const BB_EXPORT_SCHEMA = {
     light: {
@@ -158,8 +193,8 @@
   function registerMarketBbActions(ctx, ACTIONS) {
     ({
       EGEPayments, MOTION_PRESETS, TDATA, ai, defaultMarketState, draft, go,
-      heroMotionMeta, mkt, notifySide, patchHeroMotionDOM, patchSavingsDOM,
-      renderModal, saveMkt, scheduleRender, stopMotionTimers, tile, toast, ui,
+      heroMotionMeta, isUserAuthenticated, mkt, notifySide, patchHeroMotionDOM, patchSavingsDOM,
+      renderModal, requireAuthForBid, saveMkt, scheduleRender, stopMotionTimers, tile, toast, ui,
       updateBookingModalLive
     } = ctx || {});
 
@@ -346,8 +381,8 @@
       saveMkt();
       scheduleRender();
     },
-    "mkt-clear-q": () => { mkt().q = ""; ui.mktVisibleCount = 8; saveMkt(); ui.focusNext = "mkt-q"; scheduleRender(); },
-    "mkt-bumped-set": (el) => { mkt().onlyBumped = el.dataset.v === "1"; ui.mktVisibleCount = 8; saveMkt(); scheduleRender(); },
+    "mkt-clear-q": () => { mkt().q = ""; ui.mktVisibleCount = 8; saveMkt(); ui.focusNext = "mkt-q"; if (ui.filterModal) renderModal(); scheduleRender(); },
+    "mkt-bumped-set": (el) => { mkt().onlyBumped = el.dataset.v === "1"; ui.mktVisibleCount = 8; saveMkt(); if (ui.filterModal) renderModal(); scheduleRender(); },
     "mkt-sort-cycle": () => {
       const order = ["actual", "price_asc", "rating_desc"];
       const st = mkt();
@@ -360,7 +395,14 @@
       const st = mkt(), k = el.dataset.k;
       if (!k) return;
       const def = defaultMarketState();
-      if (Object.prototype.hasOwnProperty.call(def, k)) st[k] = def[k];
+      if (k === "price") {
+        st.minPrice = 0;
+        st.maxPrice = 0;
+        st.priceCustom = false;
+        st.priceExplicit = false;
+      } else if (Object.prototype.hasOwnProperty.call(def, k)) {
+        st[k] = def[k];
+      }
       ui.mktVisibleCount = 8;
       saveMkt();
       scheduleRender();
@@ -375,26 +417,57 @@
     "mkt-preset": () => {
       if (!TDATA) return;
       const st = mkt();
-      const days = TDATA.buildCalendarDays(7);
-      const sat = days.find((d) => d.dow === 6) || days[0];
       st.exam = "ЕГЭ";
       st.subject = "eng";
       st.format = "Онлайн";
-      st.maxPrice = 2000;
+      st.minPrice = 0;
+      st.maxPrice = 0;
+      st.priceCustom = false;
+      st.priceExplicit = false;
       st.onlyBumped = false;
-      st.day = sat ? sat.iso : "all";
-      st.hour = "10:00";
+      st.day = "all";
+      st.hour = "all";
       ui.mktVisibleCount = 8;
       saveMkt();
-      toast("Фильтр: Английский · ЕГЭ · Сб 10:00");
+      toast("Фильтр: Английский · ЕГЭ · Онлайн");
+      if (ui.filterModal) renderModal();
       scheduleRender();
     },
-    "mkt-exam": (el) => { mkt().exam = el.dataset.v || "all"; ui.mktVisibleCount = 8; saveMkt(); scheduleRender(); },
-    "mkt-format": (el) => { mkt().format = el.dataset.v || "all"; ui.mktVisibleCount = 8; saveMkt(); scheduleRender(); },
-    "mkt-city": (el) => { mkt().city = el.dataset.v || "all"; ui.mktVisibleCount = 8; saveMkt(); scheduleRender(); },
-    "mkt-subj": (el) => { mkt().subject = el.dataset.v || "all"; ui.mktVisibleCount = 8; saveMkt(); scheduleRender(); },
-    "mkt-price": (el) => { mkt().maxPrice = Number(el.dataset.v) || 2000; ui.mktVisibleCount = 8; saveMkt(); scheduleRender(); },
-    "mkt-bumped": () => { const st = mkt(); st.onlyBumped = !st.onlyBumped; ui.mktVisibleCount = 8; saveMkt(); scheduleRender(); },
+    "mkt-exam": (el) => {
+      const st = mkt();
+      st.exam = el.dataset.v || "all";
+      if ((st.exam === "ЕГЭ" || st.exam === "ОГЭ") && st.subject && st.subject !== "all" && TDATA) {
+        const sb = TDATA.SUBJECTS.find((x) => x.id === st.subject);
+        if (sb && !sb.isExam) st.subject = "all";
+      }
+      ui.mktVisibleCount = 8;
+      saveMkt();
+      if (ui.filterModal) renderModal();
+      scheduleRender();
+    },
+    "mkt-format": (el) => { mkt().format = el.dataset.v || "all"; ui.mktVisibleCount = 8; saveMkt(); if (ui.filterModal) renderModal(); scheduleRender(); },
+    "mkt-city": (el) => { mkt().city = el.dataset.v || "all"; ui.mktVisibleCount = 8; saveMkt(); if (ui.filterModal) renderModal(); scheduleRender(); },
+    "mkt-subj": (el) => { mkt().subject = el.dataset.v || "all"; ui.mktVisibleCount = 8; saveMkt(); if (ui.filterModal) renderModal(); scheduleRender(); },
+    "mkt-price": (el) => {
+      const v = Math.max(0, Math.round(Number(el.dataset.v) || 0));
+      const st = mkt();
+      st.minPrice = 0;
+      st.maxPrice = v;
+      st.priceCustom = false;
+      st.priceExplicit = v > 0;
+      ui.mktVisibleCount = 8;
+      saveMkt();
+      if (ui.filterModal) renderModal();
+      scheduleRender();
+    },
+    "mkt-price-custom": () => {
+      const st = mkt();
+      st.priceCustom = !st.priceCustom;
+      saveMkt();
+      if (ui.filterModal) renderModal();
+      scheduleRender();
+    },
+    "mkt-bumped": () => { const st = mkt(); st.onlyBumped = !st.onlyBumped; ui.mktVisibleCount = 8; saveMkt(); if (ui.filterModal) renderModal(); scheduleRender(); },
     "mkt-sort": (el) => { mkt().sort = el.dataset.v || "actual"; ui.mktVisibleCount = 8; saveMkt(); scheduleRender(); },
     "mkt-day": (el) => { mkt().day = el.dataset.v || "all"; ui.mktVisibleCount = 8; saveMkt(); scheduleRender(); },
     "mkt-hour": (el) => { mkt().hour = el.dataset.v || "all"; ui.mktVisibleCount = 8; saveMkt(); scheduleRender(); },
@@ -409,6 +482,7 @@
       ui.market = fresh;
       ui.mktVisibleCount = 8;
       saveMkt();
+      if (ui.filterModal) renderModal();
       scheduleRender();
     },
     "tutor-bio-toggle": (el) => {
@@ -430,54 +504,29 @@
       map[id] = Math.max(0, Math.min(99999, base + step));
       scheduleRender();
     },
+    "card-bid": (el) => {
+      if (!TDATA) return;
+      const tutor = TDATA.LIST.find((x) => x.id === el.dataset.id);
+      if (!tutor) return;
+      const draftBooking = buildBookingDraft(tutor, el, TDATA, mkt, ui);
+      if (typeof requireAuthForBid === "function" && requireAuthForBid(draftBooking)) return;
+      ui.booking = draftBooking;
+      renderModal();
+    },
     "book-open": (el) => {
       if (!TDATA) return;
       const tutor = TDATA.LIST.find((x) => x.id === el.dataset.id);
       if (!tutor) return;
-      const st = mkt();
-      const days = TDATA.buildCalendarDays(7);
-      const pickDay = (st.day !== "all" ? days.find((d) => d.iso === st.day) : null)
-        || days.find((d) => TDATA.tutorSlotsForDay(tutor, d.dow).length > 0)
-        || days[0];
-      const daySlots = TDATA.tutorSlotsForDay(tutor, pickDay.dow);
-      const wantedHour = el.dataset.hour || (st.hour !== "all" ? st.hour : "");
-      const hour = isValidHHMM(wantedHour) ? wantedHour : (daySlots[0] || "10:00");
-      const exam = st.exam !== "all" && tutor.exams.includes(st.exam) ? st.exam : tutor.exams[0];
-      const format = st.format !== "all" && tutor.formats.includes(st.format) ? st.format : tutor.formats[0];
-      const cardOffers = ui.cardOffers || {};
-      const dataOffer = el && el.dataset && el.dataset.offer != null ? Number(el.dataset.offer) : NaN;
-      const offerPrice = (cardOffers[tutor.id] != null && Number.isFinite(Number(cardOffers[tutor.id])))
-        ? Math.max(0, Math.min(99999, Math.round(Number(cardOffers[tutor.id]))))
-        : (Number.isFinite(dataOffer)
-            ? Math.max(0, Math.min(99999, Math.round(dataOffer)))
-            : Math.max(0, Number(tutor.price) || 1200));
-      ui.booking = { tutorId: tutor.id, mode: "paid", exam, format, dayIso: pickDay.iso, hour, offerPrice, note: "" };
+      ui.booking = buildBookingDraft(tutor, el, TDATA, mkt, ui);
       renderModal();
     },
     "trial-open": (el) => {
       if (!TDATA) return;
       const tutor = TDATA.LIST.find((x) => x.id === el.dataset.id);
       if (!tutor) return;
-      const mktViews = EGE.views && EGE.views.marketplace;
-      const gInfo = mktViews && typeof mktViews.resolveTutorGuarantee === "function"
-        ? mktViews.resolveTutorGuarantee(tutor)
-        : { enabled: !!tutor.firstLessonGuarantee };
-      const st = mkt();
-      const days = TDATA.buildCalendarDays(7);
-      const pickDay = (st.day !== "all" ? days.find((d) => d.iso === st.day) : null)
-        || days.find((d) => TDATA.tutorSlotsForDay(tutor, d.dow).length > 0)
-        || days[0];
-      const daySlots = TDATA.tutorSlotsForDay(tutor, pickDay.dow);
-      const wantedHour = el.dataset.hour || (st.hour !== "all" ? st.hour : "");
-      const hour = isValidHHMM(wantedHour) ? wantedHour : (daySlots[0] || "10:00");
-      const exam = st.exam !== "all" && tutor.exams.includes(st.exam) ? st.exam : tutor.exams[0];
-      const format = st.format !== "all" && tutor.formats.includes(st.format) ? st.format : tutor.formats[0];
-      const cardOffers = ui.cardOffers || {};
-      const offerPrice = (cardOffers[tutor.id] != null && Number.isFinite(Number(cardOffers[tutor.id])))
-        ? Math.max(0, Math.min(99999, Math.round(Number(cardOffers[tutor.id]))))
-        : Math.max(0, Number(tutor.price) || 1200);
-      ui.booking = { tutorId: tutor.id, mode: "paid", firstLessonGuarantee: !!gInfo.enabled, exam, format, dayIso: pickDay.iso, hour, offerPrice, note: "" };
-      if (!gInfo.enabled) {
+      const draftBooking = buildBookingDraft(tutor, el, TDATA, mkt, ui);
+      ui.booking = draftBooking;
+      if (!draftBooking.firstLessonGuarantee) {
         toast("Преподаватель не проводит первый урок бесплатно — запись по обычной ставке");
       }
       renderModal();
@@ -592,9 +641,12 @@
       const hour = isValidHHMM(b.hour) ? b.hour : (daySlots[0] || "10:00");
       const domPriceEl = $("#bid-price");
       const domNoteEl = $("#bid-note");
-      const rawPriceVal = domPriceEl && domPriceEl.value !== "" ? Number(domPriceEl.value) : (b.offerPrice != null ? Number(b.offerPrice) : tutor.price);
+      const rawPriceVal = domPriceEl && domPriceEl.value !== "" ? Number(String(domPriceEl.value).replace(/\D+/g, "")) : (b.offerPrice != null ? Number(b.offerPrice) : tutor.price);
       const offerPrice = Math.max(0, Math.min(99999, Number.isFinite(rawPriceVal) ? Math.round(rawPriceVal) : tutor.price));
       const noteText = String((domNoteEl ? domNoteEl.value : b.note) || "").trim();
+      if (typeof requireAuthForBid === "function" && requireAuthForBid(Object.assign({}, b, { offerPrice, note: noteText }))) {
+        return;
+      }
       const feeSplit = typeof TDATA.commissionSplit === "function"
         ? TDATA.commissionSplit(offerPrice)
         : { total: offerPrice, fee: Math.round(offerPrice * 0.05), payout: offerPrice - Math.round(offerPrice * 0.05), pct: 5 };

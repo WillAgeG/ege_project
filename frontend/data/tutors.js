@@ -4,17 +4,30 @@
   var EGE = (window.EGE = window.EGE || {});
 
   var SUBJECTS = [
-    { id: "eng", name: "Английский язык", short: "Английский" },
-    { id: "rus", name: "Русский язык", short: "Русский" },
-    { id: "bio", name: "Биология", short: "Биология" },
-    { id: "chem", name: "Химия", short: "Химия" },
-    { id: "math", name: "Математика", short: "Математика" },
-    { id: "inf", name: "Информатика и Python", short: "Информатика" },
-    { id: "phys", name: "Физика и олимпиады", short: "Физика" },
-    { id: "hist", name: "История и общество", short: "История" },
-    { id: "design", name: "UX/UI и Figma", short: "Дизайн UX/UI" },
-    { id: "music", name: "Вокал, гитара и музыка", short: "Вокал / Гитара" }
+    { id: "rus", name: "Русский язык", short: "Русский", isExam: true },
+    { id: "math", name: "Математика", short: "Математика", isExam: true },
+    { id: "soc", name: "Обществознание", short: "Обществознание", isExam: true },
+    { id: "eng", name: "Английский язык", short: "Английский", isExam: true },
+    { id: "inf", name: "Информатика", short: "Информатика", isExam: true },
+    { id: "bio", name: "Биология", short: "Биология", isExam: true },
+    { id: "chem", name: "Химия", short: "Химия", isExam: true },
+    { id: "phys", name: "Физика", short: "Физика", isExam: true },
+    { id: "hist", name: "История", short: "История", isExam: true },
+    { id: "lit", name: "Литература", short: "Литература", isExam: true },
+    { id: "geo", name: "География", short: "География", isExam: true },
+    { id: "prog", name: "Программирование и Python", short: "Программирование", isExam: false },
+    { id: "design", name: "UX/UI и Figma", short: "Дизайн UX/UI", isExam: false },
+    { id: "music", name: "Вокал, гитара и музыка", short: "Вокал / Гитара", isExam: false },
+    { id: "judo", name: "Дзюдо и ОФП", short: "Дзюдо", isExam: false },
+    { id: "chess", name: "Шахматы и логика", short: "Шахматы", isExam: false }
   ];
+
+  function subjectsForExam(exam) {
+    if (exam === "ЕГЭ" || exam === "ОГЭ") {
+      return SUBJECTS.filter(function (s) { return !!s.isExam; });
+    }
+    return SUBJECTS.slice();
+  }
 
   var PREP_UNIVERSE = [
     { label: "ЕГЭ на 85+", subject: "all", meta: "от 950 ₽/ч · −24% ниже рынка" },
@@ -486,6 +499,7 @@
       exp: "3 года · база ЕГЭ и ОГЭ геометрия",
       tag: "От «двойки» до твёрдой 4–5",
       bumpedToday: false,
+      bumpedWeek: false,
       bumpText: "Обновил расписание вчера",
       bio: "Терпеливо разбираем дроби, графики, алгебру и геометрию с самого фундамента. Ученики перестают бояться длинных условий и уже через пару недель решают базовый уровень и задания второй части на уверенную четвёрку и пятёрку.",
       slots: {
@@ -542,6 +556,7 @@
       exp: "4 года · ОГЭ 38/38 и базовые темы ЕГЭ",
       tag: "Эксперимент и мысленные задачи",
       bumpedToday: false,
+      bumpedWeek: false,
       bumpText: "Обновила слоты 2 дня назад",
       bio: "Спокойно и последовательно отрабатываем номенклатуру, качественные реакции, расстановку коэффициентов и задачи на растворы с массовой долей. Беру учеников сразу на регулярную программу подготовки без отдельного пробного созвона.",
       slots: {
@@ -746,6 +761,7 @@
       exp: "5 лет · Python, Excel и №24–27",
       tag: "Задания КЕГЭ на Python",
       bumpedToday: false,
+      bumpedWeek: false,
       bumpText: "Обновил расписание вчера",
       bio: "Тренируем решение задач №1–27 в Python и электронных таблицах. Готовим чистые шаблоны перебора, динамического программирования и теории игр без заучивания.",
       slots: {
@@ -894,6 +910,150 @@
         6: ["11:00", "16:00"],
         0: ["13:00", "17:00"]
       }
+    },
+    {
+      id: "tut-ivanova",
+      name: "Анна Иванова",
+      subject: "soc",
+      subjectName: "Обществознание",
+      exams: ["ЕГЭ", "ОГЭ"],
+      price: 1000,
+      marketPrice: 1350,
+      minFair: 850,
+      verified: true,
+      firstLessonGuarantee: true,
+      formats: ["Онлайн", "Очно"],
+      city: "Якутск",
+      timezone: "UTC+9",
+      rating: 4.9,
+      reviews: 28,
+      exp: "6 лет · право, экономика и план №24",
+      tag: "Эссе, планы и 2-я часть ФИПИ",
+      bumpedToday: true,
+      bumpedWeek: true,
+      bumpText: "Обновила анкету 2 дня назад",
+      bio: "Разбираем конституционное право, экономические графики и сложные планы задания №24 без воды и заучивания.",
+      slots: { 1: ["15:00", "19:00"], 3: ["16:00", "19:00"], 6: ["11:00", "15:00"] }
+    },
+    {
+      id: "tut-savin",
+      name: "Павел Савин",
+      subject: "lit",
+      subjectName: "Литература",
+      exams: ["ЕГЭ", "ОГЭ"],
+      price: 1100,
+      marketPrice: 1450,
+      minFair: 900,
+      verified: false,
+      firstLessonGuarantee: false,
+      formats: ["Онлайн"],
+      city: "Москва",
+      timezone: "UTC+3",
+      rating: 4.8,
+      reviews: 19,
+      exp: "5 лет · сопоставления и сочинения на максимум",
+      tag: "Анализ лирики и аргументация",
+      bumpedToday: false,
+      bumpedWeek: true,
+      bumpText: "Поднял анкету 4 дня назад",
+      bio: "Учимся точно попадать в критерии К1–К3 и выстраивать сильные сопоставления в мини-сочинениях и задании №11.",
+      slots: { 2: ["16:00", "19:00"], 4: ["17:00", "20:00"], 0: ["12:00", "16:00"] }
+    },
+    {
+      id: "tut-ammosov",
+      name: "Ньургун Аммосов",
+      subject: "geo",
+      subjectName: "География",
+      exams: ["ЕГЭ", "ОГЭ"],
+      price: 900,
+      marketPrice: 1200,
+      minFair: 750,
+      verified: true,
+      firstLessonGuarantee: true,
+      formats: ["Онлайн", "Очно"],
+      city: "Якутск",
+      timezone: "UTC+9",
+      rating: 4.9,
+      reviews: 16,
+      exp: "5 лет · топография, климат и 2-я часть",
+      tag: "Карты, расчётные задачи и часовые пояса",
+      bumpedToday: false,
+      bumpedWeek: false,
+      bumpText: "Обновил анкету 10 дней назад",
+      bio: "Простым языком отрабатываем профили рельефа, демографические расчёты и задания на объяснение природных процессов.",
+      slots: { 1: ["14:00", "18:00"], 5: ["15:00", "19:00"], 6: ["10:00", "14:00"] }
+    },
+    {
+      id: "tut-makarov",
+      name: "Егор Макаров",
+      subject: "prog",
+      subjectName: "Программирование и Python",
+      exams: ["Навыки", "Портфолио"],
+      price: 1400,
+      marketPrice: 1850,
+      minFair: 1150,
+      verified: true,
+      firstLessonGuarantee: true,
+      formats: ["Онлайн"],
+      city: "Москва",
+      timezone: "UTC+3",
+      rating: 5.0,
+      reviews: 34,
+      exp: "7 лет · Backend, алгоритмы и олимпиадный Python",
+      tag: "Python, FastAPI, Git и собеседования",
+      bumpedToday: true,
+      bumpedWeek: true,
+      bumpText: "В сети 3 дня назад",
+      bio: "Ставим прочную базу алгоритмов, структур данных и коммерческой разработки на Python от первых скриптов до pet-проектов.",
+      slots: { 2: ["18:00", "20:00"], 4: ["18:00", "20:00"], 6: ["12:00", "16:00"] }
+    },
+    {
+      id: "tut-sleptsov",
+      name: "Айсен Слепцов",
+      subject: "judo",
+      subjectName: "Дзюдо и ОФП",
+      exams: ["Навыки", "Спорт"],
+      price: 950,
+      marketPrice: 1300,
+      minFair: 800,
+      verified: true,
+      firstLessonGuarantee: true,
+      formats: ["Очно", "Онлайн"],
+      city: "Якутск",
+      timezone: "UTC+9",
+      rating: 4.9,
+      reviews: 21,
+      exp: "8 лет · КМС по дзюдо, детский и взрослый ОФП",
+      tag: "Техника бросков, страховка и координация",
+      bumpedToday: true,
+      bumpedWeek: true,
+      bumpText: "Обновил расписание на этой неделе",
+      bio: "Персональные тренировки по дзюдо, безопасной страховке при падении, гибкости и общей физической подготовке для любого возраста.",
+      slots: { 1: ["17:00", "19:00"], 3: ["17:00", "19:00"], 5: ["17:00", "19:00"] }
+    },
+    {
+      id: "tut-romanov",
+      name: "Виктор Романов",
+      subject: "chess",
+      subjectName: "Шахматы и логика",
+      exams: ["Навыки"],
+      price: 850,
+      marketPrice: 1150,
+      minFair: 700,
+      verified: false,
+      firstLessonGuarantee: false,
+      formats: ["Онлайн"],
+      city: "Якутск",
+      timezone: "UTC+9",
+      rating: 4.8,
+      reviews: 14,
+      exp: "6 лет · 1-й разряд, тактика и эндшпиль",
+      tag: "Дебюты, счёт вариантов и турниры",
+      bumpedToday: false,
+      bumpedWeek: false,
+      bumpText: "В сети 2 недели назад",
+      bio: "Учимся видеть тактические удары, планировать миттельшпиль и спокойно доводить перевес до победы без зевков.",
+      slots: { 2: ["15:00", "19:00"], 6: ["11:00", "15:00"], 0: ["13:00", "17:00"] }
     }
   ];
 
@@ -922,6 +1082,7 @@
   function normalizeTutor(t, idx) {
     t.whatsapp = t.whatsapp || WA_PHONES[t.id] || ("791421001" + String(10 + (idx || 0)));
     t.verified = t.verified !== false;
+    t.bumpedWeek = t.bumpedWeek != null ? !!t.bumpedWeek : true;
     t.firstLessonGuarantee = t.firstLessonGuarantee != null
       ? !!t.firstLessonGuarantee
       : (t.trialMode === "free" || t.trialFree === true);
@@ -1050,8 +1211,11 @@
     }
     if (filters.format && filters.format !== "all" && tutor.formats.indexOf(filters.format) < 0) return false;
     if (filters.city && filters.city !== "all" && String(tutor.city || "").indexOf(filters.city) < 0) return false;
-    if (filters.maxPrice && filters.maxPrice < 2000 && tutor.price > filters.maxPrice) return false;
-    if (filters.onlyBumped && !tutor.bumpedToday) return false;
+    var minP = Number(filters.minPrice) || 0;
+    var maxP = Number(filters.maxPrice) || 0;
+    if (minP > 0 && tutor.price < minP) return false;
+    if (maxP > 0 && tutor.price > maxP) return false;
+    if (filters.onlyBumped && !(tutor.bumpedWeek || tutor.bumpedToday)) return false;
     if (filters.q) {
       var q = String(filters.q).trim().toLowerCase();
       if (q) {
@@ -1353,6 +1517,7 @@
 
   EGE.tutors = {
     SUBJECTS: SUBJECTS,
+    subjectsForExam: subjectsForExam,
     PREP_UNIVERSE: PREP_UNIVERSE,
     LIVE_DEALS: LIVE_DEALS,
     CATALOG_TOTAL: CATALOG_TOTAL,

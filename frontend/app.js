@@ -872,6 +872,9 @@
     savings: { freq: 2, marketRate: 1350, offerRate: 1000 },
     bbModal: false,
     coopModal: false,
+    demoAuthed: false,
+    authPrompt: "",
+    pendingBookingAfterAuth: null,
     mktVisibleCount: 8,
     landWhiteStage: false,
     brandbook: { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, vpWidth: 390, chipOn: true, sent: false, fav: true, switchVal: "online", multiSubjs: ["bio", "chem"], multiMenuOpen: false, pickedPlan: "month10k", quizOpt: 1, marketDemoAccepted: false, reducedMotion: false, balFunded: true, chartStyle: "sticks", chartDataset: "income", chartActiveIdx: 3, chartLines: 1, chartPoints: 7, linePtIdx: 3, donutDataset: "channels", donutSliceIdx: 0, tableCols: 5, tableFilter: "all", tableSearch: "", maskPhone: "+7 (914) 210-05-11", maskTg: "@aytal_bio", maskMax: "aytal_ege", payMethod: "sbp", payState: "frozen", payInitialDone: false, tablePreset: "requests", confirmedRows: {}, essayOpenIdx: 0 }
@@ -889,7 +892,10 @@
       subject: "all",
       format: "all",
       city: "all",
-      maxPrice: 2000,
+      minPrice: 0,
+      maxPrice: 0,
+      priceCustom: false,
+      priceExplicit: false,
       onlyBumped: false,
       sort: "actual",
       day: "all",
@@ -909,6 +915,10 @@
     ui.market.initialPaid = !!(ui.market.initialPaid || Number(ui.market.balance) >= 490);
     if (!ui.market.planId || ui.market.planId === "free") ui.market.planId = "trial5k";
     if (!ui.market.city) ui.market.city = "all";
+    ui.market.minPrice = Math.max(0, Number(ui.market.minPrice) || 0);
+    if (saved && Number(saved.maxPrice) === 2000 && !saved.priceExplicit) ui.market.maxPrice = 0;
+    else ui.market.maxPrice = Math.max(0, Number(ui.market.maxPrice) || 0);
+    ui.market.priceCustom = !!ui.market.priceCustom;
     if (!Array.isArray(ui.market.bookings)) ui.market.bookings = [];
     if (!Array.isArray(ui.market.favs)) ui.market.favs = [];
     return ui.market;
@@ -1738,6 +1748,7 @@
         <button type="button" data-a="auth-tab" data-tab="login" aria-pressed="${!reg}"><span>Вход</span></button>
         <button type="button" data-a="auth-tab" data-tab="register" aria-pressed="${reg}"><span>Регистрация</span></button>
       </div>
+      ${opts.modal && ui.authPrompt ? `<div class="notice" style="margin:0">${esc(ui.authPrompt)}</div>` : ""}
       <p class="ink2 small">${reg ? "Создай личный аккаунт — прогресс, расписание и баланс сохранятся на сервере." : "Выбери удобный способ входа и укажи, как открыть кабинет — учеником или преподавателем."}</p>
       ${hasGoogle
         ? `<a class="btn ghost google-btn" href="/api/auth/google/start">${GOOGLE_SVG}<span>Продолжить через Google</span></a>`
@@ -1818,8 +1829,32 @@
   }
   /** Вкладка «Тесты»: 3 предмета ЕГЭ, тренажёр, варианты КИМ и встроенный Справочник. */
 
+  function isUserAuthenticated() {
+    return Boolean(store.user || ui.demoAuthed);
+  }
+  function requireAuthForBid(draftBooking) {
+    if (isUserAuthenticated()) return false;
+    ui.pendingBookingAfterAuth = draftBooking || null;
+    ui.booking = null;
+    ui.auth.error = "";
+    ui.authPrompt = "Войдите или зарегистрируйтесь, чтобы предложить свою цену преподавателю.";
+    ui.authModal = true;
+    renderModal();
+    return true;
+  }
+  function resumePendingAfterAuth() {
+    ui.authPrompt = "";
+    if (!ui.pendingBookingAfterAuth) return false;
+    if (ui.view !== "market" && ui.view !== "landing") ui.view = "landing";
+    if (ui.view === "landing") ui.landWhiteStage = true;
+    ui.booking = ui.pendingBookingAfterAuth;
+    ui.pendingBookingAfterAuth = null;
+    renderModal();
+    scheduleRender();
+    return true;
+  }
   function viewLanding() {
-    return landingPageHTML({ inside: true });
+    return landingPageHTML({ inside: isUserAuthenticated() });
   }
 
   function authScreen() {
@@ -1999,12 +2034,15 @@
     },
     "auth-modal-open": () => {
       ui.auth.error = "";
+      ui.authPrompt = "";
       ui.authModal = true;
       renderModal();
     },
     "auth-modal-close": () => {
       ui.authModal = false;
       ui.auth.error = "";
+      ui.authPrompt = "";
+      ui.pendingBookingAfterAuth = null;
       renderModal();
     },
     "auth-role": (el) => {
@@ -2031,9 +2069,11 @@
       scheduleRender(true);
     },
     "auth-guest": () => {
+      ui.demoAuthed = true;
       ui.guest = true;
       ui.authModal = false;
       ui.auth.error = "";
+      if (resumePendingAfterAuth()) return;
       applyPostAuthView();
       scheduleRender(true);
     },
@@ -2046,6 +2086,7 @@
       try { await backendReq("/api/auth/logout", { method: "POST" }); } catch (e) { /* выходим локально в любом случае */ }
       store.user = null; store.uid = null; store.me = null;
       store.error = null; store.confirmed = false; store.stale = false;
+      ui.demoAuthed = false; ui.pendingBookingAfterAuth = null; ui.authPrompt = "";
       cloud.db = null; ai.fn = null; ai.state = "off";
       ui.guest = false; ui.authModal = false; ui.filterModal = false; ui.quiz = null;
       clearActiveQuiz();
@@ -2132,7 +2173,7 @@
     chat: () => sendChat(ui.chat.draft),
     auth: async (form) => {
       const a = ui.auth;
-      if (a.busy || !store.backend) return;
+      if (a.busy) return;
       const reg = a.tab === "register";
       const val = (name, key) => String(form && form.elements && form.elements[name] ? form.elements[name].value : draft(key, ""));
       const username = val("username", "auth.user").trim();
@@ -2143,10 +2184,24 @@
       const inviteCode = reg ? val("invite", "auth.invite").trim() : "";
       const migEl = reg && form && form.elements ? form.elements.migrate : null;
       const doMigrate = !!(migEl && migEl.checked);
-      if (!username || !password) { a.error = "Введи логин и пароль."; scheduleRender(); return; }
-      if (reg && password !== password2) { a.error = "Пароли не совпадают."; scheduleRender(); return; }
+      if (!username || !password) { a.error = "Введи логин и пароль."; if (ui.authModal) renderModal(); else scheduleRender(); return; }
+      if (reg && password !== password2) { a.error = "Пароли не совпадают."; if (ui.authModal) renderModal(); else scheduleRender(); return; }
+      if (!store.backend) {
+        store.user = { id: "local-" + username, username, displayName: displayName || username, email, authProvider: "local" };
+        ui.demoAuthed = true;
+        ui.guest = false;
+        ui.authModal = false;
+        a.error = "";
+        clearDrafts("auth.");
+        toast(reg ? "Аккаунт создан" : "Вход выполнен");
+        if (!resumePendingAfterAuth()) {
+          renderModal();
+          scheduleRender();
+        }
+        return;
+      }
       a.busy = true; a.error = "";
-      scheduleRender();
+      if (ui.authModal) renderModal(); else scheduleRender();
       try {
         const body = reg ? { username, password, email, displayName, inviteCode } : { username, password };
         const res = await backendReq("/api/auth/" + (reg ? "register" : "login"), { method: "POST", body: JSON.stringify(body) });
@@ -2157,16 +2212,18 @@
         clearQueues();
         ui.guest = false;
         ui.authModal = false;
-        applyPostAuthView();
+        const hadPending = !!ui.pendingBookingAfterAuth;
+        if (!hadPending) applyPostAuthView();
         await loadBackendSession(res.user);
         clearDrafts("auth."); clearDrafts("pf."); clearDrafts("ob.");
         a.error = "";
         toast(reg ? (migrated ? "Аккаунт создан, прогресс перенесён" : "Аккаунт создан") : "Вход выполнен");
+        if (hadPending) { a.busy = false; resumePendingAfterAuth(); return; }
       } catch (e) {
         a.error = authErrorText(e);
       }
       a.busy = false;
-      scheduleRender();
+      if (ui.authModal) renderModal(); else scheduleRender();
     },
     "tutor-apply": () => {
       const ta = ui.tutorApply || (ui.tutorApply = { name: "", subject: "eng", rate: 1100, contact: "", error: "" });
@@ -2340,9 +2397,10 @@
   }
 
   document.addEventListener("click", (e) => {
+    if (suppressSheetClick) { suppressSheetClick = false; if (typeof e.preventDefault === "function") e.preventDefault(); return; }
     if (closeSelectMenus(e.target)) scheduleRender();
     if (e.target && e.target.classList && e.target.classList.contains("modal-back")) {
-      ui.bug = null; ui.booking = null; ui.authModal = false; ui.filterModal = false; ui.bbModal = false; ui.tutorApplyModal = false; ui.coopModal = false; ui.balanceModal = null; ui.payoutModal = null;
+      ui.bug = null; ui.booking = null; ui.authModal = false; ui.authPrompt = ""; ui.pendingBookingAfterAuth = null; ui.filterModal = false; ui.bbModal = false; ui.tutorApplyModal = false; ui.coopModal = false; ui.balanceModal = null; ui.payoutModal = null;
       renderModal();
       return;
     }
@@ -2461,12 +2519,26 @@
     if (el.id === "essay-body") { essayState().body = el.value; paintEssayCount(); essayDraftLater(); }
     if (el.id === "essay-src") { essayState().own.text = el.value; essayDraftLater(); }
     if (el.id === "essay-problem") { essayState().own.problem = el.value; essayDraftLater(); }
-    if (el.id === "mkt-max-price") {
-      const val = Number(el.value) || 2000;
-      mkt().maxPrice = val;
-      const lbl = el.parentElement && el.parentElement.querySelector("label b");
-      if (lbl) lbl.textContent = val >= 2000 ? "до 2 000+ ₽/ч" : "до " + val + " ₽/ч";
+    if (el.id === "mkt-price-min" || el.id === "mkt-price-max") {
+      const digits = String(el.value || "").replace(/\D+/g, "").slice(0, 5);
+      if (el.value !== digits) el.value = digits;
+      const st = mkt();
+      const valNum = digits === "" ? 0 : Math.max(0, Math.min(99999, Number(digits)));
+      if (el.id === "mkt-price-min") st.minPrice = valNum;
+      else st.maxPrice = valNum;
+      st.priceCustom = true;
+      st.priceExplicit = true;
+      ui.mktVisibleCount = 8;
       saveMkt();
+      const mktMod = EGE.views && EGE.views.marketplace;
+      const ro = typeof document.getElementById === "function" ? document.getElementById("filter-price-readout") : null;
+      if (ro && mktMod && typeof mktMod.priceFilterLabel === "function") ro.textContent = mktMod.priceFilterLabel(st);
+      const subBtn = typeof document.getElementById === "function" ? document.getElementById("filter-submit-btn") : null;
+      if (subBtn && TDATA) {
+        const list = TDATA.filterTutors(st, TDATA.buildCalendarDays(7));
+        subBtn.textContent = `Показать ${list.length} ${plural(list.length, "репетитора", "репетиторов", "репетиторов")}`;
+      }
+      scheduleRender();
       return;
     }
     if (el.id === "bal-custom-amount") { if (ui.balanceModal) { ui.balanceModal.customAmount = el.value; ui.balanceModal.error = ""; } return; }
@@ -2480,17 +2552,16 @@
     }
     if (el.id === "lead-comment") { if (ui.leadDraft) ui.leadDraft.comment = el.value; return; }
     if (el.id === "bid-price") {
+      const digits = String(el.value || "").replace(/\D+/g, "").slice(0, 5);
+      if (el.value !== digits) el.value = digits;
       if (ui.booking) {
-        const raw = parseInt(el.value, 10);
-        if (Number.isFinite(raw)) {
-          const next = Math.max(0, Math.min(99999, raw));
-          ui.booking.offerPrice = next;
-          if (ui.booking.tutorId && ui.booking.mode !== "trial") {
-            const cardOffers = ui.cardOffers || (ui.cardOffers = {});
-            cardOffers[ui.booking.tutorId] = next;
-          }
-          updateBookingModalLive();
+        const next = digits === "" ? 0 : Math.max(0, Math.min(99999, Number(digits)));
+        ui.booking.offerPrice = next;
+        if (ui.booking.tutorId) {
+          const cardOffers = ui.cardOffers || (ui.cardOffers = {});
+          cardOffers[ui.booking.tutorId] = next;
         }
+        updateBookingModalLive();
       }
       return;
     }
@@ -2687,7 +2758,7 @@
     }
     if (e.key === "Escape" && (ui.bug || ui.booking || ui.authModal || ui.filterModal || ui.bbModal || ui.tutorApplyModal || ui.coopModal || ui.balanceModal || ui.payoutModal)) {
       e.preventDefault();
-      ui.bug = null; ui.booking = null; ui.authModal = false; ui.filterModal = false; ui.bbModal = false; ui.tutorApplyModal = false; ui.coopModal = false; ui.balanceModal = null; ui.payoutModal = null;
+      ui.bug = null; ui.booking = null; ui.authModal = false; ui.authPrompt = ""; ui.pendingBookingAfterAuth = null; ui.filterModal = false; ui.bbModal = false; ui.tutorApplyModal = false; ui.coopModal = false; ui.balanceModal = null; ui.payoutModal = null;
       renderModal();
       return;
     }
@@ -2713,10 +2784,56 @@
 
   window.addEventListener("hashchange", () => { readHash(); scheduleRender(true); });
   let swipeToast = null;
+  let sheetDrag = null;
+  let suppressSheetClick = false;
   function swipeClientPt(e, axis) {
     if (e.touches && e.touches[0]) return axis === "x" ? e.touches[0].clientX : e.touches[0].clientY;
     if (e.changedTouches && e.changedTouches[0]) return axis === "x" ? e.changedTouches[0].clientX : e.changedTouches[0].clientY;
     return axis === "x" ? (typeof e.clientX === "number" ? e.clientX : 0) : (typeof e.clientY === "number" ? e.clientY : 0);
+  }
+  function startSheetDrag(e) {
+    if (!e || !e.target || typeof e.target.closest !== "function") return;
+    const zone = e.target.closest("[data-sheet-drag]");
+    if (!zone) return;
+    const sheet = zone.closest(".sheet-modal");
+    if (!sheet) return;
+    sheetDrag = { sheet, y0: swipeClientPt(e, "y"), t0: Date.now(), dy: 0, moved: false };
+    if (sheet.style) sheet.style.transition = "none";
+  }
+  function moveSheetDrag(e) {
+    if (!sheetDrag) return;
+    const dy = Math.max(0, swipeClientPt(e, "y") - sheetDrag.y0);
+    sheetDrag.dy = dy;
+    if (dy > 4) sheetDrag.moved = true;
+    if (sheetDrag.sheet && sheetDrag.sheet.style) {
+      sheetDrag.sheet.style.transform = dy > 0 ? `translateY(${Math.round(dy)}px)` : "";
+    }
+  }
+  function endSheetDrag() {
+    if (!sheetDrag) return;
+    const cur = sheetDrag;
+    sheetDrag = null;
+    const vel = cur.dy / Math.max(1, Date.now() - cur.t0);
+    const shouldClose = cur.dy > 84 || (cur.dy > 32 && vel > 0.55);
+    if (cur.moved) suppressSheetClick = true;
+    if (shouldClose) {
+      if (cur.sheet && cur.sheet.style) {
+        cur.sheet.style.transition = "transform .2s ease";
+        cur.sheet.style.transform = "translateY(105%)";
+      }
+      const kind = cur.sheet && cur.sheet.dataset ? cur.sheet.dataset.sheetKind : "";
+      const closeNow = () => {
+        if (kind === "filter") ui.filterModal = false;
+        else if (kind === "booking") ui.booking = null;
+        else { ui.filterModal = false; ui.booking = null; }
+        renderModal();
+      };
+      if (typeof setTimeout === "function") setTimeout(closeNow, 150);
+      else closeNow();
+    } else if (cur.sheet && cur.sheet.style) {
+      cur.sheet.style.transition = "transform .2s cubic-bezier(.22, 1, .36, 1)";
+      cur.sheet.style.transform = "";
+    }
   }
   function startSwipeToast(e) {
     if (!e || !e.target || typeof e.target.closest !== "function") return;
@@ -2773,11 +2890,12 @@
       }
     }
   }
-  document.addEventListener("pointerdown", startSwipeToast);
-  document.addEventListener("pointerup", endSwipeToast);
-  document.addEventListener("pointercancel", endSwipeToast);
+  document.addEventListener("pointerdown", (e) => { startSwipeToast(e); startSheetDrag(e); });
+  document.addEventListener("pointerup", () => { endSwipeToast(); endSheetDrag(); });
+  document.addEventListener("pointercancel", () => { endSwipeToast(); endSheetDrag(); });
   document.addEventListener("pointermove", (e) => {
     moveSwipeToast(e);
+    moveSheetDrag(e);
     if (!e || typeof document.getElementById !== "function") return;
     const wrap = document.getElementById("hero-stage-wrap");
     if (!wrap || !wrap.getBoundingClientRect || !wrap.style || !wrap.style.setProperty) return;
@@ -2823,6 +2941,7 @@
     getThemeMode: () => themeMode, go, hash, heroMotionMeta, localNotice, markPlanPrep,
     minutesByDay, mistakeQs, mkt, mocks, nextExam, notifySide, patchDoc, patchHeroMotionDOM,
     patchSavingsDOM, planDoc, planItems, profile, prog, questionAttemptBreakdown, renderModal,
+    isUserAuthenticated, requireAuthForBid,
     replaceDoc, saveActiveQuiz, saveMkt, scheduleRender, sessions, staleNotice, stepBtn,
     stopMotionTimers, store, subjSelect, subjectAccuracy, subjectReadCount, subjectStats,
     tile, toast, todoItem, topicRef, topicStats, totals, ui, updateBookingModalLive
