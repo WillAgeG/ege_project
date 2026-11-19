@@ -1,6 +1,7 @@
 <title>Вектор ЕГЭ</title>
 <meta name="description" content="Назначай цену сам — репетиторы дешевле рынка до 30% (единая база Доски Ykt, Telegram, WhatsApp, MAX) и бесплатный тренажёр ЕГЭ 2027.">
 <meta name="theme-color" content="#0070ff">
+<meta name="color-scheme" content="light dark">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Вектор ЕГЭ">
 <meta property="og:title" content="Вектор ЕГЭ — репетиторы ниже рынка и тренажёр ЕГЭ 2027">
@@ -199,8 +200,8 @@
   align-items: center;
   justify-content: center;
   gap: 16px;
-  background: var(--bg);
-  color: var(--ink);
+  background: #ffffff;
+  color: #141517;
   transition: opacity .22s ease, visibility .22s ease;
 }
 .site-boot-loader.is-inline {
@@ -225,7 +226,30 @@
   font-size: 14px;
   font-weight: 500;
   letter-spacing: .01em;
-  color: var(--muted);
+  color: #5f6368;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .site-boot-loader {
+    background: #000000;
+    color: #ffffff;
+  }
+  :root:not([data-theme="light"]) .site-loader-text {
+    color: #8b909d;
+  }
+}
+:root[data-theme="light"] .site-boot-loader {
+  background: #ffffff;
+  color: #141517;
+}
+:root[data-theme="light"] .site-loader-text {
+  color: #5f6368;
+}
+:root[data-theme="dark"] .site-boot-loader {
+  background: #000000;
+  color: #ffffff;
+}
+:root[data-theme="dark"] .site-loader-text {
+  color: #8b909d;
 }
 @media (prefers-reduced-motion: reduce) {
   .site-loader-logo { animation: none; }

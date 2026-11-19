@@ -1338,8 +1338,11 @@
       loaderHtmlCheck.includes("site-loader-logo") &&
       loaderHtmlCheck.includes("siteLoaderSpin") &&
       loaderHtmlCheck.includes(">Загрузка...<") &&
+      loaderHtmlCheck.includes("prefers-color-scheme: dark") &&
+      loaderHtmlCheck.includes(':root:not([data-theme="light"]) .site-boot-loader') &&
+      loaderHtmlCheck.includes('name="color-scheme" content="light dark"') &&
       !loaderHtmlCheck.includes("Загружаю подготовку"),
-      "expected clean spinning Vektor logo loader with 'Загрузка...' in index.html"
+      "expected clean spinning Vektor logo loader with 'Загрузка...' and system theme background in index.html"
     );
     clickAction(env5, { a: "coop-open" });
     await flushMicrotasks(2);
