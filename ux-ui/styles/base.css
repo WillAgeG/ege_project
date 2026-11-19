@@ -102,6 +102,7 @@ p { margin: 0; }
   width: 38px; height: 38px; display: block;
   transform-origin: 50% 50%; transform-box: view-box; will-change: transform;
   transition: transform .55s cubic-bezier(.22, 1, .36, 1), filter .25s ease;
+  animation: vektorLogoIdleSpin 16s linear infinite;
 }
 /* Цветная 6-лучевая звезда в стиле Gemini на светлой и тёмной темах; на синем фоне — чисто-белый знак */
 [data-surface="blue"] .brand-mark .bm-gemini-layers,
@@ -117,10 +118,26 @@ p { margin: 0; }
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+@keyframes vektorLogoIdleSpin {
+  0%, 92% {
+    transform: rotate(0deg);
+    animation-timing-function: cubic-bezier(.45, 0, .2, 1);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
 .brand-lockup:hover .brand-mark svg,
 .brand-mark:hover svg,
 .sakha-gold-emblem:hover svg {
   animation: vektorLogoSpin 2.6s linear infinite;
+}
+:root.reduced-motion .brand-mark svg,
+.bb-logo-bad-box .brand-mark svg {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .brand-mark svg { animation: none; }
 }
 .brand-name { display: inline-flex; align-items: center; gap: 8px; min-width: 0; white-space: nowrap; }
 .brand-wordmark-wrap { display: inline-flex; align-items: center; flex: none; }

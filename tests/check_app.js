@@ -381,6 +381,11 @@
     assert(env2.body.dataset.auth === "1", "expected auth gate body flag before login");
     assert(readFileText("frontend/index.html").includes("family=Google+Sans:") && readFileText("ux-ui/styles/base.css").includes('"Google Sans", "Onest"'), "expected Google Sans Cyrillic font + Onest geometric fallback loaded for Вектор wordmark");
     assert(homePreLogin.includes("Вектор") && homePreLogin.includes("brand-wordmark") && homePreLogin.includes("brand-mark"), "expected new brand name and SVG logo on auth screen");
+    assert(
+      readFileText("ux-ui/styles/base.css").includes("@keyframes vektorLogoIdleSpin") &&
+      readFileText("ux-ui/styles/base.css").includes("vektorLogoIdleSpin 16s"),
+      "expected rare single idle spin animation on .brand-mark svg"
+    );
     assert(!homePreLogin.includes("Тесты бесплатно") && !homePreLogin.includes("Начать тесты ЕГЭ бесплатно") && !homePreLogin.includes("Открыть тренажёр ЕГЭ без оплаты"), "should not show free tests CTAs on landing");
     assert(!homePreLogin.includes('data-f="auth"') && !homePreLogin.includes("Продолжить без аккаунта"), "should not embed inline login card or guest link on landing");
     assert(homePreLogin.includes('data-a="auth-modal-open"') && homePreLogin.includes("Войти"), "expected single Войти modal trigger on landing");
