@@ -32,6 +32,18 @@
     return rDow === dowStr;
   }
 
+  function findStudentForLesson(st, lesson) {
+    const list = (st && Array.isArray(st.students)) ? st.students : [];
+    if (!lesson || !list.length) return null;
+    if (lesson.studentId) {
+      const byId = list.find((s) => s && s.id === lesson.studentId);
+      if (byId) return byId;
+    }
+    const targetName = String(lesson.studentName || "").trim().toLowerCase();
+    if (!targetName) return null;
+    return list.find((s) => s && String(s.name || "").trim().toLowerCase() === targetName) || null;
+  }
+
   function renderCalendarTab(st, TDATA, allReqs) {
     const hours = (TDATA && TDATA.HOURS) ? TDATA.HOURS : ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
     const weekOffset = st.calWeek ? 1 : 0;
@@ -64,6 +76,13 @@
     const gcalConnected = !!(cs.gcalConnected || busySlots.length > 0);
     const unbookedGcal = busyForActiveDay.filter((b) => !activeLessons.some((l) => String((l.schedulePlan && l.schedulePlan.hour) || l.hour || "") === String(b.hour || "")));
 
+    const students = Array.isArray(st.students) ? st.students : [];
+    const waCfg = st.waSettings || { enabled: true, lead: "2h", channels: ["wa", "tg", "max"], template: "Здравствуйте, {имя}! Скоро будет урок ({предмет}) — {день} в {время}." };
+    const cfgChannels = normalizeChannelList(waCfg.channels);
+    const sampleStudent = students[0] || { id: "st-alina", name: "Алина С.", exam: "ЕГЭ · Биология", lessonDay: "Воскресенье", lessonTime: "10:00", whatsapp: "+7 (914) 210-05-11", telegram: "@alina_bio" };
+    const samplePreview = formatWaReminderText(st, sampleStudent);
+    const sampleWaHref = studentWaHref(st, sampleStudent);
+
     const daysStripHTML = `<div class="study-week-days" role="group" aria-label="Дни недели и записанные ученики">
       ${weekDays.map((d) => {
         const k = String(d.dow);
@@ -86,14 +105,72 @@
             const rate = Number(lesson.counterPrice || lesson.offerPrice) || st.profile.price;
             const gcalBusy = busyForActiveDay.find((b) => b.hour === lessonHour);
             const tmUrl = String(lesson.telemostUrl || "").trim();
+            const stu = findStudentForLesson(st, lesson);
+            const stuGain = stu ? ((Number(stu.curScore) || 0) - (Number(stu.startScore) || 0)) : 0;
+            const stuPct = stu ? Math.max(8, Math.min(100, Math.round(((Number(stu.curScore) || 0) / Math.max(1, Number(stu.targetScore) || 100)) * 100))) : 0;
+            const stuChannels = stu ? normalizeChannelList(stu.autoChannels) : [];
+            const stuChBadge = stuChannels.map((cid) => (AUTO_CHANNELS.find((c) => c.id === cid) || {}).short || cid.toUpperCase()).join(" · ");
+            const msgEntity = stu || { id: lesson.id, name: lesson.studentName, whatsapp: lesson.whatsapp || "79142100511", telegram: lesson.telegram || "", maxHandle: lesson.maxHandle || "" };
             const msgBar = (EGE.kit && typeof EGE.kit.messengerLinksHTML === "function")
               ? EGE.kit.messengerLinksHTML({
-                  entity: { id: lesson.id, name: lesson.studentName, whatsapp: lesson.whatsapp || "79142100511", telegram: lesson.telegram || "", maxHandle: lesson.maxHandle || "" },
+                  entity: msgEntity,
                   message: `Здравствуйте, ${lesson.studentName}! Напоминаю про занятие (${lesson.subjectName}, ${activeDay.shortLabel} в ${lessonHour}) на платформе Вектор ЕГЭ.`,
                   primaryLabel: "WhatsApp",
                   compact: true
                 })
               : `<button type="button" class="btn soft sm" data-a="tc-req-msg" data-id="${esc(lesson.id)}">${icon("msg")}<span>Написать ученику</span></button>`;
+
+            const stuProgressHTML = stu ? `<div class="tc-stu-progress">
+              <div class="row between small" style="gap:8px;flex-wrap:wrap;align-items:center">
+                <span class="muted">Баллы: <b class="num">${stu.startScore}</b> → <b class="num savings-gold-txt">${stu.curScore}</b> / Цель <b class="num">${stu.targetScore}</b> · <b class="num">${stu.lessonsDone}</b> ${plural(stu.lessonsDone, "урок", "урока", "уроков")}</span>
+                <span class="chip confirm num">+${stuGain} б.</span>
+              </div>
+              <div class="tc-score-track"><div class="tc-score-fill" style="width:${stuPct}%"></div></div>
+              ${stu.hw ? `<div class="small muted" style="line-height:1.4">${esc(stu.hw)}</div>` : ""}
+              <div class="tc-stu-actions">
+                <button type="button" class="btn soft sm" data-a="tc-student-score" data-id="${esc(stu.id)}" data-delta="2">+2 б.</button>
+                <button type="button" class="btn ghost sm" data-a="tc-student-lesson" data-id="${esc(stu.id)}">+1 урок</button>
+                <button type="button" class="btn confirm sm tc-stu-remind-btn" data-a="tc-student-remind" data-id="${esc(stu.id)}">${icon("msg")}<span>Напомнить (${esc(stu.lessonDay || activeDay.wd)}, ${esc(stu.lessonTime || lessonHour)})</span></button>
+              </div>
+            </div>` : "";
+
+            const stuFoldHTML = stu ? `<details class="tc-stu-fold">
+              <summary>Контакты и автоуведомления</summary>
+              <div class="tc-stu-fold-body">
+                <div class="row between" style="gap:6px;flex-wrap:wrap;align-items:center">
+                  <button type="button" class="btn ${stu.autoNotify ? "gold" : "soft"} sm" data-a="tc-student-autonotify" data-id="${esc(stu.id)}" aria-pressed="${!!stu.autoNotify}">
+                    ${icon("bell")}<span>${stu.autoNotify ? `Авто: ${esc(stuChBadge)}` : "Вкл. авто"}</span>
+                  </button>
+                  <div class="auto-ch-bar" role="group" aria-label="Каналы автоуведомления ученика">
+                    ${AUTO_CHANNELS.map((ch) => {
+                      const on = stuChannels.includes(ch.id);
+                      return `<button type="button" class="auto-ch-pill${on ? " is-on" : ""}" data-a="tc-student-autochannel" data-id="${esc(stu.id)}" data-ch="${ch.id}" aria-pressed="${on}">${on ? "✓ " : ""}${esc(ch.short || ch.name)}</button>`;
+                    }).join("")}
+                  </div>
+                </div>
+                <div class="tc-two-col">
+                  <div class="field" style="gap:3px">
+                    <label class="small muted" for="st-wa-${esc(stu.id)}">Телефон (WA / MAX)</label>
+                    <input class="input num" id="st-wa-${esc(stu.id)}" data-tc-student="whatsapp" data-id="${esc(stu.id)}" value="${esc(formatPhone(stu.whatsapp || "79142100511"))}" maxlength="22" placeholder="+7 (914) 000-00-00">
+                  </div>
+                  <div class="field" style="gap:3px">
+                    <label class="small muted" for="st-tg-${esc(stu.id)}">Telegram (@ или +7)</label>
+                    <input class="input" id="st-tg-${esc(stu.id)}" data-tc-student="telegram" data-id="${esc(stu.id)}" value="${esc(formatTelegram(stu.telegram || ""))}" maxlength="36" placeholder="@login или +7...">
+                  </div>
+                </div>
+                <div class="tc-two-col">
+                  <div class="field" style="gap:3px">
+                    <label class="small muted" for="st-day-${esc(stu.id)}">День напоминания</label>
+                    <input class="input" id="st-day-${esc(stu.id)}" data-tc-student="lessonDay" data-id="${esc(stu.id)}" value="${esc(stu.lessonDay || "Воскресенье")}" maxlength="24" placeholder="Воскресенье">
+                  </div>
+                  <div class="field" style="gap:3px">
+                    <label class="small muted" for="st-time-${esc(stu.id)}">Время</label>
+                    <input class="input num" id="st-time-${esc(stu.id)}" data-tc-student="lessonTime" data-id="${esc(stu.id)}" value="${esc(stu.lessonTime || lessonHour)}" maxlength="12" placeholder="10:00">
+                  </div>
+                </div>
+              </div>
+            </details>` : "";
+
             return `<article class="study-lesson-card" data-req-id="${esc(lesson.id)}">
               <div class="study-lesson-time-row">
                 <b class="num" style="font-size:15px">Урок в ${esc(lessonHour)}</b>
@@ -114,8 +191,10 @@
                 </div>
               </div>
               ${lesson.note ? `<div class="tc-req-quote">${esc(lesson.note)}</div>` : ""}
+              ${stuProgressHTML}
               ${tmUrl ? `<a class="btn soft sm bid-telemost-join" href="${esc(tmUrl)}" target="_blank" rel="noopener noreferrer">${icon("video")}<span>Зайти в Яндекс Телемост</span></a>` : ""}
               ${msgBar}
+              ${stuFoldHTML}
               <button type="button" class="btn ghost sm study-cancel-btn" data-a="tc-req-decline" data-id="${esc(lesson.id)}">Снять с расписания</button>
             </article>`;
           }).join("")}
@@ -134,18 +213,85 @@
           <button type="button" class="btn soft sm" data-a="tc-cal-open-add" data-hour="${hours[0]}">+ Записать ученика</button>
         </div>`;
 
+    const waDrawerHTML = st.waPanelOpen ? `<div class="tc-wa-inline-panel stack" aria-label="Настройка автоуведомлений">
+      <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
+        <div>
+          <div class="eyebrow">WhatsApp · Telegram · MAX</div>
+          <h3 class="h2">Настройка автоуведомлений</h3>
+        </div>
+        <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
+          <button type="button" class="btn ${waCfg.enabled ? "confirm" : "soft"} sm" data-a="tc-wa-global-toggle" aria-pressed="${!!waCfg.enabled}">
+            ${waCfg.enabled ? "✓ Система включена" : "Включить систему"}
+          </button>
+          <button type="button" class="icon-btn sm" data-a="tc-wa-panel-toggle" aria-label="Скрыть автоуведомления">${icon("x")}</button>
+        </div>
+      </div>
+      <div class="stack" style="gap:6px">
+        <span class="small muted">Каналы автоматической отправки:</span>
+        <div class="auto-ch-bar" role="group" aria-label="Каналы автоуведомлений">
+          ${AUTO_CHANNELS.map((ch) => {
+            const on = cfgChannels.includes(ch.id);
+            return `<button type="button" class="auto-ch-pill${on ? " is-on" : ""}" data-a="tc-wa-channel" data-ch="${ch.id}" aria-pressed="${on}">${on ? "✓ " : ""}${esc(ch.name)}</button>`;
+          }).join("")}
+        </div>
+      </div>
+      <div class="stack" style="gap:6px">
+        <span class="small muted">Когда автоматически писать ученику:</span>
+        <div class="chip-rail">
+          ${WA_LEAD_OPTIONS.map((o) => `<button type="button" class="chip-btn${waCfg.lead === o.id ? " on" : ""}" data-a="tc-wa-lead" data-v="${esc(o.id)}">${esc(o.label)}</button>`).join("")}
+        </div>
+      </div>
+      <div class="field">
+        <label for="tc-wa-tpl">Текст напоминания (переменные: <code>{имя}</code>, <code>{предмет}</code>, <code>{день}</code>, <code>{время}</code>)</label>
+        <textarea class="textarea" id="tc-wa-tpl" data-tc="waTemplate" rows="3" maxlength="260">${esc(waCfg.template || "")}</textarea>
+      </div>
+      <div class="tc-template-card">
+        <div class="row between" style="gap:8px;flex-wrap:wrap">
+          <b class="small">Пример сообщения (${esc(sampleStudent.name)} · ${esc(sampleStudent.lessonDay || "Воскресенье")}, ${esc(sampleStudent.lessonTime || "10:00")})</b>
+          ${EGE.kit && typeof EGE.kit.messengerLinksHTML === "function"
+            ? EGE.kit.messengerLinksHTML({
+                entity: sampleStudent,
+                message: samplePreview,
+                primaryLabel: "Тест в WhatsApp",
+                compact: true
+              })
+            : `<a class="btn confirm sm" href="${esc(sampleWaHref)}" target="_blank" rel="noopener">${icon("send")}<span>Тест в WhatsApp</span></a>`}
+        </div>
+        <div class="tc-template-body">${esc(samplePreview)}</div>
+      </div>
+      <details class="tc-stu-fold">
+        <summary>Быстрые шаблоны ответов</summary>
+        <div class="tc-stu-fold-body">
+          ${QUICK_TEMPLATES.map((tpl) => {
+            const text = tpl.build(st.profile);
+            return `<div class="tc-template-card">
+              <div class="row between" style="gap:8px;flex-wrap:wrap">
+                <b class="small">${esc(tpl.title)}</b>
+                <button type="button" class="btn soft sm" data-a="tc-copy-tpl" data-id="${esc(tpl.id)}">Копировать</button>
+              </div>
+              <div class="tc-template-body">${esc(text)}</div>
+            </div>`;
+          }).join("")}
+        </div>
+      </details>
+    </div>` : "";
+
     return `<section class="card pad stack study-cal-card" id="tc-week-strip">
       <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
         <div>
           <div class="eyebrow">Живое расписание · 10:00–20:00</div>
           <h2 class="h2">Календарь записанных учеников (${weekCount})</h2>
         </div>
-        <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
-          ${gcalConnected ? `<span class="chip confirm">✓ GCal подключён</span>` : ""}
-          <button type="button" class="btn soft sm" data-a="tc-cal-open-add" data-hour="${hours[0]}">+ Записать ученика</button>
-          <button type="button" class="btn ghost sm" data-a="tc-cal-import-modal">Календарь Google / Apple</button>
-        </div>
+        ${gcalConnected ? `<span class="chip confirm">✓ GCal</span>` : ""}
       </div>
+
+      <div class="tc-cal-toolbar">
+        <button type="button" class="btn soft sm" data-a="tc-cal-open-add" data-hour="${hours[0]}">+ Записать ученика</button>
+        <button type="button" class="btn ${st.waPanelOpen ? "confirm" : "ghost"} sm" data-a="tc-wa-panel-toggle" aria-pressed="${!!st.waPanelOpen}">${icon("bell")}<span>Автоуведомления${waCfg.enabled ? " · вкл." : ""}</span></button>
+        <button type="button" class="btn ghost sm" data-a="tc-cal-import-modal">Google / Apple</button>
+      </div>
+
+      ${waDrawerHTML}
 
       ${st.calImportOpen ? `<form class="card stack" style="gap:10px;border-color:var(--accent)" data-f="tc-cal-import">
         <div class="row between" style="gap:8px">

@@ -28,7 +28,7 @@
     findReq, updateReq, pendingCount, renderDataTable, getTab, setTab, toggleArrayVal
   } = TC;
 
-  const { renderCalendarTab, renderStudentsTab, renderLeadsTab, formatWaReminderText, studentWaHref, studentReminderUrl } = TC;
+  const { renderCalendarTab, renderLeadsTab, formatWaReminderText, studentWaHref, studentReminderUrl } = TC;
   const { renderPayoutStatsBlocks, renderPayoutWalletSection, renderPayoutHistorySection, getWalletSummary, sideBalanceWidgetHTML, desktopDockHTML, mobileTopWidgetHTML, payoutModalHTML, submitPayout, viewPayouts } = TC;
 
   function renderTutorScheduleBotHTML(req, st) {
@@ -104,21 +104,18 @@
           : `<span class="chip notif">Ожидает ответа · ${esc(req.createdLabel || "новое")}</span>`;
 
     return `<article class="tc-req-card${isPending ? " is-pending" : isAccepted ? " is-accepted" : ""}"${isFirstPending ? ' id="tc-first-pending"' : ""}>
-      <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:flex-start">
-        <div class="row" style="gap:10px;min-width:0">
+      <div class="tc-req-head">
+        <div class="tc-req-who">
           <span class="tutor-avatar" aria-hidden="true">${esc(initials(req.studentName))}</span>
-          <div class="stack" style="gap:2px;min-width:0">
-            <div class="row" style="gap:6px;flex-wrap:wrap">
-              <b>${esc(req.studentName)}</b>
-              <span class="chip">${esc(req.exam)} · ${esc(req.subjectName)}</span>
-            </div>
-            <div class="small muted">${esc(req.dayLabel)} в <b class="num" style="color:var(--ink)">${esc(req.hour)}</b> · ${esc(req.format)}</div>
+          <div class="stack" style="gap:3px;min-width:0;flex:1 1 0">
+            <b style="font-size:15px">${esc(req.studentName)}</b>
+            <div class="small muted">${esc(req.exam)} · ${esc(req.subjectName)} · ${esc(req.dayLabel)} в <b class="num" style="color:var(--ink)">${esc(req.hour)}</b> · ${esc(req.format || "Онлайн")}</div>
           </div>
         </div>
         ${statusBadge}
       </div>
 
-      <div class="stack" style="gap:6px">
+      <div class="stack tc-req-price-block" style="gap:6px">
         <div class="hh-price-row">${priceHeadlineHTML(mktRate, bidRate, false)}</div>
         <div class="hh-diff-strip">
           ${priceDiffTagsHTML({ tutorPrice: tutorRate, marketPrice: mktRate, offerPrice: bidRate, qualBadge: "Повышенная ставка · Профи" })}
@@ -134,26 +131,26 @@
           <div class="hh-step-readout"><b class="num">${bidRate.toLocaleString("ru-RU")} ₽/ч</b><span class="small muted">ваша цена</span></div>
           <button type="button" class="hh-step-btn" data-a="tc-req-step" data-id="${esc(req.id)}" data-step="50">+50 ₽</button>
         </div>
-        <div class="row" style="gap:8px;flex-wrap:wrap">
+        <div class="tc-req-actions">
           <button type="button" class="btn confirm sm" data-a="tc-req-accept" data-id="${esc(req.id)}">${icon("check")}<span>Подтвердить ${bidRate.toLocaleString("ru-RU")} ₽</span></button>
-          ${bidRate !== req.offerPrice ? `<button type="button" class="btn soft sm" data-a="tc-req-counter" data-id="${esc(req.id)}">Отправить контр-ставку</button>` : ""}
-          <button type="button" class="btn ghost sm" data-a="tc-req-decline" data-id="${esc(req.id)}">Отклонить</button>
+          <div class="tc-req-actions-sub">
+            ${bidRate !== req.offerPrice ? `<button type="button" class="btn soft sm" data-a="tc-req-counter" data-id="${esc(req.id)}">Отправить контр-ставку</button>` : ""}
+            <button type="button" class="btn ghost sm" data-a="tc-req-decline" data-id="${esc(req.id)}">Отклонить</button>
+          </div>
         </div>` : isAccepted ? `
         <div class="stack" style="gap:8px;width:100%">
           ${renderTutorScheduleBotHTML(req, st)}
           <div class="row between" style="gap:8px;flex-wrap:wrap">
             <span class="small ink2">Выплата после урока: <b class="num">${sp.payout.toLocaleString("ru-RU")} ₽</b> <span class="muted">(сбор ${sp.fee} ₽)</span></span>
-            <div class="row" style="gap:8px;flex-wrap:wrap">
-              ${EGE.kit && typeof EGE.kit.messengerLinksHTML === "function"
-                ? EGE.kit.messengerLinksHTML({
-                    entity: { id: req.id, name: req.studentName, whatsapp: req.whatsapp || "79142100511" },
-                    message: `Здравствуйте, ${req.studentName}! Подтверждаю урок (${req.subjectName}, ${req.dayLabel} в ${req.hour}) через Вектор ЕГЭ.`,
-                    primaryLabel: "Написать ученику · WA",
-                    compact: true
-                  })
-                : `<button type="button" class="btn confirm sm" data-a="tc-req-msg" data-id="${esc(req.id)}">${icon("msg")}<span>Написать ученику</span></button>`}
-            </div>
           </div>
+          ${EGE.kit && typeof EGE.kit.messengerLinksHTML === "function"
+            ? EGE.kit.messengerLinksHTML({
+                entity: { id: req.id, name: req.studentName, whatsapp: req.whatsapp || "79142100511", telegram: req.telegram || "", maxHandle: req.maxHandle || "" },
+                message: `Здравствуйте, ${req.studentName}! Подтверждаю урок (${req.subjectName}, ${req.dayLabel} в ${req.hour}) через Вектор ЕГЭ.`,
+                primaryLabel: "Написать ученику · WA",
+                compact: true
+              })
+            : `<button type="button" class="btn confirm sm" data-a="tc-req-msg" data-id="${esc(req.id)}">${icon("msg")}<span>Написать ученику</span></button>`}
         </div>` : `
         <div class="row" style="gap:8px">
           <button type="button" class="btn soft sm" data-a="tc-req-restore" data-id="${esc(req.id)}">Вернуть в рассмотрение</button>
@@ -198,222 +195,53 @@
   }
 
 
-  function renderRequestsTab(st, TDATA, allReqs, pendingList, acceptedList, baseSplit) {
-    const p = st.profile;
-    const subjects = (TDATA && TDATA.SUBJECTS) ? TDATA.SUBJECTS : [{ id: "bio", name: "Биология" }];
+  function renderRequestsTab(st, TDATA, allReqs, pendingList, acceptedList) {
     const reqFilter = ["pending", "accepted"].includes(st.filter) ? st.filter : "all";
     const firstPending = allReqs.find((r) => r.status === "pending");
     const firstPendingId = firstPending ? firstPending.id : "";
-
-    const reqMetrics = (req) => {
-      const bidRate = Number(req.counterPrice || req.offerPrice) || p.price;
-      const tutorRate = Number(req.tutorPrice) || p.price;
-      const mktRate = Number(req.marketPrice) || Math.round(tutorRate * 1.25);
-      const sp = TDATA && typeof TDATA.commissionSplit === "function"
-        ? TDATA.commissionSplit(bidRate)
-        : { total: bidRate, fee: Math.round(bidRate * 0.05), payout: Math.round(bidRate * 0.95), pct: 5 };
-      return { bidRate, tutorRate, mktRate, sp };
-    };
-
-    const reqColumns = [
-      {
-        key: "student",
-        label: "Ученик и предмет",
-        render: (req) => `<div style="display:grid;gap:5px;min-width:155px">
-          <div class="row" style="gap:8px;align-items:center;flex-wrap:nowrap">
-            <span class="tutor-avatar" aria-hidden="true">${esc(initials(req.studentName))}</span>
-            <b>${esc(req.studentName)}</b>
-          </div>
-          <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center">
-            <span class="chip">${esc(req.exam)} · ${esc(req.subjectName)}</span>
-            <span class="small muted">${esc(req.createdLabel || "новое")}</span>
-          </div>
-        </div>`
-      },
-      {
-        key: "slot",
-        label: "Слот",
-        render: (req) => `<div style="display:grid;gap:3px;min-width:112px">
-          <b class="num" style="white-space:nowrap">${esc(req.dayLabel)}</b>
-          <span class="small muted num" style="white-space:nowrap">${esc(req.hour)} · ${esc(req.format || "Онлайн")}</span>
-        </div>`
-      },
-      {
-        key: "rate",
-        label: "Ставка ±50 ₽",
-        num: true,
-        align: "left",
-        render: (req) => {
-          const { bidRate, sp } = reqMetrics(req);
-          const canStep = req.status === "pending" || req.status === "countered";
-          return `<div style="display:grid;gap:6px;justify-items:start;min-width:205px">
-            ${canStep ? `<div class="hh-price-stepper compact">
-              <button type="button" class="hh-step-btn" data-a="tc-req-step" data-id="${esc(req.id)}" data-step="-50">−50 ₽</button>
-              <div class="hh-step-readout"><b class="num">${bidRate.toLocaleString("ru-RU")} ₽/ч</b></div>
-              <button type="button" class="hh-step-btn" data-a="tc-req-step" data-id="${esc(req.id)}" data-step="50">+50 ₽</button>
-            </div>` : `<b class="num">${bidRate.toLocaleString("ru-RU")} ₽/ч</b>`}
-            <span class="small muted num" style="white-space:nowrap">На руки 95%: <b style="color:var(--confirm)">${sp.payout.toLocaleString("ru-RU")} ₽</b></span>
-          </div>`;
-        }
-      },
-      {
-        key: "marketAndNote",
-        label: "Рынок и заметка",
-        render: (req) => {
-          const { bidRate, tutorRate, mktRate } = reqMetrics(req);
-          return `<div style="display:grid;gap:5px;min-width:185px;max-width:290px">
-            <div class="hh-diff-strip">
-              ${priceDiffTagsHTML({ tutorPrice: tutorRate, marketPrice: mktRate, offerPrice: bidRate, qualBadge: "Повышенная ставка · Профи" })}
-            </div>
-            ${req.note ? `<div class="small ink2" style="line-height:1.45">${esc(req.note)}</div>` : `<span class="small muted">Без комментария</span>`}
-          </div>`;
-        }
-      },
-      {
-        key: "actions",
-        label: "Действия и статус",
-        isActions: true,
-        render: (req) => {
-          const { bidRate, sp } = reqMetrics(req);
-          const isPending = req.status === "pending";
-          const isAccepted = req.status === "accepted";
-          const isCountered = req.status === "countered";
-          const statusChip = isAccepted
-            ? `<span class="bb-tbl-st is-confirmed">✓ Подтверждено</span>`
-            : isCountered
-              ? `<span class="bb-tbl-st is-info">Предложена ставка ${bidRate.toLocaleString("ru-RU")} ₽/ч</span>`
-              : req.status === "declined"
-                ? `<span class="bb-tbl-st is-refund">Отклонено</span>`
-                : `<span class="bb-tbl-st is-pending">Ожидает ответа</span>`;
-
-          if (isPending || isCountered) {
-            return `<div style="display:grid;gap:6px;justify-items:start;min-width:190px">
-              ${statusChip}
-              <div class="row" style="gap:6px;flex-wrap:wrap">
-                <button type="button" class="btn confirm sm" data-a="tc-req-accept" data-id="${esc(req.id)}">${icon("check")}<span>Подтвердить ${bidRate.toLocaleString("ru-RU")} ₽</span></button>
-                ${bidRate !== req.offerPrice ? `<button type="button" class="btn soft sm" data-a="tc-req-counter" data-id="${esc(req.id)}">Отправить контр-ставку</button>` : ""}
-                <button type="button" class="btn ghost sm" data-a="tc-req-decline" data-id="${esc(req.id)}">Отклонить</button>
-              </div>
-            </div>`;
-          }
-          if (isAccepted) {
-            return `<div style="display:grid;gap:6px;justify-items:start;min-width:190px">
-              ${statusChip}
-              ${renderTutorScheduleBotHTML(req, st)}
-              <span class="small muted num">К выплате: <b>${sp.payout.toLocaleString("ru-RU")} ₽</b></span>
-              ${EGE.kit && typeof EGE.kit.messengerLinksHTML === "function"
-                ? EGE.kit.messengerLinksHTML({
-                    entity: { id: req.id, name: req.studentName, whatsapp: req.whatsapp || "79142100511", telegram: req.telegram || "", maxHandle: req.maxHandle || "" },
-                    message: `Здравствуйте, ${req.studentName}! Подтверждаю урок (${req.subjectName}, ${req.dayLabel} в ${req.hour}) через Вектор ЕГЭ.`,
-                    primaryLabel: "Написать ученику · WA",
-                    compact: true
-                  })
-                : `<button type="button" class="btn confirm sm" data-a="tc-req-msg" data-id="${esc(req.id)}">${icon("msg")}<span>Написать ученику</span></button>`}
-            </div>`;
-          }
-          return `<div style="display:grid;gap:6px;justify-items:start;min-width:190px">
-            ${statusChip}
-            <button type="button" class="btn soft sm" data-a="tc-req-restore" data-id="${esc(req.id)}">Вернуть в рассмотрение</button>
-          </div>`;
-        }
-      }
-    ];
-
-    const requestsTableHtml = renderDataTable({
-      id: "tc-requests-table",
-      cardWrap: false,
-      showPresetSwitch: false,
-      showColsSwitch: false,
-      eyebrow: "Торг в реальном времени",
-      title: "Входящие заявки учеников",
-      filter: reqFilter,
-      query: st.reqTblQuery || "",
-      confirmAction: "tc-req-accept",
-      filterAction: "tc-req-tbl-filter",
-      searchAction: "tc-req-tbl-q",
-      searchId: "tc-req-tbl-q",
-      searchPlaceholder: "Поиск: ученик, предмет, слот, ставка…",
-      filters: [
-        { id: "all", label: `Все (${allReqs.length})`, match: () => true },
-        { id: "pending", label: `Ждут ответа (${pendingList.length})`, match: (r) => r.status === "pending" },
-        { id: "accepted", label: `Подтверждено (${acceptedList.length})`, match: (r) => r.status === "accepted" }
-      ],
-      columns: reqColumns,
-      rows: allReqs,
-      searchFields: (r) => [r.studentName, r.exam, r.subjectName, r.dayLabel, r.hour, r.format, r.note, String(r.offerPrice || ""), String(r.counterPrice || "")].join(" "),
-      rowAttrs: (r) => (r && r.id === firstPendingId ? 'id="tc-first-pending" class="is-pending-row"' : ""),
-      emptyText: "По выбранному фильтру заявок нет — сбросьте фильтр или обновите пример заявок."
+    const qRaw = String(st.reqTblQuery || "").trim().toLowerCase();
+    const filteredReqs = allReqs.filter((r) => {
+      if (reqFilter === "pending" && r.status !== "pending") return false;
+      if (reqFilter === "accepted" && r.status !== "accepted") return false;
+      if (!qRaw) return true;
+      const hay = [r.studentName, r.exam, r.subjectName, r.dayLabel, r.hour, r.format, r.note, String(r.offerPrice || ""), String(r.counterPrice || "")].join(" ").toLowerCase();
+      return hay.includes(qRaw);
     });
 
-    return `<div class="stack" style="gap:16px">
-      <section class="card stack" style="gap:12px" aria-label="Входящие заявки учеников">
-        ${requestsTableHtml}
-      </section>
-
-      <div class="tc-two-col" aria-label="Быстрые настройки ставки и окон">
-        <form class="card stack" style="gap:12px" data-f="tc-profile">
-          <div class="row between" style="gap:8px;flex-wrap:wrap">
-            <div>
-              <div class="eyebrow">Быстрая правка</div>
-              <h2 class="h2">Ставка и профиль</h2>
-            </div>
-            <span class="chip${p.price >= 1400 ? " pro" : " accent"}">${p.price >= 1400 ? "Профи выше рынка" : "В рынке"}</span>
-          </div>
-          <div class="field">
-            <label for="tc-name">Имя в каталоге</label>
-            <input class="input" id="tc-name" name="name" data-tc="name" value="${esc(p.name)}" maxlength="48">
-          </div>
-          <div class="field">
-            <span class="label">Предметы (мультивыбор)</span>
-            <input type="hidden" name="subject" value="${esc(p.subject)}">
-            ${typeof hhMultiSelectHTML === "function"
-              ? hhMultiSelectHTML({
-                  id: "tc-subject",
-                  options: subjects.map((sb) => ({ id: sb.id, label: sb.name })),
-                  values: Array.isArray(p.subjects) && p.subjects.length ? p.subjects : [p.subject || "bio"],
-                  placeholder: "Выберите предметы",
-                  open: !!st.subjMenuOpen,
-                  toggleAction: "tc-subj-toggle",
-                  pickAction: "tc-subj-pick",
-                  ariaLabel: "Предметы преподавания"
-                })
-              : (typeof hhSelectHTML === "function"
-                ? hhSelectHTML({
-                    id: "tc-subject",
-                    options: subjects.map((sb) => ({ id: sb.id, label: sb.name })),
-                    value: p.subject,
-                    open: !!st.subjMenuOpen,
-                    toggleAction: "tc-subj-toggle",
-                    pickAction: "tc-subj-pick",
-                    ariaLabel: "Предметы преподавания"
-                  })
-                : `<select class="select" id="tc-subject" data-tc="subject">${subjects.map((sb) => `<option value="${esc(sb.id)}"${sb.id === p.subject ? " selected" : ""}>${esc(sb.name)}</option>`).join("")}</select>`)}
-          </div>
-          <div class="field">
-            <span class="label">Стандартная ставка (₽/ч)</span>
-            <div class="hh-price-stepper compact">
-              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="price" data-step="-50">−50 ₽</button>
-              <div class="hh-step-readout"><b class="num">${p.price.toLocaleString("ru-RU")} ₽/ч</b></div>
-              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="price" data-step="50">+50 ₽</button>
-            </div>
-          </div>
-          <div class="field">
-            <span class="label">Минимальный порог торга от учеников</span>
-            <div class="hh-price-stepper compact">
-              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="minFair" data-step="-50">−50 ₽</button>
-              <div class="hh-step-readout"><b class="num">${p.minFair.toLocaleString("ru-RU")} ₽/ч</b></div>
-              <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="minFair" data-step="50">+50 ₽</button>
-            </div>
-          </div>
-          <div class="bid-fee-row">${feeSplitHTML(p.price, TDATA)}</div>
-          <span class="small muted">На руки <b class="num">${baseSplit.payout.toLocaleString("ru-RU")} ₽</b> за урок. <button type="button" class="link-btn small" data-a="tc-tab" data-tab="profile">Открыть профиль →</button></span>
-          <div class="row" style="gap:8px;flex-wrap:wrap">
-            <button type="submit" class="btn sm">Сохранить анкету</button>
+    const cardsHtml = filteredReqs.length
+      ? `<div class="tc-req-list">${filteredReqs.map((r) => renderRequestCard(r, st, r.id === firstPendingId)).join("")}</div>`
+      : `<div class="empty">
+          <b>По выбранному фильтру заявок нет</b>
+          <span>Сбросьте фильтр или обновите пример заявок.</span>
+          <div class="row" style="gap:8px;flex-wrap:wrap;justify-content:center">
+            <button type="button" class="btn soft sm" data-a="tc-req-tbl-filter" data-v="all" data-clear-q="1">Показать все заявки</button>
             <button type="button" class="btn ghost sm" data-a="tc-reset-demo">Сбросить демо</button>
           </div>
-        </form>
-        ${renderSlotsPanelHTML(st, TDATA)}
-      </div>
+        </div>`;
+
+    return `<div class="stack" style="gap:16px">
+      <section class="card stack tc-req-section" id="tc-requests-table" aria-label="Входящие заявки учеников">
+        <div class="stack" style="gap:2px">
+          <div class="eyebrow">Торг в реальном времени</div>
+          <h2 class="h2">Входящие заявки учеников</h2>
+        </div>
+
+        <div class="hh-seg equal tc-req-filter-seg" role="group" aria-label="Фильтр заявок">
+          <button type="button" data-a="tc-req-tbl-filter" data-v="all" aria-pressed="${reqFilter === "all"}">Все (${allReqs.length})</button>
+          <button type="button" data-a="tc-req-tbl-filter" data-v="pending" aria-pressed="${reqFilter === "pending"}">Ждут (${pendingList.length})</button>
+          <button type="button" data-a="tc-req-tbl-filter" data-v="accepted" aria-pressed="${reqFilter === "accepted"}">Принято (${acceptedList.length})</button>
+        </div>
+
+        <div class="tc-search-wrap">
+          <span class="tc-search-ico" aria-hidden="true">${icon("search")}</span>
+          <input class="input" id="tc-req-tbl-q" data-a="tc-req-tbl-q" type="search" value="${esc(st.reqTblQuery || "")}" placeholder="Поиск: ученик, предмет, слот, ставка…">
+          ${qRaw ? `<button type="button" class="btn ghost sm" data-a="tc-req-tbl-filter" data-v="${reqFilter}" data-clear-q="1" aria-label="Очистить поиск">${icon("x")}</button>` : ""}
+        </div>
+
+        ${cardsHtml}
+      </section>
+
+      ${renderSlotsPanelHTML(st, TDATA)}
     </div>`;
   }
 
@@ -434,12 +262,12 @@
 
     return `<div class="stack" style="gap:16px">
       <div class="card stack" style="gap:10px">
-        <div class="row between" style="gap:10px;flex-wrap:wrap">
-          <div class="stack" style="gap:2px">
+        <div class="row between" style="gap:10px;flex-wrap:wrap;align-items:flex-start">
+          <div class="stack" style="gap:2px;min-width:0;flex:1 1 200px">
             <div class="eyebrow">Профиль преподавателя</div>
             <h2 class="h2">Заполненность профиля: <span class="num savings-gold-txt">${comp.pct}%</span></h2>
           </div>
-          <div class="row" style="gap:8px;flex-wrap:wrap">
+          <div class="row tc-prof-head-actions" style="gap:8px;flex-wrap:wrap">
             ${st.published ? `<span class="chip confirm">✓ Опубликована для учеников</span>` : `<span class="chip notif">Черновик кабинета</span>`}
             <button type="button" class="btn soft sm" data-a="tc-preview-toggle">${st.profilePreview ? "Скрыть предпросмотр" : "Как видит ученик"}</button>
           </div>
@@ -450,31 +278,31 @@
 
       <div class="tc-autobump-card" aria-label="Продвижение анкеты в выдаче">
         <div class="row between" style="gap:10px;flex-wrap:wrap;align-items:flex-start">
-          <div class="stack" style="gap:3px">
-            <span class="chip gold">${icon("spark")}<span>Поднятие анкеты в выдаче · раз в 4 ч + Авто-24ч (0 ₽)</span></span>
+          <div class="stack" style="gap:4px;min-width:0;flex:1 1 220px">
+            <span class="chip gold tc-bump-chip">${icon("spark")}<span>Поднятие · 4 ч + Авто-24ч (0 ₽)</span></span>
             <h2 class="h2">${st.autoBump24h ? "Автоподнятие 24 ч активно" : "Автоподнятие на паузе"}</h2>
             <p class="small ink2">Анкета автоматически поднимается в топ выдачи /market каждые 24 часа. Дополнительно можно поднять вручную раз в 4 часа.</p>
           </div>
-          <button type="button" class="btn ${st.autoBump24h ? "confirm" : "gold"} sm" data-a="tc-autobump-toggle" aria-pressed="${!!st.autoBump24h}">
+          <button type="button" class="btn ${st.autoBump24h ? "confirm" : "gold"} sm tc-bump-toggle-btn" data-a="tc-autobump-toggle" aria-pressed="${!!st.autoBump24h}">
             ${st.autoBump24h ? "✓ Авто-24ч включено" : "Включить авто-24ч"}
           </button>
         </div>
 
         <div class="tc-two-col">
-          <div class="card stack" style="gap:5px">
+          <div class="tc-autobump-panel stack" style="gap:5px">
             <span class="small muted">До следующего автоподнятия (24 ч)</span>
             <b class="num savings-gold-txt" style="font-size:24px" data-tc-countdown>${st.autoBump24h ? formatCountdown(remMs) : "Пауза"}</b>
             <span class="small muted">Последнее автопродвижение: <b style="color:var(--ink)">${esc(lastAutoLabel)}</b></span>
             <span class="small muted">Всего поднятий: <b class="num">${st.bumpCount || 1}</b></span>
           </div>
-          <div class="card stack" style="gap:8px">
+          <div class="tc-autobump-panel stack" style="gap:8px">
             <span class="small muted">Пиковое время суточного автоподнятия</span>
-            <div class="row" style="gap:6px;flex-wrap:wrap">
+            <div class="tc-bump-hours-grid">
               ${AUTO_BUMP_HOURS.map((hr) => `<button type="button" class="chip-btn${st.autoBumpHour === hr ? " on" : ""}" data-a="tc-autobump-hour" data-hour="${hr}">${hr} Якт</button>`).join("")}
             </div>
             <div class="small muted">Последнее ручное поднятие: <b style="color:var(--ink)">${esc(lastManualLabel)}</b> · интервал 4 ч</div>
             <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
-              <button type="button" class="btn sakha-pattern${mRem > 0 ? " is-confirmed" : ""}" data-a="tc-bump"${mRem > 0 ? " disabled" : ""}>
+              <button type="button" class="btn sakha-pattern tc-bump-manual-btn${mRem > 0 ? " is-confirmed" : ""}" data-a="tc-bump"${mRem > 0 ? " disabled" : ""}>
                 ${sakhaPatternSVG("rhombus", 18)}
                 <span>${mRem > 0 ? `✓ Поднята · через <b class="num" data-tc-manual-countdown>${formatCountdown(mRem)}</b>` : "Поднять анкету (раз в 4 ч)"}</span>
                 ${sakhaPatternSVG("lattice", 18)}
@@ -486,22 +314,24 @@
 
       ${previewCard ? `<div class="stack" style="gap:8px"><div class="eyebrow">Живой вид вашей карточки для учеников</div>${previewCard}</div>` : ""}
 
-      <form class="card stack" style="gap:14px" data-f="tc-profile">
+      <form class="card stack tc-profile-form" style="gap:14px" data-f="tc-profile">
         <div class="row between" style="gap:8px;flex-wrap:wrap">
           <h3 class="h2">1. Основная визитка и фото</h3>
           <span class="chip${p.price >= 1400 ? " pro" : " accent"}">${p.price >= 1400 ? "Эксперт выше рынка" : "Доступная ставка"}</span>
         </div>
 
         <div class="tc-photo-row">
-          ${avHTML}
-          <div class="stack" style="gap:6px;flex:1 1 200px;min-width:0">
-            <b>${p.photo ? "Фото загружено в анкету" : "Сейчас отображается «Без фото»"}</b>
-            <span class="small muted">Загрузите своё фото — оно обновится в анкете и предпросмотре, либо выберите «Без фото».</span>
-            <div class="row" style="gap:8px;flex-wrap:wrap">
-              <label class="btn soft sm" for="tc-photo-file" style="cursor:pointer">${icon("upload")}<span>Загрузить фото</span></label>
-              <input type="file" id="tc-photo-file" accept="image/*" data-tc-photo="1" class="sr">
-              <button type="button" class="btn ghost sm" data-a="tc-photo-clear"${p.photo ? "" : " disabled"}>Без фото</button>
+          <div class="tc-photo-top">
+            ${avHTML}
+            <div class="stack" style="gap:4px;min-width:0">
+              <b>${p.photo ? "Фото загружено в анкету" : "Сейчас отображается «Без фото»"}</b>
+              <span class="small muted">Загрузите своё фото — оно обновится в анкете и предпросмотре, либо выберите «Без фото».</span>
             </div>
+          </div>
+          <div class="tc-photo-actions">
+            <label class="btn soft sm" for="tc-photo-file" style="cursor:pointer">${icon("upload")}<span>Загрузить фото</span></label>
+            <input type="file" id="tc-photo-file" accept="image/*" data-tc-photo="1" class="sr">
+            <button type="button" class="btn ghost sm" data-a="tc-photo-clear"${p.photo ? "" : " disabled"}>Без фото</button>
           </div>
         </div>
 
@@ -516,54 +346,53 @@
           </div>
         </div>
 
-        <div class="tc-two-col">
-          <div class="field">
-            <span class="label">Предметы преподавания (мультивыбор)</span>
-            <input type="hidden" name="subject" value="${esc(p.subject)}">
-            ${typeof hhMultiSelectHTML === "function"
-              ? hhMultiSelectHTML({
+        <div class="field">
+          <span class="label">Предметы преподавания (мультивыбор)</span>
+          <input type="hidden" name="subject" value="${esc(p.subject)}">
+          ${typeof hhMultiSelectHTML === "function"
+            ? hhMultiSelectHTML({
+                id: "tc-subjects",
+                options: subjects.map((sb) => ({ id: sb.id, label: sb.name, short: sb.short })),
+                values: Array.isArray(p.subjects) && p.subjects.length ? p.subjects : [p.subject || "bio"],
+                placeholder: "Выберите предметы",
+                open: !!st.subjMenuOpen,
+                toggleAction: "tc-subj-toggle",
+                pickAction: "tc-subj-pick",
+                ariaLabel: "Предметы преподавания"
+              })
+            : (typeof hhSelectHTML === "function"
+              ? hhSelectHTML({
                   id: "tc-subjects",
-                  options: subjects.map((sb) => ({ id: sb.id, label: sb.name, short: sb.short })),
-                  values: Array.isArray(p.subjects) && p.subjects.length ? p.subjects : [p.subject || "bio"],
-                  placeholder: "Выберите предметы",
+                  options: subjects.map((sb) => ({ id: sb.id, label: sb.name })),
+                  value: p.subject,
                   open: !!st.subjMenuOpen,
                   toggleAction: "tc-subj-toggle",
                   pickAction: "tc-subj-pick",
                   ariaLabel: "Предметы преподавания"
                 })
-              : (typeof hhSelectHTML === "function"
-                ? hhSelectHTML({
-                    id: "tc-subjects",
-                    options: subjects.map((sb) => ({ id: sb.id, label: sb.name })),
-                    value: p.subject,
-                    open: !!st.subjMenuOpen,
-                    toggleAction: "tc-subj-toggle",
-                    pickAction: "tc-subj-pick",
-                    ariaLabel: "Предметы преподавания"
-                  })
-                : `<select class="select" id="tc-subjects" data-tc="subject">${subjects.map((sb) => `<option value="${esc(sb.id)}"${sb.id === p.subject ? " selected" : ""}>${esc(sb.name)}</option>`).join("")}</select>`)}
+              : `<select class="select" id="tc-subjects" data-tc="subject">${subjects.map((sb) => `<option value="${esc(sb.id)}"${sb.id === p.subject ? " selected" : ""}>${esc(sb.name)}</option>`).join("")}</select>`)}
+        </div>
+
+        <div class="tc-two-col">
+          <div class="field">
+            <span class="label">Город</span>
+            <div class="hh-seg equal" role="group" aria-label="Выбор города">
+              ${CITY_OPTIONS.map((c) => `<button type="button" data-a="tc-city-pick" data-v="${esc(c)}" aria-pressed="${(p.city || "Якутск") === c}">${esc(c)}</button>`).join("")}
+            </div>
           </div>
-          <div class="tc-two-col">
-            <div class="field">
-              <span class="label">Город</span>
-              <div class="hh-seg equal" role="group" aria-label="Выбор города">
-                ${CITY_OPTIONS.map((c) => `<button type="button" data-a="tc-city-pick" data-v="${esc(c)}" aria-pressed="${(p.city || "Якутск") === c}">${esc(c)}</button>`).join("")}
-              </div>
-            </div>
-            <div class="field">
-              <span class="label">Часовой пояс (UTC)</span>
-              ${typeof hhSelectHTML === "function"
-                ? hhSelectHTML({
-                    id: "tc-timezone",
-                    options: TZ_OPTIONS,
-                    value: p.timezone || "UTC+9",
-                    open: !!st.tzMenuOpen,
-                    toggleAction: "tc-tz-toggle",
-                    pickAction: "tc-tz-pick",
-                    ariaLabel: "Часовой пояс"
-                  })
-                : `<select class="select" id="tc-timezone" data-tc="timezone">${TZ_OPTIONS.map((tz) => `<option value="${esc(tz.id)}"${(p.timezone || "UTC+9") === tz.id ? " selected" : ""}>${esc(tz.label)}</option>`).join("")}</select>`}
-            </div>
+          <div class="field">
+            <span class="label">Часовой пояс (UTC)</span>
+            ${typeof hhSelectHTML === "function"
+              ? hhSelectHTML({
+                  id: "tc-timezone",
+                  options: TZ_OPTIONS,
+                  value: p.timezone || "UTC+9",
+                  open: !!st.tzMenuOpen,
+                  toggleAction: "tc-tz-toggle",
+                  pickAction: "tc-tz-pick",
+                  ariaLabel: "Часовой пояс"
+                })
+              : `<select class="select" id="tc-timezone" data-tc="timezone">${TZ_OPTIONS.map((tz) => `<option value="${esc(tz.id)}"${(p.timezone || "UTC+9") === tz.id ? " selected" : ""}>${esc(tz.label)}</option>`).join("")}</select>`}
           </div>
         </div>
 
@@ -589,17 +418,17 @@
         </div>
 
         <div class="eyebrow" style="margin-top:4px">2. Опыт, результаты и образование</div>
-        <div class="fields" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">
+        <div class="tc-metrics-grid">
           <div class="field">
-            <label for="tc-hh-exp">Стаж (лет)</label>
+            <label for="tc-hh-exp">Стаж, лет</label>
             <input class="input num" id="tc-hh-exp" name="expYears" data-tc="expYears" type="number" min="1" max="50" value="${esc(p.expYears || 6)}">
           </div>
           <div class="field">
-            <label for="tc-hh-avg">Средний балл ЕГЭ</label>
+            <label for="tc-hh-avg">Ср. балл ЕГЭ</label>
             <input class="input num" id="tc-hh-avg" name="avgScore" data-tc="avgScore" type="number" min="40" max="100" value="${esc(p.avgScore || 86)}">
           </div>
           <div class="field">
-            <label for="tc-hh-high">Учеников на 85+ / 100</label>
+            <label for="tc-hh-high">На 85+ / 100</label>
             <input class="input num" id="tc-hh-high" name="highScorers" data-tc="highScorers" type="number" min="0" max="500" value="${esc(p.highScorers || 14)}">
           </div>
         </div>
@@ -630,7 +459,7 @@
         <div class="field">
           <div class="row between" style="gap:8px;flex-wrap:wrap">
             <span class="label">Плашки квалификации на карточке (до 2 текстов)</span>
-            <span class="small muted">Показываются фиолетовыми бейджами <code>.diff-tag.pro</code> в вашей анкете</span>
+            <span class="small muted">Отображаются бейджами на вашей карточке</span>
           </div>
           <div class="tc-two-col">
             <input class="input" id="tc-badge-1" name="badge0" data-tc="badge0" maxlength="36" placeholder="Например: К.т.н. · эксперт жюри ВсОШ" value="${esc((p.customBadges && p.customBadges[0]) || "")}">
@@ -679,7 +508,7 @@
           <textarea class="textarea" id="tc-bio-full" name="bio" data-tc="bio" rows="3" maxlength="320">${esc(p.bio || "")}</textarea>
         </div>
 
-        <div class="row" style="gap:8px;flex-wrap:wrap">
+        <div class="row tc-profile-submit-row" style="gap:8px;flex-wrap:wrap">
           <button type="submit" class="btn">${icon("check")}<span>Сохранить и опубликовать</span></button>
         </div>
       </form>
@@ -715,12 +544,8 @@
     let bodyHTML = "";
     if (activeTab === "leads") bodyHTML = renderLeadsTab(st, TDATA);
     else if (activeTab === "profile") bodyHTML = renderProfileTab(st, TDATA, baseSplit);
-    else if (activeTab === "students") {
-      bodyHTML = `<div class="stack" style="gap:16px">
-        ${renderCalendarTab(st, TDATA, allReqs)}
-        ${renderStudentsTab(st)}
-      </div>`;
-    } else bodyHTML = renderRequestsTab(st, TDATA, allReqs, pendingList, acceptedList, baseSplit);
+    else if (activeTab === "students") bodyHTML = renderCalendarTab(st, TDATA, allReqs);
+    else bodyHTML = renderRequestsTab(st, TDATA, allReqs, pendingList, acceptedList, baseSplit);
 
     return `
       <div class="head">
@@ -847,6 +672,13 @@
       }
       st.tzMenuOpen = false;
       syncPublishedTutor(st);
+      saveState();
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-wa-panel-toggle") {
+      st.waPanelOpen = !st.waPanelOpen;
       saveState();
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
       return true;

@@ -2304,14 +2304,15 @@
     assert(
       tutorMain1.includes("Личный кабинет преподавателя") &&
       tutorMain1.includes('id="tc-requests-table"') &&
-      tutorMain1.includes("bb-data-table") &&
+      tutorMain1.includes("tc-req-card") &&
       tutorMain1.includes('id="tc-first-pending"') &&
       tutorMain1.includes("На руки 95%") &&
+      !tutorMain1.includes("bb-data-table") &&
+      !tutorMain1.includes("Быстрая правка") &&
       !tutorMain1.includes('data-a="tc-bump"') &&
       !tutorMain1.includes("3 колонки") &&
-      !tutorMain1.includes("7 колонок") &&
-      (tutorMain1.match(/<th\b/g) || []).length === 5,
-      "expected clean 5-col Teacher Requests table without bump CTA or 3/7 cols switch"
+      !tutorMain1.includes("7 колонок"),
+      "expected clean card-based Teacher Requests without bb-data-table, duplicate quick profile, bump CTA, or 3/7 cols switch"
     );
     assert(!tutorMain1.includes("tc-role-bar") && !tutorMain1.includes('role="tablist"') && !tutorMain1.includes("tc-mobile-tabs"), "expected tc-role-bar, desktop tablist, and extra tc-mobile-tabs removed on Заявки");
     assert(
@@ -2442,15 +2443,16 @@
     clickAction(env5, { a: "tc-tz-pick", v: "UTC+9" });
     await flushMicrotasks(2);
 
-    // Календарь записанных учеников внутри вкладки «Ученики» (как у ученика: 7 дней с цифрами и карточки учеников)
+    // Календарь записанных учеников внутри вкладки «Ученики» (как у ученика: 7 дней с цифрами, карточки учеников и тумблер автоуведомлений, без таблицы #tc-students-table)
     clickAction(env5, { a: "go", v: "tutor-calendar" });
     await flushMicrotasks(2);
     const tcCalHtml = env5.elements.get("main").innerHTML;
-    const calStripEnd = tcCalHtml.indexOf('id="tc-students-table"');
-    const calOnlySlice = calStripEnd > 0 ? tcCalHtml.slice(tcCalHtml.indexOf('id="tc-week-strip"'), calStripEnd) : tcCalHtml;
+    const calStripStart = tcCalHtml.indexOf('id="tc-week-strip"');
+    const calOnlySlice = calStripStart >= 0 ? tcCalHtml.slice(calStripStart) : tcCalHtml;
     assert(
       tcCalHtml.includes('id="tc-week-strip"') &&
-      tcCalHtml.includes('id="tc-students-table"') &&
+      !tcCalHtml.includes('id="tc-students-table"') &&
+      !tcCalHtml.includes("Мои ученики и автоуведомления") &&
       calOnlySlice.includes("Календарь записанных учеников") &&
       (calOnlySlice.match(/class="study-week-day-btn/g) || []).length === 7 &&
       calOnlySlice.includes('class="study-lesson-card"') &&
@@ -2459,8 +2461,9 @@
       !calOnlySlice.includes("Час закрыт для записи") &&
       !calOnlySlice.includes("cal-sync-card") &&
       calOnlySlice.includes('data-a="tc-cal-import-modal"') &&
+      calOnlySlice.includes('data-a="tc-wa-panel-toggle"') &&
       !calOnlySlice.includes('data-a="tc-bump"'),
-      "expected unified Ученики calendar strip matching student calendar with confirmed student cards, 7 day buttons, and no empty-slot noise"
+      "expected unified Ученики calendar strip matching student calendar with confirmed student cards, 7 day buttons, wa drawer toggle, and no crooked students table"
     );
     clickAction(env5, { a: "tc-cal-open-add", hour: "11:00" });
     await flushMicrotasks(2);
@@ -2493,15 +2496,13 @@
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes("✓ Отклик "), "expected teacher counter-price response to mark student lead as responded");
 
-    // Мои ученики (ровно 5 колонок, трекер баллов ЕГЭ + автоформат +7 (914) + Telegram @логин/телефон + автоуведомления WA/TG/MAX, без tc-bump)
+    // Ученики: прогресс баллов, контакты + автоуведомления встроены в карточки календаря и выдвижную панель (без таблицы #tc-students-table)
     clickAction(env5, { a: "go", v: "tutor-students" });
     await flushMicrotasks(2);
     const tcStudentsHtml = env5.elements.get("main").innerHTML;
     assert(
-      tcStudentsHtml.includes("Мои ученики и автоуведомления") &&
-      tcStudentsHtml.includes('id="tc-students-table"') &&
-      tcStudentsHtml.includes("bb-data-table") &&
-      (tcStudentsHtml.match(/<th\b/g) || []).length === 5 &&
+      !tcStudentsHtml.includes('id="tc-students-table"') &&
+      !tcStudentsHtml.includes("bb-data-table") &&
       !tcStudentsHtml.includes('data-a="tc-bump"') &&
       !tcStudentsHtml.includes("3 колонки") &&
       !tcStudentsHtml.includes("7 колонок") &&
@@ -2509,11 +2510,17 @@
       tcStudentsHtml.includes("@alina_bio") &&
       tcStudentsHtml.includes('data-tc-student="telegram"') &&
       tcStudentsHtml.includes('data-a="tc-student-autochannel"') &&
-      tcStudentsHtml.includes('data-a="tc-wa-channel"') &&
-      tcStudentsHtml.includes("Напомнить (Воскресенье, 10:00)") &&
-      tcStudentsHtml.includes("tc-wa-global-toggle") &&
-      tcStudentsHtml.includes("Тест в WhatsApp"),
-      "expected 5-column Мои ученики table with formatted contacts, WA/TG/MAX channels, reminder CTA, and no bump/cols switch"
+      tcStudentsHtml.includes("Напомнить (Воскресенье, 10:00)"),
+      "expected Мои ученики features embedded in calendar cards without #tc-students-table"
+    );
+    clickAction(env5, { a: "tc-wa-panel-toggle" });
+    await flushMicrotasks(2);
+    const tcStudentsWithWa = env5.elements.get("main").innerHTML;
+    assert(
+      tcStudentsWithWa.includes('data-a="tc-wa-channel"') &&
+      tcStudentsWithWa.includes("tc-wa-global-toggle") &&
+      tcStudentsWithWa.includes("Тест в WhatsApp"),
+      "expected inline auto-notifications panel to open inside Ученики with channels, global toggle, and WA test link"
     );
     assert(
       globalThis.EGE.tutors.formatPhoneMask("79142100511") === "+7 (914) 210-05-11" &&
@@ -2537,22 +2544,27 @@
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes("78") && env5.elements.get("main").innerHTML.includes('data-a="tc-wa-lead" data-v="1h"'), "expected +2 score increment and WhatsApp reminder lead toggle");
 
-    // Проверка CSS правил: скругление .btn-msg, отсутствие обводки-чёрточки ::after и капсульная обводка .tc-bar-col
+    // Проверка CSS правил: 4-иконочная сетка .tabbar (grid-auto-flow: column), скругление .btn-msg и капсульная обводка .tc-bar-col
     const baseCss = readFileText("ux-ui/styles/base.css");
     const mktCss = readFileText("frontend/styles/marketplace.css");
     assert(
       baseCss.includes("--r-pill: 999px;") &&
+      baseCss.includes("grid-auto-flow: column") &&
+      !baseCss.includes("repeat(5, minmax(0, 1fr))") &&
       /\.btn-msg\s*\{[^}]*border-radius:\s*999px;/.test(baseCss) &&
       !mktCss.includes(".tc-bar-col.is-active .tc-bar-track::after") &&
       /\.tc-bar-col\.is-active\s*\{[^}]*border-color:\s*var\(--accent\)/.test(mktCss),
-      "expected 999px pill radius on .btn-msg and capsule outline on .tc-bar-col.is-active without crooked track::after dash"
+      "expected fluid tabbar columns, 999px pill radius on .btn-msg, and capsule outline on .tc-bar-col.is-active"
     );
 
-    // Выплаты и статистика: KPIs + Статистика преподавателя + Цель дохода (без дубля tc-bump и без переключателя 3/7 колонок)
+    // Выплаты и статистика: KPIs + Статистика преподавателя + Цель дохода (без лишней кнопки «← В кабинет», без двойной рамки кошелька)
     clickAction(env5, { a: "go", v: "fees" });
     await flushMicrotasks(3);
     const tcPayoutsHtml = env5.elements.get("main").innerHTML;
     assert(
+      !tcPayoutsHtml.includes("← В кабинет") &&
+      tcPayoutsHtml.includes("tc-wallet-card") &&
+      tcPayoutsHtml.includes("tc-kpi-tiles") &&
       tcPayoutsHtml.includes("Новые заявки") &&
       tcPayoutsHtml.includes("Подтверждено") &&
       tcPayoutsHtml.includes("Чистый доход (95%)") &&
@@ -2564,7 +2576,7 @@
       !tcPayoutsHtml.includes('data-a="tc-bump"') &&
       !tcPayoutsHtml.includes("3 колонки") &&
       !tcPayoutsHtml.includes("7 колонок"),
-      "expected Выплаты dashboard to show moved KPI tiles (Новые заявки, Подтверждено, Чистый доход, Ставка), stats chart and monthly goal"
+      "expected polished Выплаты dashboard without back button, with flattened wallet card, KPI tiles, stats chart and monthly goal"
     );
     clickAction(env5, { a: "tc-stats-period", v: "30d" });
     await flushMicrotasks(2);

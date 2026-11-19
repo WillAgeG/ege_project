@@ -55,23 +55,23 @@
             <div class="eyebrow">Аналитика анкеты и откликов</div>
             <h2 class="h2">Статистика преподавателя</h2>
           </div>
-          <div class="hh-seg" role="group" aria-label="Период статистики">
+          <div class="hh-seg tc-period-seg" role="group" aria-label="Период статистики">
             <button type="button" data-a="tc-stats-period" data-v="7d" aria-pressed="${!is30}">7 дней</button>
             <button type="button" data-a="tc-stats-period" data-v="30d" aria-pressed="${is30}">30 дней</button>
           </div>
         </div>
 
-        <div class="tiles">
-          <div class="tile"><span class="tile-label">Просмотры анкеты</span><span class="tile-value num">${views.toLocaleString("ru-RU")}</span><span class="tile-note">${st.autoBump24h ? "+38% от авто-24ч" : "включи авто-24ч для буста"}</span></div>
+        <div class="tiles tc-kpi-tiles">
+          <div class="tile"><span class="tile-label">Просмотры анкеты</span><span class="tile-value num">${views.toLocaleString("ru-RU")}</span><span class="tile-note">${st.autoBump24h ? "+38% от авто-24ч" : "включите авто-24ч"}</span></div>
           <div class="tile"><span class="tile-label">Открыли контакты</span><span class="tile-value num">${clicks.toLocaleString("ru-RU")}</span><span class="tile-note">CTR ${Math.round((clicks / Math.max(1, views)) * 100)}%</span></div>
-          <div class="tile"><span class="tile-label">Конверсия в урок</span><span class="tile-value num" style="color:var(--confirm)">${conv}%</span><span class="tile-note">${reqCnt} откликов за период</span></div>
-          <div class="tile"><span class="tile-label">На руки (95%)</span><span class="tile-value num savings-gold-txt">${curMonthlyProj.toLocaleString("ru-RU")} ₽</span><span class="tile-note">прогноз за ${is30 ? "месяц" : "текущий темп"}</span></div>
+          <div class="tile"><span class="tile-label">Конверсия в урок</span><span class="tile-value num" style="color:var(--confirm)">${conv}%</span><span class="tile-note">${reqCnt} откликов</span></div>
+          <div class="tile"><span class="tile-label">На руки (95%)</span><span class="tile-value num savings-gold-txt">${curMonthlyProj.toLocaleString("ru-RU")} ₽</span><span class="tile-note">прогноз за ${is30 ? "месяц" : "неделю"}</span></div>
         </div>
 
         <div class="stack" style="gap:6px">
           <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
             <b class="small">Доход по дням недели (золотым — пики после поднятия)</b>
-            <div class="hh-seg" role="group" aria-label="Вид графика с палочками">
+            <div class="hh-seg tc-chart-seg" role="group" aria-label="Вид графика с палочками">
               ${[
                 ["sticks", "Палочки"],
                 ["lollipop", "Леденцы"],
@@ -490,14 +490,14 @@
     const reqLabel = s.method === "card"
       ? `Карта ···· ${String(s.card || "").replace(/\D+/g, "").slice(-4) || "4419"}`
       : `СБП · ${s.bank || "АЭБ (Алмазэргиэнбанк)"} (${s.phone || "+7 (914) 210-01-99"})`;
-    return `<section class="card stack" style="gap:12px" aria-label="Баланс и вывод средств">
-      <div class="tc-payout-wallet">
-        <div class="stack" style="gap:4px;min-width:0;flex:1 1 260px">
+    return `<section class="card stack tc-wallet-card" aria-label="Баланс и вывод средств">
+      <div class="tc-wallet-head">
+        <div class="stack" style="gap:4px;min-width:0;flex:1 1 240px">
           <div class="eyebrow">Кошелёк преподавателя</div>
           <h2 class="h2">Баланс и вывод средств</h2>
           <p class="small muted">Реквизиты по умолчанию: <b class="ink2">${esc(reqLabel)}</b> · ${s.npdReceipt ? "чек НПД (4–6%) вкл." : "без чека НПД"}</p>
         </div>
-        <div class="row" style="gap:8px;flex-wrap:wrap">
+        <div class="tc-wallet-cta">
           <button type="button" class="btn confirm" data-a="tc-payout-open"${wallet.availableRub < wallet.minPayout ? " disabled" : ""}>${icon("wallet")}<span>Вывести средства</span></button>
         </div>
       </div>
@@ -520,74 +520,31 @@
 
   function renderPayoutHistorySection(wallet) {
     const list = Array.isArray(wallet.payouts) ? wallet.payouts : [];
-    const dataTableFn = EGE.charts && typeof EGE.charts.dataTableHTML === "function" ? EGE.charts.dataTableHTML : null;
-    let bodyHtml = "";
-    if (!list.length) {
-      bodyHtml = `<div class="empty"><b>Выводов пока не было</b><span>Нажмите «Вывести средства», чтобы перевести доступный остаток на СБП или карту РФ.</span></div>`;
-    } else if (dataTableFn) {
-      bodyHtml = dataTableFn({
-        id: "tc-payout-history",
-        cardWrap: false,
-        showPresetSwitch: false,
-        showColsSwitch: false,
-        showSearch: false,
-        eyebrow: "",
-        title: "",
-        rows: list,
-        columns: [
-          { key: "createdAtLabel", label: "Дата", num: true, render: (row) => `<span class="num">${esc(row.createdAtLabel || "—")}</span>` },
-          { key: "methodLabel", label: "Способ", render: (row) => `<b>${esc(row.methodLabel || "СБП")}</b>` },
-          {
-            key: "destination",
-            label: "Реквизиты и чек",
-            render: (row) => `<div class="row" style="gap:6px;flex-wrap:wrap"><span class="num">${esc(row.destination || "—")}</span>${row.npdReceipt ? '<span class="chip good">Чек НПД</span>' : '<span class="chip">Без НПД</span>'}</div>`
-          },
-          { key: "amount", label: "Сумма", num: true, render: (row) => `<b class="num">${Number(row.amount || 0).toLocaleString("ru-RU")} ₽</b>` },
-          {
-            key: "status",
-            label: "Статус",
-            render: (row) => `<span class="bb-tbl-st ${row.status === "processing" ? "is-pending" : "is-confirmed"}">${esc(row.statusLabel || "Исполнено ✓")}</span>`
-          }
-        ]
-      });
-    } else {
-      bodyHtml = `<div class="bb-table-shell">
-        <div class="table-wrap">
-          <table class="tbl bb-data-table is-adaptive tc-payout-table">
-            <thead>
-              <tr>
-                <th>Дата</th>
-                <th>Способ</th>
-                <th>Реквизиты и чек</th>
-                <th>Сумма</th>
-                <th>Статус</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${list.map((row) => `<tr>
-                <td data-label="Дата" class="num">${esc(row.createdAtLabel || "—")}</td>
-                <td data-label="Способ"><b>${esc(row.methodLabel || "СБП")}</b></td>
-                <td data-label="Реквизиты и чек">
-                  <div class="row" style="gap:6px;flex-wrap:wrap">
-                    <span class="num">${esc(row.destination || "—")}</span>
-                    ${row.npdReceipt ? '<span class="chip good">Чек НПД</span>' : '<span class="chip">Без НПД</span>'}
-                  </div>
-                </td>
-                <td data-label="Сумма"><b class="num">${Number(row.amount || 0).toLocaleString("ru-RU")} ₽</b></td>
-                <td data-label="Статус"><span class="bb-tbl-st is-confirmed">${esc(row.statusLabel || "Исполнено ✓")}</span></td>
-              </tr>`).join("")}
-            </tbody>
-          </table>
-        </div>
-      </div>`;
-    }
+    const bodyHtml = !list.length
+      ? `<div class="empty"><b>Выводов пока не было</b><span>Нажмите «Вывести средства», чтобы перевести доступный остаток на СБП или карту РФ.</span></div>`
+      : `<div class="tc-payout-list" id="tc-payout-history">
+          ${list.map((row) => `<div class="tc-payout-item">
+            <div class="stack" style="gap:4px;min-width:0;flex:1 1 200px">
+              <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center">
+                <b>${esc(row.methodLabel || "СБП")}</b>
+                ${row.npdReceipt ? '<span class="chip good">Чек НПД</span>' : '<span class="chip">Без НПД</span>'}
+              </div>
+              <div class="small muted num">${esc(row.createdAtLabel || "—")} · ${esc(row.destination || "—")}</div>
+            </div>
+            <div class="tc-payout-item-right">
+              <b class="num" style="font-size:15px">${Number(row.amount || 0).toLocaleString("ru-RU")} ₽</b>
+              <span class="bb-tbl-st ${row.status === "processing" ? "is-pending" : "is-confirmed"}">${esc(row.statusLabel || "Исполнено ✓")}</span>
+            </div>
+          </div>`).join("")}
+        </div>`;
+
     return `<section class="card stack" style="gap:12px" aria-label="История выводов средств">
-      <div class="row between" style="gap:10px;flex-wrap:wrap">
+      <div class="row between" style="gap:10px;flex-wrap:wrap;align-items:center">
         <div>
           <div class="eyebrow">Операции по счёту</div>
           <h2 class="h2">История выводов средств</h2>
         </div>
-        <div class="row" style="gap:8px;flex-wrap:wrap">
+        <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
           <span class="chip num">${list.length} ${plural(list.length, "выплата", "выплаты", "выплат")}</span>
           <button type="button" class="btn soft sm" data-a="tc-payout-open">${icon("upload")}<span>Новый вывод</span></button>
         </div>
@@ -620,25 +577,20 @@
 
     return `
       <div class="head">
-        <div class="row between" style="gap:10px;flex-wrap:wrap;align-items:flex-end">
-          <div>
-            <div class="eyebrow">Финансы преподавателя · 95% на руки</div>
-            <h1 class="h1">Выплаты и статистика</h1>
-          </div>
-          <div class="row" style="gap:8px;flex-wrap:wrap">
-            <button type="button" class="btn ghost sm" data-a="go" data-v="cabinet">← В кабинет</button>
-          </div>
+        <div>
+          <div class="eyebrow">Финансы преподавателя · 95% на руки</div>
+          <h1 class="h1">Выплаты и статистика</h1>
         </div>
-        <p class="lead">Новые заявки, подтверждённые уроки, ставка в анкете, чистый доход (95%), статистика и цель на месяц.</p>
+        <p class="lead">Заявки, подтверждённые уроки, ставка в анкете, чистый доход (95%), статистика и цель на месяц.</p>
       </div>
 
-      <div class="tiles">
+      <div class="tiles tc-kpi-tiles">
         <div class="tile">
           <span class="tile-label">Новые заявки</span>
           <span class="tile-value num">
             <button type="button" class="tc-kpi-jump num" data-a="tc-jump-pending" style="color:${pendingList.length ? "var(--notif)" : "var(--ink)"}" title="Нажмите, чтобы перейти к ожидающим заявкам">${pendingList.length}</button>
           </span>
-          <span class="tile-note">${pendingList.length ? `<button type="button" class="link-btn small" data-a="tc-jump-pending">ждут вашего ответа →</button>` : "все разобраны"}</span>
+          <span class="tile-note">${pendingList.length ? `<button type="button" class="link-btn small tc-kpi-link" data-a="tc-jump-pending">Ждут ответа →</button>` : "Все разобраны"}</span>
         </div>
         <div class="tile">
           <span class="tile-label">Подтверждено</span>
@@ -648,22 +600,22 @@
         <div class="tile">
           <span class="tile-label">Ставка в анкете</span>
           <span class="tile-value num">${p.price.toLocaleString("ru-RU")} ₽/ч</span>
-          <span class="tile-note">торг от ${p.minFair.toLocaleString("ru-RU")} ₽/ч · на руки ${baseSplit.payout.toLocaleString("ru-RU")} ₽</span>
+          <span class="tile-note">торг от ${p.minFair.toLocaleString("ru-RU")} ₽/ч</span>
         </div>
         <div class="tile">
           <span class="tile-label">Чистый доход (95%)</span>
           <span class="tile-value num savings-gold-txt">${netIncomeTotal.toLocaleString("ru-RU")} ₽</span>
-          <span class="tile-note">после 5% сбора системы</span>
+          <span class="tile-note">после 5% сбора</span>
         </div>
         <div class="tile">
           <span class="tile-label">Проведено уроков</span>
           <span class="tile-value num">${totalLessonsCount}</span>
-          <span class="tile-note">активных учеников: ${(st.students || []).length}</span>
+          <span class="tile-note">учеников: ${(st.students || []).length}</span>
         </div>
         <div class="tile">
           <span class="tile-label">Заработано за месяц</span>
           <span class="tile-value num" style="color:var(--confirm)">${monthEarned.toLocaleString("ru-RU")} ₽</span>
-          <span class="tile-note">прогноз на текущий цикл</span>
+          <span class="tile-note">прогноз цикла</span>
         </div>
       </div>
 
