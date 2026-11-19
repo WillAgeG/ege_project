@@ -308,7 +308,7 @@
                   </div>
                   <div class="field">
                     <label class="label" for="tc-payout-phone">Телефон для СБП</label>
-                    <input class="input num" id="tc-payout-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+7 (914) 210-01-99" value="${esc(phone)}" data-tc-payout="phone">
+                    <input class="input num" id="tc-payout-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+7 (914) 210-01-99" value="${esc(phone || "+7 ")}" data-tc-payout="phone">
                   </div>
                 </div>`
               : `<div class="ygo-bank-card" id="tc-payout-card-box" data-bank="${esc(cardMeta.bankTheme || "default")}">

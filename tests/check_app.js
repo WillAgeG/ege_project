@@ -782,7 +782,14 @@
     clickAction(env4, { a: "go", v: "study" });
     await flushMicrotasks(6);
     const studyEmptyHtml = env4.elements.get("main").innerHTML;
-    assert(studyEmptyHtml.includes("Вы пока не записаны ни к одному преподавателю") && !studyEmptyHtml.includes("https://wa.me/"), "expected study view to list ONLY enrolled tutors and omit unbooked tutors");
+    assert(
+      studyEmptyHtml.includes("Вы пока не записаны ни к одному преподавателю") &&
+      studyEmptyHtml.includes('data-a="phone-country-toggle" data-scope="lead-wa"') &&
+      studyEmptyHtml.includes('id="lead-wa"') &&
+      studyEmptyHtml.includes('value="+7 "') &&
+      !studyEmptyHtml.includes("https://wa.me/"),
+      "expected study view to list ONLY enrolled tutors, include region picker + auto '+7 ' on lead-wa, and omit unbooked tutors"
+    );
     assert(studyEmptyHtml.includes("Ищу преподавателя по предметам") && studyEmptyHtml.includes("lead-subjects"), "expected student lead form with multi-select subjects inside study view");
 
     // Публикация студентом запроса «Ищу преподавателя» с мультивыбором Химия + Биология
@@ -1652,8 +1659,9 @@
     clickAction(env5, { a: "tutor-contact-open", tutorId: holdWaMatch[1], tutorName: holdWaMatch[2], holdCh: "wa" });
     await flushMicrotasks(2);
     assert(
-      env5.elements.get("modal-root").innerHTML.includes("Изменить WhatsApp преподавателя"),
-      "expected hold modal on active WhatsApp pill to open Изменить WhatsApp преподавателя"
+      env5.elements.get("modal-root").innerHTML.includes("Изменить WhatsApp преподавателя") &&
+      env5.elements.get("modal-root").innerHTML.includes('data-a="phone-country-toggle" data-scope="tc-contact"'),
+      "expected hold modal on active WhatsApp pill to open Изменить WhatsApp преподавателя with region selector"
     );
     env5.emitDoc("submit", {
       target: {
@@ -2125,11 +2133,35 @@
       demoProfHtml.includes('id="pf-grade"') &&
       demoProfHtml.includes('id="pf-city"') &&
       demoProfHtml.includes('id="pf-phone"') &&
+      demoProfHtml.includes('id="phone-field-pf-phone"') &&
+      demoProfHtml.includes('data-a="phone-country-toggle" data-scope="pf-phone"') &&
       demoProfHtml.includes('id="pf-goal"') &&
       demoProfHtml.includes("Сохранить профиль") &&
       demoProfHtml.includes('data-a="auth-logout"'),
-      "expected clean demo Student Profile without login card, role switcher, or theme card, with photo upload & personal fields"
+      "expected clean demo Student Profile without login card, role switcher, or theme card, with photo upload & personal fields + region phone picker"
     );
+    // Region selector & auto '+7' formatting on #pf-phone
+    clickAction(env5, { a: "phone-country-toggle", scope: "pf-phone" });
+    await flushMicrotasks(2);
+    assert(
+      env5.elements.get("main").innerHTML.includes('class="cv-country-menu"') &&
+      env5.elements.get("main").innerHTML.includes('data-a="phone-country-pick" data-scope="pf-phone"'),
+      "expected phone-country-toggle to open region menu for #pf-phone"
+    );
+    clickAction(env5, { a: "phone-country-pick", scope: "pf-phone", inputId: "pf-phone", v: "BY" });
+    await flushMicrotasks(2);
+    assert(
+      env5.elements.get("main").innerHTML.includes("Беларусь") &&
+      env5.elements.get("main").innerHTML.includes("+375 ("),
+      "expected picking BY region to switch label and format existing digits with +375"
+    );
+    const pfEmptyHtml = globalThis.EGE.phoneField.phoneFieldHTML({ scope: "pf-empty-chk", id: "pf-empty-chk", name: "phone", label: "Телефон", value: "", country: "RU" });
+    assert(pfEmptyHtml.includes('value="+7 "') && pfEmptyHtml.includes("Россия"), "expected empty phone field to prefill '+7 ' automatically with Russia region");
+    clickAction(env5, { a: "phone-country-pick", scope: "pf-phone", inputId: "pf-phone", v: "RU" });
+    await flushMicrotasks(2);
+    const pfPhoneInp = { id: "pf-phone", value: "9143210011", dataset: { phoneScope: "pf-phone", d: "pf.phone" } };
+    env5.emitDoc("input", { target: pfPhoneInp });
+    assert(pfPhoneInp.value === "+7 (914) 321-00-11", `expected #pf-phone live input to auto-prefix +7 mask, got ${pfPhoneInp.value}`);
     env5.emitDoc("submit", {
       target: {
         closest: () => ({
@@ -2138,7 +2170,7 @@
             name: { value: "Кирилл Егоров" },
             grade: { value: "11 класс · ЕГЭ" },
             city: { value: "Якутск" },
-            phone: { value: "+7 (914) 321-00-11" },
+            phone: { value: pfPhoneInp.value },
             goal: { value: "ЕГЭ по профилю на 90+" }
           }
         })

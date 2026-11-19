@@ -13,7 +13,7 @@
   let CONTENT, DIAG_PLAN_ID, QUIZ_SIZE, SUBJ, SUBJECT_META, SUBJECT_NAME, TOPIC_QUIZ, TOPICS, QS;
   let ai, caps, cloud, mkt, store, ui;
   let accountCard, avatarHTML, defaultName, draft, dueQs, findPlanItem, formatAvg, getThemeMode, go;
-  let isUserAuthenticated, localNotice, minutesByDay, mistakeQs, mocks, needsPrepSetup, patchDoc, planDoc, planItems, profile;
+  let isUserAuthenticated, localNotice, minutesByDay, mistakeQs, mocks, needsPrepSetup, patchDoc, phoneFieldHTML, planDoc, planItems, profile;
   let prog, questionAttemptBreakdown, replaceDoc, scheduleRender, sessions, staleNotice;
   let subjSelect, subjectAccuracy, subjectReadCount, subjectStats, tile, toast, todoItem;
   let topicRef, topicStats, totals;
@@ -28,7 +28,7 @@
       CONTENT, DIAG_PLAN_ID, QUIZ_SIZE, SUBJ, SUBJECT_META, SUBJECT_NAME, TOPIC_QUIZ, TOPICS, QS,
       ai, caps, cloud, mkt, store, ui,
       accountCard, avatarHTML, defaultName, draft, dueQs, findPlanItem, formatAvg, getThemeMode, go,
-      isUserAuthenticated, localNotice, minutesByDay, mistakeQs, mocks, needsPrepSetup, patchDoc, planDoc, planItems, profile,
+      isUserAuthenticated, localNotice, minutesByDay, mistakeQs, mocks, needsPrepSetup, patchDoc, phoneFieldHTML, planDoc, planItems, profile,
       prog, questionAttemptBreakdown, replaceDoc, scheduleRender, sessions, staleNotice,
       subjSelect, subjectAccuracy, subjectReadCount, subjectStats, tile, toast, todoItem,
       topicRef, topicStats, totals
@@ -383,6 +383,7 @@
     const curGrade = String(draft("pf.grade", prof.grade || ""));
     const curCity = String(draft("pf.city", prof.city || ""));
     const curPhone = String(draft("pf.phone", prof.phone || (vc && vc.value) || ""));
+    const curPhoneCountry = String(draft("pf.phoneCountry", prof.phoneCountry || (vc && vc.country) || "RU"));
     const curGoal = String(draft("pf.goal", prof.goal || ""));
     const avatarEl = curPhoto
       ? `<img class="stu-profile-avatar" src="${esc(curPhoto)}" alt="Фото профиля">`
@@ -435,10 +436,12 @@
             <input class="input" id="pf-city" name="city" data-d="pf.city" value="${esc(curCity)}" maxlength="40" placeholder="Якутск, Москва…">
           </div>
         </div>
-        <div class="field">
-          <label for="pf-phone">Телефон для СМС и мессенджеров</label>
-          <input class="input num" id="pf-phone" name="phone" type="tel" data-d="pf.phone" value="${esc(curPhone)}" maxlength="28" placeholder="+7 (914) 000-00-00">
-        </div>
+        ${typeof phoneFieldHTML === "function"
+          ? phoneFieldHTML({ scope: "pf-phone", id: "pf-phone", name: "phone", label: "Телефон для СМС и мессенджеров", value: curPhone, country: curPhoneCountry, dataD: "pf.phone", compact: true })
+          : `<div class="field">
+              <label for="pf-phone">Телефон для СМС и мессенджеров</label>
+              <input class="input num" id="pf-phone" name="phone" type="tel" data-d="pf.phone" value="${esc(curPhone || "+7 ")}" maxlength="28" placeholder="+7 (914) 000-00-00">
+            </div>`}
         <div class="field">
           <label for="pf-goal">О себе и цели подготовки</label>
           <textarea class="textarea" id="pf-goal" name="goal" rows="2" maxlength="200" data-d="pf.goal" placeholder="Например: ЕГЭ по профилю и физике на 85+, удобны занятия вечером">${esc(curGoal)}</textarea>

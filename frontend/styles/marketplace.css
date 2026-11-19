@@ -891,12 +891,18 @@ body:not([data-auth="1"]):not([data-fullbleed="1"]):not([data-brandbook="1"]) .l
   display: flex; align-items: center; gap: 8px; font-size: 12.5px; line-height: 1.4; color: var(--muted);
 }
 .ygo-sec-note svg { width: 16px; height: 16px; flex: none; color: var(--confirm); }
-.cv-phone-field { position: relative; display: grid; gap: 6px; }
+.cv-phone-field { position: relative; display: grid; gap: 6px; min-width: 0; }
 .cv-phone-wrap {
   display: flex; align-items: stretch; min-height: 50px;
   border-radius: 14px; border: 1.5px solid var(--line-strong);
-  background: var(--surface-2);
+  background: var(--surface-2); min-width: 0;
   transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease;
+}
+.cv-phone-field.is-compact .cv-phone-wrap {
+  min-height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
 }
 .cv-phone-wrap:focus-within {
   border-color: var(--accent); background: var(--surface);
@@ -908,11 +914,20 @@ body:not([data-auth="1"]):not([data-fullbleed="1"]):not([data-brandbook="1"]) .l
   background: transparent; color: var(--ink);
   font-size: 14px; font-weight: 600; cursor: pointer; flex: none; white-space: nowrap;
 }
+.cv-phone-field.is-compact .cv-country-btn {
+  padding: 0 10px;
+  font-size: 13.5px;
+}
 .cv-country-btn svg { width: 14px; height: 14px; color: var(--muted); }
 .cv-phone-inp {
   border: 0; background: transparent; width: 100%; min-width: 0;
   padding: 10px 12px; font-size: 17px; font-weight: 600;
   color: var(--ink); outline: none; box-shadow: none; letter-spacing: .01em;
+}
+.cv-phone-field.is-compact .cv-phone-inp {
+  padding: 9px 11px;
+  font-size: 15px;
+  font-weight: 500;
 }
 .cv-phone-inp:focus { outline: none; box-shadow: none; }
 .cv-country-menu {

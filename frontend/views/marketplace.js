@@ -1257,10 +1257,12 @@
             <label for="lead-price">Желаемая ставка (₽/ч)</label>
             <input class="input num" id="lead-price" name="targetPrice" type="number" min="0" max="99999" step="50" value="${Number(ld.targetPrice) || 1000}">
           </div>
-          <div class="field">
-            <label for="lead-wa">Телефон (WhatsApp / MAX)</label>
-            <input class="input num" id="lead-wa" name="whatsapp" type="text" maxlength="22" placeholder="+7 (914) 000-00-00" value="${esc(ld.whatsapp && typeof TDATA.formatPhoneMask === "function" ? TDATA.formatPhoneMask(ld.whatsapp) : (ld.whatsapp || ""))}">
-          </div>
+          ${(EGE.phoneField && typeof EGE.phoneField.phoneFieldHTML === "function")
+            ? EGE.phoneField.phoneFieldHTML({ scope: "lead-wa", id: "lead-wa", name: "whatsapp", label: "Телефон (WhatsApp / MAX)", value: ld.whatsapp || "", country: ld.whatsappCountry || "RU", compact: true })
+            : `<div class="field">
+                <label for="lead-wa">Телефон (WhatsApp / MAX)</label>
+                <input class="input num" id="lead-wa" name="whatsapp" type="text" maxlength="22" placeholder="+7 (914) 000-00-00" value="${esc(ld.whatsapp && typeof TDATA.formatPhoneMask === "function" ? TDATA.formatPhoneMask(ld.whatsapp) : (ld.whatsapp || "+7 "))}">
+              </div>`}
         </div>
         <div class="field">
           <label for="lead-comment">Что важно в подготовке (время, цель баллов, тема)</label>

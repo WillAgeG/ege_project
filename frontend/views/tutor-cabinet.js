@@ -654,10 +654,12 @@
             <label for="tc-hh-edu">Образование и квалификация</label>
             <input class="input" id="tc-hh-edu" name="education" data-tc="education" value="${esc(p.education || "")}" maxlength="90" placeholder="ВУЗ, эксперт ЕГЭ, олимпиадная подготовка">
           </div>
-          <div class="field">
-            <label for="tc-hh-wa">Телефон (WhatsApp / MAX)</label>
-            <input class="input num" id="tc-hh-wa" name="whatsapp" data-tc="whatsapp" value="${esc(formatPhone(p.whatsapp || ""))}" maxlength="22" placeholder="+7 (914) 000-00-00">
-          </div>
+          ${(EGE.phoneField && typeof EGE.phoneField.phoneFieldHTML === "function")
+            ? EGE.phoneField.phoneFieldHTML({ scope: "tc-hh-wa", id: "tc-hh-wa", name: "whatsapp", label: "Телефон (WhatsApp / MAX)", value: p.whatsapp || "", country: p.whatsappCountry || "RU", extraAttrs: 'data-tc="whatsapp"', compact: true })
+            : `<div class="field">
+                <label for="tc-hh-wa">Телефон (WhatsApp / MAX)</label>
+                <input class="input num" id="tc-hh-wa" name="whatsapp" data-tc="whatsapp" value="${esc(formatPhone(p.whatsapp || ""))}" maxlength="22" placeholder="+7 (914) 000-00-00">
+              </div>`}
         </div>
         <div class="field">
           <label for="tc-hh-tg">Telegram (@логин или номер телефона)</label>
@@ -1728,9 +1730,18 @@
     }
     else if (key === "education") p.education = String(el.value || "").slice(0, 90);
     else if (key === "whatsapp") {
-      const masked = formatPhone(el.value);
-      if (el.value !== masked) el.value = masked;
-      p.whatsapp = masked;
+      const pf = EGE.phoneField;
+      if (pf && typeof pf.formatPhoneForCountry === "function") {
+        const stPf = typeof pf.getPhoneFieldState === "function" ? pf.getPhoneFieldState("tc-hh-wa", p.whatsappCountry || "RU") : null;
+        const parsed = pf.formatPhoneForCountry(el.value, (stPf && stPf.country) || p.whatsappCountry || "RU");
+        if (el.value !== parsed.formatted) el.value = parsed.formatted;
+        p.whatsapp = parsed.formatted;
+        p.whatsappCountry = parsed.country.code;
+      } else {
+        const masked = formatPhone(el.value);
+        if (el.value !== masked) el.value = masked;
+        p.whatsapp = masked;
+      }
     } else if (key === "telegram") {
       const tgFormatted = formatTelegram(el.value);
       if (el.value !== tgFormatted) el.value = tgFormatted;

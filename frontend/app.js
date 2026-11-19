@@ -563,6 +563,7 @@
       grade: p.grade || "",
       city: p.city || "",
       phone: p.phone || "",
+      phoneCountry: p.phoneCountry || "RU",
       goal: p.goal || "",
       prepSetupPending: !!p.prepSetupPending,
       targets: Object.assign({}, DEFAULT_TARGETS, p.targets || {}),
@@ -1412,6 +1413,95 @@
     }
     return { formatted: out, nationalDigits: national, country: c, valid: national.length === c.len };
   }
+  function detectPhoneCountry(raw, fallbackCode) {
+    const trimmed = String(raw || "").trim();
+    const digits = String(raw || "").replace(/\D+/g, "");
+    const fb = phoneCountryByCode(fallbackCode || "RU").code;
+    if (trimmed.startsWith("+") && digits) {
+      const explicitMatch = PHONE_COUNTRIES.find((x) => x.dial && x.dial.length > 1 && digits.startsWith(x.dial));
+      if (explicitMatch) return explicitMatch.code;
+      if (digits.startsWith("7")) return fb === "KZ" ? "KZ" : "RU";
+    }
+    return fb;
+  }
+  function getPhoneFieldState(scope, fallbackCountry, forceReset) {
+    const map = ui.phoneFields || (ui.phoneFields = {});
+    const key = String(scope || "phone");
+    const fbCode = phoneCountryByCode(fallbackCountry || "RU").code;
+    if (!map[key] || forceReset) {
+      map[key] = { country: fbCode, menuOpen: false, userPicked: false };
+    } else if (!map[key].userPicked && fallbackCountry && PHONE_COUNTRIES.some((c) => c.code === fbCode) && map[key].country !== fbCode) {
+      map[key].country = fbCode;
+    }
+    return map[key];
+  }
+  function stripEmptyDialPhone(raw, countryCode) {
+    const str = String(raw || "").trim();
+    if (!str) return "";
+    const parsed = formatPhoneForCountry(str, countryCode || "RU");
+    return parsed.nationalDigits ? parsed.formatted : "";
+  }
+  function phoneFieldHTML(opts) {
+    opts = opts || {};
+    const scope = String(opts.scope || opts.id || "phone");
+    const id = String(opts.id || scope);
+    const name = String(opts.name || "phone");
+    const rawVal = opts.value == null ? "" : String(opts.value);
+    const st = getPhoneFieldState(scope, detectPhoneCountry(rawVal, opts.country || "RU"));
+    const country = phoneCountryByCode(st.country || "RU");
+    const parsed = rawVal.trim() ? formatPhoneForCountry(rawVal, country.code) : null;
+    const displayVal = (parsed && parsed.formatted) ? parsed.formatted : (country.dial ? ("+" + country.dial + " ") : "+");
+    const compactCls = opts.compact === false ? "" : " is-compact";
+    const dataDAttr = opts.dataD ? ` data-d="${esc(opts.dataD)}"` : "";
+    const extraAttrs = opts.extraAttrs ? (" " + opts.extraAttrs) : "";
+    const menuHTML = st.menuOpen
+      ? `<div class="cv-country-menu" role="listbox" aria-label="Выбор региона">
+          ${PHONE_COUNTRIES.map((c) => {
+            const on = c.code === country.code;
+            const codeText = c.dial ? ("+" + c.dial) : "Код";
+            return `<button type="button" class="cv-country-opt${on ? " is-on" : ""}" data-a="phone-country-pick" data-scope="${esc(scope)}" data-input-id="${esc(id)}" data-v="${esc(c.code)}" role="option" aria-selected="${on ? "true" : "false"}">
+              <span>${c.flag} ${esc(c.name)}</span>
+              <span class="small num muted">${esc(codeText)}</span>
+            </button>`;
+          }).join("")}
+        </div>`
+      : "";
+    return `<div class="field cv-phone-field${compactCls}" id="phone-field-${esc(scope)}">
+      ${opts.label ? `<label for="${esc(id)}">${esc(opts.label)} (${esc(country.name)})</label>` : ""}
+      <div class="cv-phone-wrap">
+        <button type="button" class="cv-country-btn" data-a="phone-country-toggle" data-scope="${esc(scope)}" aria-expanded="${st.menuOpen ? "true" : "false"}" aria-label="Выбрать регион: ${esc(country.name)}">
+          <span>${country.flag}</span>
+          <span>${esc(country.code === "OTHER" ? "Мир" : country.code)}</span>
+          ${icon("chevDown")}
+        </button>
+        <input class="cv-phone-inp num" id="${esc(id)}" name="${esc(name)}" type="tel" inputmode="tel" autocomplete="tel" data-phone-scope="${esc(scope)}"${dataDAttr}${extraAttrs} maxlength="28" placeholder="${esc(country.placeholder)}" value="${esc(displayVal)}">
+      </div>
+      ${menuHTML}
+    </div>`;
+  }
+  EGE.phoneField = {
+    PHONE_COUNTRIES,
+    phoneCountryByCode,
+    formatPhoneForCountry,
+    detectPhoneCountry,
+    getPhoneFieldState,
+    stripEmptyDialPhone,
+    phoneFieldHTML
+  };
+  function syncPhoneScopeState(scope, formatted, countryCode) {
+    const s = String(scope || "");
+    if (s === "pf-phone") {
+      ui.drafts["pf.phone"] = formatted;
+      ui.drafts["pf.phoneCountry"] = countryCode;
+    } else if (s === "tc-contact" && ui.tutorContactModal) {
+      ui.tutorContactModal.value = formatted;
+      ui.tutorContactModal.country = countryCode;
+      ui.tutorContactModal.error = "";
+    } else if (s === "lead-wa" && ui.leadDraft) {
+      ui.leadDraft.whatsapp = formatted;
+      ui.leadDraft.whatsappCountry = countryCode;
+    }
+  }
   function openContactVerifyModal(opts) {
     opts = opts || {};
     const existing = mkt().verifiedContact;
@@ -1746,10 +1836,13 @@
     const tutorObj = TDATA && Array.isArray(TDATA.LIST) ? TDATA.LIST.find((x) => x.id === tutorId) : null;
     const resolvedName = tutorName || (tutorObj && tutorObj.name) || "Преподаватель";
     let curVal = "";
+    let waCountry = "RU";
     if (channel === "wa") {
       const rawWa = String(ov.whatsapp || (tutorObj && tutorObj.whatsapp) || "").trim();
-      const fmtP = EGE.kit && EGE.kit.formatPhoneMask;
-      curVal = rawWa && typeof fmtP === "function" ? (fmtP(rawWa) || rawWa) : rawWa;
+      waCountry = detectPhoneCountry(rawWa, "RU");
+      const parsedWa = rawWa ? formatPhoneForCountry(rawWa, waCountry) : null;
+      curVal = parsedWa && parsedWa.formatted ? parsedWa.formatted : ("+" + phoneCountryByCode(waCountry).dial + " ");
+      getPhoneFieldState("tc-contact", waCountry, true);
     } else if (channel === "max") {
       curVal = String(ov.maxHandle || (tutorObj && tutorObj.maxHandle) || "");
     } else {
@@ -1759,19 +1852,20 @@
       tutorId: String(tutorId || ""),
       tutorName: resolvedName,
       channel,
+      country: waCountry,
       value: curVal,
-      hasExisting: Boolean(curVal && curVal.trim()),
+      hasExisting: Boolean(channel === "wa" ? stripEmptyDialPhone(curVal, waCountry) : (curVal && curVal.trim())),
       error: ""
     };
     ui.focusNext = "tc-contact-inp";
     renderModal();
   }
   function tutorContactModalHTML() {
-    const m = ui.tutorContactModal || { tutorId: "", tutorName: "Преподаватель", channel: "tg", value: "", hasExisting: false, error: "" };
+    const m = ui.tutorContactModal || { tutorId: "", tutorName: "Преподаватель", channel: "tg", country: "RU", value: "", hasExisting: false, error: "" };
     const isWa = m.channel === "wa";
     const isMax = m.channel === "max";
     const chName = isWa ? "WhatsApp" : (isMax ? "MAX" : "Telegram");
-    const ph = isWa ? "+7 (914) 000-00-00" : (isMax ? "@username или ссылка max.ru/..." : "@username или +7 (914) 000-00-00");
+    const ph = isMax ? "@username или ссылка max.ru/..." : "@username или +7 (914) 000-00-00";
     const titlePrefix = m.hasExisting ? "Изменить" : "Указать";
     const desc = isWa
       ? `Укажите актуальный номер WhatsApp преподавателя ${esc(m.tutorName || "")} — кнопка перехода в чат обновится сразу.`
@@ -1789,11 +1883,13 @@
         <div class="sheet-body">
           <p class="small ink2" style="margin:0;line-height:1.45">${desc}</p>
           <form class="stack" style="gap:12px" data-f="tutor-contact-save">
-            <div class="field">
-              <label for="tc-contact-inp">${isWa ? "Номер телефона WhatsApp" : `Ник, телефон или ссылка в ${chName}`}</label>
-              <input class="input${isWa ? " num" : ""}" id="tc-contact-inp" name="contact" type="${isWa ? "tel" : "text"}"${isWa ? ' inputmode="tel"' : ""} maxlength="64" placeholder="${esc(ph)}" value="${esc(m.value || "")}">
-              ${m.error ? `<span class="small" style="color:var(--bad);font-weight:600">${esc(m.error)}</span>` : ""}
-            </div>
+            ${isWa
+              ? `${phoneFieldHTML({ scope: "tc-contact", id: "tc-contact-inp", name: "contact", label: "Номер телефона WhatsApp", value: m.value || "", country: m.country || "RU", compact: false })}${m.error ? `<span class="small" style="color:var(--bad);font-weight:600">${esc(m.error)}</span>` : ""}`
+              : `<div class="field">
+                  <label for="tc-contact-inp">Ник, телефон или ссылка в ${chName}</label>
+                  <input class="input" id="tc-contact-inp" name="contact" type="text" maxlength="64" placeholder="${esc(ph)}" value="${esc(m.value || "")}">
+                  ${m.error ? `<span class="small" style="color:var(--bad);font-weight:600">${esc(m.error)}</span>` : ""}
+                </div>`}
             <div class="stack" style="gap:8px">
               <button type="submit" class="btn sm" style="width:100%;justify-content:center">Сохранить контакт</button>
               <button type="button" class="btn ghost sm" style="width:100%;justify-content:center" data-a="tutor-contact-close">Отмена</button>
@@ -2555,6 +2651,46 @@
       const inp = typeof document !== "undefined" && document.getElementById ? document.getElementById("cv-contact-inp") : null;
       if (inp && typeof inp.focus === "function") inp.focus();
     },
+    "phone-country-toggle": (el) => {
+      const scope = (el && el.dataset && el.dataset.scope) || "phone";
+      const map = ui.phoneFields || (ui.phoneFields = {});
+      const st = getPhoneFieldState(scope);
+      const nextOpen = !st.menuOpen;
+      Object.keys(map).forEach((k) => { if (map[k]) map[k].menuOpen = false; });
+      st.menuOpen = nextOpen;
+      if (scope === "tc-contact" && ui.tutorContactModal) renderModal();
+      else scheduleRender();
+    },
+    "phone-country-pick": (el) => {
+      const scope = (el && el.dataset && el.dataset.scope) || "phone";
+      const inputId = (el && el.dataset && el.dataset.inputId) || scope;
+      const nextCode = (el && el.dataset && el.dataset.v) || "RU";
+      const st = getPhoneFieldState(scope);
+      const inpNode = typeof document !== "undefined" && document.getElementById ? document.getElementById(inputId) : null;
+      const prevVal = inpNode && inpNode.value != null
+        ? inpNode.value
+        : (scope === "pf-phone"
+            ? draft("pf.phone", profile().phone || "")
+            : (scope === "tc-contact" && ui.tutorContactModal ? (ui.tutorContactModal.value || "") : (scope === "lead-wa" && ui.leadDraft ? (ui.leadDraft.whatsapp || "") : "")));
+      const prevParsed = formatPhoneForCountry(prevVal, st.country || "RU");
+      const nextCountry = phoneCountryByCode(nextCode);
+      st.country = nextCountry.code;
+      st.menuOpen = false;
+      st.userPicked = true;
+      const nextFormatted = prevParsed.nationalDigits
+        ? formatPhoneForCountry(nextCountry.dial ? ("+" + nextCountry.dial + prevParsed.nationalDigits) : prevParsed.nationalDigits, nextCountry.code).formatted
+        : (nextCountry.dial ? ("+" + nextCountry.dial + " ") : "+");
+      syncPhoneScopeState(scope, nextFormatted, nextCountry.code);
+      if (scope === "tc-hh-wa" && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.handleInput === "function") {
+        EGE.views.tutorCabinet.handleInput({ dataset: { tc: "whatsapp", phoneScope: scope }, value: nextFormatted });
+      }
+      ui.focusNext = inputId;
+      if (scope === "tc-contact" && ui.tutorContactModal) {
+        renderModal();
+        const inp = typeof document !== "undefined" && document.getElementById ? document.getElementById(inputId) : null;
+        if (inp && typeof inp.focus === "function") inp.focus();
+      } else scheduleRender();
+    },
     "cv-back": () => {
       if (!ui.contactVerifyModal) return;
       ui.contactVerifyModal.step = "input";
@@ -2679,11 +2815,16 @@
         exams[s.id] = validISO(d) ? d : prof.exams[s.id];
       });
       const vc = mkt() && mkt().verifiedContact;
+      const pfState = ui.phoneFields && ui.phoneFields["pf-phone"];
+      const phoneCountry = String(pickVal("pf.phoneCountry", "phoneCountry", (pfState && pfState.country) || prof.phoneCountry || "RU") || "RU").slice(0, 8);
+      const rawPhone = String(pickVal("pf.phone", "phone", prof.phone || (vc && vc.value) || "")).trim();
+      const cleanPhone = stripEmptyDialPhone(rawPhone, phoneCountry).slice(0, 28);
       patchDoc("profile", {
         name: String(pickVal("pf.name", "name", prof.name || defaultName())).trim().slice(0, 40),
         grade: String(pickVal("pf.grade", "grade", prof.grade || "")).trim().slice(0, 48),
         city: String(pickVal("pf.city", "city", prof.city || "")).trim().slice(0, 40),
-        phone: String(pickVal("pf.phone", "phone", prof.phone || (vc && vc.value) || "")).trim().slice(0, 28),
+        phone: cleanPhone,
+        phoneCountry: detectPhoneCountry(cleanPhone, phoneCountry),
         goal: String(pickVal("pf.goal", "goal", prof.goal || "")).trim().slice(0, 200),
         prepSetupPending: false,
         targets,
@@ -2993,7 +3134,10 @@
       const cEl = (form && form.elements && form.elements.comment) || $("#lead-comment");
       const rawLeadPrice = Number(priceEl ? priceEl.value : ld.targetPrice);
       const targetPrice = Math.max(0, Math.min(99999, Number.isFinite(rawLeadPrice) ? Math.round(rawLeadPrice) : 1000));
-      const whatsapp = String((waEl ? waEl.value : ld.whatsapp) || "").trim();
+      const rawWa = String((waEl ? waEl.value : ld.whatsapp) || "").trim();
+      const waState = ui.phoneFields && ui.phoneFields["lead-wa"];
+      const waCountry = ld.whatsappCountry || (waState && waState.country) || "RU";
+      const whatsapp = stripEmptyDialPhone(rawWa, waCountry);
       const comment = String((cEl ? cEl.value : ld.comment) || "").trim();
       const subjects = Array.isArray(ld.subjects) && ld.subjects.length ? ld.subjects.slice() : ["chem"];
       const studentName = (store.user && store.user.name) || "Ученик (мой профиль)";
@@ -3091,18 +3235,21 @@
       let displayVal = "";
       if (ch === "wa") {
         const noUrl = raw.replace(/^https?:\/\/(wa\.me|api\.whatsapp\.com\/send\/?)\/?/i, "").trim();
-        let digits = TDATA && typeof TDATA.normalizePhoneDigits === "function"
-          ? TDATA.normalizePhoneDigits(noUrl)
-          : noUrl.replace(/\D+/g, "");
-        if (digits.length === 11 && digits[0] === "8") digits = "7" + digits.slice(1);
-        if (digits.length < 10) {
-          m.error = "Укажите корректный номер WhatsApp (от 10 цифр).";
+        const waSt = ui.phoneFields && ui.phoneFields["tc-contact"];
+        const curCountry = m.country || (waSt && waSt.country) || "RU";
+        const parsedWa = formatPhoneForCountry(noUrl, curCountry);
+        let digits = parsedWa.nationalDigits
+          ? ((parsedWa.country.dial || "") + parsedWa.nationalDigits).replace(/\D+/g, "")
+          : (TDATA && typeof TDATA.normalizePhoneDigits === "function" ? TDATA.normalizePhoneDigits(noUrl) : noUrl.replace(/\D+/g, ""));
+        if (parsedWa.country.code === "OTHER") digits = parsedWa.nationalDigits;
+        if (digits.length === 11 && digits[0] === "8" && curCountry === "RU") digits = "7" + digits.slice(1);
+        if (!parsedWa.valid && digits.length < 10) {
+          m.error = `Укажите корректный номер WhatsApp (${parsedWa.country.name}, пример: ${parsedWa.country.placeholder}).`;
           renderModal();
           return;
         }
         cleanVal = digits;
-        const fmtP = EGE.kit && EGE.kit.formatPhoneMask;
-        displayVal = typeof fmtP === "function" ? (fmtP(digits) || ("+" + digits)) : ("+" + digits);
+        displayVal = parsedWa.formatted || ("+" + digits);
       } else if (ch === "tg") {
         const noUrl = raw.replace(/^https?:\/\/(t\.me|telegram\.me)\//i, "").trim();
         const digits = TDATA && typeof TDATA.normalizePhoneDigits === "function"
@@ -3178,6 +3325,20 @@
     if (ui.contactVerifyModal && ui.contactVerifyModal.countryMenuOpen && (!target || typeof target.closest !== "function" || !target.closest("#cv-phone-field"))) {
       ui.contactVerifyModal.countryMenuOpen = false;
       renderModal();
+    }
+    if (ui.phoneFields) {
+      let phoneModalChanged = false;
+      let phonePageChanged = false;
+      Object.keys(ui.phoneFields).forEach((scope) => {
+        const ps = ui.phoneFields[scope];
+        if (ps && ps.menuOpen && (!target || typeof target.closest !== "function" || !target.closest("#phone-field-" + scope))) {
+          ps.menuOpen = false;
+          if (scope === "tc-contact") phoneModalChanged = true;
+          else phonePageChanged = true;
+        }
+      });
+      if (phoneModalChanged) renderModal();
+      if (phonePageChanged) changed = true;
     }
     return changed;
   }
@@ -3356,10 +3517,40 @@
         el.value = "+" + c.dial + " ";
         ui.contactVerifyModal.contact = el.value;
       }
+      return;
+    }
+    if (el && el.dataset && el.dataset.phoneScope && !String(el.value || "").trim()) {
+      const scope = el.dataset.phoneScope;
+      const st = getPhoneFieldState(scope);
+      const c = phoneCountryByCode(st.country || "RU");
+      if (c.dial) {
+        el.value = "+" + c.dial + " ";
+        syncPhoneScopeState(scope, el.value, c.code);
+      }
+      return;
+    }
+    if (el && el.id === "tc-payout-phone" && !String(el.value || "").trim()) {
+      el.value = "+7 ";
+      if (ui.payoutModal) ui.payoutModal.phone = "+7 ";
     }
   });
   document.addEventListener("input", (e) => {
     const el = e.target;
+    if (el && el.dataset && el.dataset.phoneScope) {
+      const scope = el.dataset.phoneScope;
+      const st = getPhoneFieldState(scope);
+      const parsed = formatPhoneForCountry(el.value, st.country || "RU");
+      const countryChanged = parsed.country.code !== st.country;
+      st.country = parsed.country.code;
+      if (el.value !== parsed.formatted) el.value = parsed.formatted;
+      syncPhoneScopeState(scope, parsed.formatted, st.country);
+      if (countryChanged) {
+        st.userPicked = true;
+        if (scope === "tc-contact" && ui.tutorContactModal) renderModal();
+        else scheduleRender();
+      }
+      if (!el.dataset.tc) return;
+    }
     const inpAct = (el && el.dataset && el.dataset.a) || "";
     if (inpAct && inpAct.indexOf("adm-") === 0 && EGE.views.admin && typeof EGE.views.admin.handleInput === "function") {
       if (EGE.views.admin.handleInput(el)) return;
@@ -3949,7 +4140,7 @@
     defaultMarketState, defaultName, draft, dueQs, findPlanItem, firstSubject, formatAvg,
     getThemeMode: () => themeMode, go, hash, heroMotionMeta, localNotice, markPlanPrep,
     minutesByDay, mistakeQs, mkt, mocks, needsPrepSetup, nextExam, notifySide, patchDoc, patchHeroMotionDOM,
-    patchSavingsDOM, planDoc, planItems, profile, prog, questionAttemptBreakdown, renderModal,
+    patchSavingsDOM, phoneFieldHTML, planDoc, planItems, profile, prog, questionAttemptBreakdown, renderModal,
     isUserAuthenticated, requireAuthForBid,
     replaceDoc, saveActiveQuiz, saveMkt, scheduleRender, sessions, staleNotice, stepBtn,
     stopMotionTimers, store, subjSelect, subjectAccuracy, subjectReadCount, subjectStats,
