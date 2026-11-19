@@ -383,7 +383,7 @@
     assert(homePreLogin.includes("Вектор") && homePreLogin.includes("brand-wordmark") && homePreLogin.includes("brand-mark"), "expected new brand name and SVG logo on auth screen");
     assert(
       readFileText("ux-ui/styles/base.css").includes("@keyframes vektorLogoIdleSpin") &&
-      readFileText("ux-ui/styles/base.css").includes("vektorLogoIdleSpin 16s"),
+      readFileText("ux-ui/styles/base.css").includes("vektorLogoIdleSpin 11.85s"),
       "expected rare single idle spin animation on .brand-mark svg"
     );
     assert(!homePreLogin.includes("Тесты бесплатно") && !homePreLogin.includes("Начать тесты ЕГЭ бесплатно") && !homePreLogin.includes("Открыть тренажёр ЕГЭ без оплаты"), "should not show free tests CTAs on landing");
