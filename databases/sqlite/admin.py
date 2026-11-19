@@ -6,7 +6,7 @@ import secrets
 import sqlite3
 from typing import Any
 
-from .common import StorageError, _iso_utc_now, _normalize_tz
+from .common import StorageError, _iso_utc_now, _normalize_tz, calc_fee_split
 
 
 class SqliteAdminMixin:
@@ -151,8 +151,7 @@ class SqliteAdminMixin:
             slot["requests"] += 1
             if str(r["status"]) == "accepted":
                 gross = int(r["final_price_rub"] or r["counter_price_rub"] or r["offer_price_rub"] or 0)
-                fee = int(round(gross * 0.05))
-                net = gross - fee
+                fee, net = calc_fee_split(gross)
                 gmv_rub += gross
                 fee_rub += fee
                 payout_rub += net
@@ -313,6 +312,8 @@ class SqliteAdminMixin:
                 raise StorageError("not_found", "Заявка не найдена.", 404)
             next_escrow = str(row["escrow_status"] or "none")
             next_final = row["final_price_rub"]
+            next_reserved = int(row["reserved_rub"] or 0)
+            student_uid = row["student_user_id"]
             if clean_status == "accepted":
                 next_final = row["final_price_rub"] or row["counter_price_rub"] or row["offer_price_rub"]
                 if next_escrow in ("none", "refunded", "frozen"):
@@ -321,15 +322,79 @@ class SqliteAdminMixin:
                 if next_escrow == "captured":
                     next_escrow = "frozen"
             elif clean_status in ("declined", "refunded"):
-                if clean_status == "refunded" or next_escrow in ("frozen", "captured"):
+                if clean_status == "refunded" or next_escrow in ("frozen", "captured") or next_reserved > 0:
                     next_escrow = "refunded"
+                if student_uid is not None and next_reserved > 0:
+                    self._conn.execute(
+                        """
+                        INSERT INTO wallets (user_id, balance_rub, initial_paid, plan_id, saved_cards_json, updated_at)
+                        VALUES (?, ?, 1, 'trial5k', '[]', ?)
+                        ON CONFLICT(user_id) DO UPDATE SET
+                            balance_rub = wallets.balance_rub + excluded.balance_rub,
+                            updated_at = excluded.updated_at
+                        """,
+                        (int(student_uid), next_reserved, now_iso),
+                    )
+                    w_row = self._conn.execute(
+                        "SELECT balance_rub FROM wallets WHERE user_id = ?",
+                        (int(student_uid),),
+                    ).fetchone()
+                    bal_after = int(w_row["balance_rub"]) if w_row else next_reserved
+                    self._conn.execute(
+                        """
+                        INSERT INTO wallet_ledger (
+                            user_id, kind, amount_rub, balance_after_rub, fee_rub, method, ref_type, ref_id, note, created_at
+                        ) VALUES (?, 'escrow_refund', ?, ?, 0, 'escrow', 'booking', ?, ?, ?)
+                        """,
+                        (
+                            int(student_uid),
+                            next_reserved,
+                            bal_after,
+                            rid,
+                            f"Возврат средств администратором по заявке {rid}",
+                            now_iso,
+                        ),
+                    )
+                    next_reserved = 0
+
+            gross_esc = int(next_final or row["counter_price_rub"] or row["offer_price_rub"] or 0)
+            if next_escrow in ("frozen", "captured", "refunded") and gross_esc > 0:
+                fee_esc, payout_esc = calc_fee_split(gross_esc)
+                settled_at = now_iso if next_escrow in ("captured", "refunded") else None
+                self._conn.execute(
+                    """
+                    INSERT INTO escrow_holds (
+                        id, request_id, tutor_id, student_user_id, gross_rub,
+                        platform_fee_rub, tutor_payout_rub, status, created_at, settled_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(request_id) DO UPDATE SET
+                        gross_rub = excluded.gross_rub,
+                        platform_fee_rub = excluded.platform_fee_rub,
+                        tutor_payout_rub = excluded.tutor_payout_rub,
+                        status = excluded.status,
+                        settled_at = excluded.settled_at
+                    """,
+                    (
+                        f"esc-{rid}",
+                        rid,
+                        str(row["tutor_id"]),
+                        student_uid,
+                        gross_esc,
+                        fee_esc,
+                        payout_esc,
+                        next_escrow,
+                        now_iso,
+                        settled_at,
+                    ),
+                )
+
             self._conn.execute(
                 """
                 UPDATE admin_lesson_requests
-                SET status = ?, escrow_status = ?, final_price_rub = ?, updated_at = ?
+                SET status = ?, escrow_status = ?, final_price_rub = ?, reserved_rub = ?, updated_at = ?
                 WHERE id = ?
                 """,
-                (clean_status, next_escrow, next_final, now_iso, rid),
+                (clean_status, next_escrow, next_final, next_reserved, now_iso, rid),
             )
             topic = "vektor.payments.ledger.v1" if clean_status == "refunded" else "vektor.market.bids.v1"
             self._record_admin_outbox(

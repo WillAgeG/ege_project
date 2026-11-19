@@ -111,6 +111,7 @@ class Settings:
     auth_rate_window_sec: int = 900
     ai_rate_limit: int = 50
     ai_rate_window_sec: int = 3600
+    admin_require_auth: bool = False
     public_base_url: str | None = None
     ai: AIConfig = AIConfig(None, None, None, None, None)
     google: GoogleOAuthConfig = GoogleOAuthConfig(None, None)
@@ -127,6 +128,7 @@ def load_settings() -> Settings:
         invite_code=os.environ.get("INVITE_CODE", "").strip(),
         max_users=max(0, _int_env("MAX_USERS", 0)),
         max_doc_bytes=max(1024, _int_env("MAX_DOC_BYTES", 2 * 1024 * 1024)),
+        admin_require_auth=os.environ.get("ADMIN_REQUIRE_AUTH", "").strip().lower() in ("1", "true", "yes"),
         public_base_url=os.environ.get("PUBLIC_BASE_URL", "").strip().rstrip("/") or None,
         ai=load_ai_config(),
         google=load_google_oauth_config(),

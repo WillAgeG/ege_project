@@ -45,7 +45,7 @@
   function codeLabel(t) { return (SUBJ[t.sid].codeName || "Тема") + " " + t.code; }
 
   // ---------- хранилище ----------
-  const DOC_NAME_RE = /^(profile|plan|mocks|essays|prog-[a-z]+|log-\d{4}-\d{2})$/;
+  const DOC_NAME_RE = /^(profile|plan|mocks|essays|market|tutor-cabinet|calendar-sync|prog-[a-z]+|log-\d{4}-\d{2})$/;
   const store = {
     mode: "loading", // loading | cloud | local
     backend: !!(window.EGE_HOST && window.EGE_HOST.backend),
@@ -429,6 +429,31 @@
       throw e;
     }
   };
+  async function hydrateMarketFromBackend() {
+    if (!store.backend || !store.user || !EGE.api || !EGE.api.market) return;
+    try {
+      const data = await EGE.api.market.state();
+      if (!data || !data.ok || !data.authenticated) return;
+      const st = mkt();
+      if (data.wallet && typeof data.wallet === "object") {
+        if (Number.isFinite(Number(data.wallet.balanceRub))) st.balance = Number(data.wallet.balanceRub);
+        if (data.wallet.initialPaid != null) st.initialPaid = !!data.wallet.initialPaid;
+        if (data.wallet.planId) st.planId = String(data.wallet.planId);
+        if (Array.isArray(data.wallet.savedCards) && data.wallet.savedCards.length) st.savedCards = data.wallet.savedCards;
+      }
+      if (Array.isArray(data.bookings) && data.bookings.length) {
+        const merged = new Map();
+        data.bookings.forEach((bk) => { if (bk && bk.id) merged.set(String(bk.id), Object.assign({}, bk, { serverSynced: true })); });
+        (st.bookings || []).forEach((bk) => { if (bk && bk.id && !merged.has(String(bk.id)) && !bk.serverSynced) merged.set(String(bk.id), bk); });
+        st.bookings = Array.from(merged.values());
+      }
+      if (data.contacts && typeof data.contacts === "object") {
+        st.tutorContacts = Object.assign({}, st.tutorContacts || {}, data.contacts);
+      }
+      saveMkt();
+      scheduleRender();
+    } catch (e) { /* офлайн или мок-окружение */ }
+  }
   async function loadBackendSession(user) {
     const res = await backendReq("/api/docs");
     store.user = user;
@@ -446,6 +471,7 @@
     else { ai.fn = null; ai.state = "off"; }
     restoreActiveQuiz();
     for (const name in queues) flush(name);
+    hydrateMarketFromBackend();
     scheduleRender();
   }
   async function refreshBackendDocs(force) {
@@ -1754,7 +1780,7 @@
     </form>`;
   }
   // ---------- модульные экраны (src/views/*) ----------
-  EGE.views.marketplace.configure({ ui, mkt, saveMkt, notifySide, TDATA, viewPlan, viewTests, viewStats, scheduleRender });
+  EGE.views.marketplace.configure({ ui, mkt, saveMkt, notifySide, TDATA, viewPlan, viewTests, viewStats, scheduleRender, store, toast });
   EGE.views.landing.configure({
     ui, effectiveDark, SUBJ, TOPICS, QS, CONTENT, firstSubject,
     BUG_EMAIL, TDATA, tablesHTML, scheduleRender
@@ -2225,7 +2251,8 @@
       a.busy = true; a.error = "";
       if (ui.authModal) renderModal(); else scheduleRender();
       try {
-        const body = reg ? { username, password, email, displayName, inviteCode } : { username, password };
+        const regRole = ui.role === "tutor" ? "tutor" : "student";
+        const body = reg ? { username, password, email, displayName, inviteCode, role: regRole } : { username, password };
         const res = await backendReq("/api/auth/" + (reg ? "register" : "login"), { method: "POST", body: JSON.stringify(body) });
         let migrated = 0;
         if (reg && doMigrate) {
@@ -2312,6 +2339,17 @@
       st.savedCards = cards;
       st.savedCard = cardObj;
       saveMkt();
+      if (store.backend && store.user && EGE.api && EGE.api.wallet) {
+        EGE.api.wallet.addCard({
+          id: cardObj.id,
+          brand: cardObj.brand,
+          bankName: cardObj.bankName || "",
+          bankTheme: cardObj.bankTheme || "default",
+          bin: cardObj.bin || "",
+          last4: cardObj.last4,
+          exp: cardObj.exp
+        }).catch(() => {});
+      }
       ui.cardBindModal = null;
       if (!ui.balanceModal) {
         const trialRub = (TDATA && TDATA.TRIAL_PRICE != null) ? Number(TDATA.TRIAL_PRICE) : 490;
@@ -2378,8 +2416,15 @@
         verifiedAt: Date.now()
       };
       saveMkt();
-      if (store.backend && store.user && store.docs && store.docs.profile) {
-        patchDoc("profile", { contactVerified: true, phone: cv.contact, phoneCountry: cv.country || "RU" });
+      if (store.backend && store.user) {
+        const hadDoc = Boolean(store.docs && store.docs.profile);
+        const pendingFlag = hadDoc ? Boolean(store.docs.profile.prepSetupPending) : true;
+        patchDoc("profile", {
+          contactVerified: true,
+          phone: cv.contact,
+          phoneCountry: cv.country || "RU",
+          prepSetupPending: pendingFlag
+        });
       }
       ui.contactVerifyModal = null;
       ui.authModal = false;
@@ -2434,6 +2479,21 @@
       if (st.balance >= 8900) st.planId = "month10k";
       else if (!st.planId) st.planId = "trial5k";
       saveMkt();
+      if (store.backend && store.user && EGE.api && EGE.api.wallet) {
+        EGE.api.wallet.topup({
+          amount: amt,
+          method,
+          cardId: activeCard ? activeCard.id : null,
+          planId: st.planId || "trial5k"
+        }).then((res) => {
+          if (res && res.wallet && Number.isFinite(Number(res.wallet.balanceRub))) {
+            st.balance = Number(res.wallet.balanceRub);
+            st.initialPaid = !!res.wallet.initialPaid;
+            saveMkt();
+            scheduleRender();
+          }
+        }).catch(() => {});
+      }
       const pending = bm.pendingBooking;
       ui.balanceModal = null;
       if (pending && st.balance >= (pending.offerPrice != null ? Number(pending.offerPrice) : trialRub)) {
@@ -2465,7 +2525,7 @@
       const whatsapp = stripEmptyDialPhone(rawWa, waCountry);
       const comment = String((cEl ? cEl.value : ld.comment) || "").trim();
       const subjects = Array.isArray(ld.subjects) && ld.subjects.length ? ld.subjects.slice() : ["chem"];
-      const studentName = (store.user && store.user.name) || "Ученик (мой профиль)";
+      const studentName = profile().name || (store.user && (store.user.displayName || store.user.username)) || "Ученик (мой профиль)";
       const lead = TDATA.addStudentLead({
         subjects,
         exam: ld.exam || "ЕГЭ",
@@ -2476,6 +2536,20 @@
         studentName,
         mine: true
       });
+      if (store.backend && EGE.api && EGE.api.leads) {
+        EGE.api.leads.create({
+          subjects,
+          exam: ld.exam || "ЕГЭ",
+          format: ld.format || "Онлайн",
+          targetPrice,
+          whatsapp: whatsapp || "79142100500",
+          whatsappCountry: waCountry,
+          comment: lead.comment,
+          studentName
+        }).then((res) => {
+          if (res && res.lead && res.lead.id) lead.id = res.lead.id;
+        }).catch(() => {});
+      }
       ld.targetPrice = targetPrice;
       ld.whatsapp = whatsapp;
       ld.comment = "";

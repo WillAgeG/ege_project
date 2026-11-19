@@ -458,6 +458,24 @@
     if (!Array.isArray(st.payouts)) st.payouts = [];
     st.payouts.unshift(payoutRow);
     saveState();
+    const ctxStore = getCtx().store;
+    if (ctxStore && ctxStore.backend && ctxStore.user && EGE.api && EGE.api.tutor) {
+      EGE.api.tutor.createPayout({
+        tutorId: st.profile && st.profile.id ? st.profile.id : undefined,
+        method,
+        bank,
+        destination,
+        phone: method === "sbp" ? destination : "",
+        card: method === "card" ? destination : "",
+        amount,
+        npdReceipt
+      }).then((res) => {
+        if (res && res.payout && res.payout.id) {
+          payoutRow.id = res.payout.id;
+          saveState();
+        }
+      }).catch(() => {});
+    }
 
     return {
       ok: true,

@@ -12,9 +12,10 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
-from databases.sqlite.store import (
+from databases.sqlite.common import (
     StorageError,
     User,
+    calc_fee_split,
     deep_merge,
     hash_password,
     hash_token,
@@ -214,6 +215,34 @@ class PgAdminMixin:
                         }
                     )
 
+            if not daily_series:
+                r_rows = conn.execute(
+                    """
+                    SELECT slot_date,
+                           status,
+                           COALESCE(final_price_rub, counter_price_rub, offer_price_rub, 0) AS eff_price
+                    FROM oltp.lesson_requests
+                    ORDER BY slot_date ASC
+                    """
+                ).fetchall()
+                by_day: dict[str, dict[str, Any]] = {}
+                for r in r_rows:
+                    sd = r["slot_date"]
+                    day = sd.isoformat()[:10] if hasattr(sd, "isoformat") else str(sd or "")[:10]
+                    slot = by_day.setdefault(
+                        day,
+                        {"date": day, "gmvRub": 0, "feeRub": 0, "payoutRub": 0, "requests": 0, "accepted": 0},
+                    )
+                    slot["requests"] += 1
+                    if str(r["status"]) in ("accepted", "completed"):
+                        gross = int(r["eff_price"] or 0)
+                        fee, net = calc_fee_split(gross)
+                        slot["gmvRub"] += gross
+                        slot["feeRub"] += fee
+                        slot["payoutRub"] += net
+                        slot["accepted"] += 1
+                daily_series = [by_day[d] for d in sorted(by_day.keys())]
+
         storage = self.storage_health()
         return {
             "ok": True,
@@ -382,6 +411,12 @@ class PgAdminMixin:
                 if not existing:
                     raise StorageError("not_found", "Заявка не найдена.", 404)
                 if clean_status == "accepted":
+                    eff_final = int(
+                        existing.get("final_price_rub")
+                        or existing.get("counter_price_rub")
+                        or existing.get("offer_price_rub")
+                        or 0
+                    )
                     conn.execute(
                         """
                         UPDATE oltp.lesson_requests
@@ -392,14 +427,43 @@ class PgAdminMixin:
                         """,
                         (target_pg_status, rid),
                     )
-                    conn.execute(
-                        """
-                        UPDATE oltp.escrow_holds
-                        SET status = 'captured', settled_at = NOW()
-                        WHERE request_id = %s
-                        """,
-                        (rid,),
-                    )
+                    if eff_final > 0:
+                        fee_esc, payout_esc = calc_fee_split(eff_final)
+                        esc_row = conn.execute(
+                            "SELECT id FROM oltp.escrow_holds WHERE request_id = %s",
+                            (rid,),
+                        ).fetchone()
+                        if esc_row:
+                            conn.execute(
+                                """
+                                UPDATE oltp.escrow_holds
+                                SET gross_rub = %s,
+                                    platform_fee_rub = %s,
+                                    tutor_payout_rub = %s,
+                                    status = 'captured',
+                                    settled_at = NOW()
+                                WHERE id = %s
+                                """,
+                                (eff_final, fee_esc, payout_esc, esc_row["id"]),
+                            )
+                        else:
+                            conn.execute(
+                                """
+                                INSERT INTO oltp.escrow_holds (
+                                    id, request_id, tutor_id, student_user_id, gross_rub,
+                                    platform_fee_rub, tutor_payout_rub, status, settled_at
+                                ) VALUES (%s, %s, %s, %s, %s, %s, %s, 'captured', NOW())
+                                """,
+                                (
+                                    f"esc-{rid}",
+                                    rid,
+                                    str(existing["tutor_id"]),
+                                    existing.get("student_user_id"),
+                                    eff_final,
+                                    fee_esc,
+                                    payout_esc,
+                                ),
+                            )
                 elif clean_status == "pending":
                     conn.execute(
                         "UPDATE oltp.lesson_requests SET status = %s, updated_at = NOW() WHERE id = %s",
@@ -414,8 +478,37 @@ class PgAdminMixin:
                         (rid,),
                     )
                 else:
+                    student_uid = existing.get("student_user_id")
+                    reserved_rub = int(existing.get("reserved_rub") or 0)
+                    if student_uid is not None and reserved_rub > 0:
+                        w_row = conn.execute(
+                            """
+                            INSERT INTO oltp.wallets (user_id, balance_rub, initial_paid, plan_id)
+                            VALUES (%s, %s, TRUE, 'trial5k')
+                            ON CONFLICT (user_id) DO UPDATE SET
+                                balance_rub = oltp.wallets.balance_rub + EXCLUDED.balance_rub,
+                                updated_at = NOW()
+                            RETURNING balance_rub
+                            """,
+                            (int(student_uid), reserved_rub),
+                        ).fetchone()
+                        bal_after = int(w_row["balance_rub"]) if w_row else reserved_rub
+                        conn.execute(
+                            """
+                            INSERT INTO oltp.wallet_ledger (
+                                user_id, kind, amount_rub, balance_after_rub, fee_rub, method, ref_type, ref_id, note
+                            ) VALUES (%s, 'escrow_refund', %s, %s, 0, 'escrow', 'booking', %s, %s)
+                            """,
+                            (
+                                int(student_uid),
+                                reserved_rub,
+                                bal_after,
+                                rid,
+                                f"Возврат средств администратором по заявке {rid}",
+                            ),
+                        )
                     conn.execute(
-                        "UPDATE oltp.lesson_requests SET status = %s, updated_at = NOW() WHERE id = %s",
+                        "UPDATE oltp.lesson_requests SET status = %s, reserved_rub = 0, updated_at = NOW() WHERE id = %s",
                         (target_pg_status, rid),
                     )
                     conn.execute(

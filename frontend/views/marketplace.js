@@ -610,6 +610,9 @@
     ui.telemostEditId = "";
     ui.telemostError = "";
     if (typeof _ctx.saveMkt === "function") _ctx.saveMkt();
+    if (_ctx.store && _ctx.store.backend && _ctx.store.user && EGE.api && EGE.api.bookings && bk.serverSynced) {
+      EGE.api.bookings.updateTelemost(bk.id, parsed.url).catch(() => {});
+    }
     if (typeof _ctx.notifySide === "function") {
       _ctx.notifySide(
         "Яндекс Телемост",
@@ -1693,6 +1696,9 @@
       ui.telemostEditId = "";
       ui.telemostError = "";
       if (typeof _ctx.saveMkt === "function") _ctx.saveMkt();
+      if (_ctx.store && _ctx.store.backend && _ctx.store.user && EGE.api && EGE.api.bookings && bk.serverSynced) {
+        EGE.api.bookings.updateTelemost(bk.id, bk.telemostUrl).catch(() => {});
+      }
       if (typeof _ctx.notifySide === "function") _ctx.notifySide("Яндекс Телемост", "Ссылка на видеоурок добавлена к отклику");
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       return true;
@@ -1777,6 +1783,9 @@
       bk.dayLabel = formatDaysShort(dows);
       if (ui.schedEditId === bk.id) ui.schedEditId = "";
       if (typeof _ctx.saveMkt === "function") _ctx.saveMkt();
+      if (_ctx.store && _ctx.store.backend && _ctx.store.user && EGE.api && EGE.api.bookings && bk.serverSynced) {
+        EGE.api.bookings.updateSchedule(bk.id, bk.schedulePlan).catch(() => {});
+      }
       if (EGE.realtime && typeof EGE.realtime.publish === "function") {
         EGE.realtime.publish({
           channel: "tutor",
@@ -1803,6 +1812,9 @@
       bk.hour = String(bk.schedulePlan.hour || bk.hour || "16:00");
       bk.dayLabel = formatDaysShort(bk.dows);
       if (typeof _ctx.saveMkt === "function") _ctx.saveMkt();
+      if (_ctx.store && _ctx.store.backend && _ctx.store.user && EGE.api && EGE.api.bookings && bk.serverSynced) {
+        EGE.api.bookings.updateSchedule(bk.id, bk.schedulePlan).catch(() => {});
+      }
       if (typeof _ctx.notifySide === "function") _ctx.notifySide("График закреплён в «Учёбе»", `${bk.dayLabel} · ${bk.hour}`);
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       return true;
@@ -1841,6 +1853,9 @@
       bk.hour = sp.hour;
       bk.dayLabel = formatDaysShort(sp.dows);
       if (typeof _ctx.saveMkt === "function") _ctx.saveMkt();
+      if (_ctx.store && _ctx.store.backend && _ctx.store.user && EGE.api && EGE.api.bookings && bk.serverSynced) {
+        EGE.api.bookings.updateSchedule(bk.id, bk.schedulePlan).catch(() => {});
+      }
       if (typeof _ctx.notifySide === "function") _ctx.notifySide("Новые даты закреплены в «Учёбе»", `${bk.dayLabel} · ${bk.hour}`);
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       return true;

@@ -59,6 +59,7 @@ class DualWriteDatabase:
         *,
         email: str | None = None,
         display_name: str = "",
+        role: str = "student",
         max_users: int = 0,
     ) -> User:
         user = self.sqlite.create_user(
@@ -66,6 +67,7 @@ class DualWriteDatabase:
             raw_password,
             email=email,
             display_name=display_name,
+            role=role,
             max_users=max_users,
         )
         row = self._sqlite_user_row(user.id)
@@ -319,3 +321,233 @@ class DualWriteDatabase:
 
     def admin_list_outbox(self, limit: int = 50) -> list[dict[str, Any]]:
         return self.pg.admin_list_outbox(limit=limit)
+
+    def get_wallet(self, user_id: int) -> dict[str, Any]:
+        return self.sqlite.get_wallet(user_id)
+
+    def topup_wallet(
+        self,
+        user_id: int,
+        *,
+        amount_rub: int,
+        method: str = "sbp",
+        card_id: str | None = None,
+        plan_id: str | None = None,
+    ) -> dict[str, Any]:
+        res = self.sqlite.topup_wallet(
+            user_id, amount_rub=amount_rub, method=method, card_id=card_id, plan_id=plan_id
+        )
+        pg_uid = self._resolve_pg_user_id(user_id, emit_outbox=False)
+        if pg_uid is not None:
+            self.pg.topup_wallet(
+                pg_uid, amount_rub=amount_rub, method=method, card_id=card_id, plan_id=plan_id
+            )
+        return res
+
+    def add_saved_card(self, user_id: int, card: dict[str, Any], *, card_id: str | None = None) -> dict[str, Any]:
+        res = self.sqlite.add_saved_card(user_id, card, card_id=card_id)
+        pg_uid = self._resolve_pg_user_id(user_id, emit_outbox=False)
+        if pg_uid is not None:
+            self.pg.add_saved_card(pg_uid, card, card_id=res["card"]["id"])
+        return res
+
+    def delete_saved_card(self, user_id: int, card_id: str) -> dict[str, Any]:
+        res = self.sqlite.delete_saved_card(user_id, card_id)
+        pg_uid = self._resolve_pg_user_id(user_id, emit_outbox=False)
+        if pg_uid is not None:
+            self.pg.delete_saved_card(pg_uid, card_id)
+        return res
+
+    def list_tutors(
+        self,
+        *,
+        subject: str | None = None,
+        city: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        return self.pg.list_tutors(subject=subject, city=city, limit=limit)
+
+    def upsert_tutor_profile(
+        self,
+        user_id: int,
+        payload: dict[str, Any],
+        *,
+        tutor_id: str | None = None,
+    ) -> dict[str, Any]:
+        res = self.sqlite.upsert_tutor_profile(user_id, payload, tutor_id=tutor_id)
+        pg_uid = self._resolve_pg_user_id(user_id, emit_outbox=False)
+        if pg_uid is not None:
+            self.pg.upsert_tutor_profile(pg_uid, payload, tutor_id=res["tutor"]["id"])
+        return res
+
+    def bump_tutor(
+        self, user_id: int, *, actor_role: str = "student", tutor_id: str | None = None
+    ) -> dict[str, Any]:
+        res = self.sqlite.bump_tutor(user_id, actor_role=actor_role, tutor_id=tutor_id)
+        pg_uid = self._resolve_pg_user_id(user_id, emit_outbox=False)
+        if pg_uid is not None:
+            self.pg.bump_tutor(pg_uid, actor_role=actor_role, tutor_id=res["id"])
+        return res
+
+    def list_bookings(
+        self,
+        user_id: int,
+        *,
+        scope: str = "student",
+        tutor_id: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        return self.sqlite.list_bookings(user_id, scope=scope, tutor_id=tutor_id, limit=limit)
+
+    def create_booking(
+        self,
+        user_id: int,
+        payload: dict[str, Any],
+        *,
+        booking_id: str | None = None,
+    ) -> dict[str, Any]:
+        res = self.sqlite.create_booking(user_id, payload, booking_id=booking_id)
+        pg_uid = self._resolve_pg_user_id(user_id, emit_outbox=False)
+        if pg_uid is not None:
+            self.pg.create_booking(pg_uid, payload, booking_id=res["booking"]["id"])
+        return res
+
+    def transition_booking(
+        self,
+        booking_id: str,
+        *,
+        actor_user_id: int,
+        actor_role: str,
+        action: str,
+        counter_price_rub: int | None = None,
+    ) -> dict[str, Any]:
+        res = self.sqlite.transition_booking(
+            booking_id,
+            actor_user_id=actor_user_id,
+            actor_role=actor_role,
+            action=action,
+            counter_price_rub=counter_price_rub,
+        )
+        pg_uid = self._resolve_pg_user_id(actor_user_id, emit_outbox=False)
+        if pg_uid is not None:
+            self.pg.transition_booking(
+                booking_id,
+                actor_user_id=pg_uid,
+                actor_role=actor_role,
+                action=action,
+                counter_price_rub=counter_price_rub,
+            )
+        return res
+
+    def update_booking_schedule(
+        self,
+        booking_id: str,
+        *,
+        actor_user_id: int,
+        actor_role: str,
+        schedule_plan: dict[str, Any],
+    ) -> dict[str, Any]:
+        res = self.sqlite.update_booking_schedule(
+            booking_id, actor_user_id=actor_user_id, actor_role=actor_role, schedule_plan=schedule_plan
+        )
+        pg_uid = self._resolve_pg_user_id(actor_user_id, emit_outbox=False)
+        if pg_uid is not None:
+            self.pg.update_booking_schedule(
+                booking_id, actor_user_id=pg_uid, actor_role=actor_role, schedule_plan=schedule_plan
+            )
+        return res
+
+    def update_booking_telemost(
+        self,
+        booking_id: str,
+        *,
+        actor_user_id: int,
+        actor_role: str,
+        telemost_url: str,
+    ) -> dict[str, Any]:
+        res = self.sqlite.update_booking_telemost(
+            booking_id, actor_user_id=actor_user_id, actor_role=actor_role, telemost_url=telemost_url
+        )
+        pg_uid = self._resolve_pg_user_id(actor_user_id, emit_outbox=False)
+        if pg_uid is not None:
+            self.pg.update_booking_telemost(
+                booking_id, actor_user_id=pg_uid, actor_role=actor_role, telemost_url=telemost_url
+            )
+        return res
+
+    def list_student_leads(
+        self,
+        *,
+        subject: str | None = None,
+        student_user_id: int | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        if student_user_id is not None:
+            return self.sqlite.list_student_leads(subject=subject, student_user_id=student_user_id, limit=limit)
+        return self.sqlite.list_student_leads(subject=subject, limit=limit)
+
+    def create_student_lead(
+        self,
+        student_user_id: int | None,
+        payload: dict[str, Any],
+        *,
+        lead_id: str | None = None,
+    ) -> dict[str, Any]:
+        res = self.sqlite.create_student_lead(student_user_id, payload, lead_id=lead_id)
+        pg_uid = self._resolve_pg_user_id(student_user_id, emit_outbox=False) if student_user_id is not None else None
+        self.pg.create_student_lead(pg_uid, payload, lead_id=res["id"])
+        return res
+
+    def close_student_lead(
+        self,
+        lead_id: str,
+        *,
+        actor_user_id: int,
+        actor_role: str = "student",
+    ) -> dict[str, Any]:
+        res = self.sqlite.close_student_lead(lead_id, actor_user_id=actor_user_id, actor_role=actor_role)
+        pg_uid = self._resolve_pg_user_id(actor_user_id, emit_outbox=False)
+        if pg_uid is not None:
+            self.pg.close_student_lead(lead_id, actor_user_id=pg_uid, actor_role=actor_role)
+        return res
+
+    def list_tutor_contacts(self, user_id: int) -> dict[str, dict[str, str]]:
+        return self.sqlite.list_tutor_contacts(user_id)
+
+    def upsert_tutor_contact(
+        self,
+        user_id: int,
+        tutor_id: str,
+        *,
+        whatsapp: str | None = None,
+        telegram: str | None = None,
+        max_handle: str | None = None,
+    ) -> dict[str, str]:
+        res = self.sqlite.upsert_tutor_contact(
+            user_id, tutor_id, whatsapp=whatsapp, telegram=telegram, max_handle=max_handle
+        )
+        pg_uid = self._resolve_pg_user_id(user_id, emit_outbox=False)
+        if pg_uid is not None:
+            self.pg.upsert_tutor_contact(
+                pg_uid, tutor_id, whatsapp=whatsapp, telegram=telegram, max_handle=max_handle
+            )
+        return res
+
+    def get_tutor_wallet_summary(self, user_id: int, tutor_id: str | None = None) -> dict[str, Any]:
+        return self.sqlite.get_tutor_wallet_summary(user_id, tutor_id=tutor_id)
+
+    def create_tutor_payout(
+        self,
+        user_id: int,
+        payload: dict[str, Any],
+        *,
+        actor_role: str = "student",
+        payout_id: str | None = None,
+    ) -> dict[str, Any]:
+        res = self.sqlite.create_tutor_payout(user_id, payload, actor_role=actor_role, payout_id=payout_id)
+        pg_uid = self._resolve_pg_user_id(user_id, emit_outbox=False)
+        if pg_uid is not None:
+            self.pg.create_tutor_payout(
+                pg_uid, payload, actor_role=actor_role, payout_id=res["payout"]["id"]
+            )
+        return res

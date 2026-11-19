@@ -819,6 +819,10 @@
       st.bumpCount = (Number(st.bumpCount) || 0) + 1;
       syncPublishedTutor(st);
       saveState();
+      const ctxStore = getCtx().store;
+      if (ctxStore && ctxStore.backend && ctxStore.user && EGE.api && EGE.api.tutor) {
+        EGE.api.tutor.bump(st.profile && st.profile.id).catch(() => {});
+      }
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
       if (typeof getCtx().notifySide === "function") {
         getCtx().notifySide("Анкета поднята в топ (0 ₽)", "Следующее ручное поднятие будет доступно через 4 часа.");
@@ -1114,6 +1118,11 @@
         req.status = "accepted";
       });
       const who = findReq(id);
+      const bkServerId = who && (who.mktId || (String(id).startsWith("bk-") ? id : null));
+      const ctxStore = getCtx().store;
+      if (bkServerId && ctxStore && ctxStore.backend && ctxStore.user && EGE.api && EGE.api.bookings) {
+        EGE.api.bookings.accept(bkServerId, { counterPrice: who ? Number(who.offerPrice) : undefined }).catch(() => {});
+      }
       publishRtUpdate(
         "request.accepted",
         "Урок подтверждён",
@@ -1135,6 +1144,11 @@
       const updated = updateReq(id, (req) => { req.status = "countered"; });
       if (updated && typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
       const who = findReq(id);
+      const bkServerId = who && (who.mktId || (String(id).startsWith("bk-") ? id : null));
+      const ctxStore = getCtx().store;
+      if (bkServerId && who && ctxStore && ctxStore.backend && ctxStore.user && EGE.api && EGE.api.bookings) {
+        EGE.api.bookings.counter(bkServerId, Number(who.counterPrice)).catch(() => {});
+      }
       if (typeof getCtx().notifySide === "function") {
         getCtx().notifySide(
           "Контр-ставка отправлена",
@@ -1145,6 +1159,12 @@
     }
 
     if (act === "tc-req-decline") {
+      const who = findReq(id);
+      const bkServerId = who && (who.mktId || (String(id).startsWith("bk-") ? id : null));
+      const ctxStore = getCtx().store;
+      if (bkServerId && ctxStore && ctxStore.backend && ctxStore.user && EGE.api && EGE.api.bookings) {
+        EGE.api.bookings.cancel(bkServerId).catch(() => {});
+      }
       updateReq(id, (req) => { req.status = "declined"; });
       publishRtUpdate("request.declined", "Заявка снята", `Слот освобождён (${id})`, { requestId: id });
       syncTutorCalendar(st);
@@ -1881,6 +1901,38 @@
     st.published = true;
     syncPublishedTutor(st);
     saveState();
+    const ctxStore = getCtx().store;
+    if (ctxStore && ctxStore.backend && ctxStore.user && EGE.api && EGE.api.tutor) {
+      const tp = buildMarketTutorPayload(st);
+      EGE.api.tutor.upsertProfile({
+        name: p.name,
+        headline: p.headline,
+        photo: p.photo || "",
+        subject: tp.subject,
+        subjectName: tp.subjectName,
+        subjects: tp.subjects,
+        exams: tp.exams,
+        formats: tp.formats,
+        city: tp.city,
+        timezone: tp.timezone,
+        whatsapp: p.whatsapp || "",
+        telegram: p.telegram || "",
+        education: p.education || "",
+        expYears: Number(p.expYears) || 3,
+        avgScore: Number(p.avgScore) || 85,
+        price: Number(p.price) || 1200,
+        marketPrice: tp.marketPrice,
+        customSkills: p.customSkills || "",
+        bio: p.bio || "",
+        firstLessonGuarantee: p.firstLessonGuarantee !== false,
+        slots: st.slots || {}
+      }).then((res) => {
+        if (res && res.tutor && res.tutor.id) {
+          p.id = res.tutor.id;
+          saveState();
+        }
+      }).catch(() => {});
+    }
     if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
     if (typeof getCtx().notifySide === "function") {
       getCtx().notifySide("Анкета сохранена и опубликована", `${p.name} · ${p.price.toLocaleString("ru-RU")} ₽/ч (торг от ${p.minFair.toLocaleString("ru-RU")} ₽/ч)`);

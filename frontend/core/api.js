@@ -201,6 +201,116 @@
       }
     },
 
+    market: {
+      state() {
+        return request("/api/market/state", { method: "GET" });
+      }
+    },
+
+    wallet: {
+      get() {
+        return request("/api/wallet", { method: "GET" });
+      },
+      topup(payload) {
+        return request("/api/wallet/topup", { method: "POST", body: payload || {} });
+      },
+      addCard(payload) {
+        return request("/api/wallet/cards", { method: "POST", body: payload || {} });
+      },
+      deleteCard(cardId) {
+        return request("/api/wallet/cards/" + encodeURIComponent(cardId), { method: "DELETE" });
+      }
+    },
+
+    tutors: {
+      list(params) {
+        return request("/api/tutors" + buildQuery(params), { method: "GET" });
+      }
+    },
+
+    bookings: {
+      list(params) {
+        params = params || {};
+        return request("/api/bookings" + buildQuery({
+          scope: params.scope,
+          tutor_id: params.tutorId != null ? params.tutorId : params.tutor_id,
+          limit: params.limit
+        }), { method: "GET" });
+      },
+      create(payload) {
+        return request("/api/bookings", { method: "POST", body: payload || {} });
+      },
+      accept(bookingId, payload) {
+        return request("/api/bookings/" + encodeURIComponent(bookingId) + "/accept", {
+          method: "POST",
+          body: payload || {}
+        });
+      },
+      counter(bookingId, counterPrice) {
+        return request("/api/bookings/" + encodeURIComponent(bookingId) + "/counter", {
+          method: "POST",
+          body: { counterPrice: Number(counterPrice) }
+        });
+      },
+      cancel(bookingId) {
+        return request("/api/bookings/" + encodeURIComponent(bookingId) + "/cancel", { method: "POST" });
+      },
+      complete(bookingId) {
+        return request("/api/bookings/" + encodeURIComponent(bookingId) + "/complete", { method: "POST" });
+      },
+      updateSchedule(bookingId, schedulePlan) {
+        return request("/api/bookings/" + encodeURIComponent(bookingId) + "/schedule", {
+          method: "PATCH",
+          body: { schedulePlan: schedulePlan || {} }
+        });
+      },
+      updateTelemost(bookingId, url) {
+        return request("/api/bookings/" + encodeURIComponent(bookingId) + "/telemost", {
+          method: "PATCH",
+          body: { url: String(url || "") }
+        });
+      }
+    },
+
+    leads: {
+      list(params) {
+        return request("/api/leads" + buildQuery(params), { method: "GET" });
+      },
+      create(payload) {
+        return request("/api/leads", { method: "POST", body: payload || {} });
+      },
+      remove(leadId) {
+        return request("/api/leads/" + encodeURIComponent(leadId), { method: "DELETE" });
+      }
+    },
+
+    contacts: {
+      list() {
+        return request("/api/contacts", { method: "GET" });
+      },
+      upsert(tutorId, payload) {
+        return request("/api/contacts/" + encodeURIComponent(tutorId), {
+          method: "PUT",
+          body: payload || {}
+        });
+      }
+    },
+
+    tutor: {
+      summary(tutorId) {
+        return request("/api/tutor/summary" + buildQuery({ tutor_id: tutorId }), { method: "GET" });
+      },
+      upsertProfile(payload) {
+        return request("/api/tutor/profile", { method: "PUT", body: payload || {} });
+      },
+      bump(tutorId) {
+        return request("/api/tutor/bump" + buildQuery({ tutor_id: tutorId }), { method: "POST" });
+      },
+      createPayout(payload) {
+        return request("/api/tutor/payouts", { method: "POST", body: payload || {} });
+      }
+    },
+
     admin: {
       architecture() {
         return request("/api/admin/architecture", { method: "GET" });

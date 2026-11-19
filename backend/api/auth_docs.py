@@ -34,9 +34,25 @@ class RateLimiter:
         now = time.monotonic()
         cutoff = now - window_sec
         with self._lock:
-            q = self._hits.setdefault(key, deque())
-            while q and q[0] <= cutoff:
-                q.popleft()
+            if len(self._hits) > 2048:
+                stale_keys: list[str] = []
+                for k, dq in self._hits.items():
+                    while dq and dq[0] <= cutoff:
+                        dq.popleft()
+                    if not dq:
+                        stale_keys.append(k)
+                for k in stale_keys:
+                    self._hits.pop(k, None)
+            q = self._hits.get(key)
+            if q is not None:
+                while q and q[0] <= cutoff:
+                    q.popleft()
+                if not q:
+                    self._hits.pop(key, None)
+                    q = None
+            if q is None:
+                q = deque()
+                self._hits[key] = q
             if len(q) >= limit:
                 raise HTTPException(
                     status_code=429,
@@ -51,6 +67,7 @@ class AuthPayload(BaseModel):
     email: str = Field(default="", max_length=254)
     displayName: str = Field(default="", max_length=64)
     inviteCode: str = Field(default="", max_length=128)
+    role: str = Field(default="student", max_length=16)
 
 
 class AIRequestPayload(BaseModel):
@@ -196,6 +213,7 @@ def create_auth_docs_router(settings: Settings) -> APIRouter:
             payload.password,
             email=payload.email or None,
             display_name=payload.displayName,
+            role=payload.role,
             max_users=settings.max_users,
         )
         token = request.app.state.db.create_session(user.id, settings.session_ttl_sec)

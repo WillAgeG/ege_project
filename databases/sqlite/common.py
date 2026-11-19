@@ -13,9 +13,23 @@ import threading
 import time
 from typing import Any
 
-DOC_NAME_RE = re.compile(r"^(profile|plan|mocks|essays|tutor-cabinet|calendar-sync|prog-[a-z]+|log-\d{4}-\d{2})$")
+DOC_NAME_RE = re.compile(
+    r"^(profile|plan|mocks|essays|market|tutor-cabinet|calendar-sync|prog-[a-z]+|log-\d{4}-\d{2})$"
+)
 USERNAME_RE = re.compile(r"^[0-9A-Za-zА-Яа-яЁё_.\-]{2,32}$")
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+VALID_HOURS: tuple[str, ...] = tuple(f"{h:02d}:00" for h in range(10, 24))
+_DOW_ORDER = {1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 0: 6}
+_DOW_SHORT = {1: "Пн", 2: "Вт", 3: "Ср", 4: "Чт", 5: "Пт", 6: "Сб", 0: "Вс"}
+_DOW_ACC = {
+    1: "в понедельник",
+    2: "во вторник",
+    3: "в среду",
+    4: "в четверг",
+    5: "в пятницу",
+    6: "в субботу",
+    0: "в воскресенье",
+}
 
 
 def _iso_utc_now() -> str:
@@ -143,6 +157,143 @@ def validate_email(raw: str | None) -> str | None:
 
 def validate_display_name(raw: str | None) -> str:
     return re.sub(r"\s+", " ", (raw or "").strip())[:40]
+
+
+def calc_fee_split(gross_rub: int) -> tuple[int, int]:
+    """Точный 5% расчёт (half-away-from-zero), идентичный PostgreSQL ROUND(gross_rub::numeric * 0.05)."""
+    gross = int(gross_rub or 0)
+    if gross <= 0:
+        return 0, 0
+    fee = (gross * 5 + 50) // 100
+    return fee, gross - fee
+
+
+def validate_hour_slot(raw: str | None, *, default: str | None = None) -> str:
+    val = (raw or "").strip()[:5]
+    if not val and default is not None:
+        val = default
+    if re.fullmatch(r"\d{1}:00", val):
+        val = "0" + val
+    if val not in VALID_HOURS:
+        raise StorageError("invalid_hour", "Допустимое время занятия: с 10:00 до 23:00.", 400)
+    return val
+
+
+def validate_telemost_url(raw: str | None) -> str:
+    val = (raw or "").strip()
+    if not val:
+        return ""
+    if val.lower().startswith("telemost.yandex."):
+        val = "https://" + val
+    if len(val) > 512 or not re.match(r"^https://telemost\.yandex\.(ru|com)/[A-Za-z0-9_/?=&.\-%#]+$", val, re.IGNORECASE):
+        raise StorageError(
+            "invalid_telemost_url",
+            "Укажите корректную ссылку Яндекс Телемост (https://telemost.yandex.ru/...).",
+            400,
+        )
+    return val
+
+
+def sort_dows(raw_dows: Any) -> list[int]:
+    uniq: list[int] = []
+    if isinstance(raw_dows, list):
+        for item in raw_dows:
+            try:
+                d = int(item)
+            except (TypeError, ValueError):
+                continue
+            if 0 <= d <= 6 and d not in uniq:
+                uniq.append(d)
+    return sorted(uniq, key=lambda d: _DOW_ORDER.get(d, 9))
+
+
+def format_days_short(dows: list[int]) -> str:
+    sorted_dows = sort_dows(dows)
+    if not sorted_dows:
+        return "не выбрано"
+    if len(sorted_dows) == 7:
+        return "Ежедневно (Пн–Вс)"
+    return ", ".join(_DOW_SHORT[d] for d in sorted_dows if d in _DOW_SHORT)
+
+
+def format_weekly_bot_phrase(dows: list[int], hour: str, weekly: bool = True) -> str:
+    sorted_dows = sort_dows(dows)
+    h = (hour or "16:00").strip()[:5]
+    if not sorted_dows:
+        return f"в {h}{' каждую неделю' if weekly else ''}"
+    if len(sorted_dows) == 7:
+        return f"в {h} каждый день"
+    if len(sorted_dows) == 1:
+        day_part = _DOW_ACC.get(sorted_dows[0], "")
+    else:
+        first = _DOW_ACC.get(sorted_dows[0], "")
+        rest = [re.sub(r"^во?\s+", "", _DOW_ACC.get(d, ""), flags=re.IGNORECASE) for d in sorted_dows[1:]]
+        rest = [x for x in rest if x]
+        tail = rest.pop() if rest else ""
+        day_part = f"{first}{(', ' + ', '.join(rest)) if rest else ''}{' и ' + tail if tail else ''}"
+    return f"в {h} {day_part}{' каждую неделю' if weekly else ''}".strip()
+
+
+def validate_schedule_plan(plan: dict[str, Any] | None) -> dict[str, Any] | None:
+    if plan is None:
+        return None
+    if not isinstance(plan, dict):
+        raise StorageError("invalid_schedule", "Ожидался объект расписания.", 400)
+    status = str(plan.get("status") or "confirmed").strip().lower()
+    if status not in ("needs_pick", "sent_to_tutor", "confirmed", "tutor_proposed"):
+        raise StorageError("invalid_schedule", "Недопустимый статус расписания.", 400)
+    dows = sort_dows(plan.get("dows"))
+    if not (1 <= len(dows) <= 7):
+        raise StorageError("invalid_schedule", "Выберите от 1 до 7 дней недели.", 400)
+    hour = validate_hour_slot(str(plan.get("hour") or "16:00"))
+    weekly = plan.get("weekly") is not False
+    out: dict[str, Any] = {
+        "status": status,
+        "autoConfirmed": bool(plan.get("autoConfirmed", status == "confirmed")),
+        "dows": dows,
+        "hour": hour,
+        "weekly": weekly,
+        "botText": str(plan.get("botText") or format_weekly_bot_phrase(dows, hour, weekly))[:240],
+        "updatedAt": int(plan.get("updatedAt") or int(time.time() * 1000)),
+    }
+    if plan.get("altDows") is not None:
+        alt_dows = sort_dows(plan.get("altDows"))
+        if not (1 <= len(alt_dows) <= 7):
+            raise StorageError("invalid_schedule", "Укажите от 1 до 7 альтернативных дней.", 400)
+        alt_hour = validate_hour_slot(str(plan.get("altHour") or hour))
+        out["altDows"] = alt_dows
+        out["altHour"] = alt_hour
+        out["altBotText"] = str(plan.get("altBotText") or format_weekly_bot_phrase(alt_dows, alt_hour, weekly))[:240]
+    return out
+
+
+def validate_registration_role(raw: str | None) -> str:
+    role = (raw or "student").strip().lower()
+    if not role:
+        return "student"
+    if role not in ("student", "tutor"):
+        raise StorageError("invalid_role", "При регистрации доступны только роли student и tutor.", 400)
+    return role
+
+
+def normalize_city_tz(city: str | None, tz: str | None = None) -> tuple[str, str]:
+    raw_city = (city or "").strip()
+    raw_tz = (tz or "").strip()
+    if raw_city == "Москва" or (not raw_city and raw_tz in ("UTC+3", "Europe/Moscow", "Москва")):
+        return "Москва", "UTC+3"
+    return "Якутск", "UTC+9"
+
+
+def mask_payout_destination(method: str, raw: str) -> str:
+    digits = re.sub(r"\D+", "", raw or "")
+    if method == "card":
+        if len(digits) >= 8:
+            return f"{digits[:4]} {digits[4:6]}** **** {digits[-4:]}"
+        return f"•••• {digits[-4:]}" if digits else "Карта РФ"
+    if len(digits) >= 10:
+        d = digits[-10:]
+        return f"+7 ({d[:3]}) ***-{d[6:8]}-{d[8:10]}"
+    return (raw or "").strip()[:32] or "СБП"
 
 
 @dataclass(frozen=True)

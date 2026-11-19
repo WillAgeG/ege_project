@@ -982,6 +982,10 @@
         : (ch === "max" ? { maxHandle: cleanVal } : { telegram: cleanVal });
       map[m.tutorId] = Object.assign({}, prev, patchObj);
       saveMkt();
+      const store = getStore();
+      if (store && store.backend && store.user && m.tutorId && EGE.api && EGE.api.contacts) {
+        EGE.api.contacts.upsert(m.tutorId, patchObj).catch(() => {});
+      }
       ui.tutorContactModal = null;
       renderModal();
       const label = ch === "wa" ? "WhatsApp" : (ch === "max" ? "MAX" : "Telegram");

@@ -47,6 +47,8 @@ def _normalize_dow(raw: Any, slot_date: str) -> int:
 def _doc_outbox_meta(name: str) -> tuple[str, str, str]:
     if name in ("tutor-cabinet", "calendar-sync"):
         return "vektor.market.bids.v1", "tutor", "cabinet"
+    if name == "market":
+        return "vektor.market.bids.v1", "student", "market"
     if name == "profile" or name.startswith("log-"):
         view = "profile" if name == "profile" else "stats"
         return "vektor.user.clickstream.v1", "student", view
@@ -265,11 +267,235 @@ class PgSchemaMixin:
                 conn.execute(
                     "ALTER TABLE IF EXISTS oltp.users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'student'"
                 )
+                for sql in (
+                    "ALTER TABLE IF EXISTS oltp.users ADD COLUMN IF NOT EXISTS phone TEXT NOT NULL DEFAULT ''",
+                    "ALTER TABLE IF EXISTS oltp.users ADD COLUMN IF NOT EXISTS phone_country TEXT NOT NULL DEFAULT 'RU'",
+                    "ALTER TABLE IF EXISTS oltp.users ADD COLUMN IF NOT EXISTS city TEXT NOT NULL DEFAULT ''",
+                    "ALTER TABLE IF EXISTS oltp.users ADD COLUMN IF NOT EXISTS grade TEXT NOT NULL DEFAULT ''",
+                    "ALTER TABLE IF EXISTS oltp.users ADD COLUMN IF NOT EXISTS goal TEXT NOT NULL DEFAULT ''",
+                    "ALTER TABLE IF EXISTS oltp.users ADD COLUMN IF NOT EXISTS contact_verified BOOLEAN NOT NULL DEFAULT FALSE",
+                ):
+                    conn.execute(sql)
+
                 conn.execute(
-                    "ALTER TABLE IF EXISTS oltp.tutors ADD COLUMN IF NOT EXISTS verified BOOLEAN NOT NULL DEFAULT TRUE"
+                    """
+                    CREATE TABLE IF NOT EXISTS oltp.tutors (
+                        id TEXT PRIMARY KEY,
+                        user_id BIGINT REFERENCES oltp.users(id) ON DELETE SET NULL,
+                        full_name TEXT NOT NULL,
+                        subject TEXT NOT NULL,
+                        city TEXT NOT NULL DEFAULT 'Якутск' CHECK (city IN ('Якутск', 'Москва')),
+                        timezone TEXT NOT NULL DEFAULT 'UTC+9' CHECK (timezone IN ('UTC+9', 'UTC+3')),
+                        base_rate_rub INTEGER NOT NULL DEFAULT 1200 CHECK (base_rate_rub > 0),
+                        market_rate_rub INTEGER NOT NULL DEFAULT 1500 CHECK (market_rate_rub > 0),
+                        source_channel TEXT NOT NULL DEFAULT 'platform' CHECK (source_channel IN ('platform', 'doska_ykt', 'telegram', 'whatsapp', 'max')),
+                        tariff_id TEXT NOT NULL DEFAULT 'free' CHECK (tariff_id IN ('free', 'trial5k', 'month10k')),
+                        whatsapp_phone TEXT NOT NULL DEFAULT '',
+                        telegram_handle TEXT NOT NULL DEFAULT '',
+                        max_handle TEXT NOT NULL DEFAULT '',
+                        has_photo BOOLEAN NOT NULL DEFAULT TRUE,
+                        rating NUMERIC(3,2) NOT NULL DEFAULT 4.90 CHECK (rating BETWEEN 1.00 AND 5.00),
+                        reviews_count INTEGER NOT NULL DEFAULT 0 CHECK (reviews_count >= 0),
+                        last_bumped_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        verified BOOLEAN NOT NULL DEFAULT TRUE,
+                        bumped_today BOOLEAN NOT NULL DEFAULT FALSE,
+                        CONSTRAINT chk_tutor_city_tz CHECK ((city = 'Якутск' AND timezone = 'UTC+9') OR (city = 'Москва' AND timezone = 'UTC+3'))
+                    )
+                    """
+                )
+                for sql in (
+                    "ALTER TABLE IF EXISTS oltp.tutors ADD COLUMN IF NOT EXISTS verified BOOLEAN NOT NULL DEFAULT TRUE",
+                    "ALTER TABLE IF EXISTS oltp.tutors ADD COLUMN IF NOT EXISTS bumped_today BOOLEAN NOT NULL DEFAULT FALSE",
+                    "ALTER TABLE IF EXISTS oltp.tutors ADD COLUMN IF NOT EXISTS photo_url TEXT NOT NULL DEFAULT ''",
+                    "ALTER TABLE IF EXISTS oltp.tutors ADD COLUMN IF NOT EXISTS headline TEXT NOT NULL DEFAULT ''",
+                    "ALTER TABLE IF EXISTS oltp.tutors ADD COLUMN IF NOT EXISTS bio TEXT NOT NULL DEFAULT ''",
+                    "ALTER TABLE IF EXISTS oltp.tutors ADD COLUMN IF NOT EXISTS education TEXT NOT NULL DEFAULT ''",
+                    "ALTER TABLE IF EXISTS oltp.tutors ADD COLUMN IF NOT EXISTS exp_years INTEGER NOT NULL DEFAULT 3",
+                    "ALTER TABLE IF EXISTS oltp.tutors ADD COLUMN IF NOT EXISTS avg_score INTEGER NOT NULL DEFAULT 85",
+                    "ALTER TABLE IF EXISTS oltp.tutors ADD COLUMN IF NOT EXISTS subjects_json JSONB NOT NULL DEFAULT '[]'::jsonb",
+                    "ALTER TABLE IF EXISTS oltp.tutors ADD COLUMN IF NOT EXISTS exams_json JSONB NOT NULL DEFAULT '[\"ЕГЭ\"]'::jsonb",
+                    "ALTER TABLE IF EXISTS oltp.tutors ADD COLUMN IF NOT EXISTS formats_json JSONB NOT NULL DEFAULT '[\"Онлайн\"]'::jsonb",
+                    "ALTER TABLE IF EXISTS oltp.tutors ADD COLUMN IF NOT EXISTS custom_skills TEXT NOT NULL DEFAULT ''",
+                    "ALTER TABLE IF EXISTS oltp.tutors ADD COLUMN IF NOT EXISTS first_lesson_guarantee BOOLEAN NOT NULL DEFAULT TRUE",
+                ):
+                    conn.execute(sql)
+
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS oltp.tutor_slots (
+                        id BIGSERIAL PRIMARY KEY,
+                        tutor_id TEXT NOT NULL REFERENCES oltp.tutors(id) ON DELETE CASCADE,
+                        weekday SMALLINT NOT NULL CHECK (weekday BETWEEN 0 AND 6),
+                        hour_slot TEXT NOT NULL,
+                        is_booked BOOLEAN NOT NULL DEFAULT FALSE,
+                        UNIQUE (tutor_id, weekday, hour_slot)
+                    )
+                    """
+                )
+                conn.execute("ALTER TABLE oltp.tutor_slots DROP CONSTRAINT IF EXISTS tutor_slots_hour_slot_check")
+                conn.execute(
+                    """
+                    ALTER TABLE oltp.tutor_slots ADD CONSTRAINT tutor_slots_hour_slot_check
+                    CHECK (hour_slot IN ('10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00','22:00','23:00'))
+                    """
+                )
+
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS oltp.lesson_requests (
+                        id TEXT PRIMARY KEY,
+                        tutor_id TEXT NOT NULL REFERENCES oltp.tutors(id) ON DELETE CASCADE,
+                        student_user_id BIGINT REFERENCES oltp.users(id) ON DELETE SET NULL,
+                        student_name TEXT NOT NULL,
+                        subject TEXT NOT NULL,
+                        city TEXT NOT NULL DEFAULT 'Якутск',
+                        timezone TEXT NOT NULL DEFAULT 'UTC+9' CHECK (timezone IN ('UTC+9', 'UTC+3')),
+                        slot_date DATE NOT NULL,
+                        hour_slot TEXT NOT NULL,
+                        tariff_id TEXT NOT NULL DEFAULT 'trial5k' CHECK (tariff_id IN ('free', 'trial5k', 'month10k')),
+                        offer_price_rub INTEGER NOT NULL DEFAULT 0,
+                        counter_price_rub INTEGER,
+                        final_price_rub INTEGER,
+                        status TEXT NOT NULL DEFAULT 'offered' CHECK (status IN ('offered', 'countered', 'accepted', 'declined', 'completed', 'cancelled')),
+                        messenger_channel TEXT NOT NULL DEFAULT 'whatsapp' CHECK (messenger_channel IN ('whatsapp', 'telegram', 'max')),
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    )
+                    """
+                )
+                for sql in (
+                    "ALTER TABLE IF EXISTS oltp.lesson_requests ADD COLUMN IF NOT EXISTS exam TEXT NOT NULL DEFAULT 'ЕГЭ'",
+                    "ALTER TABLE IF EXISTS oltp.lesson_requests ADD COLUMN IF NOT EXISTS format TEXT NOT NULL DEFAULT 'Онлайн'",
+                    "ALTER TABLE IF EXISTS oltp.lesson_requests ADD COLUMN IF NOT EXISTS note TEXT NOT NULL DEFAULT ''",
+                    "ALTER TABLE IF EXISTS oltp.lesson_requests ADD COLUMN IF NOT EXISTS telemost_url TEXT NOT NULL DEFAULT ''",
+                    "ALTER TABLE IF EXISTS oltp.lesson_requests ADD COLUMN IF NOT EXISTS schedule_plan JSONB",
+                    "ALTER TABLE IF EXISTS oltp.lesson_requests ADD COLUMN IF NOT EXISTS dows JSONB NOT NULL DEFAULT '[]'::jsonb",
+                    "ALTER TABLE IF EXISTS oltp.lesson_requests ADD COLUMN IF NOT EXISTS day_label TEXT NOT NULL DEFAULT ''",
+                    "ALTER TABLE IF EXISTS oltp.lesson_requests ADD COLUMN IF NOT EXISTS tutor_price_rub INTEGER",
+                    "ALTER TABLE IF EXISTS oltp.lesson_requests ADD COLUMN IF NOT EXISTS first_lesson_guarantee BOOLEAN NOT NULL DEFAULT TRUE",
+                    "ALTER TABLE IF EXISTS oltp.lesson_requests ADD COLUMN IF NOT EXISTS reserved_rub INTEGER NOT NULL DEFAULT 0",
+                ):
+                    conn.execute(sql)
+                conn.execute("ALTER TABLE oltp.lesson_requests DROP CONSTRAINT IF EXISTS lesson_requests_hour_slot_check")
+                conn.execute(
+                    """
+                    ALTER TABLE oltp.lesson_requests ADD CONSTRAINT lesson_requests_hour_slot_check
+                    CHECK (hour_slot IN ('10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00','22:00','23:00'))
+                    """
+                )
+                conn.execute("ALTER TABLE oltp.lesson_requests DROP CONSTRAINT IF EXISTS lesson_requests_offer_price_rub_check")
+                conn.execute(
+                    "ALTER TABLE oltp.lesson_requests ADD CONSTRAINT lesson_requests_offer_price_rub_check CHECK (offer_price_rub >= 0)"
+                )
+                conn.execute("ALTER TABLE oltp.lesson_requests DROP CONSTRAINT IF EXISTS lesson_requests_final_price_rub_check")
+                conn.execute(
+                    "ALTER TABLE oltp.lesson_requests ADD CONSTRAINT lesson_requests_final_price_rub_check CHECK (final_price_rub IS NULL OR final_price_rub >= 0)"
+                )
+                conn.execute("ALTER TABLE oltp.lesson_requests DROP CONSTRAINT IF EXISTS lesson_requests_city_check")
+                conn.execute(
+                    "ALTER TABLE oltp.lesson_requests ADD CONSTRAINT lesson_requests_city_check CHECK (length(trim(city)) > 0)"
+                )
+
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS oltp.escrow_holds (
+                        id TEXT PRIMARY KEY,
+                        request_id TEXT NOT NULL REFERENCES oltp.lesson_requests(id) ON DELETE CASCADE,
+                        tutor_id TEXT NOT NULL REFERENCES oltp.tutors(id) ON DELETE CASCADE,
+                        student_user_id BIGINT REFERENCES oltp.users(id) ON DELETE SET NULL,
+                        gross_rub INTEGER NOT NULL CHECK (gross_rub > 0),
+                        platform_fee_rub INTEGER NOT NULL CHECK (platform_fee_rub = ROUND(gross_rub::numeric * 0.05)::integer),
+                        tutor_payout_rub INTEGER NOT NULL CHECK (tutor_payout_rub = gross_rub - platform_fee_rub),
+                        status TEXT NOT NULL CHECK (status IN ('frozen', 'captured', 'refunded')),
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        settled_at TIMESTAMPTZ
+                    )
+                    """
                 )
                 conn.execute(
-                    "ALTER TABLE IF EXISTS oltp.tutors ADD COLUMN IF NOT EXISTS bumped_today BOOLEAN NOT NULL DEFAULT FALSE"
+                    "CREATE INDEX IF NOT EXISTS idx_oltp_escrow_holds_request ON oltp.escrow_holds(request_id)"
+                )
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS oltp.payout_requests (
+                        id TEXT PRIMARY KEY,
+                        tutor_id TEXT NOT NULL REFERENCES oltp.tutors(id) ON DELETE CASCADE,
+                        method TEXT NOT NULL CHECK (method IN ('sbp', 'card')),
+                        amount_rub INTEGER NOT NULL CHECK (amount_rub >= 500),
+                        npd_receipt TEXT,
+                        bank TEXT NOT NULL DEFAULT '',
+                        destination_masked TEXT NOT NULL DEFAULT '',
+                        status TEXT NOT NULL CHECK (status IN ('pending', 'processing', 'paid', 'failed')),
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        paid_at TIMESTAMPTZ
+                    )
+                    """
+                )
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS oltp.wallets (
+                        user_id BIGINT PRIMARY KEY REFERENCES oltp.users(id) ON DELETE CASCADE,
+                        balance_rub INTEGER NOT NULL DEFAULT 0 CHECK (balance_rub >= 0),
+                        initial_paid BOOLEAN NOT NULL DEFAULT FALSE,
+                        plan_id TEXT NOT NULL DEFAULT 'trial5k',
+                        saved_cards JSONB NOT NULL DEFAULT '[]'::jsonb,
+                        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    )
+                    """
+                )
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS oltp.wallet_ledger (
+                        id BIGSERIAL PRIMARY KEY,
+                        user_id BIGINT NOT NULL REFERENCES oltp.users(id) ON DELETE CASCADE,
+                        kind TEXT NOT NULL,
+                        amount_rub INTEGER NOT NULL,
+                        balance_after_rub INTEGER NOT NULL CHECK (balance_after_rub >= 0),
+                        fee_rub INTEGER NOT NULL DEFAULT 0,
+                        method TEXT NOT NULL DEFAULT '',
+                        ref_type TEXT NOT NULL DEFAULT '',
+                        ref_id TEXT NOT NULL DEFAULT '',
+                        note TEXT NOT NULL DEFAULT '',
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    )
+                    """
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_oltp_wallet_ledger_user ON oltp.wallet_ledger(user_id, id DESC)"
+                )
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS oltp.student_leads (
+                        id TEXT PRIMARY KEY,
+                        student_user_id BIGINT REFERENCES oltp.users(id) ON DELETE SET NULL,
+                        student_name TEXT NOT NULL,
+                        subjects JSONB NOT NULL DEFAULT '["bio"]'::jsonb,
+                        exam TEXT NOT NULL DEFAULT 'ЕГЭ',
+                        format TEXT NOT NULL DEFAULT 'Онлайн',
+                        target_price_rub INTEGER NOT NULL CHECK (target_price_rub >= 0),
+                        whatsapp TEXT NOT NULL DEFAULT '',
+                        whatsapp_country TEXT NOT NULL DEFAULT 'RU',
+                        comment TEXT NOT NULL DEFAULT '',
+                        status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'matched', 'closed')),
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    )
+                    """
+                )
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS oltp.tutor_contact_overrides (
+                        user_id BIGINT NOT NULL REFERENCES oltp.users(id) ON DELETE CASCADE,
+                        tutor_id TEXT NOT NULL,
+                        whatsapp TEXT NOT NULL DEFAULT '',
+                        telegram TEXT NOT NULL DEFAULT '',
+                        max_handle TEXT NOT NULL DEFAULT '',
+                        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        PRIMARY KEY (user_id, tutor_id)
+                    )
+                    """
                 )
 
     def close(self) -> None:

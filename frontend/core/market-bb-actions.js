@@ -10,8 +10,22 @@
 
   let EGEPayments, MOTION_PRESETS, TDATA, ai, defaultMarketState, draft, go;
   let heroMotionMeta, isUserAuthenticated, mkt, notifySide, patchHeroMotionDOM, patchSavingsDOM;
-  let renderModal, requireAuthForBid, saveMkt, scheduleRender, stopMotionTimers, tile, toast, ui;
+  let renderModal, requireAuthForBid, saveMkt, scheduleRender, stopMotionTimers, store, tile, toast, ui;
   let updateBookingModalLive, writeHash;
+
+  function isBackendAuthed() {
+    return !!(store && store.backend && store.user && EGE.api);
+  }
+  function applyServerWallet(w) {
+    if (!w || typeof w !== "object") return;
+    const st = mkt();
+    if (Number.isFinite(Number(w.balanceRub))) st.balance = Number(w.balanceRub);
+    if (w.initialPaid != null) st.initialPaid = !!w.initialPaid;
+    if (w.planId) st.planId = String(w.planId);
+    if (Array.isArray(w.savedCards) && w.savedCards.length) st.savedCards = w.savedCards;
+    saveMkt();
+    scheduleRender();
+  }
 
   function buildBookingDraft(tutor, el, TDATA_ref, mkt_ref, ui_ref) {
     const st = mkt_ref();
@@ -194,7 +208,7 @@
     ({
       EGEPayments, MOTION_PRESETS, TDATA, ai, defaultMarketState, draft, go,
       heroMotionMeta, isUserAuthenticated, mkt, notifySide, patchHeroMotionDOM, patchSavingsDOM,
-      renderModal, requireAuthForBid, saveMkt, scheduleRender, stopMotionTimers, tile, toast, ui,
+      renderModal, requireAuthForBid, saveMkt, scheduleRender, stopMotionTimers, store, tile, toast, ui,
       updateBookingModalLive, writeHash
     } = ctx || {});
 
@@ -277,6 +291,11 @@
       st.balance = Math.max(0, targetBal - reserved);
       if (targetBal >= trialRub) st.initialPaid = true;
       saveMkt();
+      if (isBackendAuthed() && EGE.api.wallet) {
+        EGE.api.wallet.topup({ amount: targetBal, method: "sbp", planId: plan.id }).then((res) => {
+          if (res && res.wallet) applyServerWallet(res.wallet);
+        }).catch(() => {});
+      }
       const pending = ui.balanceModal && ui.balanceModal.pendingBooking;
       if (ui.balanceModal) { ui.balanceModal = null; }
       if (pending && (Number(st.balance) || 0) >= (Number(pending.offerPrice) || 0)) {
@@ -384,6 +403,11 @@
       else if (st.balance >= 8900) st.planId = "month10k";
       else if (!st.planId) st.planId = "trial5k";
       saveMkt();
+      if (isBackendAuthed() && EGE.api.wallet) {
+        EGE.api.wallet.topup({ amount: amt, method: "sbp", planId: presetPlan || st.planId || "trial5k" }).then((res) => {
+          if (res && res.wallet) applyServerWallet(res.wallet);
+        }).catch(() => {});
+      }
       const pending = ui.balanceModal && ui.balanceModal.pendingBooking;
       ui.balanceModal = null;
       if (pending && st.balance >= (Number(pending.offerPrice) || trialRub)) {
@@ -797,6 +821,41 @@
         }
       }
       saveMkt();
+      if (isBackendAuthed() && EGE.api.bookings) {
+        EGE.api.bookings.create({
+          tutorId: tutor.id,
+          tutorName: tutor.name,
+          subject: tutor.subject || "",
+          subjectName: tutor.subjectName || "",
+          exam: newBooking.exam,
+          format: newBooking.format,
+          city: tutor.city || "",
+          timezone: tutor.timezone || "",
+          dayIso: newBooking.dayIso,
+          dow: newBooking.dow,
+          dayLabel: newBooking.dayLabel,
+          hour: newBooking.hour,
+          tariffId: st.planId || "trial5k",
+          offerPrice: newBooking.offerPrice,
+          tutorPrice: newBooking.tutorPrice,
+          firstLessonGuarantee: newBooking.firstLessonGuarantee,
+          note: newBooking.note
+        }).then((res) => {
+          if (res && res.booking && res.booking.id) {
+            const oldId = newBooking.id;
+            newBooking.id = res.booking.id;
+            newBooking.serverSynced = true;
+            if (ui.telemostEditId === oldId) ui.telemostEditId = res.booking.id;
+            if (ui.schedEditId === oldId) ui.schedEditId = res.booking.id;
+            if (ui.schedDrafts && ui.schedDrafts[oldId]) {
+              ui.schedDrafts[res.booking.id] = ui.schedDrafts[oldId];
+              delete ui.schedDrafts[oldId];
+            }
+          }
+          if (res && res.wallet) applyServerWallet(res.wallet);
+          else saveMkt();
+        }).catch(() => {});
+      }
       if (EGE.views.marketplace && typeof EGE.views.marketplace.publishStudentBid === "function") {
         EGE.views.marketplace.publishStudentBid(newBooking, tutor);
       } else if (EGE.realtime && typeof EGE.realtime.publish === "function") {
@@ -886,6 +945,11 @@
         };
       }
       saveMkt();
+      if (isBackendAuthed() && EGE.api.bookings && bk.serverSynced) {
+        EGE.api.bookings.accept(bk.id, { counterPrice: bk.offerPrice }).then((res) => {
+          if (res && res.wallet) applyServerWallet(res.wallet);
+        }).catch(() => {});
+      }
       toast(`${bk.tutorName} подтвердил(а) занятие — выберите удобные дни и время`);
       scheduleRender();
     },
@@ -897,6 +961,11 @@
       if (bk.reserved) st.balance += bk.reserved;
       st.bookings.splice(idx, 1);
       saveMkt();
+      if (isBackendAuthed() && EGE.api.bookings && bk.serverSynced) {
+        EGE.api.bookings.cancel(bk.id).then((res) => {
+          if (res && res.wallet) applyServerWallet(res.wallet);
+        }).catch(() => {});
+      }
       toast(bk.reserved
         ? `Заявка отменена · ${bk.reserved.toLocaleString("ru-RU")} ₽ возвращены на баланс`
         : "Заявка отменена — можно выбрать другого репетитора");

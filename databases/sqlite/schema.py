@@ -4,7 +4,7 @@ import json
 import time
 from typing import Any
 
-from .common import _iso_utc_now
+from .common import _iso_utc_now, calc_fee_split
 
 
 class SqliteSchemaMixin:
@@ -173,6 +173,65 @@ class SqliteSchemaMixin:
                     created_at TEXT NOT NULL,
                     published_at TEXT
                 );
+                CREATE TABLE IF NOT EXISTS escrow_holds (
+                    id TEXT PRIMARY KEY,
+                    request_id TEXT NOT NULL UNIQUE,
+                    tutor_id TEXT NOT NULL,
+                    student_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    gross_rub INTEGER NOT NULL CHECK (gross_rub > 0),
+                    platform_fee_rub INTEGER NOT NULL CHECK (platform_fee_rub >= 0),
+                    tutor_payout_rub INTEGER NOT NULL CHECK (tutor_payout_rub >= 0),
+                    status TEXT NOT NULL CHECK (status IN ('frozen', 'captured', 'refunded')),
+                    created_at TEXT NOT NULL,
+                    settled_at TEXT
+                );
+                CREATE TABLE IF NOT EXISTS wallets (
+                    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+                    balance_rub INTEGER NOT NULL DEFAULT 0 CHECK (balance_rub >= 0),
+                    initial_paid INTEGER NOT NULL DEFAULT 0,
+                    plan_id TEXT NOT NULL DEFAULT 'trial5k',
+                    saved_cards_json TEXT NOT NULL DEFAULT '[]',
+                    updated_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS wallet_ledger (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    kind TEXT NOT NULL,
+                    amount_rub INTEGER NOT NULL,
+                    balance_after_rub INTEGER NOT NULL CHECK (balance_after_rub >= 0),
+                    fee_rub INTEGER NOT NULL DEFAULT 0,
+                    method TEXT NOT NULL DEFAULT '',
+                    ref_type TEXT NOT NULL DEFAULT '',
+                    ref_id TEXT NOT NULL DEFAULT '',
+                    note TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_wallet_ledger_user
+                    ON wallet_ledger(user_id, id DESC);
+                CREATE TABLE IF NOT EXISTS student_leads (
+                    id TEXT PRIMARY KEY,
+                    student_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    student_name TEXT NOT NULL,
+                    subjects_json TEXT NOT NULL DEFAULT '["bio"]',
+                    exam TEXT NOT NULL DEFAULT 'ЕГЭ',
+                    format TEXT NOT NULL DEFAULT 'Онлайн',
+                    target_price_rub INTEGER NOT NULL CHECK (target_price_rub >= 0),
+                    whatsapp TEXT NOT NULL DEFAULT '',
+                    whatsapp_country TEXT NOT NULL DEFAULT 'RU',
+                    comment TEXT NOT NULL DEFAULT '',
+                    status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'matched', 'closed')),
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS tutor_contact_overrides (
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    tutor_id TEXT NOT NULL,
+                    whatsapp TEXT NOT NULL DEFAULT '',
+                    telegram TEXT NOT NULL DEFAULT '',
+                    max_handle TEXT NOT NULL DEFAULT '',
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY (user_id, tutor_id)
+                );
                 """
             )
             existing_cols = {
@@ -185,10 +244,53 @@ class SqliteSchemaMixin:
                 ("avatar_url", "TEXT"),
                 ("auth_provider", "TEXT NOT NULL DEFAULT 'local'"),
                 ("role", "TEXT NOT NULL DEFAULT 'student'"),
+                ("phone", "TEXT NOT NULL DEFAULT ''"),
+                ("phone_country", "TEXT NOT NULL DEFAULT 'RU'"),
+                ("city", "TEXT NOT NULL DEFAULT ''"),
+                ("grade", "TEXT NOT NULL DEFAULT ''"),
+                ("goal", "TEXT NOT NULL DEFAULT ''"),
+                ("contact_verified", "INTEGER NOT NULL DEFAULT 0"),
             )
             for col_name, col_def in migrations:
                 if col_name not in existing_cols:
                     self._conn.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_def}")
+
+            tutor_cols = {
+                str(r["name"]) for r in self._conn.execute("PRAGMA table_info(admin_tutors)").fetchall()
+            }
+            for col_name, col_def in (
+                ("photo_url", "TEXT NOT NULL DEFAULT ''"),
+                ("headline", "TEXT NOT NULL DEFAULT ''"),
+                ("bio", "TEXT NOT NULL DEFAULT ''"),
+                ("education", "TEXT NOT NULL DEFAULT ''"),
+                ("exp_years", "INTEGER NOT NULL DEFAULT 3"),
+                ("avg_score", "INTEGER NOT NULL DEFAULT 85"),
+                ("subjects_json", "TEXT NOT NULL DEFAULT '[]'"),
+                ("exams_json", 'TEXT NOT NULL DEFAULT \'["ЕГЭ"]\''),
+                ("formats_json", 'TEXT NOT NULL DEFAULT \'["Онлайн"]\''),
+                ("custom_skills", "TEXT NOT NULL DEFAULT ''"),
+                ("first_lesson_guarantee", "INTEGER NOT NULL DEFAULT 1"),
+            ):
+                if col_name not in tutor_cols:
+                    self._conn.execute(f"ALTER TABLE admin_tutors ADD COLUMN {col_name} {col_def}")
+
+            req_cols = {
+                str(r["name"]) for r in self._conn.execute("PRAGMA table_info(admin_lesson_requests)").fetchall()
+            }
+            for col_name, col_def in (
+                ("exam", "TEXT NOT NULL DEFAULT 'ЕГЭ'"),
+                ("format", "TEXT NOT NULL DEFAULT 'Онлайн'"),
+                ("note", "TEXT NOT NULL DEFAULT ''"),
+                ("telemost_url", "TEXT NOT NULL DEFAULT ''"),
+                ("schedule_plan_json", "TEXT"),
+                ("dows_json", "TEXT NOT NULL DEFAULT '[]'"),
+                ("day_label", "TEXT NOT NULL DEFAULT ''"),
+                ("tutor_price_rub", "INTEGER"),
+                ("first_lesson_guarantee", "INTEGER NOT NULL DEFAULT 1"),
+                ("reserved_rub", "INTEGER NOT NULL DEFAULT 0"),
+            ):
+                if col_name not in req_cols:
+                    self._conn.execute(f"ALTER TABLE admin_lesson_requests ADD COLUMN {col_name} {col_def}")
             self._conn.execute(
                 """
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower
@@ -269,6 +371,48 @@ class SqliteSchemaMixin:
                 """,
                 seed_reqs,
             )
+
+        esc_count = int(self._conn.execute("SELECT COUNT(*) FROM escrow_holds").fetchone()[0])
+        if esc_count == 0:
+            rows = self._conn.execute(
+                """
+                SELECT id, tutor_id, student_user_id, escrow_status, offer_price_rub, counter_price_rub, final_price_rub
+                FROM admin_lesson_requests
+                WHERE escrow_status IN ('frozen', 'captured', 'refunded')
+                """
+            ).fetchall()
+            esc_rows = []
+            for idx, r in enumerate(rows, start=1):
+                gross = int(r["final_price_rub"] or r["counter_price_rub"] or r["offer_price_rub"] or 0)
+                if gross <= 0:
+                    continue
+                fee, payout = calc_fee_split(gross)
+                esc_status = str(r["escrow_status"])
+                settled_at = now_iso if esc_status in ("captured", "refunded") else None
+                esc_rows.append(
+                    (
+                        f"esc-seed-{idx}",
+                        str(r["id"]),
+                        str(r["tutor_id"]),
+                        r["student_user_id"],
+                        gross,
+                        fee,
+                        payout,
+                        esc_status,
+                        now_iso,
+                        settled_at,
+                    )
+                )
+            if esc_rows:
+                self._conn.executemany(
+                    """
+                    INSERT OR IGNORE INTO escrow_holds (
+                        id, request_id, tutor_id, student_user_id, gross_rub,
+                        platform_fee_rub, tutor_payout_rub, status, created_at, settled_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    esc_rows,
+                )
 
         payout_count = int(self._conn.execute("SELECT COUNT(*) FROM admin_payout_requests").fetchone()[0])
         if payout_count == 0:

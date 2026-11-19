@@ -12,7 +12,7 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
-from databases.sqlite.store import (
+from databases.sqlite.common import (
     StorageError,
     User,
     deep_merge,
@@ -22,6 +22,7 @@ from databases.sqlite.store import (
     validate_doc_name,
     validate_email,
     validate_password,
+    validate_registration_role,
     validate_username,
     verify_password,
 )
@@ -29,6 +30,42 @@ from .schema import _build_envelope, _doc_outbox_meta, _iso_utc, _row_to_user, _
 
 
 class PgAuthDocsMixin:
+    def _sync_user_profile_from_doc(
+        self, conn: psycopg.Connection[Any], user_id: int, doc: dict[str, Any], changed_keys: set[str]
+    ) -> None:
+        sets: list[str] = []
+        params: list[Any] = []
+        if "name" in changed_keys:
+            clean_name = validate_display_name(doc.get("name"))
+            if clean_name:
+                sets.append("display_name = %s")
+                params.append(clean_name)
+        if "photo" in changed_keys:
+            raw_photo = str(doc.get("photo") or "").strip()
+            sets.append("avatar_url = %s")
+            params.append(raw_photo[:220_000] if raw_photo else None)
+        if "phone" in changed_keys:
+            sets.append("phone = %s")
+            params.append(str(doc.get("phone") or "").strip()[:32])
+        if "phoneCountry" in changed_keys:
+            sets.append("phone_country = %s")
+            params.append(str(doc.get("phoneCountry") or "RU").strip().upper()[:12] or "RU")
+        if "city" in changed_keys:
+            sets.append("city = %s")
+            params.append(str(doc.get("city") or "").strip()[:64])
+        if "grade" in changed_keys:
+            sets.append("grade = %s")
+            params.append(str(doc.get("grade") or "").strip()[:64])
+        if "goal" in changed_keys:
+            sets.append("goal = %s")
+            params.append(str(doc.get("goal") or "").strip()[:320])
+        if "contactVerified" in changed_keys:
+            sets.append("contact_verified = %s")
+            params.append(bool(doc.get("contactVerified")))
+        if sets:
+            params.append(int(user_id))
+            conn.execute(f"UPDATE oltp.users SET {', '.join(sets)} WHERE id = %s", tuple(params))
+
     def create_user(
         self,
         raw_username: str,
@@ -36,12 +73,14 @@ class PgAuthDocsMixin:
         *,
         email: str | None = None,
         display_name: str = "",
+        role: str = "student",
         max_users: int = 0,
     ) -> User:
         username = validate_username(raw_username)
         password = validate_password(raw_password)
         clean_email = validate_email(email)
         clean_display = validate_display_name(display_name)
+        clean_role = validate_registration_role(role)
         email_lower = clean_email.lower() if clean_email else None
         pw_hash = hash_password(password)
 
@@ -71,11 +110,11 @@ class PgAuthDocsMixin:
                         """
                         INSERT INTO oltp.users (
                             username, username_lower, password_hash, display_name,
-                            email, email_lower, avatar_url, auth_provider
-                        ) VALUES (%s, %s, %s, %s, %s, %s, NULL, 'local')
+                            email, email_lower, avatar_url, auth_provider, role
+                        ) VALUES (%s, %s, %s, %s, %s, %s, NULL, 'local', %s)
                         RETURNING id, username, display_name, email, avatar_url, auth_provider, role
                         """,
-                        (username, username.lower(), pw_hash, clean_display, clean_email, email_lower),
+                        (username, username.lower(), pw_hash, clean_display, clean_email, email_lower, clean_role),
                     ).fetchone()
                 except psycopg.errors.UniqueViolation as exc:
                     msg = str(exc).lower()
@@ -98,9 +137,9 @@ class PgAuthDocsMixin:
                     partition_key=str(uid),
                     event_type="auth.user.registered",
                     user_id=uid,
-                    role="student",
+                    role=clean_role,
                     view="auth",
-                    payload={"username": username, "authProvider": "local"},
+                    payload={"username": username, "authProvider": "local", "role": clean_role},
                 )
                 return _row_to_user(row)
 
@@ -119,6 +158,8 @@ class PgAuthDocsMixin:
         email_lower = sqlite_row.get("email_lower") or (email.lower() if isinstance(email, str) and email else None)
         avatar_url = sqlite_row.get("avatar_url")
         auth_provider = str(sqlite_row.get("auth_provider") or "local")
+        raw_role = str(sqlite_row.get("role") or "student").strip().lower()
+        role = raw_role if raw_role in ("student", "tutor", "admin") else "student"
 
         with self._pool.connection() as conn:
             with conn.transaction():
@@ -153,8 +194,8 @@ class PgAuthDocsMixin:
                     """
                     INSERT INTO oltp.users (
                         username, username_lower, password_hash, display_name,
-                        email, email_lower, avatar_url, auth_provider
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        email, email_lower, avatar_url, auth_provider, role
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (username_lower) DO UPDATE SET
                         display_name = EXCLUDED.display_name
                     RETURNING id
@@ -168,6 +209,7 @@ class PgAuthDocsMixin:
                         eff_email_lower,
                         avatar_url,
                         auth_provider,
+                        role,
                     ),
                 ).fetchone()
                 pg_uid = int(row["id"])
@@ -187,9 +229,9 @@ class PgAuthDocsMixin:
                         partition_key=str(pg_uid),
                         event_type="auth.user.registered",
                         user_id=pg_uid,
-                        role="student",
+                        role=role,
                         view="auth",
-                        payload={"username": username, "authProvider": auth_provider},
+                        payload={"username": username, "authProvider": auth_provider, "role": role},
                     )
                 return pg_uid
 
@@ -404,7 +446,7 @@ class PgAuthDocsMixin:
                         username, username_lower, password_hash, display_name,
                         email, email_lower, avatar_url, auth_provider
                     ) VALUES (%s, %s, '', %s, %s, %s, %s, %s)
-                    RETURNING id, username, display_name, email, avatar_url, auth_provider
+                    RETURNING id, username, display_name, email, avatar_url, auth_provider, role
                     """,
                     (
                         username,
@@ -535,6 +577,8 @@ class PgAuthDocsMixin:
                     """,
                     (user_id, name, Jsonb(merged)),
                 )
+                if name == "profile":
+                    self._sync_user_profile_from_doc(conn, user_id, merged, set(patch.keys()))
                 self._insert_outbox(
                     conn,
                     topic=topic,
@@ -564,6 +608,8 @@ class PgAuthDocsMixin:
                     """,
                     (user_id, name, Jsonb(data)),
                 )
+                if name == "profile":
+                    self._sync_user_profile_from_doc(conn, user_id, data, set(data.keys()))
                 self._insert_outbox(
                     conn,
                     topic=topic,

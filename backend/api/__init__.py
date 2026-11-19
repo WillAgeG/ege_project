@@ -16,6 +16,7 @@ from databases.postgres.store import create_store
 from databases.sqlite.store import StorageError
 from .admin import create_admin_router
 from .auth_docs import RateLimiter, create_auth_docs_router
+from .marketplace import create_marketplace_router
 from .realtime_calendar import create_realtime_calendar_router
 
 DEFAULT_CORS_ORIGINS = [
@@ -30,6 +31,7 @@ def create_api_router(settings: Settings) -> APIRouter:
     router = APIRouter()
     router.include_router(create_auth_docs_router(settings))
     router.include_router(create_realtime_calendar_router(settings))
+    router.include_router(create_marketplace_router(settings))
     router.include_router(create_admin_router(settings))
     return router
 

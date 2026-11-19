@@ -12,6 +12,7 @@ from .admin import PgAdminMixin
 from .auth_docs import PgAuthDocsMixin
 from .calendar_realtime import PgCalendarRealtimeMixin
 from .dual_write import DualWriteDatabase
+from .marketplace import PgMarketplaceMixin
 from .schema import (
     PgSchemaMixin,
     _build_envelope,
@@ -29,6 +30,7 @@ class PostgresDatabase(
     PgAuthDocsMixin,
     PgCalendarRealtimeMixin,
     PgAdminMixin,
+    PgMarketplaceMixin,
 ):
     """PostgreSQL 17 хранилище с psycopg_pool и Transactional Outbox."""
 
@@ -59,6 +61,7 @@ __all__ = [
     "PgAdminMixin",
     "PgAuthDocsMixin",
     "PgCalendarRealtimeMixin",
+    "PgMarketplaceMixin",
     "PgSchemaMixin",
     "PostgresDatabase",
     "_build_envelope",

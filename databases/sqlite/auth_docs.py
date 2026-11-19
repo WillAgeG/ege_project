@@ -18,12 +18,49 @@ from .common import (
     validate_doc_name,
     validate_email,
     validate_password,
+    validate_registration_role,
     validate_username,
     verify_password,
 )
 
 
 class SqliteAuthDocsMixin:
+    def _sync_user_profile_from_doc(
+        self, user_id: int, doc: dict[str, Any], changed_keys: set[str]
+    ) -> None:
+        sets: list[str] = []
+        params: list[Any] = []
+        if "name" in changed_keys:
+            clean_name = validate_display_name(doc.get("name"))
+            if clean_name:
+                sets.append("display_name = ?")
+                params.append(clean_name)
+        if "photo" in changed_keys:
+            raw_photo = str(doc.get("photo") or "").strip()
+            sets.append("avatar_url = ?")
+            params.append(raw_photo[:220_000] if raw_photo else None)
+        if "phone" in changed_keys:
+            sets.append("phone = ?")
+            params.append(str(doc.get("phone") or "").strip()[:32])
+        if "phoneCountry" in changed_keys:
+            sets.append("phone_country = ?")
+            params.append(str(doc.get("phoneCountry") or "RU").strip().upper()[:12] or "RU")
+        if "city" in changed_keys:
+            sets.append("city = ?")
+            params.append(str(doc.get("city") or "").strip()[:64])
+        if "grade" in changed_keys:
+            sets.append("grade = ?")
+            params.append(str(doc.get("grade") or "").strip()[:64])
+        if "goal" in changed_keys:
+            sets.append("goal = ?")
+            params.append(str(doc.get("goal") or "").strip()[:320])
+        if "contactVerified" in changed_keys:
+            sets.append("contact_verified = ?")
+            params.append(1 if doc.get("contactVerified") else 0)
+        if sets:
+            params.append(int(user_id))
+            self._conn.execute(f"UPDATE users SET {', '.join(sets)} WHERE id = ?", tuple(params))
+
     def create_user(
         self,
         raw_username: str,
@@ -31,12 +68,14 @@ class SqliteAuthDocsMixin:
         *,
         email: str | None = None,
         display_name: str = "",
+        role: str = "student",
         max_users: int = 0,
     ) -> User:
         username = validate_username(raw_username)
         password = validate_password(raw_password)
         clean_email = validate_email(email)
         clean_display = validate_display_name(display_name)
+        clean_role = validate_registration_role(role)
         email_lower = clean_email.lower() if clean_email else None
         pw_hash = hash_password(password)
         now = int(time.time())
@@ -66,10 +105,10 @@ class SqliteAuthDocsMixin:
                 """
                 INSERT INTO users (
                     username, username_lower, password_hash, display_name,
-                    email, email_lower, avatar_url, auth_provider, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, NULL, 'local', ?)
+                    email, email_lower, avatar_url, auth_provider, role, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, NULL, 'local', ?, ?)
                 """,
-                (username, username.lower(), pw_hash, clean_display, clean_email, email_lower, now),
+                (username, username.lower(), pw_hash, clean_display, clean_email, email_lower, clean_role, now),
             )
             uid = int(cur.lastrowid)
             self._conn.execute(
@@ -84,6 +123,7 @@ class SqliteAuthDocsMixin:
                 email=clean_email,
                 avatar_url=None,
                 auth_provider="local",
+                role=clean_role,
             )
 
     def authenticate(self, raw_login: str, raw_password: str) -> User | None:
@@ -349,6 +389,8 @@ class SqliteAuthDocsMixin:
                 """,
                 (user_id, name, encoded, now),
             )
+            if name == "profile":
+                self._sync_user_profile_from_doc(user_id, merged, set(patch.keys()))
             self._conn.commit()
 
     def replace_doc(self, user_id: int, name: str, data: dict[str, Any], max_bytes: int) -> None:
@@ -366,4 +408,6 @@ class SqliteAuthDocsMixin:
                 """,
                 (user_id, name, encoded, now),
             )
+            if name == "profile":
+                self._sync_user_profile_from_doc(user_id, data, set(data.keys()))
             self._conn.commit()

@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from ..config import Settings
+from .auth_docs import require_user
 
 
 class AdminUserRolePayload(BaseModel):
@@ -110,12 +111,23 @@ def _architecture_layers() -> list[dict[str, Any]]:
     ]
 
 
+def _require_admin(request: Request, settings: Settings) -> None:
+    if not getattr(settings, "admin_require_auth", False):
+        return
+    user = require_user(request, settings)
+    if str(getattr(user, "role", "student") or "").lower() != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "admin_only", "message": "Доступ только для администратора."},
+        )
+
+
 def create_admin_router(settings: Settings) -> APIRouter:
-    del settings
     router = APIRouter()
 
     @router.get("/api/admin/architecture")
     async def admin_architecture(request: Request) -> dict[str, Any]:
+        _require_admin(request, settings)
         db = request.app.state.db
         storage = db.storage_health() if hasattr(db, "storage_health") else {"ok": True, "mode": "sqlite"}
         return {
@@ -126,19 +138,23 @@ def create_admin_router(settings: Settings) -> APIRouter:
 
     @router.get("/api/admin/overview")
     async def admin_overview(request: Request) -> dict[str, Any]:
+        _require_admin(request, settings)
         return request.app.state.db.admin_overview()
 
     @router.get("/api/admin/users")
     async def admin_users(request: Request, limit: int = 100) -> dict[str, Any]:
+        _require_admin(request, settings)
         return {"ok": True, "users": request.app.state.db.admin_list_users(limit=limit)}
 
     @router.post("/api/admin/users/{user_id}/role")
     async def admin_set_user_role(user_id: int, payload: AdminUserRolePayload, request: Request) -> dict[str, Any]:
+        _require_admin(request, settings)
         user = request.app.state.db.admin_set_user_role(user_id, payload.role)
         return {"ok": True, "user": user}
 
     @router.get("/api/admin/tutors")
     async def admin_tutors(request: Request, limit: int = 100) -> dict[str, Any]:
+        _require_admin(request, settings)
         return {"ok": True, "tutors": request.app.state.db.admin_list_tutors(limit=limit)}
 
     @router.post("/api/admin/tutors/{tutor_id}/moderate")
@@ -147,6 +163,7 @@ def create_admin_router(settings: Settings) -> APIRouter:
         payload: AdminModerateTutorPayload,
         request: Request,
     ) -> dict[str, Any]:
+        _require_admin(request, settings)
         tutor = request.app.state.db.admin_moderate_tutor(
             tutor_id,
             verified=payload.verified,
@@ -157,6 +174,7 @@ def create_admin_router(settings: Settings) -> APIRouter:
 
     @router.get("/api/admin/requests")
     async def admin_requests(request: Request, limit: int = 100) -> dict[str, Any]:
+        _require_admin(request, settings)
         return {"ok": True, "requests": request.app.state.db.admin_list_requests(limit=limit)}
 
     @router.post("/api/admin/requests/{req_id}/status")
@@ -165,11 +183,24 @@ def create_admin_router(settings: Settings) -> APIRouter:
         payload: AdminRequestStatusPayload,
         request: Request,
     ) -> dict[str, Any]:
+        _require_admin(request, settings)
         req_item = request.app.state.db.admin_set_request_status(req_id, payload.status)
+        rt = getattr(request.app.state, "realtime", None)
+        if rt is not None:
+            rt.publish(
+                request.app.state.db,
+                channel="all",
+                event_type=f"admin.request.{req_item.get('status', payload.status)}",
+                title="Статус заявки обновлён администратором",
+                message=f"{req_item.get('tutorName') or req_item.get('tutorId')} · {req_item.get('status')}",
+                tutor_slug=str(req_item.get("tutorId") or "") or None,
+                payload={"requestId": req_id, "booking": req_item},
+            )
         return {"ok": True, "request": req_item}
 
     @router.get("/api/admin/payouts")
     async def admin_payouts(request: Request, limit: int = 100) -> dict[str, Any]:
+        _require_admin(request, settings)
         return {"ok": True, "payouts": request.app.state.db.admin_list_payouts(limit=limit)}
 
     @router.post("/api/admin/payouts/{payout_id}/status")
@@ -178,11 +209,24 @@ def create_admin_router(settings: Settings) -> APIRouter:
         payload: AdminPayoutStatusPayload,
         request: Request,
     ) -> dict[str, Any]:
+        _require_admin(request, settings)
         payout = request.app.state.db.admin_set_payout_status(payout_id, payload.status)
+        rt = getattr(request.app.state, "realtime", None)
+        if rt is not None:
+            rt.publish(
+                request.app.state.db,
+                channel="tutor",
+                event_type=f"admin.payout.{payout.get('status', payload.status)}",
+                title="Статус выплаты обновлён",
+                message=f"{int(payout.get('amountRub') or 0)} ₽ · {payout.get('status')}",
+                tutor_slug=str(payout.get("tutorId") or "") or None,
+                payload={"payoutId": payout_id, "payout": payout},
+            )
         return {"ok": True, "payout": payout}
 
     @router.get("/api/admin/outbox")
     async def admin_outbox(request: Request, limit: int = 50) -> dict[str, Any]:
+        _require_admin(request, settings)
         return {"ok": True, "events": request.app.state.db.admin_list_outbox(limit=limit)}
 
     return router
