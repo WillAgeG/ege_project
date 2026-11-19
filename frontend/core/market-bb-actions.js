@@ -410,9 +410,16 @@
     "tc-payout-close": () => { ui.payoutModal = null; renderModal(); },
     "tc-payout-method": (el) => {
       if (!ui.payoutModal) return;
-      ui.payoutModal.method = el.dataset && el.dataset.v === "card" ? "card" : "sbp";
+      const next = el.dataset && el.dataset.v === "card" ? "card" : "sbp";
+      ui.payoutModal.method = next;
       ui.payoutModal.error = "";
       renderModal();
+      if (typeof document !== "undefined" && typeof document.querySelector === "function") {
+        const targetTile = document.querySelector(`[data-a="tc-payout-method"][data-v="${next}"]`);
+        if (targetTile && typeof targetTile.scrollIntoView === "function") {
+          try { targetTile.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" }); } catch (e) {}
+        }
+      }
     },
     "tc-payout-chip": (el) => {
       if (!ui.payoutModal) return;

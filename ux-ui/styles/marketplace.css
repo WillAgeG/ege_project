@@ -771,8 +771,8 @@ body:not([data-auth="1"]):not([data-fullbleed="1"]):not([data-brandbook="1"]) .l
 .ygo-tile-copy span { font-size: 11.5px; font-weight: 500; color: var(--muted); }
 .ygo-tile-copy span.is-free { color: var(--confirm); font-weight: 600; }
 .ygo-sbp-badge {
-  width: 30px; height: 22px; border-radius: 7px; display: inline-grid; place-items: center;
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface)); color: var(--accent);
+  width: 28px; height: 28px; border-radius: 0; display: inline-grid; place-items: center;
+  background: transparent; flex: none;
 }
 .ygo-add-badge {
   width: 28px; height: 28px; border-radius: 999px; display: inline-grid; place-items: center;
@@ -1955,11 +1955,11 @@ html.reduced-motion .hero-float-drift,
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: transparent;
   cursor: pointer;
 }
 .tc-payout-npd input[type="checkbox"] {

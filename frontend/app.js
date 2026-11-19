@@ -1424,7 +1424,9 @@
     const meta = calcBalanceTopupMeta(customVal, method);
     const chipVals = st.initialPaid ? [500, 1000, 1500, 3000] : [trialRub, 1000, 2150, 4590];
     if (meta.amt >= minTopup && !chipVals.includes(meta.amt)) chipVals.unshift(meta.amt);
-    const sbpMark = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 21 7 21 17 12 22 3 17 3 7"/><polyline points="12 2 12 12 21 7"/><polyline points="12 12 3 17"/></svg>';
+    const sbpMark = (EGE.ui && typeof EGE.ui.sbpLogoSVG === "function")
+      ? EGE.ui.sbpLogoSVG(26)
+      : '<svg width="22" height="25" viewBox="0 0 28 32" fill="none" aria-hidden="true"><polygon points="4,8.2 14,2 14,10.2 9.4,13.1" fill="#5B57A2"/><polygon points="14,2 25.5,9.2 18.2,13.8 14,11.1" fill="#D90751"/><polygon points="4,8.2 4,23.8 9.6,20.2 9.6,11.8" fill="#1D1346"/><polygon points="4,23.8 14,30 14,21.8 9.4,18.9" fill="#23408F"/><polygon points="14,30 25.5,22.8 18.2,18.2 14,20.9" fill="#24A854"/><polygon points="14,11.1 25.5,9.2 18.2,16 14,16" fill="#F47B20"/><polygon points="14,16 18.2,16 25.5,22.8 14,20.9" fill="#FAB718"/><polygon points="9.6,11.8 14,16 9.6,20.2" fill="#1F9D55"/></svg>';
     const checkSvg = '<span class="ygo-check" aria-hidden="true">' + icon("check") + '</span>';
     const cardTilesHTML = cards.map((c) => {
       const isSel = method === "card" && activeCardId === c.id;
@@ -1466,7 +1468,7 @@
                   ${method === "sbp" ? checkSvg : ""}
                 </div>
                 <div class="ygo-tile-copy">
-                  <b>СБП · Банк</b>
+                  <b>СБП</b>
                   <span class="is-free">Комиссия 0%</span>
                 </div>
               </button>
@@ -1876,12 +1878,12 @@
                 : ""))
         : balanceTopWidgetHTML(true);
     const roleSwitcherHTML = hasHostSite
-      ? `<div class="side-site-links small muted" style="display:flex;gap:8px;flex-wrap:wrap;padding:4px 2px"><a href="/student" class="link-btn small"${!isTutor && !isAdmin ? ' aria-current="page" style="font-weight:700;color:var(--ink)"' : ""}>Ученик</a><span>·</span><a href="/tutor" class="link-btn small"${isTutor ? ' aria-current="page" style="font-weight:700;color:var(--ink)"' : ""}>Преподаватель</a><span>·</span><a href="/admin" class="link-btn small"${isAdmin ? ' aria-current="page" style="font-weight:700;color:var(--ink)"' : ""}>Админка</a></div>`
+      ? `<div class="side-site-links small muted" style="display:flex;gap:8px;flex-wrap:wrap;padding:4px 2px"><a href="/student" class="link-btn small"${!isTutor && !isAdmin ? ' aria-current="page" style="font-weight:700;color:var(--ink)"' : ""}>Ученик</a><span>·</span><a href="/tutor" class="link-btn small"${isTutor ? ' aria-current="page" style="font-weight:700;color:var(--ink)"' : ""}>Преподаватель</a>${isAdmin ? '<span>·</span><a href="/admin" class="link-btn small" aria-current="page" style="font-weight:700;color:var(--ink)">Админка</a>' : ""}</div>`
       : `<div class="hh-seg side-role-seg" role="group" aria-label="Роль на платформе" style="margin-bottom:2px">
         <button type="button" data-a="role-set" data-role="student" aria-pressed="${!isTutor && !isAdmin}">Ученик</button>
         <button type="button" data-a="role-set" data-role="tutor" aria-pressed="${isTutor}">Преподаватель</button>
       </div>
-      <button type="button" class="side-admin-pill${isAdmin ? " is-on" : ""}" data-a="role-set" data-role="${isAdmin ? "student" : "admin"}" aria-pressed="${isAdmin}">${icon("shield")}<span>Админ-панель</span></button>`;
+      ${isAdmin ? `<button type="button" class="side-admin-pill is-on" data-a="role-set" data-role="student" aria-pressed="true">${icon("shield")}<span>Админ-панель</span></button>` : ""}`;
     $("#side-foot").innerHTML = `<div id="side-balance-slot" class="side-bal-slot"${isAdmin ? " hidden" : ""}>${sideBalHTML}</div>
       ${roleSwitcherHTML}
       <div class="side-user">
@@ -3157,6 +3159,10 @@
       if (k === "npdReceipt") ui.payoutModal.npdReceipt = !!el.checked;
       else ui.payoutModal[k] = el.value;
       ui.payoutModal.error = "";
+      if (k === "card") {
+        const brandEl = typeof document.getElementById === "function" ? document.getElementById("tc-payout-card-brand") : null;
+        if (brandEl) brandEl.textContent = detectCardBrand(el.value);
+      }
       if (k === "amount") {
         const subBtn = typeof document.querySelector === "function" ? document.querySelector('[data-f="tc-payout"] button[type="submit"]') : null;
         const amt = Math.max(0, Math.round(Number(el.value) || 0));

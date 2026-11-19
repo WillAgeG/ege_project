@@ -353,7 +353,7 @@
         <div class="hh-seg" role="group" aria-label="Выбор роли кабинета" style="flex-wrap:wrap">
           <button type="button" data-a="role-set" data-role="student" aria-pressed="${!isTutor && !isAdmin}">${icon("book")}<span>Как ученик</span></button>
           <button type="button" data-a="role-set" data-role="tutor" aria-pressed="${isTutor}">${icon("users")}<span>Как преподаватель</span></button>
-          <button type="button" data-a="role-set" data-role="admin" aria-pressed="${isAdmin}">${icon("shield")}<span>Как администратор</span></button>
+          ${isAdmin ? `<button type="button" data-a="role-set" data-role="admin" aria-pressed="true">${icon("shield")}<span>Как администратор</span></button>` : ""}
         </div>
       </section>
       <section class="card pad-lg stack">

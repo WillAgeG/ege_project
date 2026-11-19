@@ -750,6 +750,7 @@
     const tabHtml = env4.elements.get("tabbar").innerHTML;
     assert(!sideNavHtml.includes('data-v="profile"'), "expected Settings removed from top sidebar nav");
     assert(sideFootHtml.includes('data-v="profile"') && sideFootHtml.includes('data-a="auth-logout"') && sideFootHtml.includes("Выйти"), "expected Settings gear and Logout button in sidebar footer");
+    assert(!sideFootHtml.includes("Админ-панель") && !sideFootHtml.includes("Система и API"), "expected Admin panel and System/API links hidden from student sidebar footer");
     assert(sideFootHtml.includes("Преподаватель") && !sideFootHtml.includes(">Препод<") && !sideFootHtml.includes("hh-seg equal side-role-seg"), "expected full label Преподаватель without Препод abbreviation or equal grid clipping");
     assert(sideFootHtml.includes('id="side-balance-slot"') && sideFootHtml.includes("top-bal-pill") && sideFootHtml.includes("Пополнить"), "expected persistent student bottom-left balance slot inside #side-foot");
     assert(topBalHtml.includes("top-bal-pill") && topBalHtml.includes("Пополнить") && !env4.elements.get("top-balance-slot").hidden, "expected persistent student top-right balance slot in mobile .topbar");
@@ -757,6 +758,10 @@
     for (const label of ["Тесты", "Справочник", "Репетиторы", "Учёба", "Показатели"]) {
       assert(sideNavHtml.includes(label) && tabHtml.includes(label), `expected ${label} in sidebar and bottom tabbar`);
     }
+    clickAction(env4, { a: "go", v: "profile" });
+    await flushMicrotasks(4);
+    const stuProfileHtml = env4.elements.get("main").innerHTML;
+    assert(!stuProfileHtml.includes("Как администратор") && !stuProfileHtml.includes("Система и API"), "expected student settings to hide administrator role button");
 
     // Раздел «Учёба»: до записи показывается только форма «Ищу преподавателя» и пустое состояние без чужих преподавателей
     clickAction(env4, { a: "go", v: "study" });
@@ -807,6 +812,9 @@
       balModalHtml.includes("Баланс и пополнение") &&
       balModalHtml.includes("первый платёж от 490 ₽") &&
       balModalHtml.includes("ygo-pay-rail") &&
+      balModalHtml.includes("<b>СБП</b>") &&
+      !balModalHtml.includes("СБП · Банк") &&
+      balModalHtml.includes("#D90751") &&
       balModalHtml.includes('data-a="bal-method" data-v="sbp"') &&
       balModalHtml.includes('data-a="bal-card-open"') &&
       balModalHtml.includes("+3%") &&
@@ -1854,6 +1862,7 @@
       env5.elements.get("side-foot").innerHTML.includes("side-tutor-bal") &&
       env5.elements.get("side-foot").innerHTML.includes('data-a="tc-payout-open"') &&
       !env5.elements.get("side-foot").innerHTML.includes("Вывести 95%") &&
+      !env5.elements.get("side-foot").innerHTML.includes("Админ-панель") &&
       !env5.elements.get("side-foot").innerHTML.includes(">Препод<") &&
       env5.elements.get("side-foot").innerHTML.includes("Преподаватель"),
       "expected teacher balance in #side-balance-slot bottom-left and mobile topbar, #tutor-balance-dock hidden, and full Преподаватель label"
@@ -2354,10 +2363,22 @@
     });
     clickAction(env5, { a: "tc-payout-open" });
     await flushMicrotasks(2);
-    assert(env5.elements.get("modal-root").innerHTML.includes('id="tc-payout-title"') && env5.elements.get("modal-root").innerHTML.includes('data-f="tc-payout"'), "expected tc-payout-open to open teacher withdrawal modal");
+    const payoutSbpHtml = env5.elements.get("modal-root").innerHTML;
+    assert(
+      payoutSbpHtml.includes('id="tc-payout-title"') &&
+      payoutSbpHtml.includes('data-f="tc-payout"') &&
+      payoutSbpHtml.includes("bal-flat-sec") &&
+      payoutSbpHtml.includes("ygo-pay-rail") &&
+      payoutSbpHtml.includes("<b>СБП</b>") &&
+      payoutSbpHtml.includes("#D90751") &&
+      payoutSbpHtml.includes("bal-amount-box") &&
+      payoutSbpHtml.includes("bal-submit-btn"),
+      "expected redesigned flat Yandex Go + SBP payout modal"
+    );
     clickAction(env5, { a: "tc-payout-method", v: "card" });
     await flushMicrotasks(1);
-    assert(env5.elements.get("modal-root").innerHTML.includes('id="tc-payout-card"'), "expected switching payout method to card to show Мир/РФ card input");
+    const payoutCardHtml = env5.elements.get("modal-root").innerHTML;
+    assert(payoutCardHtml.includes('id="tc-payout-card"') && payoutCardHtml.includes("ygo-bank-card"), "expected switching payout method to card to render dark Yandex Go card box with card input");
     clickAction(env5, { a: "tc-payout-method", v: "sbp" });
     clickAction(env5, { a: "tc-payout-npd" });
     clickAction(env5, { a: "tc-payout-chip", v: "5000" });

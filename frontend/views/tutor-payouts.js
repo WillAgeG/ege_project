@@ -236,8 +236,16 @@
       { val: 1000, label: "1 000 ₽" },
       { val: 3000, label: "3 000 ₽" },
       { val: 5000, label: "5 000 ₽" },
-      { val: summary.availableRub, label: `Вся сумма (${summary.availableRub.toLocaleString("ru-RU")} ₽)` }
+      { val: summary.availableRub, label: `Всё · ${summary.availableRub.toLocaleString("ru-RU")} ₽` }
     ];
+    const sbpMark = (EGE.ui && typeof EGE.ui.sbpLogoSVG === "function")
+      ? EGE.ui.sbpLogoSVG(26)
+      : '<svg width="22" height="25" viewBox="0 0 28 32" fill="none" aria-hidden="true"><polygon points="4,8.2 14,2 14,10.2 9.4,13.1" fill="#5B57A2"/><polygon points="14,2 25.5,9.2 18.2,13.8 14,11.1" fill="#D90751"/><polygon points="4,8.2 4,23.8 9.6,20.2 9.6,11.8" fill="#1D1346"/><polygon points="4,23.8 14,30 14,21.8 9.4,18.9" fill="#23408F"/><polygon points="14,30 25.5,22.8 18.2,18.2 14,20.9" fill="#24A854"/><polygon points="14,11.1 25.5,9.2 18.2,16 14,16" fill="#F47B20"/><polygon points="14,16 18.2,16 25.5,22.8 14,20.9" fill="#FAB718"/><polygon points="9.6,11.8 14,16 9.6,20.2" fill="#1F9D55"/></svg>';
+    const checkSvg = '<span class="ygo-check" aria-hidden="true">' + icon("check") + '</span>';
+    const cardDigits = String(card || "").replace(/\D+/g, "");
+    const cardBrand = /^2/.test(cardDigits) ? "МИР" : (/^4/.test(cardDigits) ? "VISA" : (/^5/.test(cardDigits) ? "Mastercard" : (/^62/.test(cardDigits) ? "UnionPay" : "Карта РФ")));
+    const chipSvg = '<svg width="36" height="26" viewBox="0 0 36 26" fill="none" aria-hidden="true"><rect x=".75" y=".75" width="34.5" height="24.5" rx="5.25" fill="#e5c07b" fill-opacity=".9" stroke="#bfa05a" stroke-width="1.2"/><path d="M12 1v24M24 1v24M1 9.5h11M1 16.5h11M24 9.5h11M24 16.5h11" stroke="#8c6d2c" stroke-width="1.1"/></svg>';
+    const nfcSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 16a6 6 0 0 1 0-8"/><path d="M10 18a10 10 0 0 1 0-12"/><path d="M14 20a14 14 0 0 1 0-16"/></svg>';
 
     return `<div class="modal-back is-sheet-back">
       <div class="modal-card sheet-modal" data-sheet-kind="payout" role="dialog" aria-modal="true" aria-labelledby="tc-payout-title" style="max-width:540px">
@@ -245,82 +253,93 @@
           <span class="sheet-grabber"></span>
         </div>
         <div class="sheet-head is-booking-head">
-          <div>
-            <div class="eyebrow">Выплаты преподавателям</div>
-            <h2 class="h2" id="tc-payout-title">Вывод средств преподавателя</h2>
-          </div>
+          <div class="row" style="gap:8px">${icon("upload")}<b id="tc-payout-title">Вывод средств преподавателя</b></div>
         </div>
-        <div class="sheet-body stack" style="gap:14px">
-
-        ${(EGE.kit && typeof EGE.kit.walletSummaryBarHTML === "function")
-          ? EGE.kit.walletSummaryBarHTML({
-              extraClass: "tc-payout-wallet",
-              label: "Доступно к выводу",
-              amountRub: summary.availableRub,
-              amountClass: "num",
-              amountStyle: "font-size:22px;line-height:1.15;font-weight:700;color:var(--ink)",
-              subNote: "95% после 5% комиссии сервиса",
-              badge: { text: `В резерве: ${summary.escrowRub.toLocaleString("ru-RU")} ₽`, cls: "confirm num" }
-            })
-          : `<div class="wallet-bar tc-payout-wallet">
-          <div class="stack" style="gap:3px;min-width:0">
+        <div class="sheet-body">
+          <div class="bal-flat-sec">
             <span class="small muted">Доступно к выводу</span>
-            <b class="num" style="font-size:22px;line-height:1.15">${summary.availableRub.toLocaleString("ru-RU")} ₽</b>
-            <span class="small muted">95% после 5% комиссии сервиса</span>
+            <strong class="bal-flat-amount num">${summary.availableRub.toLocaleString("ru-RU")} ₽</strong>
+            <span class="bal-flat-copy num">В резерве: ${summary.escrowRub.toLocaleString("ru-RU")} ₽ · 95% после 5% комиссии сервиса</span>
           </div>
-          <span class="chip confirm num">В резерве: ${summary.escrowRub.toLocaleString("ru-RU")} ₽</span>
-        </div>`}
-
-        <div class="hh-seg" role="group" aria-label="Способ получения средств">
-          <button type="button" data-a="tc-payout-method" data-v="sbp" aria-pressed="${method === "sbp"}">СБП · 0 ₽ (мгновенно)</button>
-          <button type="button" data-a="tc-payout-method" data-v="card" aria-pressed="${method === "card"}">Карта РФ / Мир</button>
-        </div>
-
-        <form data-f="tc-payout" class="stack" style="gap:12px" novalidate>
-          ${method === "sbp"
-            ? `<div class="tc-payout-grid">
-                <div class="field">
-                  <label class="small muted" for="tc-payout-bank">Банк СБП</label>
-                  <select class="input" id="tc-payout-bank" name="bank" data-tc-payout="bank">
-                    ${bankList.map((b) => `<option value="${esc(b)}"${bank === b ? " selected" : ""}>${esc(b)}</option>`).join("")}
-                  </select>
-                </div>
-                <div class="field">
-                  <label class="small muted" for="tc-payout-phone">Телефон для СБП</label>
-                  <input class="input" id="tc-payout-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+7 (914) 210-01-99" value="${esc(phone)}" data-tc-payout="phone">
-                </div>
-              </div>`
-            : `<div class="field">
-                <label class="small muted" for="tc-payout-card">Номер карты РФ / Мир</label>
-                <input class="input num" id="tc-payout-card" name="card" type="text" inputmode="numeric" maxlength="19" placeholder="2200 7004 8210 4419" value="${esc(card)}" data-tc-payout="card">
-              </div>`}
 
           <div class="stack" style="gap:8px">
-            <div class="row between" style="gap:8px;flex-wrap:wrap">
-              <label class="small muted" for="tc-payout-amount">Сумма вывода, ₽</label>
-              <span class="small muted num">Минимум ${summary.minPayout.toLocaleString("ru-RU")} ₽</span>
+            <span class="label">Способ получения</span>
+            <div class="ygo-pay-rail" role="radiogroup" aria-label="Способ получения средств">
+              <button type="button" class="ygo-pay-tile${method === "sbp" ? " is-on" : ""}" data-a="tc-payout-method" data-v="sbp" role="radio" aria-checked="${method === "sbp" ? "true" : "false"}">
+                <div class="ygo-tile-top">
+                  <span class="ygo-sbp-badge">${sbpMark}</span>
+                  ${method === "sbp" ? checkSvg : ""}
+                </div>
+                <div class="ygo-tile-copy">
+                  <b>СБП</b>
+                  <span class="is-free">0 ₽ · мгновенно</span>
+                </div>
+              </button>
+              <button type="button" class="ygo-pay-tile${method === "card" ? " is-on" : ""}" data-a="tc-payout-method" data-v="card" role="radio" aria-checked="${method === "card" ? "true" : "false"}">
+                <div class="ygo-tile-top">
+                  <span class="ygo-card-net">${esc(cardBrand)}</span>
+                  ${method === "card" ? checkSvg : ""}
+                </div>
+                <div class="ygo-tile-copy">
+                  <b>Карта РФ</b>
+                  <span>Зачисление 1–5 мин</span>
+                </div>
+              </button>
             </div>
-            <div class="chip-rail swipe" role="group" aria-label="Быстрый выбор суммы">
-              ${chips.map((c) => `<button type="button" class="chip-btn${Number(amountNum) === c.val ? " on" : ""}" data-a="tc-payout-chip" data-v="${c.val}">${esc(c.label)}</button>`).join("")}
-            </div>
-            <input class="input num" id="tc-payout-amount" name="amount" type="number" min="${summary.minPayout}" max="${Math.max(summary.minPayout, summary.availableRub)}" step="100" value="${esc(inputVal)}" data-tc-payout="amount">
           </div>
 
-          <label class="tc-payout-npd">
-            <div class="stack" style="gap:2px;min-width:0">
-              <b>Сформировать чек самозанятого (НПД · 4–6%)</b>
-              <span class="small muted">Автоматическая передача чека в «Мой налог» после зачисления</span>
+          <form data-f="tc-payout" class="stack" style="gap:12px" novalidate>
+            ${method === "sbp"
+              ? `<div class="tc-payout-grid">
+                  <div class="field">
+                    <label class="label" for="tc-payout-bank">Банк СБП</label>
+                    <select class="input" id="tc-payout-bank" name="bank" data-tc-payout="bank">
+                      ${bankList.map((b) => `<option value="${esc(b)}"${bank === b ? " selected" : ""}>${esc(b)}</option>`).join("")}
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label class="label" for="tc-payout-phone">Телефон для СБП</label>
+                    <input class="input num" id="tc-payout-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+7 (914) 210-01-99" value="${esc(phone)}" data-tc-payout="phone">
+                  </div>
+                </div>`
+              : `<div class="ygo-bank-card">
+                  <div class="ygo-card-top">
+                    <div class="ygo-chip-wrap">${chipSvg}${nfcSvg}</div>
+                    <span class="ygo-brand-pill" id="tc-payout-card-brand">${esc(cardBrand)}</span>
+                  </div>
+                  <div class="ygo-card-field">
+                    <label class="ygo-card-lbl" for="tc-payout-card">Номер карты для зачисления</label>
+                    <input class="ygo-card-inp num" id="tc-payout-card" name="card" type="text" inputmode="numeric" maxlength="19" placeholder="2200 7004 8210 4419" value="${esc(card)}" data-tc-payout="card">
+                  </div>
+                </div>`}
+
+            <div class="stack" style="gap:8px">
+              <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
+                <label class="label" for="tc-payout-amount">Сумма вывода</label>
+                <span class="small muted num">Минимум ${summary.minPayout.toLocaleString("ru-RU")} ₽</span>
+              </div>
+              <div class="chip-rail" role="group" aria-label="Быстрый выбор суммы">
+                ${chips.map((c) => `<button type="button" class="chip-btn${Number(amountNum) === c.val ? " is-on" : ""}" data-a="tc-payout-chip" data-v="${c.val}">${esc(c.label)}</button>`).join("")}
+              </div>
+              <div class="bal-amount-box">
+                <input class="bal-amount-inp num" id="tc-payout-amount" name="amount" type="number" min="${summary.minPayout}" max="${Math.max(summary.minPayout, summary.availableRub)}" step="100" value="${esc(inputVal)}" data-tc-payout="amount">
+                <span class="bal-amount-cur">₽</span>
+              </div>
             </div>
-            <input type="checkbox" name="npdReceipt" data-a="tc-payout-npd" data-tc-payout="npdReceipt"${npdReceipt ? " checked" : ""}>
-          </label>
 
-          ${errorMsg ? `<div class="tc-payout-err" role="alert">${esc(errorMsg)}</div>` : ""}
-          ${!canSubmit && !errorMsg ? `<div class="small muted">Минимальный доступный остаток для вывода — ${summary.minPayout.toLocaleString("ru-RU")} ₽.</div>` : ""}
+            <label class="tc-payout-npd">
+              <div class="stack" style="gap:2px;min-width:0">
+                <b class="small">Чек самозанятого (НПД · 4–6%)</b>
+                <span class="small muted">Автоматическая передача в «Мой налог» после зачисления</span>
+              </div>
+              <input type="checkbox" name="npdReceipt" data-a="tc-payout-npd" data-tc-payout="npdReceipt"${npdReceipt ? " checked" : ""}>
+            </label>
 
-          <div class="row between" style="gap:10px;flex-wrap:wrap">
-            <button type="submit" class="btn confirm"${canSubmit ? "" : " disabled"}>Вывести ${amountNum.toLocaleString("ru-RU")} ₽</button>
-          </div>
-        </form>
+            ${errorMsg ? `<div class="tc-payout-err" role="alert">${esc(errorMsg)}</div>` : ""}
+            ${!canSubmit && !errorMsg ? `<div class="small muted">Минимальный доступный остаток для вывода — ${summary.minPayout.toLocaleString("ru-RU")} ₽.</div>` : ""}
+
+            <button type="submit" class="btn confirm bal-submit-btn"${canSubmit ? "" : " disabled"}>Вывести ${amountNum.toLocaleString("ru-RU")} ₽</button>
+          </form>
         </div>
       </div>
     </div>`;

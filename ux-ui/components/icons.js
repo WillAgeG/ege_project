@@ -230,6 +230,23 @@
   const GOOGLE_SVG =
     '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5a5.6 5.6 0 0 1-2.4 3.6v3h3.9c2.3-2.1 3.5-5.2 3.5-8.8z"/><path fill="#34A853" d="M12 24c3.2 0 6-1.1 8-3l-3.9-3c-1.1.7-2.5 1.2-4.1 1.2-3.1 0-5.8-2.1-6.8-5H1.2v3.1A12 12 0 0 0 12 24z"/><path fill="#FBBC05" d="M5.2 14.2A7.2 7.2 0 0 1 4.8 12c0-.8.1-1.5.4-2.2V6.7H1.2A12 12 0 0 0 0 12c0 1.9.5 3.8 1.2 5.3l4-3.1z"/><path fill="#EA4335" d="M12 4.8c1.8 0 3.3.6 4.6 1.8l3.4-3.4A11.9 11.9 0 0 0 12 0 12 12 0 0 0 1.2 6.7l4 3.1c1-2.9 3.7-5 6.8-5z"/></svg>';
 
+  function sbpLogoSVG(size) {
+    const h = Number(size) || 26;
+    const w = Math.round((h * 28) / 32);
+    return (
+      `<svg width="${w}" height="${h}" viewBox="0 0 28 32" fill="none" aria-hidden="true">` +
+      '<polygon points="4,8.2 14,2 14,10.2 9.4,13.1" fill="#5B57A2"/>' +
+      '<polygon points="14,2 25.5,9.2 18.2,13.8 14,11.1" fill="#D90751"/>' +
+      '<polygon points="4,8.2 4,23.8 9.6,20.2 9.6,11.8" fill="#1D1346"/>' +
+      '<polygon points="4,23.8 14,30 14,21.8 9.4,18.9" fill="#23408F"/>' +
+      '<polygon points="14,30 25.5,22.8 18.2,18.2 14,20.9" fill="#24A854"/>' +
+      '<polygon points="14,11.1 25.5,9.2 18.2,16 14,16" fill="#F47B20"/>' +
+      '<polygon points="14,16 18.2,16 25.5,22.8 14,20.9" fill="#FAB718"/>' +
+      '<polygon points="9.6,11.8 14,16 9.6,20.2" fill="#1F9D55"/>' +
+      "</svg>"
+    );
+  }
+
   function getIconCatalog(dark) {
     return [
       ["heartFill", "Избранное (актив.)", "var(--bad)", "", "heartbeat", "Пульс ♥"],
@@ -302,6 +319,7 @@
     brandLockupHTML,
     brandLogoSVG,
     GOOGLE_SVG,
+    sbpLogoSVG,
     getIconCatalog,
     triggerIconTileAnim
   };
