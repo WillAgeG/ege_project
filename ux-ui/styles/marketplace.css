@@ -771,8 +771,22 @@ body:not([data-auth="1"]):not([data-fullbleed="1"]):not([data-brandbook="1"]) .l
 .ygo-tile-copy span { font-size: 11.5px; font-weight: 500; color: var(--muted); }
 .ygo-tile-copy span.is-free { color: var(--confirm); font-weight: 600; }
 .ygo-sbp-badge {
-  width: 28px; height: 28px; border-radius: 0; display: inline-grid; place-items: center;
+  width: 24px; height: 28px; border-radius: 0; display: inline-grid; place-items: center;
   background: transparent; flex: none;
+}
+.ygo-sbp-svg { display: block; flex: none; }
+.ygo-tile-net {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 24px; flex: none;
+}
+.ygo-net-svg { display: block; flex: none; }
+.ygo-net-mc-lbl { font-size: 11px; font-weight: 700; color: var(--ink-2); }
+.ygo-net-fallback {
+  display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: .04em;
+  background: var(--ink); color: var(--surface);
+}
+.ygo-net-fallback.is-dark {
+  background: rgba(255, 255, 255, .14); color: #ffffff; border: 1px solid rgba(255, 255, 255, .16);
 }
 .ygo-add-badge {
   width: 28px; height: 28px; border-radius: 999px; display: inline-grid; place-items: center;
@@ -801,11 +815,55 @@ body:not([data-auth="1"]):not([data-fullbleed="1"]):not([data-brandbook="1"]) .l
   border: 1px solid rgba(255, 255, 255, .12);
   box-shadow: 0 18px 34px -14px rgba(15, 23, 42, .52);
   animation: ygoSlideLR .24s cubic-bezier(.22, 1, .36, 1);
+  transition: background .25s ease, border-color .25s ease;
+}
+.ygo-bank-card[data-bank="sber"] {
+  background: radial-gradient(circle at 88% 12%, rgba(36, 184, 92, .34) 0%, transparent 48%),
+              linear-gradient(135deg, #103b25 0%, #0d2118 68%, #08120d 100%);
+  border-color: rgba(52, 208, 110, .24);
+}
+.ygo-bank-card[data-bank="vtb"] {
+  background: radial-gradient(circle at 88% 12%, rgba(14, 165, 233, .36) 0%, transparent 48%),
+              linear-gradient(135deg, #0b2c6b 0%, #0b1b3d 68%, #070f21 100%);
+  border-color: rgba(56, 189, 248, .26);
+}
+.ygo-bank-card[data-bank="tbank"] {
+  background: radial-gradient(circle at 88% 12%, rgba(250, 204, 21, .28) 0%, transparent 48%),
+              linear-gradient(135deg, #2b2922 0%, #181713 68%, #0e0d0b 100%);
+  border-color: rgba(250, 204, 21, .24);
+}
+.ygo-bank-card[data-bank="alfa"] {
+  background: radial-gradient(circle at 88% 12%, rgba(239, 49, 36, .34) 0%, transparent 48%),
+              linear-gradient(135deg, #3c1414 0%, #1d0e0f 68%, #100809 100%);
+  border-color: rgba(248, 113, 113, .26);
+}
+.ygo-bank-card[data-bank="gpb"] {
+  background: radial-gradient(circle at 88% 12%, rgba(56, 189, 248, .28) 0%, transparent 48%),
+              linear-gradient(135deg, #162447 0%, #0f172a 68%, #090e1a 100%);
+}
+.ygo-bank-card[data-bank="ozon"] {
+  background: radial-gradient(circle at 88% 12%, rgba(0, 91, 255, .38) 0%, transparent 48%),
+              linear-gradient(135deg, #0f2559 0%, #0b1636 68%, #070d1f 100%);
+}
+.ygo-bank-card[data-bank="yandex"] {
+  background: radial-gradient(circle at 88% 12%, rgba(252, 63, 29, .28) 0%, transparent 48%),
+              linear-gradient(135deg, #292226 0%, #171418 68%, #0d0b0e 100%);
+}
+.ygo-bank-card[data-bank="raif"] {
+  background: radial-gradient(circle at 88% 12%, rgba(254, 230, 0, .24) 0%, transparent 48%),
+              linear-gradient(135deg, #2b2919 0%, #191811 68%, #0e0e09 100%);
 }
 .ygo-card-top {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
 }
-.ygo-chip-wrap { display: inline-flex; align-items: center; gap: 8px; color: rgba(255, 255, 255, .62); }
+.ygo-chip-wrap { display: inline-flex; align-items: center; gap: 8px; color: rgba(255, 255, 255, .62); min-width: 0; }
+.ygo-card-bank {
+  font-size: 12.5px; font-weight: 700; letter-spacing: .01em; color: rgba(255, 255, 255, .92);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ygo-brand-slot {
+  display: inline-flex; align-items: center; justify-content: flex-end; min-height: 24px; flex: none;
+}
 .ygo-brand-pill {
   display: inline-flex; align-items: center; min-height: 24px; padding: 0 10px; border-radius: 999px;
   font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;

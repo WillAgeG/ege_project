@@ -1254,19 +1254,31 @@
       <button type="button" class="top-bal-btn" data-a="bal-open" aria-label="Пополнить баланс" title="Пополнить баланс">${icon("plus")}<span>Пополнить</span></button>
     </div>`;
   }
-  function detectCardBrand(rawNum) {
+  function detectCardMeta(rawNum) {
+    if (EGE.ui && typeof EGE.ui.detectCardMeta === "function") {
+      return EGE.ui.detectCardMeta(rawNum);
+    }
     const d = String(rawNum || "").replace(/\D+/g, "");
-    if (!d) return "Карта РФ";
-    if (/^2/.test(d)) return "МИР";
-    if (/^4/.test(d)) return "VISA";
-    if (/^5/.test(d)) return "Mastercard";
-    if (/^62/.test(d)) return "UnionPay";
-    return "Карта РФ";
+    let brand = "Карта РФ";
+    if (!d || /^220[0-4]/.test(d) || d === "2" || d === "22" || d === "220") brand = "МИР";
+    else if (/^5[1-5]/.test(d) || /^(?:222[1-9]|22[3-9]\d|2[3-6]\d{2}|27[01]\d|2720)/.test(d)) brand = "Mastercard";
+    else if (/^4/.test(d)) brand = "VISA";
+    else if (/^62/.test(d)) brand = "UnionPay";
+    return { brand, bankName: "", bankTheme: "default", bin: d.slice(0, 6) };
+  }
+  function detectCardBrand(rawNum) {
+    return detectCardMeta(rawNum).brand;
+  }
+  function cardNetHTML(brand, opts) {
+    if (EGE.ui && typeof EGE.ui.cardNetworkLogoHTML === "function") {
+      return EGE.ui.cardNetworkLogoHTML(brand, opts);
+    }
+    return `<span class="ygo-net-fallback">${esc(brand || "МИР")}</span>`;
   }
   function savedCardsForMarket(st) {
     if (st && Array.isArray(st.savedCards) && st.savedCards.length) return st.savedCards;
     if (st && st.savedCard && st.savedCard.last4) {
-      return [Object.assign({ id: st.savedCard.id || "card-1", brand: st.savedCard.brand || "Карта РФ" }, st.savedCard)];
+      return [Object.assign({ id: st.savedCard.id || "card-1", brand: st.savedCard.brand || "МИР" }, st.savedCard)];
     }
     return [];
   }
@@ -1425,18 +1437,22 @@
     const chipVals = st.initialPaid ? [500, 1000, 1500, 3000] : [trialRub, 1000, 2150, 4590];
     if (meta.amt >= minTopup && !chipVals.includes(meta.amt)) chipVals.unshift(meta.amt);
     const sbpMark = (EGE.ui && typeof EGE.ui.sbpLogoSVG === "function")
-      ? EGE.ui.sbpLogoSVG(26)
-      : '<svg width="22" height="25" viewBox="0 0 28 32" fill="none" aria-hidden="true"><polygon points="4,8.2 14,2 14,10.2 9.4,13.1" fill="#5B57A2"/><polygon points="14,2 25.5,9.2 18.2,13.8 14,11.1" fill="#D90751"/><polygon points="4,8.2 4,23.8 9.6,20.2 9.6,11.8" fill="#1D1346"/><polygon points="4,23.8 14,30 14,21.8 9.4,18.9" fill="#23408F"/><polygon points="14,30 25.5,22.8 18.2,18.2 14,20.9" fill="#24A854"/><polygon points="14,11.1 25.5,9.2 18.2,16 14,16" fill="#F47B20"/><polygon points="14,16 18.2,16 25.5,22.8 14,20.9" fill="#FAB718"/><polygon points="9.6,11.8 14,16 9.6,20.2" fill="#1F9D55"/></svg>';
+      ? EGE.ui.sbpLogoSVG(28)
+      : '<svg class="ygo-sbp-svg" width="23" height="28" viewBox="0 0 266 325" fill="none" role="img" aria-label="СБП"><title>СБП</title><polygon points="114,0 152,70 152,116 114,140" fill="#F1BA46"/><polygon points="114,0 266,93 188,93 152,70" fill="#E07C3E"/><polygon points="0,255 40,183 152,116 152,163" fill="#8E4D91"/><polygon points="152,116 188,93 266,93 152,163" fill="#C72C54"/><polygon points="0,70 40,142 40,183 0,255" fill="#5D579F"/><polygon points="114,186 152,209 152,255 114,325" fill="#76AF46"/><polygon points="114,325 152,255 188,232 266,232" fill="#377D3F"/><polygon points="0,70 266,232 188,232 40,142" fill="#4286C5"/></svg>';
     const checkSvg = '<span class="ygo-check" aria-hidden="true">' + icon("check") + '</span>';
     const cardTilesHTML = cards.map((c) => {
       const isSel = method === "card" && activeCardId === c.id;
+      const inferred = c.bin ? detectCardMeta(c.bin) : null;
+      const bankLabel = c.bankName || (inferred && inferred.bankName) || "";
+      const netBrand = (!c.brand || c.brand === "Карта РФ") ? "МИР" : c.brand;
+      const tileTitle = bankLabel ? `${esc(bankLabel)} · •• ${esc(c.last4)}` : `•• ${esc(c.last4)}`;
       return `<button type="button" class="ygo-pay-tile${isSel ? " is-on" : ""}" data-a="bal-method" data-v="card" data-card-id="${esc(c.id)}" role="radio" aria-checked="${isSel ? "true" : "false"}">
         <div class="ygo-tile-top">
-          <span class="ygo-card-net">${esc(c.brand || "Карта")}</span>
+          <span class="ygo-tile-net">${cardNetHTML(netBrand, { height: 15, tone: "light", defaultMir: true })}</span>
           ${isSel ? checkSvg : ""}
         </div>
         <div class="ygo-tile-copy">
-          <b>•• ${esc(c.last4)}</b>
+          <b>${tileTitle}</b>
           <span>Комиссия +3%</span>
         </div>
       </button>`;
@@ -1479,7 +1495,7 @@
                 </div>
                 <div class="ygo-tile-copy">
                   <b>Добавить карту</b>
-                  <span>Мир, Visa · +3%</span>
+                  <span>МИР, Visa, Mastercard · +3%</span>
                 </div>
               </button>
             </div>
@@ -1506,7 +1522,7 @@
   function cardBindModalHTML() {
     const cb = ui.cardBindModal;
     if (!cb) return "";
-    const brand = detectCardBrand(cb.cardNum);
+    const meta = detectCardMeta(cb.cardNum);
     const chipSvg = '<svg width="36" height="26" viewBox="0 0 36 26" fill="none" aria-hidden="true"><rect x=".75" y=".75" width="34.5" height="24.5" rx="5.25" fill="#e5c07b" fill-opacity=".9" stroke="#bfa05a" stroke-width="1.2"/><path d="M12 1v24M24 1v24M1 9.5h11M1 16.5h11M24 9.5h11M24 16.5h11" stroke="#8c6d2c" stroke-width="1.1"/></svg>';
     const nfcSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 16a6 6 0 0 1 0-8"/><path d="M10 18a10 10 0 0 1 0-12"/><path d="M14 20a14 14 0 0 1 0-16"/></svg>';
     return `<div class="modal-back is-sheet-back" role="dialog" aria-modal="true" aria-labelledby="card-bind-title">
@@ -1521,14 +1537,14 @@
         </div>
         <div class="sheet-body">
           <form class="stack" style="gap:14px" data-f="bal-card-bind">
-            <div class="ygo-bank-card">
+            <div class="ygo-bank-card" id="ygo-bind-card" data-bank="${esc(meta.bankTheme || "default")}">
               <div class="ygo-card-top">
-                <div class="ygo-chip-wrap">${chipSvg}${nfcSvg}</div>
-                <span class="ygo-brand-pill" id="ygo-card-brand">${esc(brand)}</span>
+                <div class="ygo-chip-wrap">${chipSvg}${nfcSvg}<span class="ygo-card-bank" id="ygo-card-bank">${esc(meta.bankName || "")}</span></div>
+                <span class="ygo-brand-slot" id="ygo-card-brand">${cardNetHTML(meta.brand, { height: 18, tone: "dark" })}</span>
               </div>
               <div class="ygo-card-field">
                 <label class="ygo-card-lbl" for="bal-card-num">Номер карты</label>
-                <input class="ygo-card-inp num" id="bal-card-num" name="cardNum" type="text" inputmode="numeric" autocomplete="cc-number" maxlength="19" placeholder="0000 0000 0000 0000" value="${esc(cb.cardNum || "")}">
+                <input class="ygo-card-inp num" id="bal-card-num" name="cardNum" type="text" inputmode="numeric" autocomplete="cc-number" maxlength="19" placeholder="2202 2000 0000 0000" value="${esc(cb.cardNum || "")}">
               </div>
               <div class="ygo-card-bottom2">
                 <div class="ygo-card-field">
@@ -2692,11 +2708,20 @@
         renderModal();
         return;
       }
-      const brand = detectCardBrand(cardDigits);
+      const meta = detectCardMeta(cardDigits);
+      const brand = meta.brand;
       const last4 = cardDigits.slice(-4);
       const cards = savedCardsForMarket(st).slice();
       const existing = cards.find((c) => c.last4 === last4 && c.exp === expNorm);
-      const cardObj = existing || { id: "card-" + last4 + "-" + Date.now().toString(36), brand, last4, exp: expNorm };
+      const cardObj = existing || {
+        id: "card-" + last4 + "-" + Date.now().toString(36),
+        brand,
+        bankName: meta.bankName,
+        bankTheme: meta.bankTheme,
+        bin: cardDigits.slice(0, 6),
+        last4,
+        exp: expNorm
+      };
       if (!existing) cards.unshift(cardObj);
       st.savedCards = cards;
       st.savedCard = cardObj;
@@ -2711,7 +2736,8 @@
         ui.balanceModal.error = "";
       }
       renderModal();
-      notifySide("Карта привязана", `${brand} •• ${last4} добавлена к способам оплаты (+3% комиссия)`);
+      const cardTitle = meta.bankName ? `${meta.bankName} · ${brand}` : brand;
+      notifySide("Карта привязана", `${cardTitle} •• ${last4} добавлена к способам оплаты (+3% комиссия)`);
     },
     "contact-verify-send": (form) => {
       const cv = ui.contactVerifyModal;
@@ -3045,8 +3071,15 @@
       if (el.value !== formatted) el.value = formatted;
       const target = ui.cardBindModal || ui.balanceModal;
       if (target) { target.cardNum = formatted; target.error = ""; }
-      const brandEl = typeof document !== "undefined" && document.getElementById ? document.getElementById("ygo-card-brand") : null;
-      if (brandEl) brandEl.textContent = detectCardBrand(digits);
+      const meta = detectCardMeta(digits);
+      if (typeof document !== "undefined" && document.getElementById) {
+        const brandEl = document.getElementById("ygo-card-brand");
+        if (brandEl) brandEl.innerHTML = cardNetHTML(meta.brand, { height: 18, tone: "dark" });
+        const bankEl = document.getElementById("ygo-card-bank");
+        if (bankEl) bankEl.textContent = meta.bankName || "";
+        const cardBox = document.getElementById("ygo-bind-card");
+        if (cardBox && typeof cardBox.setAttribute === "function") cardBox.setAttribute("data-bank", meta.bankTheme || "default");
+      }
       if (digits.length === 16 && typeof document !== "undefined" && document.getElementById) {
         const expEl = document.getElementById("bal-card-exp");
         if (expEl && typeof expEl.focus === "function") expEl.focus();
@@ -3160,8 +3193,19 @@
       else ui.payoutModal[k] = el.value;
       ui.payoutModal.error = "";
       if (k === "card") {
-        const brandEl = typeof document.getElementById === "function" ? document.getElementById("tc-payout-card-brand") : null;
-        if (brandEl) brandEl.textContent = detectCardBrand(el.value);
+        const meta = detectCardMeta(el.value);
+        if (typeof document.getElementById === "function") {
+          const brandEl = document.getElementById("tc-payout-card-brand");
+          if (brandEl) brandEl.innerHTML = cardNetHTML(meta.brand, { height: 18, tone: "dark" });
+          const bankEl = document.getElementById("tc-payout-card-bank");
+          if (bankEl) bankEl.textContent = meta.bankName || "";
+          const boxEl = document.getElementById("tc-payout-card-box");
+          if (boxEl && typeof boxEl.setAttribute === "function") boxEl.setAttribute("data-bank", meta.bankTheme || "default");
+          const tileNet = document.getElementById("tc-payout-tile-net");
+          if (tileNet) tileNet.innerHTML = cardNetHTML(meta.brand === "Карта РФ" ? "МИР" : meta.brand, { height: 15, tone: "light", defaultMir: true });
+          const tileTitle = document.getElementById("tc-payout-tile-title");
+          if (tileTitle) tileTitle.textContent = meta.bankName || "Карта РФ";
+        }
       }
       if (k === "amount") {
         const subBtn = typeof document.querySelector === "function" ? document.querySelector('[data-f="tc-payout"] button[type="submit"]') : null;

@@ -231,20 +231,167 @@
     '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5a5.6 5.6 0 0 1-2.4 3.6v3h3.9c2.3-2.1 3.5-5.2 3.5-8.8z"/><path fill="#34A853" d="M12 24c3.2 0 6-1.1 8-3l-3.9-3c-1.1.7-2.5 1.2-4.1 1.2-3.1 0-5.8-2.1-6.8-5H1.2v3.1A12 12 0 0 0 12 24z"/><path fill="#FBBC05" d="M5.2 14.2A7.2 7.2 0 0 1 4.8 12c0-.8.1-1.5.4-2.2V6.7H1.2A12 12 0 0 0 0 12c0 1.9.5 3.8 1.2 5.3l4-3.1z"/><path fill="#EA4335" d="M12 4.8c1.8 0 3.3.6 4.6 1.8l3.4-3.4A11.9 11.9 0 0 0 12 0 12 12 0 0 0 1.2 6.7l4 3.1c1-2.9 3.7-5 6.8-5z"/></svg>';
 
   function sbpLogoSVG(size) {
-    const h = Number(size) || 26;
-    const w = Math.round((h * 28) / 32);
+    const h = Number(size) || 28;
+    const w = Math.max(12, Math.round((h * 266) / 325));
     return (
-      `<svg width="${w}" height="${h}" viewBox="0 0 28 32" fill="none" aria-hidden="true">` +
-      '<polygon points="4,8.2 14,2 14,10.2 9.4,13.1" fill="#5B57A2"/>' +
-      '<polygon points="14,2 25.5,9.2 18.2,13.8 14,11.1" fill="#D90751"/>' +
-      '<polygon points="4,8.2 4,23.8 9.6,20.2 9.6,11.8" fill="#1D1346"/>' +
-      '<polygon points="4,23.8 14,30 14,21.8 9.4,18.9" fill="#23408F"/>' +
-      '<polygon points="14,30 25.5,22.8 18.2,18.2 14,20.9" fill="#24A854"/>' +
-      '<polygon points="14,11.1 25.5,9.2 18.2,16 14,16" fill="#F47B20"/>' +
-      '<polygon points="14,16 18.2,16 25.5,22.8 14,20.9" fill="#FAB718"/>' +
-      '<polygon points="9.6,11.8 14,16 9.6,20.2" fill="#1F9D55"/>' +
+      `<svg class="ygo-sbp-svg" width="${w}" height="${h}" viewBox="0 0 266 325" fill="none" role="img" aria-label="СБП">` +
+      "<title>СБП</title>" +
+      '<polygon points="114,0 152,70 152,116 114,140" fill="#F1BA46"/>' +
+      '<polygon points="114,0 266,93 188,93 152,70" fill="#E07C3E"/>' +
+      '<polygon points="0,255 40,183 152,116 152,163" fill="#8E4D91"/>' +
+      '<polygon points="152,116 188,93 266,93 152,163" fill="#C72C54"/>' +
+      '<polygon points="0,70 40,142 40,183 0,255" fill="#5D579F"/>' +
+      '<polygon points="114,186 152,209 152,255 114,325" fill="#76AF46"/>' +
+      '<polygon points="114,325 152,255 188,232 266,232" fill="#377D3F"/>' +
+      '<polygon points="0,70 266,232 188,232 40,142" fill="#4286C5"/>' +
       "</svg>"
     );
+  }
+
+  let _mirGradSeq = 0;
+
+  function mirLogoSVG(opts) {
+    opts = opts || {};
+    const h = Number(opts.height) || 16;
+    const w = Math.round((h * 90) / 26);
+    const isDark = opts.tone === "dark";
+    const ink = isDark ? "#34D06E" : "#1F9E52";
+    const gid = "mir-wing-" + (++_mirGradSeq);
+    return (
+      `<svg class="ygo-net-svg ygo-mir-svg" width="${w}" height="${h}" viewBox="0 0 90 26" fill="none" role="img" aria-label="МИР">` +
+      "<title>МИР</title>" +
+      `<defs><linearGradient id="${gid}" x1="60.4" y1="7" x2="89.2" y2="7" gradientUnits="userSpaceOnUse">` +
+      '<stop offset="0%" stop-color="#0095D9"/><stop offset="100%" stop-color="#20C4F4"/>' +
+      `</linearGradient></defs>` +
+      `<path d="M0 24V4h7.4c2.1 0 3.7 1.1 4.6 3l3.1 7.2L18.2 7c.9-1.9 2.5-3 4.6-3h5.4v20h-6V12.6L17.4 24h-4.6L8 12.6V24H0Z" fill="${ink}"/>` +
+      `<path d="M33 24V4h6v11.6L48.4 4h6.4v20h-6V12.4L39.4 24H33Z" fill="${ink}"/>` +
+      `<path d="M61 24V12.4h23.8c-.9 3.4-3.7 5.4-7.9 5.4H67.4V24H61Z" fill="${ink}"/>` +
+      `<path d="M60.4 4h20.4c4.7 0 8.1 2.7 8.4 6.6H70.4c-5.4 0-9.1-2.5-10-6.6Z" fill="url(#${gid})"/>` +
+      "</svg>"
+    );
+  }
+
+  function cardNetworkLogoHTML(brand, opts) {
+    opts = opts || {};
+    const h = Number(opts.height) || 16;
+    const isDark = opts.tone === "dark";
+    const b = String(brand || "").trim();
+    if (b === "МИР" || (opts.defaultMir && (!b || b === "Карта РФ"))) {
+      return mirLogoSVG({ height: h, tone: isDark ? "dark" : "light" });
+    }
+    if (b === "VISA") {
+      const vw = Math.round((h * 56) / 18);
+      const vInk = isDark ? "#FFFFFF" : "#1A1F71";
+      return (
+        `<svg class="ygo-net-svg ygo-visa-svg" width="${vw}" height="${h}" viewBox="0 0 56 18" fill="none" role="img" aria-label="VISA">` +
+        "<title>VISA</title>" +
+        `<text x="0" y="15.5" font-family="Inter, Arial, sans-serif" font-style="italic" font-weight="900" font-size="18" letter-spacing="-0.8" fill="${vInk}">VISA</text>` +
+        "</svg>"
+      );
+    }
+    if (b === "Mastercard") {
+      const mh = Math.max(16, Math.round(h * 1.15));
+      const mw = Math.round((mh * 32) / 20);
+      const mcSvg =
+        `<svg class="ygo-net-svg ygo-mc-svg" width="${mw}" height="${mh}" viewBox="0 0 32 20" fill="none" role="img" aria-label="Mastercard">` +
+        "<title>Mastercard</title>" +
+        '<circle cx="11" cy="10" r="8.5" fill="#EB001B"/>' +
+        '<circle cx="21" cy="10" r="8.5" fill="#F79E1B"/>' +
+        '<path d="M16 3.3a8.5 8.5 0 0 0 0 13.4 8.5 8.5 0 0 0 0-13.4Z" fill="#FF5F00"/>' +
+        "</svg>";
+      return opts.showLabel ? `${mcSvg}<span class="ygo-net-mc-lbl">Mastercard</span>` : mcSvg;
+    }
+    if (b === "UnionPay") {
+      const uh = Math.max(16, Math.round(h * 1.15));
+      const uw = Math.round((uh * 32) / 20);
+      return (
+        `<svg class="ygo-net-svg ygo-up-svg" width="${uw}" height="${uh}" viewBox="0 0 32 20" fill="none" role="img" aria-label="UnionPay">` +
+        "<title>UnionPay</title>" +
+        '<rect x="1" y="2" width="11" height="16" rx="3" fill="#E21836"/>' +
+        '<rect x="10.5" y="2" width="11" height="16" rx="3" fill="#00447C"/>' +
+        '<rect x="20" y="2" width="11" height="16" rx="3" fill="#007B84"/>' +
+        '<text x="5.5" y="13.5" font-family="Inter, Arial, sans-serif" font-weight="800" font-size="8.5" fill="#FFFFFF">UP</text>' +
+        "</svg>"
+      );
+    }
+    return `<span class="ygo-net-fallback${isDark ? " is-dark" : ""}">Карта РФ</span>`;
+  }
+
+  const CARD_BANK_RULES = [
+    ["220024", "ВТБ", "vtb"],
+    ["220040", "ВТБ", "vtb"],
+    ["220065", "ВТБ", "vtb"],
+    ["220224", "ВТБ", "vtb"],
+    ["220220", "СберБанк", "sber"],
+    ["220221", "СберБанк", "sber"],
+    ["220222", "СберБанк", "sber"],
+    ["220070", "Т-Банк", "tbank"],
+    ["437772", "Т-Банк", "tbank"],
+    ["437773", "Т-Банк", "tbank"],
+    ["521324", "Т-Банк", "tbank"],
+    ["553691", "Т-Банк", "tbank"],
+    ["518901", "Т-Банк", "tbank"],
+    ["220015", "Альфа-Банк", "alfa"],
+    ["220424", "Ozon Банк", "ozon"],
+    ["220432", "Ozon Банк", "ozon"],
+    ["220431", "Яндекс Банк", "yandex"],
+    ["220341", "Райффайзенбанк", "raif"],
+    ["2202", "СберБанк", "sber"],
+    ["4276", "СберБанк", "sber"],
+    ["4279", "СберБанк", "sber"],
+    ["4274", "СберБанк", "sber"],
+    ["4048", "СберБанк", "sber"],
+    ["5469", "СберБанк", "sber"],
+    ["5336", "СберБанк", "sber"],
+    ["5228", "СберБанк", "sber"],
+    ["5484", "СберБанк", "sber"],
+    ["4272", "ВТБ", "vtb"],
+    ["4366", "ВТБ", "vtb"],
+    ["4188", "ВТБ", "vtb"],
+    ["4475", "ВТБ", "vtb"],
+    ["5368", "ВТБ", "vtb"],
+    ["5543", "ВТБ", "vtb"],
+    ["5278", "ВТБ", "vtb"],
+    ["4377", "Т-Банк", "tbank"],
+    ["5280", "Т-Банк", "tbank"],
+    ["5213", "Т-Банк", "tbank"],
+    ["5536", "Т-Банк", "tbank"],
+    ["4154", "Альфа-Банк", "alfa"],
+    ["4584", "Альфа-Банк", "alfa"],
+    ["4779", "Альфа-Банк", "alfa"],
+    ["5486", "Альфа-Банк", "alfa"],
+    ["5559", "Альфа-Банк", "alfa"],
+    ["5101", "Альфа-Банк", "alfa"],
+    ["5211", "Альфа-Банк", "alfa"],
+    ["5489", "Газпромбанк", "gpb"],
+    ["5264", "Газпромбанк", "gpb"]
+  ];
+
+  function detectCardMeta(rawNum) {
+    const d = String(rawNum || "").replace(/\D+/g, "");
+    let brand = "Карта РФ";
+    if (!d) {
+      brand = "МИР";
+    } else if (/^220[0-4]/.test(d) || d === "2" || d === "22" || d === "220") {
+      brand = "МИР";
+    } else if (/^5[1-5]/.test(d) || /^(?:222[1-9]|22[3-9]\d|2[3-6]\d{2}|27[01]\d|2720)/.test(d)) {
+      brand = "Mastercard";
+    } else if (/^4/.test(d)) {
+      brand = "VISA";
+    } else if (/^62/.test(d)) {
+      brand = "UnionPay";
+    }
+    let bankName = "";
+    let bankTheme = "default";
+    for (let i = 0; i < CARD_BANK_RULES.length; i++) {
+      const rule = CARD_BANK_RULES[i];
+      if (d.startsWith(rule[0])) {
+        bankName = rule[1];
+        bankTheme = rule[2];
+        break;
+      }
+    }
+    return { brand, bankName, bankTheme, bin: d.slice(0, 6) };
   }
 
   function getIconCatalog(dark) {
@@ -320,6 +467,9 @@
     brandLogoSVG,
     GOOGLE_SVG,
     sbpLogoSVG,
+    mirLogoSVG,
+    cardNetworkLogoHTML,
+    detectCardMeta,
     getIconCatalog,
     triggerIconTileAnim
   };

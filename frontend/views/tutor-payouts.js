@@ -239,11 +239,20 @@
       { val: summary.availableRub, label: `Всё · ${summary.availableRub.toLocaleString("ru-RU")} ₽` }
     ];
     const sbpMark = (EGE.ui && typeof EGE.ui.sbpLogoSVG === "function")
-      ? EGE.ui.sbpLogoSVG(26)
-      : '<svg width="22" height="25" viewBox="0 0 28 32" fill="none" aria-hidden="true"><polygon points="4,8.2 14,2 14,10.2 9.4,13.1" fill="#5B57A2"/><polygon points="14,2 25.5,9.2 18.2,13.8 14,11.1" fill="#D90751"/><polygon points="4,8.2 4,23.8 9.6,20.2 9.6,11.8" fill="#1D1346"/><polygon points="4,23.8 14,30 14,21.8 9.4,18.9" fill="#23408F"/><polygon points="14,30 25.5,22.8 18.2,18.2 14,20.9" fill="#24A854"/><polygon points="14,11.1 25.5,9.2 18.2,16 14,16" fill="#F47B20"/><polygon points="14,16 18.2,16 25.5,22.8 14,20.9" fill="#FAB718"/><polygon points="9.6,11.8 14,16 9.6,20.2" fill="#1F9D55"/></svg>';
+      ? EGE.ui.sbpLogoSVG(28)
+      : '<svg class="ygo-sbp-svg" width="23" height="28" viewBox="0 0 266 325" fill="none" role="img" aria-label="СБП"><title>СБП</title><polygon points="114,0 152,70 152,116 114,140" fill="#F1BA46"/><polygon points="114,0 266,93 188,93 152,70" fill="#E07C3E"/><polygon points="0,255 40,183 152,116 152,163" fill="#8E4D91"/><polygon points="152,116 188,93 266,93 152,163" fill="#C72C54"/><polygon points="0,70 40,142 40,183 0,255" fill="#5D579F"/><polygon points="114,186 152,209 152,255 114,325" fill="#76AF46"/><polygon points="114,325 152,255 188,232 266,232" fill="#377D3F"/><polygon points="0,70 266,232 188,232 40,142" fill="#4286C5"/></svg>';
     const checkSvg = '<span class="ygo-check" aria-hidden="true">' + icon("check") + '</span>';
     const cardDigits = String(card || "").replace(/\D+/g, "");
-    const cardBrand = /^2/.test(cardDigits) ? "МИР" : (/^4/.test(cardDigits) ? "VISA" : (/^5/.test(cardDigits) ? "Mastercard" : (/^62/.test(cardDigits) ? "UnionPay" : "Карта РФ")));
+    const cardMeta = (EGE.ui && typeof EGE.ui.detectCardMeta === "function")
+      ? EGE.ui.detectCardMeta(cardDigits)
+      : {
+          brand: (!cardDigits || /^220[0-4]/.test(cardDigits)) ? "МИР" : (/^4/.test(cardDigits) ? "VISA" : (/^5/.test(cardDigits) ? "Mastercard" : (/^62/.test(cardDigits) ? "UnionPay" : "Карта РФ"))),
+          bankName: "",
+          bankTheme: "default"
+        };
+    const netHTML = (brand, opts) => (EGE.ui && typeof EGE.ui.cardNetworkLogoHTML === "function")
+      ? EGE.ui.cardNetworkLogoHTML(brand, opts)
+      : `<span class="ygo-net-fallback">${esc(brand || "МИР")}</span>`;
     const chipSvg = '<svg width="36" height="26" viewBox="0 0 36 26" fill="none" aria-hidden="true"><rect x=".75" y=".75" width="34.5" height="24.5" rx="5.25" fill="#e5c07b" fill-opacity=".9" stroke="#bfa05a" stroke-width="1.2"/><path d="M12 1v24M24 1v24M1 9.5h11M1 16.5h11M24 9.5h11M24 16.5h11" stroke="#8c6d2c" stroke-width="1.1"/></svg>';
     const nfcSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 16a6 6 0 0 1 0-8"/><path d="M10 18a10 10 0 0 1 0-12"/><path d="M14 20a14 14 0 0 1 0-16"/></svg>';
 
@@ -277,11 +286,11 @@
               </button>
               <button type="button" class="ygo-pay-tile${method === "card" ? " is-on" : ""}" data-a="tc-payout-method" data-v="card" role="radio" aria-checked="${method === "card" ? "true" : "false"}">
                 <div class="ygo-tile-top">
-                  <span class="ygo-card-net">${esc(cardBrand)}</span>
+                  <span class="ygo-tile-net" id="tc-payout-tile-net">${netHTML(cardMeta.brand === "Карта РФ" ? "МИР" : cardMeta.brand, { height: 15, tone: "light", defaultMir: true })}</span>
                   ${method === "card" ? checkSvg : ""}
                 </div>
                 <div class="ygo-tile-copy">
-                  <b>Карта РФ</b>
+                  <b id="tc-payout-tile-title">${esc(cardMeta.bankName || "Карта РФ")}</b>
                   <span>Зачисление 1–5 мин</span>
                 </div>
               </button>
@@ -302,10 +311,10 @@
                     <input class="input num" id="tc-payout-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+7 (914) 210-01-99" value="${esc(phone)}" data-tc-payout="phone">
                   </div>
                 </div>`
-              : `<div class="ygo-bank-card">
+              : `<div class="ygo-bank-card" id="tc-payout-card-box" data-bank="${esc(cardMeta.bankTheme || "default")}">
                   <div class="ygo-card-top">
-                    <div class="ygo-chip-wrap">${chipSvg}${nfcSvg}</div>
-                    <span class="ygo-brand-pill" id="tc-payout-card-brand">${esc(cardBrand)}</span>
+                    <div class="ygo-chip-wrap">${chipSvg}${nfcSvg}<span class="ygo-card-bank" id="tc-payout-card-bank">${esc(cardMeta.bankName || "")}</span></div>
+                    <span class="ygo-brand-slot" id="tc-payout-card-brand">${netHTML(cardMeta.brand, { height: 18, tone: "dark" })}</span>
                   </div>
                   <div class="ygo-card-field">
                     <label class="ygo-card-lbl" for="tc-payout-card">Номер карты для зачисления</label>

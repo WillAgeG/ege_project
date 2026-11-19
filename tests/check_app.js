@@ -814,7 +814,9 @@
       balModalHtml.includes("ygo-pay-rail") &&
       balModalHtml.includes("<b>СБП</b>") &&
       !balModalHtml.includes("СБП · Банк") &&
-      balModalHtml.includes("#D90751") &&
+      balModalHtml.includes('viewBox="0 0 266 325"') &&
+      balModalHtml.includes("#4286C5") &&
+      balModalHtml.includes("#C72C54") &&
       balModalHtml.includes('data-a="bal-method" data-v="sbp"') &&
       balModalHtml.includes('data-a="bal-card-open"') &&
       balModalHtml.includes("+3%") &&
@@ -826,6 +828,24 @@
       !balModalHtml.includes("notice warn"),
       "expected Yandex Go horizontal L->R payment rail above amount input without tariffs or rounded wrapper boxes"
     );
+    const detectMetaFn = globalThis.EGE && globalThis.EGE.ui && globalThis.EGE.ui.detectCardMeta;
+    assert(typeof detectMetaFn === "function", "expected EGE.ui.detectCardMeta helper to be exported");
+    assert(
+      detectMetaFn("2202 2012 3456 9012").brand === "МИР" && detectMetaFn("2202 2012 3456 9012").bankName === "СберБанк" &&
+      detectMetaFn("2200 2412 3456 9012").brand === "МИР" && detectMetaFn("2200 2412 3456 9012").bankName === "ВТБ" &&
+      detectMetaFn("2202 2412 3456 9012").brand === "МИР" && detectMetaFn("2202 2412 3456 9012").bankName === "ВТБ" &&
+      detectMetaFn("2200 7012 3456 9012").brand === "МИР" && detectMetaFn("2200 7012 3456 9012").bankName === "Т-Банк" &&
+      detectMetaFn("2200 1512 3456 9012").brand === "МИР" && detectMetaFn("2200 1512 3456 9012").bankName === "Альфа-Банк" &&
+      detectMetaFn("2204 2412 3456 9012").brand === "МИР" && detectMetaFn("2204 2412 3456 9012").bankName === "Ozon Банк" &&
+      detectMetaFn("2204 3112 3456 9012").brand === "МИР" && detectMetaFn("2204 3112 3456 9012").bankName === "Яндекс Банк" &&
+      detectMetaFn("2203 4112 3456 9012").brand === "МИР" && detectMetaFn("2203 4112 3456 9012").bankName === "Райффайзенбанк" &&
+      detectMetaFn("4276 0000 0000 1234").brand === "VISA" && detectMetaFn("4276 0000 0000 1234").bankName === "СберБанк" &&
+      detectMetaFn("5536 9100 0000 1234").brand === "Mastercard" && detectMetaFn("5536 9100 0000 1234").bankName === "Т-Банк" &&
+      detectMetaFn("4154 0000 0000 1234").brand === "VISA" && detectMetaFn("4154 0000 0000 1234").bankName === "Альфа-Банк" &&
+      detectMetaFn("2221 0000 0000 1234").brand === "Mastercard" &&
+      detectMetaFn("6200 0000 0000 1234").brand === "UnionPay",
+      "expected accurate Russian BIN payment network and issuing bank detection"
+    );
     env4.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "bal-custom" }, elements: { amount: { value: "300" } } }) }, preventDefault() {} });
     await flushMicrotasks(2);
     assert(env4.elements.get("modal-root").innerHTML.includes("Первое пополнение на занятия — минимум 490 ₽"), "expected first top-up below 490 ₽ to be rejected");
@@ -835,11 +855,13 @@
     assert(
       balCardHtml.includes("is-card-bind-sheet") &&
       balCardHtml.includes("ygo-bank-card") &&
+      balCardHtml.includes("ygo-mir-svg") &&
+      balCardHtml.includes("МИР") &&
       balCardHtml.includes('id="bal-card-num"') &&
       balCardHtml.includes('id="bal-card-exp"') &&
       balCardHtml.includes('id="bal-card-cvc"') &&
       balCardHtml.includes("Привязать карту"),
-      "expected Yandex Go dark virtual card binding sheet when clicking Add Card"
+      "expected Yandex Go dark virtual card binding sheet with official MIR logo SVG when clicking Add Card"
     );
     env4.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "bal-card-bind" }, elements: { cardNum: { value: "2202" } } }) }, preventDefault() {} });
     await flushMicrotasks(2);
@@ -861,10 +883,12 @@
     const afterBindHtml = env4.elements.get("modal-root").innerHTML;
     assert(
       afterBindHtml.includes("is-balance-sheet") &&
+      afterBindHtml.includes("ygo-mir-svg") &&
       afterBindHtml.includes("МИР") &&
+      afterBindHtml.includes("СберБанк") &&
       afterBindHtml.includes("•• 9012") &&
       afterBindHtml.includes("Комиссия карты 3%"),
-      "expected bound MIR card •• 9012 to appear selected in horizontal rail with +3% fee calculation"
+      "expected bound MIR Sberbank card •• 9012 with MIR SVG logo to appear selected in horizontal rail with +3% fee calculation"
     );
     clickAction(env4, { a: "bal-method", v: "sbp" });
     await flushMicrotasks(2);
@@ -2370,15 +2394,24 @@
       payoutSbpHtml.includes("bal-flat-sec") &&
       payoutSbpHtml.includes("ygo-pay-rail") &&
       payoutSbpHtml.includes("<b>СБП</b>") &&
-      payoutSbpHtml.includes("#D90751") &&
+      payoutSbpHtml.includes('viewBox="0 0 266 325"') &&
+      payoutSbpHtml.includes("#4286C5") &&
+      payoutSbpHtml.includes("#C72C54") &&
+      payoutSbpHtml.includes("ygo-mir-svg") &&
       payoutSbpHtml.includes("bal-amount-box") &&
       payoutSbpHtml.includes("bal-submit-btn"),
-      "expected redesigned flat Yandex Go + SBP payout modal"
+      "expected redesigned flat Yandex Go + exact SBP & MIR SVG payout modal"
     );
     clickAction(env5, { a: "tc-payout-method", v: "card" });
     await flushMicrotasks(1);
     const payoutCardHtml = env5.elements.get("modal-root").innerHTML;
-    assert(payoutCardHtml.includes('id="tc-payout-card"') && payoutCardHtml.includes("ygo-bank-card"), "expected switching payout method to card to render dark Yandex Go card box with card input");
+    assert(
+      payoutCardHtml.includes('id="tc-payout-card"') &&
+      payoutCardHtml.includes("ygo-bank-card") &&
+      payoutCardHtml.includes("ygo-mir-svg") &&
+      payoutCardHtml.includes("Т-Банк"),
+      "expected switching payout method to card to render dark Yandex Go card box with MIR SVG and T-Bank detection"
+    );
     clickAction(env5, { a: "tc-payout-method", v: "sbp" });
     clickAction(env5, { a: "tc-payout-npd" });
     clickAction(env5, { a: "tc-payout-chip", v: "5000" });
