@@ -16,6 +16,7 @@
     getCtx, configure, getTDATA, getTutorSlug, syncTutorCalendar, publishRtUpdate,
     formatPhone, formatTelegram, formatCardMask, normalizeChannelList, normalizeLeadList,
     copyStr, formatTimestamp, defaultState, tState, saveState,
+    consumeSwitchAnimClass,
     ensureTelemostUrl, resolveLessonContacts, calcLessonSplit, renderLessonNotifyHTML,
     checkAutoBumpDue, formatCountdown, autoBumpRemainingMs, manualBumpRemainingMs,
     ensureCountdownTimer, ensureRealtimeConnected, clampStep, profileCompleteness,
@@ -239,7 +240,7 @@
           <b class="small">Автоотправка ученикам</b>
           <span class="small muted">${waCfg.enabled ? "Активна для выбранных каналов" : "Приостановлена"}</span>
         </div>
-        <button type="button" class="tc-switch-pill is-master${waCfg.enabled ? " is-on" : ""}" data-a="tc-wa-global-toggle" aria-pressed="${!!waCfg.enabled}"><i class="tc-switch-track" aria-hidden="true"></i><span>${waCfg.enabled ? "Вкл" : "Выкл"}</span></button>
+        <button type="button" class="tc-switch-pill is-master${waCfg.enabled ? " is-on" : ""}${consumeSwitchAnimClass("wa-global")}" data-a="tc-wa-global-toggle" aria-pressed="${!!waCfg.enabled}"><i class="tc-switch-track" aria-hidden="true"></i><span>${waCfg.enabled ? "Вкл" : "Выкл"}</span></button>
       </div>
       <div class="stack" style="gap:6px">
         <span class="small muted">Каналы автоматической отправки:</span>

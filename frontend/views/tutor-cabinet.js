@@ -22,6 +22,7 @@
     getCtx, configure, getTDATA, getTutorSlug, syncTutorCalendar, publishRtUpdate,
     formatPhone, formatTelegram, formatCardMask, normalizeChannelList, normalizeLeadList,
     copyStr, formatTimestamp, defaultState, tState, saveState,
+    markSwitchAnim, consumeSwitchAnimClass,
     ensureTelemostUrl, resolveLessonContacts, getLessonNotifyConfig, renderLessonNotifyHTML,
     checkAutoBumpDue, formatCountdown, autoBumpRemainingMs, manualBumpRemainingMs,
     ensureCountdownTimer, ensureRealtimeConnected, clampStep, profileCompleteness,
@@ -294,39 +295,37 @@
       </div>
 
       <div class="tc-autobump-card" aria-label="Продвижение анкеты в выдаче">
-        <div class="row between" style="gap:10px;flex-wrap:wrap;align-items:flex-start">
-          <div class="stack" style="gap:4px;min-width:0;flex:1 1 220px">
-            <span class="chip gold tc-bump-chip">${icon("spark")}<span>Поднятие · 4 ч + Авто-24ч (0 ₽)</span></span>
+        <div class="tc-bump-head">
+          <div class="tc-bump-title-wrap">
             <h2 class="h2">${st.autoBump24h ? "Автоподнятие 24 ч активно" : "Автоподнятие на паузе"}</h2>
-            <p class="small ink2">Анкета автоматически поднимается в топ выдачи /market каждые 24 часа. Дополнительно можно поднять вручную раз в 4 часа.</p>
+            <div class="tc-bump-sub">${st.autoBump24h ? `Через <b class="num savings-gold-txt" data-tc-countdown>${formatCountdown(remMs)}</b> · 0 ₽` : "Бесплатно каждые 24 ч · 0 ₽"}</div>
           </div>
-          <button type="button" class="btn ${st.autoBump24h ? "confirm" : "gold"} sm tc-bump-toggle-btn" data-a="tc-autobump-toggle" aria-pressed="${!!st.autoBump24h}">
-            ${st.autoBump24h ? "✓ Авто-24ч включено" : "Включить авто-24ч"}
-          </button>
+          <button type="button" class="tc-switch-pill${st.autoBump24h ? " is-on" : ""}${consumeSwitchAnimClass("autobump")}" data-a="tc-autobump-toggle" aria-pressed="${!!st.autoBump24h}"><i class="tc-switch-track" aria-hidden="true"></i><span>${st.autoBump24h ? "Вкл" : "Выкл"}</span></button>
         </div>
 
-        <div class="tc-two-col">
-          <div class="tc-autobump-panel stack" style="gap:5px">
-            <span class="small muted">До следующего автоподнятия (24 ч)</span>
-            <b class="num savings-gold-txt" style="font-size:24px" data-tc-countdown>${st.autoBump24h ? formatCountdown(remMs) : "Пауза"}</b>
-            <span class="small muted">Последнее автопродвижение: <b style="color:var(--ink)">${esc(lastAutoLabel)}</b></span>
-            <span class="small muted">Всего поднятий: <b class="num">${st.bumpCount || 1}</b></span>
-          </div>
-          <div class="tc-autobump-panel stack" style="gap:8px">
+        <div class="tc-bump-actions">
+          <button type="button" class="btn sakha-pattern tc-bump-manual-btn${mRem > 0 ? " is-confirmed" : ""}" data-a="tc-bump"${mRem > 0 ? " disabled" : ""}>
+            ${sakhaPatternSVG("rhombus", 18)}
+            <span>${mRem > 0 ? `✓ Поднята · через <b class="num" data-tc-manual-countdown>${formatCountdown(mRem)}</b>` : "Поднять анкету (раз в 4 ч)"}</span>
+            ${sakhaPatternSVG("lattice", 18)}
+          </button>
+          <button type="button" class="btn soft sm tc-bump-more-btn" data-a="tc-bump-details-toggle" aria-expanded="${!!st.bumpDetailsOpen}">${st.bumpDetailsOpen ? "Скрыть" : "Подробнее"}</button>
+        </div>
+
+        ${st.bumpDetailsOpen ? `<div class="tc-autobump-panel stack" style="gap:10px">
+          <p class="small ink2" style="margin:0">Анкета автоматически поднимается в топ выдачи /market каждые 24 часа. Дополнительно можно поднять вручную раз в 4 часа.</p>
+          <div class="stack" style="gap:6px">
             <span class="small muted">Пиковое время суточного автоподнятия</span>
             <div class="tc-bump-hours-grid">
               ${AUTO_BUMP_HOURS.map((hr) => `<button type="button" class="chip-btn${st.autoBumpHour === hr ? " on" : ""}" data-a="tc-autobump-hour" data-hour="${hr}">${hr} Якт</button>`).join("")}
             </div>
-            <div class="small muted">Последнее ручное поднятие: <b style="color:var(--ink)">${esc(lastManualLabel)}</b> · интервал 4 ч</div>
-            <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
-              <button type="button" class="btn sakha-pattern tc-bump-manual-btn${mRem > 0 ? " is-confirmed" : ""}" data-a="tc-bump"${mRem > 0 ? " disabled" : ""}>
-                ${sakhaPatternSVG("rhombus", 18)}
-                <span>${mRem > 0 ? `✓ Поднята · через <b class="num" data-tc-manual-countdown>${formatCountdown(mRem)}</b>` : "Поднять анкету (раз в 4 ч)"}</span>
-                ${sakhaPatternSVG("lattice", 18)}
-              </button>
-            </div>
           </div>
-        </div>
+          <div class="tc-bump-meta-list stack">
+            <span>Последнее автопродвижение: <b style="color:var(--ink)">${esc(lastAutoLabel)}</b></span>
+            <span>Последнее ручное поднятие: <b style="color:var(--ink)">${esc(lastManualLabel)}</b> · интервал 4 ч</span>
+            <span>Всего поднятий: <b class="num" style="color:var(--ink)">${st.bumpCount || 1}</b></span>
+          </div>
+        </div>` : ""}
       </div>
 
       ${previewCard ? `<div class="stack" style="gap:8px"><div class="eyebrow">Живой вид вашей карточки для учеников</div>${previewCard}</div>` : ""}
@@ -612,8 +611,16 @@
       return true;
     }
 
+    if (act === "tc-bump-details-toggle") {
+      st.bumpDetailsOpen = !st.bumpDetailsOpen;
+      saveState();
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      return true;
+    }
+
     if (act === "tc-autobump-toggle") {
       st.autoBump24h = !st.autoBump24h;
+      markSwitchAnim("autobump", st.autoBump24h);
       if (st.autoBump24h) {
         const now = Date.now();
         st.lastAutoBumpAt = now;
@@ -677,6 +684,7 @@
     if (act === "tc-wa-global-toggle") {
       if (!st.waSettings) st.waSettings = { enabled: true, lead: "2h", channels: ["wa", "tg", "max"], template: "" };
       st.waSettings.enabled = !st.waSettings.enabled;
+      markSwitchAnim("wa-global", st.waSettings.enabled);
       saveState();
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
       if (typeof getCtx().toast === "function") getCtx().toast(st.waSettings.enabled ? "Автоуведомления (WA · TG · MAX) включены" : "Автоуведомления на паузе");
@@ -713,6 +721,7 @@
       if (!st.lessonAutoNotify || typeof st.lessonAutoNotify !== "object") st.lessonAutoNotify = {};
       const stu = d.stuId ? (st.students || []).find((x) => x.id === d.stuId) : null;
       const prev = getLessonNotifyConfig(st, id, stu);
+      let nextEnabled = false;
       if (prev.leads.length > 0) {
         const savedLeads = prev.leads.slice();
         st.lessonAutoNotify[id] = { enabled: false, leads: [], lastLeads: savedLeads };
@@ -722,12 +731,14 @@
         }
       } else {
         const restored = (prev.lastLeads && prev.lastLeads.length) ? prev.lastLeads.slice() : DEFAULT_WA_LEADS.slice();
-        st.lessonAutoNotify[id] = { enabled: true, leads: restored, lastLeads: restored.slice() };
+        nextEnabled = restored.length > 0;
+        st.lessonAutoNotify[id] = { enabled: nextEnabled, leads: restored, lastLeads: restored.slice() };
         if (stu) {
           stu.autoLeads = restored.slice();
-          stu.autoNotify = true;
+          stu.autoNotify = nextEnabled;
         }
       }
+      markSwitchAnim("lesson:" + id, nextEnabled);
       saveState();
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
       return true;
@@ -738,6 +749,7 @@
       if (!WA_LEAD_OPTIONS.some((o) => o.id === d.v)) return false;
       const stu = d.stuId ? (st.students || []).find((x) => x.id === d.stuId) : null;
       const prev = getLessonNotifyConfig(st, id, stu);
+      const wasEnabled = prev.enabled;
       const nextLeads = prev.leads.slice();
       const idx = nextLeads.indexOf(d.v);
       if (idx >= 0) nextLeads.splice(idx, 1);
@@ -750,6 +762,7 @@
         stu.autoLeads = normalized.slice();
         stu.autoNotify = nextEnabled;
       }
+      if (wasEnabled !== nextEnabled) markSwitchAnim("lesson:" + id, nextEnabled);
       saveState();
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
       return true;

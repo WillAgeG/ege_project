@@ -2408,18 +2408,20 @@
     const notifyOffHtml = env5.elements.get("main").innerHTML;
     assert(
       notifyOffHtml.includes('data-a="tc-lesson-notify-toggle" data-id="tc-req-1" data-stu-id="st-alina" aria-pressed="false"') &&
+      notifyOffHtml.includes("tc-switch-pill is-anim-off") &&
       notifyOffHtml.includes('data-a="tc-lesson-lead-toggle" data-id="tc-req-1" data-stu-id="st-alina" data-v="24h" aria-pressed="false"') &&
       notifyOffHtml.includes('data-a="tc-lesson-lead-toggle" data-id="tc-req-1" data-stu-id="st-alina" data-v="1h" aria-pressed="false"') &&
       notifyOffHtml.includes('data-a="tc-lesson-lead-toggle" data-id="tc-req-1" data-stu-id="st-alina" data-v="15m" aria-pressed="false"'),
-      "expected turning Выкл to clear all 3 lead pills"
+      "expected turning Выкл to clear all 3 lead pills and emit is-anim-off"
     );
     clickAction(env5, { a: "tc-lesson-lead-toggle", id: "tc-req-1", stuId: "st-alina", v: "15m" });
     await flushMicrotasks(1);
     const notifySyncOnHtml = env5.elements.get("main").innerHTML;
     assert(
       notifySyncOnHtml.includes('data-a="tc-lesson-lead-toggle" data-id="tc-req-1" data-stu-id="st-alina" data-v="15m" aria-pressed="true"') &&
-      notifySyncOnHtml.includes('data-a="tc-lesson-notify-toggle" data-id="tc-req-1" data-stu-id="st-alina" aria-pressed="true"'),
-      "expected picking a timing while Выкл to turn Вкл automatically"
+      notifySyncOnHtml.includes('data-a="tc-lesson-notify-toggle" data-id="tc-req-1" data-stu-id="st-alina" aria-pressed="true"') &&
+      notifySyncOnHtml.includes("tc-switch-pill is-on is-anim-on"),
+      "expected picking a timing while Выкл to turn Вкл automatically with is-anim-on"
     );
     clickAction(env5, { a: "tc-lesson-notify-toggle", id: "tc-req-1", stuId: "st-alina" });
     await flushMicrotasks(1);
@@ -2427,8 +2429,9 @@
     await flushMicrotasks(1);
     assert(
       env5.elements.get("main").innerHTML.includes('data-a="tc-lesson-notify-toggle" data-id="tc-req-1" data-stu-id="st-alina" aria-pressed="true"') &&
+      env5.elements.get("main").innerHTML.includes("tc-switch-pill is-on is-anim-on") &&
       env5.elements.get("main").innerHTML.includes('data-a="tc-lesson-lead-toggle" data-id="tc-req-1" data-stu-id="st-alina" data-v="15m" aria-pressed="true"'),
-      "expected toggling Выкл -> Вкл to restore last selected timings"
+      "expected toggling Выкл -> Вкл to restore last selected timings and emit is-anim-on"
     );
     clickAction(env5, { a: "tc-sched-alt-open", id: "tc-req-3" });
     await flushMicrotasks(2);
@@ -2449,9 +2452,14 @@
       !tcProfHtml.includes("Профиль hh") &&
       !tcProfHtml.includes("hh-multi-chips") &&
       !tcProfHtml.includes("tc-skill-toggle") &&
+      !tcProfHtml.includes('data-a="tc-autobump-hour"') &&
       tcProfHtml.includes('data-a="tc-bump"') &&
       tcProfHtml.includes("Поднять анкету (раз в 4 ч)") &&
       tcProfHtml.includes("Автоподнятие 24 ч активно") &&
+      tcProfHtml.includes('data-a="tc-bump-details-toggle"') &&
+      tcProfHtml.includes("Подробнее") &&
+      tcProfHtml.includes('data-a="tc-autobump-toggle"') &&
+      tcProfHtml.includes("tc-switch-pill is-on") &&
       tcProfHtml.includes("Заполненность профиля") &&
       tcProfHtml.includes("tc-hh-meter") &&
       tcProfHtml.includes("hh-multi-x") &&
@@ -2459,8 +2467,15 @@
       tcProfHtml.includes("Якутск") &&
       tcProfHtml.includes("Москва") &&
       tcProfHtml.includes("UTC+9"),
-      "expected unified Profile builder with single tc-bump card, multi-select + internal ×, photo/no-photo, Якутск/Москва + UTC, and manual customSkills"
+      "expected unified Profile builder with compact tc-autobump card, Подробнее toggle, animated switch pill, multi-select + internal ×, photo/no-photo, and Якутск/Москва + UTC"
     );
+    clickAction(env5, { a: "tc-bump-details-toggle" });
+    await flushMicrotasks(2);
+    const tcProfExpanded = env5.elements.get("main").innerHTML;
+    assert(tcProfExpanded.includes('data-a="tc-autobump-hour"') && tcProfExpanded.includes("Скрыть"), "expected tc-bump-details-toggle to reveal peak bump hours and Скрыть");
+    clickAction(env5, { a: "tc-bump-details-toggle" });
+    await flushMicrotasks(2);
+    assert(!env5.elements.get("main").innerHTML.includes('data-a="tc-autobump-hour"') && env5.elements.get("main").innerHTML.includes("Подробнее"), "expected second tc-bump-details-toggle click to collapse details");
     clickAction(env5, { a: "tc-bump" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes("✓ Поднята · через") && env5.elements.get("main").innerHTML.includes("data-tc-manual-countdown") && env5.elements.get("toast").innerHTML.includes("Анкета поднята в топ"), "expected tc-bump on profile tab to enter 4h cooldown state with side toast");
@@ -2469,10 +2484,10 @@
     assert(env5.elements.get("toast").innerHTML.includes("Повторить можно через"), "expected immediate second manual bump within 4h to show cooldown message");
     clickAction(env5, { a: "tc-autobump-toggle" });
     await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("Автоподнятие на паузе"), "expected 24h auto-bump toggle on profile tab to pause");
+    assert(env5.elements.get("main").innerHTML.includes("Автоподнятие на паузе") && env5.elements.get("main").innerHTML.includes("tc-switch-pill is-anim-off"), "expected 24h auto-bump toggle on profile tab to pause with is-anim-off");
     clickAction(env5, { a: "tc-autobump-toggle" });
     await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("Автоподнятие 24 ч активно"), "expected 24h auto-bump toggle on profile tab to reactivate");
+    assert(env5.elements.get("main").innerHTML.includes("Автоподнятие 24 ч активно") && env5.elements.get("main").innerHTML.includes("tc-switch-pill is-on is-anim-on"), "expected 24h auto-bump toggle on profile tab to reactivate with is-anim-on");
     clickAction(env5, { a: "tc-subj-toggle" });
     await flushMicrotasks(1);
     clickAction(env5, { a: "tc-subj-pick", v: "chem" });

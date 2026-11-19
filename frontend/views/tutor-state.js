@@ -372,6 +372,7 @@
       goalCustomOpen: false,
       feeDetailsOpen: false,
       historyDetailsOpen: false,
+      bumpDetailsOpen: false,
       bumpedToday: false,
       autoBump24h: true,
       autoBumpHour: "09:00",
@@ -912,14 +913,32 @@
     return { total: cleanRate, fee, payout: Math.max(0, cleanRate - fee), pct: 5, isManual: false };
   }
 
+  let _animSwitch = null;
+
+  function markSwitchAnim(key, isOn) {
+    _animSwitch = { key: String(key || ""), dir: isOn ? "on" : "off", ts: Date.now() };
+  }
+
+  function consumeSwitchAnimClass(key) {
+    if (!_animSwitch || _animSwitch.key !== String(key || "")) return "";
+    if (Date.now() - _animSwitch.ts > 1500) {
+      _animSwitch = null;
+      return "";
+    }
+    const cls = _animSwitch.dir === "on" ? " is-anim-on" : " is-anim-off";
+    _animSwitch = null;
+    return cls;
+  }
+
   function renderLessonNotifyHTML(st, req, stu) {
     const reqId = (req && req.id) || "";
     const stuId = (stu && stu.id) || "";
     const cfg = getLessonNotifyConfig(st, reqId, stu);
+    const animCls = consumeSwitchAnimClass("lesson:" + reqId);
     return `<div class="tc-notify-box" role="group" aria-label="Автоуведомление перед уроком">
       <div class="tc-notify-top">
         <span class="tc-notify-title">${icon("bell")}<span>Автоуведомление</span></span>
-        <button type="button" class="tc-switch-pill${cfg.enabled ? " is-on" : ""}" data-a="tc-lesson-notify-toggle" data-id="${esc(reqId)}" data-stu-id="${esc(stuId)}" aria-pressed="${cfg.enabled}"><i class="tc-switch-track" aria-hidden="true"></i><span>${cfg.enabled ? "Вкл" : "Выкл"}</span></button>
+        <button type="button" class="tc-switch-pill${cfg.enabled ? " is-on" : ""}${animCls}" data-a="tc-lesson-notify-toggle" data-id="${esc(reqId)}" data-stu-id="${esc(stuId)}" aria-pressed="${cfg.enabled}"><i class="tc-switch-track" aria-hidden="true"></i><span>${cfg.enabled ? "Вкл" : "Выкл"}</span></button>
       </div>
       <div class="tc-lead-pills" role="group" aria-label="Когда напомнить">
         ${WA_LEAD_OPTIONS.map((o) => {
@@ -941,6 +960,7 @@
     ensureRealtimeConnected, syncTutorCalendar, publishRtUpdate,
     formatPhone, formatTelegram, formatCardMask, normalizeChannelList, normalizeLeadList,
     copyStr, formatTimestamp, defaultState, tState, saveState,
+    markSwitchAnim, consumeSwitchAnimClass,
     ensureTelemostUrl, resolveLessonContacts, getLessonNotifyConfig, calcLessonSplit, renderLessonNotifyHTML,
     checkAutoBumpDue, formatCountdown, autoBumpRemainingMs, manualBumpRemainingMs,
     ensureCountdownTimer, clampStep, profileCompleteness, buildMarketTutorPayload,
