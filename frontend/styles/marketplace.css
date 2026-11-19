@@ -1725,13 +1725,47 @@ html.reduced-motion .hero-float-drift,
 .tc-notify-title { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--ink); }
 .tc-notify-title svg { width: 15px; height: 15px; color: var(--muted); }
 .tc-switch-pill {
-  min-height: 28px; padding: 0 12px; border-radius: 999px;
+  display: inline-flex; align-items: center; gap: 7px;
+  min-height: 30px; padding: 3px 10px 3px 4px; border-radius: 999px;
   border: 1px solid var(--line-strong); background: var(--surface); color: var(--muted);
   font-size: 12px; font-weight: 600; cursor: pointer;
-  transition: background-color .14s ease, border-color .14s ease, color .14s ease;
+  transition: background-color .16s ease, border-color .16s ease, color .16s ease;
+}
+.tc-switch-track {
+  position: relative; width: 30px; height: 18px; border-radius: 999px;
+  background: var(--line-strong); flex: none;
+  transition: background-color .18s ease;
+}
+.tc-switch-track::after {
+  content: ""; position: absolute; top: 2px; left: 2px;
+  width: 14px; height: 14px; border-radius: 50%; background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .2);
+  transition: transform .18s cubic-bezier(.22, 1, .36, 1);
 }
 .tc-switch-pill.is-on {
   background: var(--confirm-soft); border-color: color-mix(in srgb, var(--confirm) 45%, var(--line)); color: var(--confirm);
+}
+.tc-switch-pill.is-on .tc-switch-track { background: var(--confirm); }
+.tc-switch-pill.is-on .tc-switch-track::after { transform: translateX(12px); }
+.tc-status-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--line-strong); flex: none;
+}
+.tc-status-dot.is-on { background: var(--confirm); box-shadow: 0 0 0 2px color-mix(in srgb, var(--confirm) 28%, transparent); }
+.tc-drawer-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.tc-drawer-head .icon-btn { flex: none; }
+.tc-wa-master-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line);
+}
+.tc-ch-3grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; width: 100%; }
+.tc-ch-3grid .auto-ch-pill { width: 100%; justify-content: center; }
+.tc-ics-quick-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.tc-ics-area { font-size: 12px; line-height: 1.4; min-height: 76px; }
+.tc-cal-import-actions { display: grid; gap: 8px; }
+.tc-fee1-banner {
+  padding: 9px 12px; border-radius: 12px;
+  background: var(--confirm-soft); border: 1px solid color-mix(in srgb, var(--confirm) 35%, var(--line));
+  color: var(--confirm); font-size: 13px; line-height: 1.35;
 }
 .tc-lead-pills { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; min-width: 0; }
 .tc-lead-pill {

@@ -26,7 +26,7 @@
     checkAutoBumpDue, formatCountdown, autoBumpRemainingMs, manualBumpRemainingMs,
     ensureCountdownTimer, ensureRealtimeConnected, clampStep, profileCompleteness,
     buildMarketTutorPayload, syncPublishedTutor, dayDowFromLabel, syncedRequests,
-    findReq, updateReq, pendingCount, renderDataTable, getTab, setTab, toggleArrayVal
+    findReq, updateReq, pendingCount, calcLessonSplit, renderDataTable, getTab, setTab, toggleArrayVal
   } = TC;
 
   const { renderCalendarTab, renderLeadsTab, formatWaReminderText, studentWaHref, studentReminderUrl } = TC;
@@ -89,9 +89,11 @@
     const bidRate = Number(req.counterPrice || req.offerPrice) || st.profile.price;
     const tutorRate = Number(req.tutorPrice) || st.profile.price;
     const mktRate = Number(req.marketPrice) || Math.round(tutorRate * 1.25);
-    const sp = TDATA && typeof TDATA.commissionSplit === "function"
-      ? TDATA.commissionSplit(bidRate)
-      : { total: bidRate, fee: Math.round(bidRate * 0.05), payout: Math.round(bidRate * 0.95), pct: 5 };
+    const sp = typeof calcLessonSplit === "function"
+      ? calcLessonSplit(bidRate, req, TDATA)
+      : (TDATA && typeof TDATA.commissionSplit === "function"
+        ? TDATA.commissionSplit(bidRate)
+        : { total: bidRate, fee: Math.round(bidRate * 0.05), payout: Math.round(bidRate * 0.95), pct: 5 });
     const isPending = req.status === "pending";
     const isAccepted = req.status === "accepted";
     const isCountered = req.status === "countered";
@@ -1498,6 +1500,18 @@
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
       return true;
     }
+    if (act === "tc-add-price") {
+      const num = Math.max(0, Math.min(99999, Math.round(Number(el.value) || 0)));
+      const fee1 = Math.round(num * 0.01);
+      const net99 = Math.max(0, num - fee1);
+      if (typeof document !== "undefined" && typeof document.getElementById === "function") {
+        const noteEl = document.getElementById("tc-add-fee-note");
+        if (noteEl) {
+          noteEl.innerHTML = `На руки 99%: <b class="num" style="color:var(--confirm)">${net99.toLocaleString("ru-RU")} ₽</b> · сбор 1% (${fee1.toLocaleString("ru-RU")} ₽)`;
+        }
+      }
+      return true;
+    }
     if (act === "tc-lead-rate") {
       const leadId = el.dataset.id || "";
       if (!leadId) return false;
@@ -1622,9 +1636,55 @@
 
   function handleFileInput(el) {
     if (!el || !el.files || !el.files[0]) return false;
+    const file = el.files[0];
+    if (el.dataset && el.dataset.tcIcsFile) {
+      if (typeof FileReader !== "function") return false;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const rawIcs = String(reader.result || "").trim();
+        if (!rawIcs) {
+          if (typeof getCtx().toast === "function") getCtx().toast("Файл .ics пуст");
+          return;
+        }
+        const st = tState();
+        st.calImportDraft = rawIcs;
+        if (EGE.realtime && typeof EGE.realtime.importIcs === "function") {
+          EGE.realtime.importIcs({
+            tutorSlug: getTutorSlug(st),
+            tutorName: st.profile.name,
+            city: st.profile.city,
+            timezone: st.profile.timezone,
+            icsText: rawIcs,
+            openSlots: st.slots
+          });
+          const rtCal = typeof EGE.realtime.getState === "function" ? EGE.realtime.getState().calendar : null;
+          if (rtCal) {
+            st.calendarSync = Object.assign({}, st.calendarSync || {}, {
+              gcalConnected: true,
+              icsUrl: rtCal.icsUrl,
+              googleSubscribeUrl: rtCal.googleSubscribeUrl,
+              googleTemplateUrl: rtCal.googleTemplateUrl,
+              busySlots: Array.isArray(rtCal.busySlots) ? rtCal.busySlots : [],
+              conflicts: Array.isArray(rtCal.conflicts) ? rtCal.conflicts : [],
+              lastSyncAt: Date.now()
+            });
+          }
+        }
+        st.calImportOpen = false;
+        saveState();
+        if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+        if (typeof getCtx().toast === "function") getCtx().toast("Календарь .ics импортирован");
+      };
+      reader.onerror = () => {
+        if (typeof getCtx().toast === "function") getCtx().toast("Не удалось прочитать .ics файл");
+      };
+      reader.readAsText(file);
+      el.value = "";
+      return true;
+    }
     if (typeof readResizedPhotoFile !== "function") return false;
     readResizedPhotoFile(
-      el.files[0],
+      file,
       { maxDim: 240, quality: 0.84, maxLen: 350000 },
       (url) => {
         const st = tState();
@@ -1670,8 +1730,10 @@
         tutorPrice: st.profile.price,
         marketPrice: Math.round(rate * 1.25),
         note: note || "Запись добавлена преподавателем вручную",
+        manualStudent: true,
+        feePct: 1,
         status: "accepted",
-        createdLabel: "Календарь"
+        createdLabel: "Календарь · 1%"
       };
       st.requests.unshift(item);
       if (!st.students.some((s) => s.name === sName)) {
@@ -1683,6 +1745,11 @@
           curScore: 60,
           targetScore: 85,
           lessonsDone: 1,
+          manualStudent: true,
+          feePct: 1,
+          offerPrice: rate,
+          autoNotify: true,
+          autoLeads: ["24h", "1h"],
           hw: note || "Стартовая диагностика по варианту КИМ"
         });
       }
@@ -1691,7 +1758,7 @@
       publishRtUpdate("calendar.lesson.created", "Ученик записан в календарь", `${sName} · ${dowObj.wd} в ${hour}`, { studentName: sName, dow: dowObj.dow, hour });
       syncTutorCalendar(st);
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
-      if (typeof getCtx().notifySide === "function") getCtx().notifySide("Ученик записан в календарь", `${sName} · ${dowObj.wd} в ${hour} (${rate.toLocaleString("ru-RU")} ₽/ч)`);
+      if (typeof getCtx().notifySide === "function") getCtx().notifySide("Свой ученик записан (комиссия 1%)", `${sName} · ${dowObj.wd} в ${hour} (${rate.toLocaleString("ru-RU")} ₽/ч)`);
       return true;
     }
 

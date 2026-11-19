@@ -20,7 +20,7 @@
     checkAutoBumpDue, formatCountdown, autoBumpRemainingMs, manualBumpRemainingMs,
     ensureCountdownTimer, ensureRealtimeConnected, clampStep, profileCompleteness,
     buildMarketTutorPayload, syncPublishedTutor, dayDowFromLabel, syncedRequests,
-    findReq, updateReq, pendingCount, renderDataTable, getTab, setTab, toggleArrayVal
+    findReq, updateReq, pendingCount, calcLessonSplit, renderDataTable, getTab, setTab, toggleArrayVal
   } = TC;
 
   function renderPayoutStatsBlocks(st, TDATA, allReqs, acceptedList, totalPayout) {
@@ -137,9 +137,9 @@
     const earnedTotal = studentsDoneLessons * (Number(baseSplit && baseSplit.payout) || 0);
     const escrowRub = acceptedList.reduce((sum, r) => {
       const reqRate = Number(r.counterPrice || r.offerPrice) || rate;
-      const sp = TDATA && typeof TDATA.commissionSplit === "function"
-        ? TDATA.commissionSplit(reqRate)
-        : { payout: reqRate - Math.round(reqRate * 0.05) };
+      const sp = typeof calcLessonSplit === "function"
+        ? calcLessonSplit(reqRate, r, TDATA)
+        : (TDATA && typeof TDATA.commissionSplit === "function" ? TDATA.commissionSplit(reqRate) : { payout: reqRate - Math.round(reqRate * 0.05) });
       return sum + (Number(sp && sp.payout) || 0);
     }, 0);
     const payouts = Array.isArray(st.payouts) ? st.payouts : [];
@@ -572,7 +572,9 @@
       : { total: p.price, fee: Math.round(p.price * 0.05), payout: Math.round(p.price * 0.95), pct: 5 };
     const totalReqPayout = acceptedList.reduce((acc, r) => {
       const rate = Number(r.counterPrice || r.offerPrice) || p.price;
-      const sp = TDATA && typeof TDATA.commissionSplit === "function" ? TDATA.commissionSplit(rate) : { payout: Math.round(rate * 0.95) };
+      const sp = typeof calcLessonSplit === "function"
+        ? calcLessonSplit(rate, r, TDATA)
+        : (TDATA && typeof TDATA.commissionSplit === "function" ? TDATA.commissionSplit(rate) : { payout: Math.round(rate * 0.95) });
       return acc + sp.payout;
     }, 0);
     const studentsDoneLessons = (st.students || []).reduce((sum, s) => sum + (Number(s.lessonsDone) || 0), 0);
@@ -655,7 +657,8 @@
           <button type="button" class="btn soft sm" data-a="tc-fee-details-toggle" aria-expanded="${!!st.feeDetailsOpen}">${st.feeDetailsOpen ? "Скрыть" : "Подробнее"}</button>
         </div>
         ${st.feeDetailsOpen ? `<div class="bid-fee-row">${feeSplitHTML(p.price, TDATA)}</div>
-        <p class="small muted">Средства ученика замораживаются до урока и переводятся преподавателю сразу после проведения занятия (95% на руки, 5% — сервис и поддержка расписания).</p>` : ""}
+        <p class="small muted">Средства ученика замораживаются до урока и переводятся преподавателю сразу после проведения занятия (95% на руки, 5% — сервис и поддержка расписания).</p>
+        <p class="small muted">Для своих учеников, добавленных вручную в «Ученики», действует льготная комиссия <b>1%</b> (99% на руки).</p>` : ""}
       </section>
 
       ${renderPayoutHistorySection(wallet, st)}`;

@@ -898,6 +898,20 @@
     };
   }
 
+  function calcLessonSplit(rate, req, TDATA) {
+    const cleanRate = Math.max(0, Math.round(Number(rate) || 0));
+    const isManual = Boolean(req && (req.manualStudent || Number(req.feePct) === 1 || String(req.id || "").indexOf("tc-man-") === 0));
+    if (isManual) {
+      const fee = Math.round(cleanRate * 0.01);
+      return { total: cleanRate, fee, payout: Math.max(0, cleanRate - fee), pct: 1, isManual: true };
+    }
+    if (TDATA && typeof TDATA.commissionSplit === "function") {
+      return Object.assign({ isManual: false }, TDATA.commissionSplit(cleanRate));
+    }
+    const fee = Math.round(cleanRate * 0.05);
+    return { total: cleanRate, fee, payout: Math.max(0, cleanRate - fee), pct: 5, isManual: false };
+  }
+
   function renderLessonNotifyHTML(st, req, stu) {
     const reqId = (req && req.id) || "";
     const stuId = (stu && stu.id) || "";
@@ -905,7 +919,7 @@
     return `<div class="tc-notify-box" role="group" aria-label="Автоуведомление перед уроком">
       <div class="tc-notify-top">
         <span class="tc-notify-title">${icon("bell")}<span>Автоуведомление</span></span>
-        <button type="button" class="tc-switch-pill${cfg.enabled ? " is-on" : ""}" data-a="tc-lesson-notify-toggle" data-id="${esc(reqId)}" data-stu-id="${esc(stuId)}" aria-pressed="${cfg.enabled}">${cfg.enabled ? "Вкл" : "Выкл"}</button>
+        <button type="button" class="tc-switch-pill${cfg.enabled ? " is-on" : ""}" data-a="tc-lesson-notify-toggle" data-id="${esc(reqId)}" data-stu-id="${esc(stuId)}" aria-pressed="${cfg.enabled}"><i class="tc-switch-track" aria-hidden="true"></i><span>${cfg.enabled ? "Вкл" : "Выкл"}</span></button>
       </div>
       <div class="tc-lead-pills" role="group" aria-label="Когда напомнить">
         ${WA_LEAD_OPTIONS.map((o) => {
@@ -927,7 +941,7 @@
     ensureRealtimeConnected, syncTutorCalendar, publishRtUpdate,
     formatPhone, formatTelegram, formatCardMask, normalizeChannelList, normalizeLeadList,
     copyStr, formatTimestamp, defaultState, tState, saveState,
-    ensureTelemostUrl, resolveLessonContacts, getLessonNotifyConfig, renderLessonNotifyHTML,
+    ensureTelemostUrl, resolveLessonContacts, getLessonNotifyConfig, calcLessonSplit, renderLessonNotifyHTML,
     checkAutoBumpDue, formatCountdown, autoBumpRemainingMs, manualBumpRemainingMs,
     ensureCountdownTimer, clampStep, profileCompleteness, buildMarketTutorPayload,
     syncPublishedTutor, dayDowFromLabel, syncedRequests, findReq, updateReq,

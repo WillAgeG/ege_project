@@ -2525,16 +2525,20 @@
     );
     clickAction(env5, { a: "tc-cal-open-add", hour: "11:00" });
     await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("всего 1%") && env5.elements.get("main").innerHTML.includes('id="tc-add-fee-note"'), "expected manual booking form to advertise 1% commission and live 99% payout note");
     env5.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "tc-cal-add" }, elements: { studentName: { value: "Максим Р." }, hour: { value: "11:00" }, offerPrice: { value: "1300" }, note: { value: "Генетика №28" } } }) }, preventDefault() {} });
     await flushMicrotasks(2);
     const calAddedHtml = env5.elements.get("main").innerHTML;
     assert(
       calAddedHtml.includes("Максим Р.") &&
       calAddedHtml.includes("Генетика №28") &&
+      calAddedHtml.includes("Свой ученик · 1%") &&
+      hasNum(calAddedHtml, "1 287 ₽") &&
+      calAddedHtml.includes("tc-switch-track") &&
       calAddedHtml.includes('class="btn-msg is-wa is-hold-add"') &&
       calAddedHtml.includes('class="btn-msg is-tg is-disabled is-hold-add"') &&
       calAddedHtml.includes('class="btn-msg is-max is-disabled is-hold-add"'),
-      "expected manually booked student to have green WhatsApp by default and grey Telegram/MAX hold-to-add logos"
+      "expected manually booked student with 1% fee (99% = 1 287 ₽), sleek toggle switch, green WhatsApp and grey TG/MAX hold-to-add logos"
     );
 
     // Вкладка преподавателя «Ученики ищут» (контр-цена ±50 ₽ tc-lead-step + tc-lead-offer, без tc-bump и без 3/7 колонок)
@@ -3078,7 +3082,12 @@
     assert(!calDefaultHtml.includes("cal-sync-card") && calDefaultHtml.includes('data-a="tc-cal-import-modal"'), "expected clean default calendar without .cal-sync-card and with tc-cal-import-modal CTA");
     clickAction(env5, { a: "tc-cal-import-modal" });
     await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes('data-f="tc-cal-import"') && env5.elements.get("main").innerHTML.includes('data-a="tc-cal-import-sample"'), "expected tc-cal-import-modal to reveal tc-cal-import form and sample CTA");
+    assert(
+      env5.elements.get("main").innerHTML.includes('data-f="tc-cal-import"') &&
+      env5.elements.get("main").innerHTML.includes('id="tc-ics-file"') &&
+      env5.elements.get("main").innerHTML.includes('data-a="tc-cal-import-sample"'),
+      "expected tc-cal-import-modal to reveal tc-cal-import form, .ics file upload input, and sample CTA"
+    );
     clickAction(env5, { a: "tc-cal-import-sample" });
     await flushMicrotasks(3);
     const calSatConflict = env5.elements.get("main").innerHTML;

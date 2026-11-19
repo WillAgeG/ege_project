@@ -2991,7 +2991,7 @@
   });
   document.addEventListener("change", (e) => {
     const el = e.target;
-    if (el && el.dataset && el.dataset.tcPhoto && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.handleFileInput === "function") {
+    if (el && el.dataset && (el.dataset.tcPhoto || el.dataset.tcIcsFile) && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.handleFileInput === "function") {
       if (EGE.views.tutorCabinet.handleFileInput(el)) return;
     }
     if (el && el.dataset && (el.dataset.tc || el.dataset.tcStudent) && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.handleInput === "function") {

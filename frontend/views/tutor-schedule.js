@@ -16,7 +16,7 @@
     getCtx, configure, getTDATA, getTutorSlug, syncTutorCalendar, publishRtUpdate,
     formatPhone, formatTelegram, formatCardMask, normalizeChannelList, normalizeLeadList,
     copyStr, formatTimestamp, defaultState, tState, saveState,
-    ensureTelemostUrl, resolveLessonContacts, renderLessonNotifyHTML,
+    ensureTelemostUrl, resolveLessonContacts, calcLessonSplit, renderLessonNotifyHTML,
     checkAutoBumpDue, formatCountdown, autoBumpRemainingMs, manualBumpRemainingMs,
     ensureCountdownTimer, ensureRealtimeConnected, clampStep, profileCompleteness,
     buildMarketTutorPayload, syncPublishedTutor, dayDowFromLabel, syncedRequests,
@@ -105,6 +105,9 @@
             const lessonHour = String((sp && sp.hour) || lesson.hour || "14:00");
             const isWeekly = !!(sp && sp.weekly !== false);
             const rate = Number(lesson.counterPrice || lesson.offerPrice) || st.profile.price;
+            const lSplit = typeof calcLessonSplit === "function"
+              ? calcLessonSplit(rate, lesson, TDATA)
+              : { total: rate, fee: Math.round(rate * 0.05), payout: rate - Math.round(rate * 0.05), pct: 5, isManual: false };
             const gcalBusy = busyForActiveDay.find((b) => b.hour === lessonHour);
             const tmUrl = typeof ensureTelemostUrl === "function" ? ensureTelemostUrl(st, lesson) : String(lesson.telemostUrl || "").trim();
             const stu = findStudentForLesson(st, lesson);
@@ -184,6 +187,7 @@
                 <span class="small muted">${esc(activeDay.shortLabel)} · ${esc(lesson.format || "Онлайн")}</span>
               </div>
               <div class="study-lesson-pills">
+                ${lSplit.isManual ? `<span class="chip confirm">Свой ученик · 1%</span>` : ""}
                 ${isWeekly ? `<span class="chip accent">Каждую неделю</span>` : ""}
                 <span class="bb-tbl-st is-confirmed">✓ Подтверждён</span>
                 ${gcalBusy ? `<span class="chip bad">Конфликт GCal</span>` : ""}
@@ -194,7 +198,7 @@
                   <div class="tutor-title-inline">
                     <b class="tutor-person-name">${esc(lesson.studentName)}</b>
                   </div>
-                  <span class="small muted">${esc(lesson.exam || "ЕГЭ")} · ${esc(lesson.subjectName || "")} · ${rate.toLocaleString("ru-RU")} ₽/ч</span>
+                  <span class="small muted">${esc(lesson.exam || "ЕГЭ")} · ${esc(lesson.subjectName || "")} · ${rate.toLocaleString("ru-RU")} ₽/ч${lSplit.isManual ? ` · На руки ${lSplit.payout.toLocaleString("ru-RU")} ₽ (сбор 1%)` : ""}</span>
                 </div>
               </div>
               ${lesson.note ? `<div class="tc-req-quote">${esc(lesson.note)}</div>` : ""}
@@ -223,21 +227,23 @@
         </div>`;
 
     const waDrawerHTML = st.waPanelOpen ? `<div class="tc-wa-inline-panel stack" aria-label="Настройка автоуведомлений">
-      <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
-        <div>
+      <div class="tc-drawer-head">
+        <div class="stack" style="gap:2px;min-width:0">
           <div class="eyebrow">WhatsApp · Telegram · MAX</div>
           <h3 class="h2">Настройка автоуведомлений</h3>
         </div>
-        <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
-          <button type="button" class="btn ${waCfg.enabled ? "confirm" : "soft"} sm" data-a="tc-wa-global-toggle" aria-pressed="${!!waCfg.enabled}">
-            ${waCfg.enabled ? "✓ Система включена" : "Включить систему"}
-          </button>
-          <button type="button" class="icon-btn sm" data-a="tc-wa-panel-toggle" aria-label="Скрыть автоуведомления">${icon("x")}</button>
+        <button type="button" class="icon-btn sm" data-a="tc-wa-panel-toggle" aria-label="Скрыть автоуведомления">${icon("x")}</button>
+      </div>
+      <div class="tc-wa-master-row">
+        <div class="stack" style="gap:1px;min-width:0">
+          <b class="small">Автоотправка ученикам</b>
+          <span class="small muted">${waCfg.enabled ? "Активна для выбранных каналов" : "Приостановлена"}</span>
         </div>
+        <button type="button" class="tc-switch-pill is-master${waCfg.enabled ? " is-on" : ""}" data-a="tc-wa-global-toggle" aria-pressed="${!!waCfg.enabled}"><i class="tc-switch-track" aria-hidden="true"></i><span>${waCfg.enabled ? "Вкл" : "Выкл"}</span></button>
       </div>
       <div class="stack" style="gap:6px">
         <span class="small muted">Каналы автоматической отправки:</span>
-        <div class="auto-ch-bar" role="group" aria-label="Каналы автоуведомлений">
+        <div class="tc-ch-3grid" role="group" aria-label="Каналы автоуведомлений">
           ${AUTO_CHANNELS.map((ch) => {
             const on = cfgChannels.includes(ch.id);
             return `<button type="button" class="auto-ch-pill${on ? " is-on" : ""}" data-a="tc-wa-channel" data-ch="${ch.id}" aria-pressed="${on}">${on ? "✓ " : ""}${esc(ch.name)}</button>`;
@@ -246,8 +252,11 @@
       </div>
       <div class="stack" style="gap:6px">
         <span class="small muted">Когда автоматически писать ученику:</span>
-        <div class="chip-rail">
-          ${WA_LEAD_OPTIONS.map((o) => `<button type="button" class="chip-btn${cfgLeads.includes(o.id) ? " on" : ""}" data-a="tc-wa-lead" data-v="${esc(o.id)}">${esc(o.label)}</button>`).join("")}
+        <div class="tc-lead-pills" role="group" aria-label="Когда автоматически писать">
+          ${WA_LEAD_OPTIONS.map((o) => {
+            const on = cfgLeads.includes(o.id);
+            return `<button type="button" class="tc-lead-pill${on ? " is-on" : ""}" data-a="tc-wa-lead" data-v="${esc(o.id)}" aria-pressed="${on}">${esc(o.label)}</button>`;
+          }).join("")}
         </div>
       </div>
       <div class="field">
@@ -255,18 +264,11 @@
         <textarea class="textarea" id="tc-wa-tpl" data-tc="waTemplate" rows="3" maxlength="260">${esc(waCfg.template || "")}</textarea>
       </div>
       <div class="tc-template-card">
-        <div class="row between" style="gap:8px;flex-wrap:wrap">
-          <b class="small">Пример сообщения (${esc(sampleStudent.name)} · ${esc(sampleStudent.lessonDay || "Воскресенье")}, ${esc(sampleStudent.lessonTime || "10:00")})</b>
-          ${EGE.kit && typeof EGE.kit.messengerLinksHTML === "function"
-            ? EGE.kit.messengerLinksHTML({
-                entity: sampleStudent,
-                message: samplePreview,
-                primaryLabel: "Тест в WhatsApp",
-                compact: true
-              })
-            : `<a class="btn confirm sm" href="${esc(sampleWaHref)}" target="_blank" rel="noopener">${icon("send")}<span>Тест в WhatsApp</span></a>`}
+        <div class="stack" style="gap:8px">
+          <b class="small">Пример (${esc(sampleStudent.name)} · ${esc(sampleStudent.lessonDay || "Воскресенье")}, ${esc(sampleStudent.lessonTime || "10:00")})</b>
+          <div class="tc-template-body">${esc(samplePreview)}</div>
+          <a class="btn confirm sm" href="${esc(sampleWaHref)}" target="_blank" rel="noopener" style="width:100%;justify-content:center">${icon("send")}<span>Тест в WhatsApp</span></a>
         </div>
-        <div class="tc-template-body">${esc(samplePreview)}</div>
       </div>
       <details class="tc-stu-fold">
         <summary>Быстрые шаблоны ответов</summary>
@@ -296,25 +298,32 @@
 
       <div class="tc-cal-toolbar">
         <button type="button" class="btn soft sm" data-a="tc-cal-open-add" data-hour="${hours[0]}">+ Записать ученика</button>
-        <button type="button" class="btn ${st.waPanelOpen ? "confirm" : "ghost"} sm" data-a="tc-wa-panel-toggle" aria-pressed="${!!st.waPanelOpen}">${icon("bell")}<span>Автоуведомления${waCfg.enabled ? " · вкл." : ""}</span></button>
+        <button type="button" class="btn ${st.waPanelOpen ? "confirm" : "ghost"} sm" data-a="tc-wa-panel-toggle" aria-pressed="${!!st.waPanelOpen}">${icon("bell")}<span>Уведомления</span><i class="tc-status-dot${waCfg.enabled ? " is-on" : ""}" aria-hidden="true"></i></button>
         <button type="button" class="btn ghost sm" data-a="tc-cal-import-modal">Google / Apple</button>
       </div>
 
       ${waDrawerHTML}
 
       ${st.calImportOpen ? `<form class="card stack" style="gap:10px;border-color:var(--accent)" data-f="tc-cal-import">
-        <div class="row between" style="gap:8px">
-          <b>Подключить календарь Google / Apple / Яндекс</b>
+        <div class="tc-drawer-head">
+          <div class="stack" style="gap:2px;min-width:0">
+            <b>Синхронизация календаря</b>
+            <span class="small muted">Google · Apple · Яндекс — занятые часы скроются сами</span>
+          </div>
           <button type="button" class="icon-btn sm" data-a="tc-cal-import-close" aria-label="Закрыть">${icon("x")}</button>
         </div>
-        <div class="field">
-          <label for="tc-ics-text">Вставьте экспортированный файл расписания (.ics) из вашего календаря — занятые часы автоматически скроются из записи</label>
-          <textarea class="textarea" id="tc-ics-text" name="icsText" rows="5" placeholder="Скопируйте содержимое файла .ics из Google, Apple или Яндекс Календаря">${esc(st.calImportDraft || SAMPLE_GCAL_ICS)}</textarea>
+        <div class="tc-ics-quick-row">
+          <label class="btn soft sm" for="tc-ics-file" style="cursor:pointer;justify-content:center">${icon("upload")}<span>Файл .ics</span></label>
+          <input type="file" id="tc-ics-file" accept=".ics,text/calendar" data-tc-ics-file="1" class="sr">
+          <button type="button" class="btn soft sm" data-a="tc-cal-import-sample" style="justify-content:center">Тестовое GCal</button>
         </div>
-        <div class="row" style="gap:8px;flex-wrap:wrap">
-          <button type="submit" class="btn sm">${icon("check")}<span>Перенести занятые слоты (${esc(st.profile.timezone || "UTC+9")})</span></button>
-          <button type="button" class="btn soft sm" data-a="tc-cal-import-sample">Тестовое расписание GCal</button>
-          <button type="button" class="btn ghost sm" data-a="tc-cal-import-close">Отмена</button>
+        <div class="field">
+          <label for="tc-ics-text">Или вставьте текст расписания (.ics)</label>
+          <textarea class="textarea mono tc-ics-area" id="tc-ics-text" name="icsText" rows="3" placeholder="BEGIN:VCALENDAR...">${esc(st.calImportDraft || SAMPLE_GCAL_ICS)}</textarea>
+        </div>
+        <div class="tc-cal-import-actions">
+          <button type="submit" class="btn sm" style="width:100%;justify-content:center">${icon("check")}<span>Перенести занятые слоты (${esc(st.profile.timezone || "UTC+9")})</span></button>
+          <button type="button" class="btn ghost sm" data-a="tc-cal-import-close" style="width:100%;justify-content:center">Отмена</button>
         </div>
       </form>` : ""}
 
@@ -326,10 +335,11 @@
       ${daysStripHTML}
 
       ${st.calAddOpen ? `<form class="card stack" style="gap:10px;border-color:var(--accent)" data-f="tc-cal-add">
-        <div class="row between" style="gap:8px">
-          <b>Добавить ученика в расписание (${esc(activeDay.shortLabel)})</b>
+        <div class="tc-drawer-head">
+          <b>Записать своего ученика (${esc(activeDay.shortLabel)})</b>
           <button type="button" class="icon-btn sm" data-a="tc-cal-close-add" aria-label="Закрыть">${icon("x")}</button>
         </div>
+        <div class="tc-fee1-banner">Комиссия за своего ученика — <b>всего 1%</b> (на руки 99%)</div>
         <div class="tc-two-col">
           <div class="field">
             <label for="tc-add-name">Имя ученика</label>
@@ -342,19 +352,18 @@
             </select>
           </div>
         </div>
-        <div class="tc-two-col">
-          <div class="field">
-            <label for="tc-add-price">Ставка за урок (₽/ч)</label>
-            <input class="input num" id="tc-add-price" name="offerPrice" type="number" min="500" max="5000" step="50" value="${st.profile.price}">
-          </div>
-          <div class="field">
-            <label for="tc-add-note">Тема / ДЗ</label>
-            <input class="input" id="tc-add-note" name="note" maxlength="100" placeholder="Пробник КИМ или разбор ошибок">
-          </div>
+        <div class="field">
+          <label for="tc-add-price">Цена урока (₽/ч)</label>
+          <input class="input num" id="tc-add-price" name="offerPrice" data-a="tc-add-price" type="number" min="500" max="15000" step="50" value="${st.profile.price}">
+          <span class="small muted" id="tc-add-fee-note">На руки 99%: <b class="num" style="color:var(--confirm)">${Math.max(0, st.profile.price - Math.round(st.profile.price * 0.01)).toLocaleString("ru-RU")} ₽</b> · сбор 1% (${Math.round(st.profile.price * 0.01).toLocaleString("ru-RU")} ₽)</span>
         </div>
-        <div class="row" style="gap:8px;flex-wrap:wrap">
-          <button type="submit" class="btn sm">${icon("check")}<span>Записать в календарь</span></button>
-          <button type="button" class="btn ghost sm" data-a="tc-cal-close-add">Отмена</button>
+        <div class="field">
+          <label for="tc-add-note">Тема / ДЗ</label>
+          <input class="input" id="tc-add-note" name="note" maxlength="100" placeholder="Пробник КИМ или разбор ошибок">
+        </div>
+        <div class="tc-cal-import-actions">
+          <button type="submit" class="btn confirm sm" style="width:100%;justify-content:center">${icon("check")}<span>Записать в календарь</span></button>
+          <button type="button" class="btn ghost sm" data-a="tc-cal-close-add" style="width:100%;justify-content:center">Отмена</button>
         </div>
       </form>` : ""}
 
