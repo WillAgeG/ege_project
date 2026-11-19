@@ -559,6 +559,12 @@
     return {
       exists: !!store.docs.profile,
       name: p.name || "",
+      photo: p.photo || "",
+      grade: p.grade || "",
+      city: p.city || "",
+      phone: p.phone || "",
+      goal: p.goal || "",
+      prepSetupPending: !!p.prepSetupPending,
       targets: Object.assign({}, DEFAULT_TARGETS, p.targets || {}),
       exams: Object.assign({}, examDefaults(), p.exams || {})
     };
@@ -1733,44 +1739,59 @@
     </div>`;
   }
   function openTutorContactModal(tutorId, tutorName, ch) {
-    const channel = ch === "max" ? "max" : "tg";
+    const channel = ch === "wa" ? "wa" : (ch === "max" ? "max" : "tg");
     const st = mkt();
     const map = st.tutorContacts && typeof st.tutorContacts === "object" ? st.tutorContacts : {};
     const ov = (tutorId && map[tutorId]) || {};
     const tutorObj = TDATA && Array.isArray(TDATA.LIST) ? TDATA.LIST.find((x) => x.id === tutorId) : null;
     const resolvedName = tutorName || (tutorObj && tutorObj.name) || "Преподаватель";
-    const curVal = channel === "max"
-      ? String(ov.maxHandle || (tutorObj && tutorObj.maxHandle) || "")
-      : String(ov.telegram || (tutorObj && tutorObj.telegram) || "");
+    let curVal = "";
+    if (channel === "wa") {
+      const rawWa = String(ov.whatsapp || (tutorObj && tutorObj.whatsapp) || "").trim();
+      const fmtP = EGE.kit && EGE.kit.formatPhoneMask;
+      curVal = rawWa && typeof fmtP === "function" ? (fmtP(rawWa) || rawWa) : rawWa;
+    } else if (channel === "max") {
+      curVal = String(ov.maxHandle || (tutorObj && tutorObj.maxHandle) || "");
+    } else {
+      curVal = String(ov.telegram || (tutorObj && tutorObj.telegram) || "");
+    }
     ui.tutorContactModal = {
       tutorId: String(tutorId || ""),
       tutorName: resolvedName,
       channel,
       value: curVal,
+      hasExisting: Boolean(curVal && curVal.trim()),
       error: ""
     };
     ui.focusNext = "tc-contact-inp";
     renderModal();
   }
   function tutorContactModalHTML() {
-    const m = ui.tutorContactModal || { tutorId: "", tutorName: "Преподаватель", channel: "tg", value: "", error: "" };
+    const m = ui.tutorContactModal || { tutorId: "", tutorName: "Преподаватель", channel: "tg", value: "", hasExisting: false, error: "" };
+    const isWa = m.channel === "wa";
     const isMax = m.channel === "max";
-    const chName = isMax ? "MAX" : "Telegram";
-    const ph = isMax ? "@username или ссылка max.ru/..." : "@username или +7 (914) 000-00-00";
+    const chName = isWa ? "WhatsApp" : (isMax ? "MAX" : "Telegram");
+    const ph = isWa ? "+7 (914) 000-00-00" : (isMax ? "@username или ссылка max.ru/..." : "@username или +7 (914) 000-00-00");
+    const titlePrefix = m.hasExisting ? "Изменить" : "Указать";
+    const desc = isWa
+      ? `Укажите актуальный номер WhatsApp преподавателя ${esc(m.tutorName || "")} — кнопка перехода в чат обновится сразу.`
+      : (m.hasExisting
+          ? `Обновите контакт преподавателя ${esc(m.tutorName || "")} в ${chName} — кнопка перехода обновится сразу.`
+          : `${esc(m.tutorName || "Преподаватель")} пока подключён только через WhatsApp. Если вы узнали его контакт в ${chName}, сохраните его — кнопка сразу станет активной.`);
     return `<div class="modal-back is-sheet-back" role="dialog" aria-modal="true" aria-labelledby="tcm-modal-title">
       <div class="modal-card sheet-modal" data-sheet-kind="tutor-contact">
         <div class="sheet-grabber-zone" data-sheet-drag="1" role="button" tabindex="0" data-a="tutor-contact-close" aria-label="Свернуть окно">
           <span class="sheet-grabber"></span>
         </div>
         <div class="sheet-head is-booking-head">
-          <div class="row" style="gap:8px">${icon("msg")}<b id="tcm-modal-title">Указать ${chName} преподавателя</b></div>
+          <div class="row" style="gap:8px">${icon("msg")}<b id="tcm-modal-title">${titlePrefix} ${chName} преподавателя</b></div>
         </div>
         <div class="sheet-body">
-          <p class="small ink2" style="margin:0;line-height:1.45">${esc(m.tutorName || "Преподаватель")} пока подключён только через WhatsApp. Если вы узнали его контакт в ${chName}, сохраните его — кнопка сразу станет активной.</p>
+          <p class="small ink2" style="margin:0;line-height:1.45">${desc}</p>
           <form class="stack" style="gap:12px" data-f="tutor-contact-save">
             <div class="field">
-              <label for="tc-contact-inp">Ник, телефон или ссылка в ${chName}</label>
-              <input class="input" id="tc-contact-inp" name="contact" type="text" maxlength="64" placeholder="${esc(ph)}" value="${esc(m.value || "")}">
+              <label for="tc-contact-inp">${isWa ? "Номер телефона WhatsApp" : `Ник, телефон или ссылка в ${chName}`}</label>
+              <input class="input${isWa ? " num" : ""}" id="tc-contact-inp" name="contact" type="${isWa ? "tel" : "text"}"${isWa ? ' inputmode="tel"' : ""} maxlength="64" placeholder="${esc(ph)}" value="${esc(m.value || "")}">
               ${m.error ? `<span class="small" style="color:var(--bad);font-weight:600">${esc(m.error)}</span>` : ""}
             </div>
             <div class="stack" style="gap:8px">
@@ -1874,13 +1895,13 @@
     });
   }
   function avatarHTML(url, name, lg) {
-    if (url) return `<img src="${esc(url)}" alt="">`;
+    if (url) return `<img class="avatar-img${lg ? " lg" : ""}" src="${esc(url)}" alt="">`;
     return `<span class="avatar${lg ? " lg" : ""}" aria-hidden="true">${esc(initials(name))}</span>`;
   }
   function needsPrepSetup() {
     if (ui.role === "tutor" || ui.role === "admin") return false;
     const prof = profile();
-    return Boolean(store.ready && !prof.exists && store.error !== "readonly" && (!store.backend || store.user || ui.guest));
+    return Boolean(store.ready && (!prof.exists || prof.prepSetupPending) && store.error !== "readonly" && (!store.backend || store.user || ui.guest));
   }
   function renderChrome() {
     const isTutor = ui.role === "tutor";
@@ -1945,6 +1966,7 @@
     }).join("");
     const me = store.me, prof = profile();
     const nm = (store.user ? (prof.name || store.user.displayName || store.user.username) : "") || prof.name || (me && me.name) || (store.mode === "local" ? (store.backend ? "Гость" : "Этот браузер") : "");
+    const avUrl = prof.photo || (store.user && store.user.avatarUrl) || (me && me.avatarUrl) || "";
     const dark = effectiveDark();
     const themeLabel = dark ? "Светлая тема" : "Тёмная тема";
     const tcMod = EGE.views.tutorCabinet;
@@ -1968,7 +1990,7 @@
     $("#side-foot").innerHTML = `<div id="side-balance-slot" class="side-bal-slot"${isAdmin ? " hidden" : ""}>${sideBalHTML}</div>
       ${roleSwitcherHTML}
       <div class="side-user">
-        <div class="me">${avatarHTML(me && me.avatarUrl, nm, false)}<div style="min-width:0"><div class="me-name">${esc(nm)}</div><span class="sync" hidden><i></i><span></span></span></div></div>
+        <div class="me">${avatarHTML(avUrl, nm, false)}<div style="min-width:0"><div class="me-name">${esc(nm)}</div><span class="sync" hidden><i></i><span></span></span></div></div>
         <div class="row" style="gap:6px">
           <button type="button" class="icon-btn sm" data-a="bug-site" aria-label="Сообщить о баге" title="Сообщить о баге на willagegg@gmail.com">${icon("bug")}</button>
           <button type="button" class="icon-btn sm" data-a="go" data-v="profile"${ui.view === "profile" ? ' aria-current="page"' : ""} aria-label="Настройки" title="Настройки">${icon("gear")}</button>
@@ -1976,9 +1998,9 @@
       </div>
       <div class="side-tools">
         <button type="button" class="theme-pill" data-a="theme-toggle">${icon(dark ? "sun" : "moon")}<span>${dark ? "Светлая" : "Тёмная"}</span></button>
-        ${store.backend && store.user
+        ${store.backend && isUserAuthenticated()
           ? `<button type="button" class="side-logout danger" data-a="auth-logout">${icon("logout")}<span>Выйти</span></button>`
-          : store.backend && !store.user
+          : store.backend && !isUserAuthenticated()
             ? `<button type="button" class="side-logout" data-a="auth-modal-open"><span>Войти</span></button>`
             : ""}
       </div>`;
@@ -2270,12 +2292,12 @@
     return landingPageHTML({ inside: false });
   }
   function accountCard() {
-    if (!store.user) return authCard();
-    const cf = ui.confirm, u = store.user, title = u.displayName || u.username;
+    if (!store.user) return (ui.demoAuthed || ui.guest) ? "" : authCard();
+    const cf = ui.confirm, u = store.user, prof = profile(), title = u.displayName || u.username;
     return `<section class="card pad-lg stack">
       <div class="row between" style="flex-wrap:wrap">
         <div class="me">
-          ${avatarHTML(u.avatarUrl, title, true)}
+          ${avatarHTML(prof.photo || u.avatarUrl, title, true)}
           <div>
             <div class="eyebrow">Аккаунт · ${u.authProvider === "google" ? "Google" : "Логин и пароль"}</div>
             <h2 class="h2">${esc(title)}</h2>
@@ -2447,8 +2469,9 @@
       renderModal();
     },
     "msg-hold-hint": (el) => {
-      const ch = el.dataset && el.dataset.holdCh === "max" ? "MAX" : "Telegram";
-      toast(`Удерживайте серый ${ch}, чтобы указать контакт преподавателя`);
+      const rawCh = el.dataset && el.dataset.holdCh;
+      const ch = rawCh === "wa" ? "WhatsApp" : (rawCh === "max" ? "MAX" : "Telegram");
+      toast(`Удерживайте ${ch}, чтобы указать или изменить контакт преподавателя`);
     },
     go: (el) => go(el.dataset.v, { sid: el.dataset.sid, id: el.dataset.id, fromNav: !!(el.closest && el.closest("#side-nav, #tabbar")) }),
     "brand-go-tutors": () => {
@@ -2629,7 +2652,7 @@
       const name = (store.user ? defaultName() : String(draft("ob.name", defaultName()))).trim().slice(0, 40);
       const targets = {};
       SUBJECT_META.forEach((s) => { targets[s.id] = clampInt(draft("ob." + s.id, DEFAULT_TARGETS[s.id]), 0, 100, DEFAULT_TARGETS[s.id]); });
-      const payload = { name, targets, created: Date.now() };
+      const payload = { name, targets, prepSetupPending: false, created: Date.now() };
       const vc = mkt() && mkt().verifiedContact;
       if (vc && vc.value) {
         payload.contactVerified = true;
@@ -2641,18 +2664,34 @@
       clearDrafts("ob.");
       toast("Готово! Подготовка началась");
     },
-    profile: () => {
+    profile: (form) => {
       const prof = profile();
+      const fe = form && form.elements;
+      const pickVal = (dKey, fKey, fb) => {
+        if (ui.drafts && ui.drafts[dKey] != null) return ui.drafts[dKey];
+        if (fe && fe[fKey] && fe[fKey].value != null) return fe[fKey].value;
+        return fb;
+      };
       const targets = {}, exams = {};
       SUBJECT_META.forEach((s) => {
         targets[s.id] = clampInt(draft("pf.t." + s.id, prof.targets[s.id]), 0, 100, prof.targets[s.id]);
         const d = draft("pf.e." + s.id, prof.exams[s.id]);
         exams[s.id] = validISO(d) ? d : prof.exams[s.id];
       });
-      patchDoc("profile", { name: String(draft("pf.name", prof.name || defaultName())).trim().slice(0, 40), targets, exams });
+      const vc = mkt() && mkt().verifiedContact;
+      patchDoc("profile", {
+        name: String(pickVal("pf.name", "name", prof.name || defaultName())).trim().slice(0, 40),
+        grade: String(pickVal("pf.grade", "grade", prof.grade || "")).trim().slice(0, 48),
+        city: String(pickVal("pf.city", "city", prof.city || "")).trim().slice(0, 40),
+        phone: String(pickVal("pf.phone", "phone", prof.phone || (vc && vc.value) || "")).trim().slice(0, 28),
+        goal: String(pickVal("pf.goal", "goal", prof.goal || "")).trim().slice(0, 200),
+        prepSetupPending: false,
+        targets,
+        exams
+      });
       ui.prepSetupOpen = false;
       clearDrafts("pf.");
-      toast("Сохранено");
+      toast("Профиль сохранён");
     },
     log: () => {
       const d = draft("log.d", todayISO()), m = clampInt(draft("log.m", ""), 1, 720, 0);
@@ -3047,9 +3086,24 @@
       if (!m) return;
       const inp = (form && form.elements && form.elements.contact) || $("#tc-contact-inp");
       const raw = String(inp ? inp.value : "").trim();
-      const ch = m.channel === "max" ? "max" : "tg";
+      const ch = m.channel === "wa" ? "wa" : (m.channel === "max" ? "max" : "tg");
       let cleanVal = "";
-      if (ch === "tg") {
+      let displayVal = "";
+      if (ch === "wa") {
+        const noUrl = raw.replace(/^https?:\/\/(wa\.me|api\.whatsapp\.com\/send\/?)\/?/i, "").trim();
+        let digits = TDATA && typeof TDATA.normalizePhoneDigits === "function"
+          ? TDATA.normalizePhoneDigits(noUrl)
+          : noUrl.replace(/\D+/g, "");
+        if (digits.length === 11 && digits[0] === "8") digits = "7" + digits.slice(1);
+        if (digits.length < 10) {
+          m.error = "Укажите корректный номер WhatsApp (от 10 цифр).";
+          renderModal();
+          return;
+        }
+        cleanVal = digits;
+        const fmtP = EGE.kit && EGE.kit.formatPhoneMask;
+        displayVal = typeof fmtP === "function" ? (fmtP(digits) || ("+" + digits)) : ("+" + digits);
+      } else if (ch === "tg") {
         const noUrl = raw.replace(/^https?:\/\/(t\.me|telegram\.me)\//i, "").trim();
         const digits = TDATA && typeof TDATA.normalizePhoneDigits === "function"
           ? TDATA.normalizePhoneDigits(noUrl)
@@ -3068,6 +3122,7 @@
           renderModal();
           return;
         }
+        displayVal = cleanVal;
       } else {
         cleanVal = raw.replace(/^https?:\/\/max\.ru\//i, "").replace(/^@+/, "").trim();
         if (!cleanVal || cleanVal.length < 2) {
@@ -3075,18 +3130,20 @@
           renderModal();
           return;
         }
+        displayVal = cleanVal;
       }
       const st = mkt();
       const map = st.tutorContacts && typeof st.tutorContacts === "object" ? st.tutorContacts : (st.tutorContacts = {});
       const prev = map[m.tutorId] && typeof map[m.tutorId] === "object" ? map[m.tutorId] : {};
-      map[m.tutorId] = Object.assign({}, prev, ch === "max" ? { maxHandle: cleanVal } : { telegram: cleanVal });
+      const patchObj = ch === "wa"
+        ? { whatsapp: cleanVal }
+        : (ch === "max" ? { maxHandle: cleanVal } : { telegram: cleanVal });
+      map[m.tutorId] = Object.assign({}, prev, patchObj);
       saveMkt();
       ui.tutorContactModal = null;
       renderModal();
-      notifySide(
-        ch === "max" ? "Контакт MAX сохранён" : "Контакт Telegram сохранён",
-        `${m.tutorName || "Преподаватель"} · ${cleanVal}`
-      );
+      const label = ch === "wa" ? "WhatsApp" : (ch === "max" ? "MAX" : "Telegram");
+      notifySide(`Контакт ${label} сохранён`, `${m.tutorName || "Преподаватель"} · ${displayVal}`);
       scheduleRender();
     }
   };
@@ -3628,6 +3685,13 @@
       it.res = grade(it); saveActiveQuiz(); scheduleRender(); return;
     }
     if (el.dataset && el.dataset.c === "essay-check") { essayState().checks[el.dataset.i] = el.checked; scheduleRender(); return; }
+    if (el.id === "pf-photo-file" && el.files && el.files[0]) {
+      if (EGE.views.progress && typeof EGE.views.progress.handleProfilePhotoFile === "function") {
+        EGE.views.progress.handleProfilePhotoFile(el);
+      }
+      el.value = "";
+      return;
+    }
     if (el.id === "import-file" && el.files && el.files[0]) { readImport(el.files[0]); el.value = ""; }
   });
   document.addEventListener("keydown", (e) => {
@@ -3691,8 +3755,9 @@
   function startHoldContact(e) {
     if (!e || !e.target || typeof e.target.closest !== "function") return;
     if (typeof e.button === "number" && e.button !== 0) return;
-    const btn = e.target.closest(".btn-msg.is-disabled.is-hold-add[data-hold-ch]");
+    const btn = e.target.closest(".btn-msg.is-hold-add[data-hold-ch]");
     if (!btn) return;
+    suppressHoldClick = false;
     clearHoldContact();
     const x0 = swipeClientPt(e, "x");
     const y0 = swipeClientPt(e, "y");
@@ -3703,6 +3768,7 @@
       clearHoldContact();
       if (!cur || !cur.el) return;
       suppressHoldClick = true;
+      setTimeout(() => { suppressHoldClick = false; }, 350);
       const d = cur.el.dataset || {};
       openTutorContactModal(d.tutorId || "", d.tutorName || "", d.holdCh || "tg");
     }, 450);
@@ -3841,7 +3907,7 @@
   }, { passive: true });
   document.addEventListener("contextmenu", (e) => {
     const btn = e && e.target && typeof e.target.closest === "function"
-      ? e.target.closest(".btn-msg.is-disabled.is-hold-add[data-hold-ch]")
+      ? e.target.closest(".btn-msg.is-hold-add[data-hold-ch]")
       : null;
     if (!btn) return;
     if (typeof e.preventDefault === "function") e.preventDefault();
@@ -3879,7 +3945,7 @@
   const appCtx = {
     CONTENT, DEFAULT_TARGETS, DIAG_PLAN_ID, EGE, EGEPayments, INTERVALS, LETTERS, MAX_Q_MS,
     MOTION_PRESETS, QUIZ_SIZE, SUBJ, SUBJECTS, SUBJECT_META, SUBJECT_NAME, TDATA, TOPIC_QUIZ, TOPICS, QS,
-    accountCard, ai, caps, clearActiveQuiz, cloud, codeLabel, completePlanFromQuiz,
+    accountCard, ai, avatarHTML, caps, clearActiveQuiz, cloud, codeLabel, completePlanFromQuiz,
     defaultMarketState, defaultName, draft, dueQs, findPlanItem, firstSubject, formatAvg,
     getThemeMode: () => themeMode, go, hash, heroMotionMeta, localNotice, markPlanPrep,
     minutesByDay, mistakeQs, mkt, mocks, needsPrepSetup, nextExam, notifySide, patchDoc, patchHeroMotionDOM,

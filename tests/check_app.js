@@ -1556,9 +1556,12 @@
     );
     clickAction(env5, { a: "bid-sched-send", id: acceptIdMatch[1] });
     await flushMicrotasks(2);
+    const afterSchedHtml = env5.elements.get("main").innerHTML;
     assert(
-      env5.elements.get("main").innerHTML.includes("Бот отправил график преподавателю"),
-      "expected bid-sched-send to move card to sent_to_tutor bot status"
+      afterSchedHtml.includes("График закреплён") &&
+      afterSchedHtml.includes("график закреплён в «Учёбе»") &&
+      !afterSchedHtml.includes("выберите дни ниже"),
+      "expected bid-sched-send to auto-confirm weekly schedule immediately and update status subtitle"
     );
     clickAction(env5, { a: "bid-sched-alt-sim", id: acceptIdMatch[1] });
     await flushMicrotasks(2);
@@ -1586,6 +1589,7 @@
       studyWithCardsHtml.includes("Яндекс Телемост") &&
       studyWithCardsHtml.includes("Отменить занятие") &&
       studyWithCardsHtml.includes("is-hold-add") &&
+      studyWithCardsHtml.includes('data-hold-ch="wa"') &&
       studyWithCardsHtml.includes('data-hold-ch="tg"') &&
       studyWithCardsHtml.includes("Главный срок") &&
       studyWithCardsHtml.includes("Быстрый переход") &&
@@ -1595,7 +1599,7 @@
       !studyWithCardsHtml.includes("Подобрать ещё") &&
       !studyWithCardsHtml.includes('data-a="study-subj"') &&
       (studyWithCardsHtml.match(/data-label="День и час"/g) || []).length >= 2,
-      "expected 7-day strip without filters/sub-tabs/Подобрать ещё, daily card with single-line swipe pills, Telemost & cancel"
+      "expected 7-day strip without filters/sub-tabs/Подобрать ещё, daily card with single-line swipe pills, hold on WA/TG/MAX, Telemost & cancel"
     );
 
     const otherDayMatch = /data-a="study-day-pick" data-iso="([^"]+)" aria-pressed="false"/.exec(studyWithCardsHtml);
@@ -1637,8 +1641,33 @@
     assert(
       !env5.elements.get("modal-root").innerHTML.trim() &&
       afterTgSaveHtml.includes("https://t.me/sokolova_bio") &&
+      afterTgSaveHtml.includes('class="btn-msg is-tg is-hold-add"') &&
       !afterTgSaveHtml.includes("btn-msg is-tg is-disabled"),
-      "expected saving @sokolova_bio via hold modal to activate Telegram link in Расписание"
+      "expected saving @sokolova_bio via hold modal to activate Telegram link (while keeping hold-to-edit) in Расписание"
+    );
+
+    // Hold-to-edit on already active WhatsApp pill updates wa.me link immediately
+    const holdWaMatch = /class="btn-msg is-wa is-hold-add"[^>]*data-hold-ch="wa" data-tutor-id="([^"]*)" data-tutor-name="([^"]*)"/.exec(afterTgSaveHtml);
+    assert(holdWaMatch, "expected active WhatsApp pill to carry is-hold-add and data-hold-ch='wa'");
+    clickAction(env5, { a: "tutor-contact-open", tutorId: holdWaMatch[1], tutorName: holdWaMatch[2], holdCh: "wa" });
+    await flushMicrotasks(2);
+    assert(
+      env5.elements.get("modal-root").innerHTML.includes("Изменить WhatsApp преподавателя"),
+      "expected hold modal on active WhatsApp pill to open Изменить WhatsApp преподавателя"
+    );
+    env5.emitDoc("submit", {
+      target: {
+        closest: () => ({
+          dataset: { f: "tutor-contact-save" },
+          elements: { contact: { value: "8 (914) 555-44-33" } }
+        })
+      },
+      preventDefault() {}
+    });
+    await flushMicrotasks(3);
+    assert(
+      env5.elements.get("main").innerHTML.includes("https://wa.me/79145554433"),
+      "expected saving WhatsApp phone via hold modal to update active wa.me URL"
     );
 
     clickAction(env5, { a: "go", v: "market" });
@@ -2085,7 +2114,47 @@
 
     clickAction(env5, { a: "go", v: "profile" });
     await flushMicrotasks(3);
-    assert(env5.elements.get("main").innerHTML.includes("Режим кабинета"), "expected role switcher inside Profile");
+    const demoProfHtml = env5.elements.get("main").innerHTML;
+    assert(
+      !demoProfHtml.includes("Вход в аккаунт") &&
+      !demoProfHtml.includes("Режим кабинета") &&
+      !demoProfHtml.includes("Оформление") &&
+      demoProfHtml.includes("Личный профиль") &&
+      demoProfHtml.includes('id="pf-photo-file"') &&
+      demoProfHtml.includes("Добавить фото") &&
+      demoProfHtml.includes('id="pf-grade"') &&
+      demoProfHtml.includes('id="pf-city"') &&
+      demoProfHtml.includes('id="pf-phone"') &&
+      demoProfHtml.includes('id="pf-goal"') &&
+      demoProfHtml.includes("Сохранить профиль") &&
+      demoProfHtml.includes('data-a="auth-logout"'),
+      "expected clean demo Student Profile without login card, role switcher, or theme card, with photo upload & personal fields"
+    );
+    env5.emitDoc("submit", {
+      target: {
+        closest: () => ({
+          dataset: { f: "profile" },
+          elements: {
+            name: { value: "Кирилл Егоров" },
+            grade: { value: "11 класс · ЕГЭ" },
+            city: { value: "Якутск" },
+            phone: { value: "+7 (914) 321-00-11" },
+            goal: { value: "ЕГЭ по профилю на 90+" }
+          }
+        })
+      },
+      preventDefault() {}
+    });
+    await flushMicrotasks(4);
+    const savedProfHtml = env5.elements.get("main").innerHTML;
+    assert(
+      savedProfHtml.includes("Кирилл Егоров") &&
+      savedProfHtml.includes('value="11 класс · ЕГЭ" selected') &&
+      savedProfHtml.includes('value="Якутск"') &&
+      savedProfHtml.includes("+7 (914) 321-00-11") &&
+      savedProfHtml.includes("ЕГЭ по профилю на 90+"),
+      "expected student profile fields (name, grade, city, phone, goal) to persist after submit"
+    );
 
     // Переключение в режим преподавателя через окно входа -> Личный кабинет преподавателя
     clickAction(env5, { a: "auth-modal-open" });

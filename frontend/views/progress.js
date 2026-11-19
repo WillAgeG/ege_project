@@ -5,15 +5,15 @@
   const root = typeof globalThis !== "undefined" ? globalThis : window;
   const EGE = (root.EGE = root.EGE || {});
   const {
-    $, addDays, byDue, dateDay, dateLong, dateShort, days, daysUntil, esc, isObj,
+    $, addDays, byDue, dateDay, dateLong, dateShort, days, daysUntil, esc, initials, isObj,
     isoDate, minutesText, pad, parseISO, plural, range, todayISO, validISO
   } = EGE.utils;
   const { icon } = EGE.ui;
 
   let CONTENT, DIAG_PLAN_ID, QUIZ_SIZE, SUBJ, SUBJECT_META, SUBJECT_NAME, TOPIC_QUIZ, TOPICS, QS;
   let ai, caps, cloud, mkt, store, ui;
-  let accountCard, defaultName, draft, dueQs, findPlanItem, formatAvg, getThemeMode, go;
-  let localNotice, minutesByDay, mistakeQs, mocks, needsPrepSetup, patchDoc, planDoc, planItems, profile;
+  let accountCard, avatarHTML, defaultName, draft, dueQs, findPlanItem, formatAvg, getThemeMode, go;
+  let isUserAuthenticated, localNotice, minutesByDay, mistakeQs, mocks, needsPrepSetup, patchDoc, planDoc, planItems, profile;
   let prog, questionAttemptBreakdown, replaceDoc, scheduleRender, sessions, staleNotice;
   let subjSelect, subjectAccuracy, subjectReadCount, subjectStats, tile, toast, todoItem;
   let topicRef, topicStats, totals;
@@ -27,8 +27,8 @@
     ({
       CONTENT, DIAG_PLAN_ID, QUIZ_SIZE, SUBJ, SUBJECT_META, SUBJECT_NAME, TOPIC_QUIZ, TOPICS, QS,
       ai, caps, cloud, mkt, store, ui,
-      accountCard, defaultName, draft, dueQs, findPlanItem, formatAvg, getThemeMode, go,
-      localNotice, minutesByDay, mistakeQs, mocks, needsPrepSetup, patchDoc, planDoc, planItems, profile,
+      accountCard, avatarHTML, defaultName, draft, dueQs, findPlanItem, formatAvg, getThemeMode, go,
+      isUserAuthenticated, localNotice, minutesByDay, mistakeQs, mocks, needsPrepSetup, patchDoc, planDoc, planItems, profile,
       prog, questionAttemptBreakdown, replaceDoc, scheduleRender, sessions, staleNotice,
       subjSelect, subjectAccuracy, subjectReadCount, subjectStats, tile, toast, todoItem,
       topicRef, topicStats, totals
@@ -342,14 +342,24 @@
   window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(drawCharts, 150); });
 
 
-  // ---------- настройки ----------
+  // ---------- профиль и настройки ----------
+  const GRADE_OPTIONS = [
+    "",
+    "11 класс · ЕГЭ",
+    "10 класс · ЕГЭ",
+    "9 класс · ОГЭ",
+    "8 класс и младше",
+    "Студент / навыки"
+  ];
   function viewProfile() {
     const prof = profile();
     const isTutor = ui.role === "tutor";
     const isAdmin = ui.role === "admin";
+    const authed = typeof isUserAuthenticated === "function" ? isUserAuthenticated() : Boolean(store.user || ui.demoAuthed);
+    const isDemo = Boolean(!store.user && (ui.demoAuthed || ui.guest));
     const showSetupNotif = typeof needsPrepSetup === "function"
       ? needsPrepSetup()
-      : Boolean(!isTutor && !isAdmin && store.ready && !prof.exists && store.error !== "readonly" && (!store.backend || store.user || ui.guest));
+      : Boolean(!isTutor && !isAdmin && store.ready && (!prof.exists || prof.prepSetupPending) && store.error !== "readonly" && (!store.backend || store.user || ui.guest));
     const setupNotifHTML = showSetupNotif
       ? `<section class="card profile-setup-notif${ui.prepSetupOpen ? " is-open" : ""}" id="profile-setup-notif" aria-label="Настройка подготовки">
           <div class="profile-setup-bar">
@@ -368,19 +378,78 @@
         </section>`
       : "";
     const vc = typeof mkt === "function" && mkt() && mkt().verifiedContact;
-    const phoneCardHTML = vc && vc.value
-      ? `<section class="card pad-lg row between" style="gap:10px;flex-wrap:wrap">
-          <div class="stack" style="gap:2px">
-            <span class="small muted">Подтверждённый телефон (СМС)</span>
-            <b class="num">${esc(vc.value)}</b>
-          </div>
-          <span class="chip good">Подтверждён ✓</span>
-        </section>`
-      : "";
-    return `<div class="head"><div class="eyebrow">Профиль</div><h1 class="h1">Профиль и настройки</h1></div>
+    const displayName = String(draft("pf.name", prof.name || defaultName()) || "Ученик");
+    const curPhoto = prof.photo || (store.user && store.user.avatarUrl) || "";
+    const curGrade = String(draft("pf.grade", prof.grade || ""));
+    const curCity = String(draft("pf.city", prof.city || ""));
+    const curPhone = String(draft("pf.phone", prof.phone || (vc && vc.value) || ""));
+    const curGoal = String(draft("pf.goal", prof.goal || ""));
+    const avatarEl = curPhoto
+      ? `<img class="stu-profile-avatar" src="${esc(curPhoto)}" alt="Фото профиля">`
+      : `<span class="stu-profile-avatar is-fallback" aria-hidden="true">${esc(initials(displayName || "У"))}</span>`;
+    const roleChip = isAdmin
+      ? `<span class="chip pro">Администратор</span>`
+      : isTutor
+        ? `<span class="chip gold">Преподаватель</span>`
+        : `<span class="chip accent">${isDemo ? "Демо-ученик" : "Ученик"}</span>`;
+    const topActionBtn = authed
+      ? `<button type="button" class="btn ghost sm" data-a="auth-logout">${icon("logout")}<span>Выйти</span></button>`
+      : (store.backend ? `<button type="button" class="btn soft sm" data-a="auth-modal-open">Войти в аккаунт</button>` : "");
+    return `<div class="head row between" style="align-items:flex-end;gap:10px;flex-wrap:wrap">
+        <div><div class="eyebrow">Профиль</div><h1 class="h1">Личный профиль</h1></div>
+        ${topActionBtn}
+      </div>
       ${setupNotifHTML}
-      ${store.backend ? accountCard() : ""}
-      ${phoneCardHTML}
+      ${store.backend && store.user ? accountCard() : ""}
+      <form class="card pad-lg form stu-profile-form" data-f="profile">
+        <div class="stu-photo-row">
+          ${avatarEl}
+          <div class="stu-profile-ident">
+            <div class="stu-profile-head-chips">
+              <b style="font-size:16px">${esc(displayName)}</b>
+              ${roleChip}
+              ${vc && vc.value ? `<span class="chip good">Телефон подтверждён ✓</span>` : ""}
+            </div>
+            <span class="small muted">${prof.photo ? "Фото сохранено в профиле и отображается в кабинете" : "Добавьте своё фото — оно появится в вашем профиле"}</span>
+            <div class="stu-profile-actions">
+              <label class="btn soft sm" for="pf-photo-file" style="cursor:pointer">${icon("upload")}<span>${prof.photo ? "Изменить фото" : "Добавить фото"}</span></label>
+              <input type="file" id="pf-photo-file" accept="image/*" hidden>
+              ${prof.photo ? `<button type="button" class="btn ghost sm" data-a="pf-photo-clear">Удалить фото</button>` : ""}
+            </div>
+          </div>
+        </div>
+        <h2 class="h2">Личные данные</h2>
+        <div class="field">
+          <label for="pf-name">Имя и фамилия</label>
+          <input class="input" id="pf-name" name="name" data-d="pf.name" value="${esc(draft("pf.name", prof.name || defaultName()))}" maxlength="40" placeholder="Как к тебе обращаться">
+        </div>
+        <div class="fields">
+          <div class="field">
+            <label for="pf-grade">Класс или цель</label>
+            <select class="input" id="pf-grade" name="grade" data-d="pf.grade">
+              ${GRADE_OPTIONS.map((opt) => `<option value="${esc(opt)}"${curGrade === opt ? " selected" : ""}>${esc(opt || "Не указано")}</option>`).join("")}
+            </select>
+          </div>
+          <div class="field">
+            <label for="pf-city">Город</label>
+            <input class="input" id="pf-city" name="city" data-d="pf.city" value="${esc(curCity)}" maxlength="40" placeholder="Якутск, Москва…">
+          </div>
+        </div>
+        <div class="field">
+          <label for="pf-phone">Телефон для СМС и мессенджеров</label>
+          <input class="input num" id="pf-phone" name="phone" type="tel" data-d="pf.phone" value="${esc(curPhone)}" maxlength="28" placeholder="+7 (914) 000-00-00">
+        </div>
+        <div class="field">
+          <label for="pf-goal">О себе и цели подготовки</label>
+          <textarea class="textarea" id="pf-goal" name="goal" rows="2" maxlength="200" data-d="pf.goal" placeholder="Например: ЕГЭ по профилю и физике на 85+, удобны занятия вечером">${esc(curGoal)}</textarea>
+        </div>
+        <div class="label">Целевые баллы</div>
+        <div class="fields">${SUBJECT_META.map((s) => `<div class="field"><label for="pf-t-${s.id}">${esc(s.name)}</label><input class="input num" type="number" min="0" max="100" inputmode="numeric" id="pf-t-${s.id}" data-d="pf.t.${s.id}" value="${esc(draft("pf.t." + s.id, prof.targets[s.id]))}"></div>`).join("")}</div>
+        <div class="label">Даты экзаменов</div>
+        <div class="fields">${SUBJECT_META.map((s) => `<div class="field"><label for="pf-e-${s.id}">${esc(s.name)}</label><input class="input" type="date" id="pf-e-${s.id}" data-d="pf.e.${s.id}" value="${esc(draft("pf.e." + s.id, prof.exams[s.id]))}"></div>`).join("")}</div>
+        <p class="hint">Сейчас стоят даты из проекта расписания ЕГЭ-2027. Когда расписание утвердят, поправь их здесь — план и отсчёты обновятся.</p>
+        <div><button class="btn" type="submit">Сохранить профиль</button></div>
+      </form>
       <section class="card pad-lg row between" style="gap:10px;flex-wrap:wrap">
         <div class="stack" style="gap:2px">
           <b>Статистика и показатели</b>
@@ -388,46 +457,20 @@
         </div>
         <button type="button" class="btn soft sm" data-a="go" data-v="stats">${icon("chart")}<span>Открыть показатели</span></button>
       </section>
-      <section class="card pad-lg stack">
-        <div class="row between" style="flex-wrap:wrap;gap:8px">
-          <h2 class="h2">Режим кабинета</h2>
-          <span class="chip ${isAdmin ? "pro" : isTutor ? "gold" : "accent"}">${isAdmin ? "Администратор" : isTutor ? "Преподаватель" : "Ученик (по умолчанию)"}</span>
-        </div>
-        <div class="hh-seg" role="group" aria-label="Выбор роли кабинета" style="flex-wrap:wrap">
-          <button type="button" data-a="role-set" data-role="student" aria-pressed="${!isTutor && !isAdmin}">${icon("book")}<span>Как ученик</span></button>
-          <button type="button" data-a="role-set" data-role="tutor" aria-pressed="${isTutor}">${icon("users")}<span>Как преподаватель</span></button>
-          ${isAdmin ? `<button type="button" data-a="role-set" data-role="admin" aria-pressed="true">${icon("shield")}<span>Как администратор</span></button>` : ""}
-        </div>
-      </section>
-      <section class="card pad-lg stack">
-        <div class="row between"><h2 class="h2">Оформление</h2><span class="small muted">${getThemeMode() === "auto" ? "по настройкам устройства" : getThemeMode() === "dark" ? "тёмная палитра" : "светлая палитра"}</span></div>
-        <div class="switch" role="group" aria-label="Тема оформления">
-          <button type="button" data-a="theme-set" data-theme="auto" aria-pressed="${getThemeMode() === "auto"}">Авто</button>
-          <button type="button" data-a="theme-set" data-theme="light" aria-pressed="${getThemeMode() === "light"}">${icon("sun")}<span>Светлая</span></button>
-          <button type="button" data-a="theme-set" data-theme="dark" aria-pressed="${getThemeMode() === "dark"}">${icon("moon")}<span>Тёмная</span></button>
-        </div>
-      </section>
-      <form class="card pad-lg form" data-f="profile">
-        <h2 class="h2">Профиль</h2>
-        <div class="field"><label for="pf-name">Как к тебе обращаться</label><input class="input" id="pf-name" data-d="pf.name" value="${esc(draft("pf.name", prof.name || defaultName()))}" maxlength="40"></div>
-        <div class="label">Целевые баллы</div>
-        <div class="fields">${SUBJECT_META.map((s) => `<div class="field"><label for="pf-t-${s.id}">${esc(s.name)}</label><input class="input num" type="number" min="0" max="100" inputmode="numeric" id="pf-t-${s.id}" data-d="pf.t.${s.id}" value="${esc(draft("pf.t." + s.id, prof.targets[s.id]))}"></div>`).join("")}</div>
-        <div class="label">Даты экзаменов</div>
-        <div class="fields">${SUBJECT_META.map((s) => `<div class="field"><label for="pf-e-${s.id}">${esc(s.name)}</label><input class="input" type="date" id="pf-e-${s.id}" data-d="pf.e.${s.id}" value="${esc(draft("pf.e." + s.id, prof.exams[s.id]))}"></div>`).join("")}</div>
-        <p class="hint">Сейчас стоят даты из проекта расписания ЕГЭ-2027. Когда расписание утвердят, поправь их здесь — план и отсчёты обновятся.</p>
-        <div><button class="btn" type="submit">Сохранить</button></div>
-      </form>
       ${dataCard()}`;
   }
   function dataCard() {
+    const isDemo = Boolean(!store.user && (ui.demoAuthed || ui.guest));
     const where = store.mode === "cloud"
       ? (store.backend
           ? "Прогресс хранится на сервере в базе данных и привязан к твоему аккаунту. Войди под тем же логином на любом устройстве — ответы, отметки и записи будут на месте."
           : "Прогресс хранится в облаке claude.ai и привязан к твоему аккаунту. Открой эту страницу на любом компьютере под тем же аккаунтом — ответы, отметки и записи будут на месте.")
       : store.mode === "local"
-        ? (store.backend
-            ? "Сервер базы данных подключён, но вход в аккаунт ещё не выполнен — текущие данные пока хранятся только в этом браузере. Войди или зарегистрируйся выше, чтобы синхронизировать прогресс."
-            : "Сейчас страница открыта не на claude.ai, поэтому данные хранятся только в этом браузере. Открой её по ссылке на claude.ai, чтобы прогресс сохранялся в облаке.")
+        ? (isDemo
+            ? "Вы в демо-режиме — фото, данные профиля и учебный прогресс сохраняются локально в этом браузере."
+            : (store.backend
+                ? "Сервер базы данных подключён — для облачной синхронизации войдите в аккаунт в правом верхнем углу."
+                : "Данные профиля и учебный прогресс хранятся локально в этом браузере."))
         : "Подключаюсь к хранилищу…";
     const cf = ui.confirm;
     return `<section class="card pad-lg stack">
@@ -496,6 +539,53 @@
     const fallback = () => { const el = document.querySelector(sel); if (el) { el.focus(); el.select(); toast("Текст выделен — нажми Ctrl+C"); } };
     try { navigator.clipboard.writeText(text).then(() => toast("Скопировано"), fallback); } catch (e) { fallback(); }
   }
+  function handleProfilePhotoFile(el) {
+    if (!el || !el.files || !el.files[0]) return false;
+    const file = el.files[0];
+    if (!file.type || file.type.indexOf("image/") !== 0) {
+      toast("Выберите изображение (JPG, PNG, WebP)");
+      return true;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const rawData = typeof reader.result === "string" ? reader.result : "";
+      if (!rawData) return;
+      const applyPhoto = (url) => {
+        const hadDoc = Boolean(store.docs && store.docs.profile);
+        const pendingFlag = hadDoc ? Boolean(store.docs.profile.prepSetupPending) : true;
+        patchDoc("profile", { photo: url, prepSetupPending: pendingFlag });
+        scheduleRender();
+        toast("Фото профиля обновлено");
+      };
+      if (typeof Image === "function" && typeof document !== "undefined" && typeof document.createElement === "function") {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const maxDim = 240;
+            const scale = Math.min(1, maxDim / Math.max(img.width || maxDim, img.height || maxDim));
+            const w = Math.max(1, Math.round((img.width || maxDim) * scale));
+            const h = Math.max(1, Math.round((img.height || maxDim) * scale));
+            const cvs = document.createElement("canvas");
+            cvs.width = w;
+            cvs.height = h;
+            const ctx2d = cvs.getContext("2d");
+            if (ctx2d) {
+              ctx2d.drawImage(img, 0, 0, w, h);
+              applyPhoto(cvs.toDataURL("image/jpeg", 0.84));
+              return;
+            }
+          } catch (e) { /* используем исходный Data URL */ }
+          applyPhoto(rawData.slice(0, 350000));
+        };
+        img.onerror = () => applyPhoto(rawData.slice(0, 350000));
+        img.src = rawData;
+      } else {
+        applyPhoto(rawData.slice(0, 350000));
+      }
+    };
+    reader.readAsDataURL(file);
+    return true;
+  }
 
   function registerActions(ACTIONS) {
     Object.assign(ACTIONS, {
@@ -536,6 +626,11 @@
     },
     "confirm-cancel": () => { ui.confirm = null; scheduleRender(); },
     "prep-setup-toggle": () => { ui.prepSetupOpen = !ui.prepSetupOpen; scheduleRender(); },
+    "pf-photo-clear": () => {
+      patchDoc("profile", { photo: "" });
+      scheduleRender();
+      toast("Фото профиля удалено");
+    },
     });
   }
 
@@ -548,6 +643,7 @@
     doExport,
     doImport,
     drawCharts,
+    handleProfilePhotoFile,
     readImport,
     toggleTodo,
     viewPlan,

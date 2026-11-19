@@ -2413,6 +2413,8 @@ body:has(.land-page:not(#brandbook-page)) .main,
   background: color-mix(in srgb, var(--confirm-soft) 55%, var(--surface));
 }
 .bid-sched-confirmed b { display: block; font-size: 13px; color: var(--confirm); font-weight: 700; }
+.bid-sched-confirmed span { display: block; line-height: 1.32; }
+.bid-sched-confirmed .btn { flex: none; white-space: nowrap; }
 .tc-sched-box { font-size: 12.5px; line-height: 1.4; }
 
 /* Учёба -> Расписание: 7-дневный календарь с цифрами уроков + карточки дня с Телемостом и мессенджерами */
@@ -2613,3 +2615,57 @@ body:has(.land-page:not(#brandbook-page)) .main,
   padding-top: 12px; border-top: 1px solid var(--line);
 }
 .profile-setup-body .card.pad-lg { padding: 0; border: 0; background: transparent; box-shadow: none; }
+
+.stu-profile-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  min-width: 0;
+}
+.stu-profile-form > * { min-width: 0; max-width: 100%; }
+.stu-photo-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  min-width: 0;
+}
+.stu-profile-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  flex: none;
+  object-fit: cover;
+  border: 2px solid var(--line-strong);
+  background: var(--surface);
+}
+.stu-profile-avatar.is-fallback {
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 20px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent), #3b82f6);
+  border-color: transparent;
+}
+.stu-profile-ident {
+  flex: 1;
+  min-width: 170px;
+  display: grid;
+  gap: 6px;
+}
+.stu-profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.stu-profile-head-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}

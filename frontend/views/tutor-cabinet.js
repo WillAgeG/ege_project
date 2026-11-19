@@ -120,8 +120,11 @@
         <span class="small">Предложили ученику: <b>${esc(tcDaysShort(sp.altDows))} · ${esc(sp.altHour || "17:00")}</b> · ждём подтверждения</span>
       </div>`;
     }
-    return `<div class="tc-sched-box" style="display:grid;gap:4px;padding:8px 10px;border-radius:10px;border:1px solid color-mix(in srgb,var(--confirm) 30%,transparent);background:var(--confirm-soft);width:100%">
+    return `<div class="tc-sched-box" style="display:grid;gap:6px;padding:8px 10px;border-radius:10px;border:1px solid color-mix(in srgb,var(--confirm) 30%,transparent);background:var(--confirm-soft);width:100%">
       <span class="small" style="color:var(--confirm)"><b>✓ График закреплён:</b> ${esc(tcDaysShort(sp.dows))} · ${esc(sp.hour || req.hour)}${weekly ? " · каждую неделю" : ""}</span>
+      <div class="row" style="gap:6px;flex-wrap:wrap">
+        <button type="button" class="btn soft sm" data-a="tc-sched-alt-open" data-id="${esc(req.id)}">Выбрать другие даты</button>
+      </div>
     </div>`;
   }
 

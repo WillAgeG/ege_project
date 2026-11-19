@@ -171,16 +171,18 @@
     const st = getMkt();
     const ov = st && st.tutorContacts && typeof st.tutorContacts === "object" ? st.tutorContacts[t.id] : null;
     if (!ov || typeof ov !== "object") return t;
+    const hasWa = Boolean(ov.whatsapp && String(ov.whatsapp).trim());
     const hasTg = Boolean(ov.telegram && String(ov.telegram).trim());
     const hasMax = Boolean(ov.maxHandle && String(ov.maxHandle).trim());
     const baseAvail = (t.availableChannels && typeof t.availableChannels === "object")
       ? t.availableChannels
       : { wa: Boolean(t.whatsapp || !t.telegram), tg: Boolean(t.telegram), max: Boolean(t.maxHandle) };
     return Object.assign({}, t, {
+      whatsapp: hasWa ? String(ov.whatsapp).trim() : (t.whatsapp || ""),
       telegram: hasTg ? String(ov.telegram).trim() : (t.telegram || ""),
       maxHandle: hasMax ? String(ov.maxHandle).trim() : (t.maxHandle || ""),
       availableChannels: {
-        wa: !!baseAvail.wa,
+        wa: !!baseAvail.wa || hasWa,
         tg: !!baseAvail.tg || hasTg,
         max: !!baseAvail.max || hasMax
       }
@@ -336,10 +338,10 @@
         </div>
         <div class="bid-sched-bot">
           <b>Бот напишет преподавателю на платформе:</b>
-          <span>«Ученик хочет заниматься ${esc(phrase)}. Можно подтвердить эти даты или выбрать другие — мы сразу предложим их ученику.»</span>
+          <span>«Ученик хочет заниматься ${esc(phrase)}. График сразу закрепится в «Учёбе» — при необходимости можно выбрать другие даты, и мы сразу предложим их ученику.»</span>
         </div>
         <button type="button" class="btn sm bid-sched-submit" data-a="bid-sched-send" data-id="${esc(bk.id)}"${ready ? "" : " disabled"}>
-          ${ready ? "Отправить график преподавателю" : "Выберите хотя бы 1 день"}
+          ${ready ? "Закрепить график" : "Выберите хотя бы 1 день"}
         </button>
       </div>`;
     }
@@ -388,6 +390,7 @@
       <div style="min-width:0">
         <b>График закреплён${plan.weekly !== false ? " · каждую неделю" : ""}</b>
         <span class="small muted num">${esc(formatDaysShort(plan.dows))} · ${esc(plan.hour || bk.hour)}</span>
+        <span class="small muted">Бот уведомил преподавателя — при необходимости он предложит другие даты</span>
       </div>
       <button type="button" class="btn ghost sm" data-a="bid-sched-edit" data-id="${esc(bk.id)}">Изменить</button>
     </div>`;
@@ -778,16 +781,24 @@
               </div>
             </div>
             <div class="tutor-card-foot">
-              <div class="home-bid-status ${accepted ? "is-accepted" : "is-pending"}">
-                <b>${accepted ? "Преподаватель ответил · подтверждено" : "Ожидаем ответ преподавателя"}</b>
-                <span>${accepted
-                  ? `Написали вам в СМС${vc ? ` (${esc(vc)})` : ""} · выберите дни ниже`
-                  : `Придёт СМС${vc ? ` на ${esc(vc)}` : ""} · затем выберите дни`}</span>
-              </div>
+              ${(() => {
+                const schedStatus = bk.schedulePlan && bk.schedulePlan.status;
+                const acceptedHint = schedStatus === "confirmed"
+                  ? `Написали вам в СМС${vc ? ` (${esc(vc)})` : ""} · график закреплён в «Учёбе»`
+                  : schedStatus === "tutor_proposed"
+                    ? "Преподаватель предложил другие даты · посмотрите ниже"
+                    : `Написали вам в СМС${vc ? ` (${esc(vc)})` : ""} · выберите дни ниже`;
+                return `<div class="home-bid-status ${accepted ? "is-accepted" : "is-pending"}">
+                  <b>${accepted ? "Преподаватель ответил · подтверждено" : "Ожидаем ответ преподавателя"}</b>
+                  <span>${accepted
+                    ? acceptedHint
+                    : `Придёт СМС${vc ? ` на ${esc(vc)}` : ""} · затем выберите дни`}</span>
+                </div>`;
+              })()}
               ${accepted ? renderHomeScheduleBoxHTML(bk, tutor) : ""}
               <div class="bid-telemost-box">${tmHTML}</div>
               ${accepted ? ((EGE.kit && typeof EGE.kit.messengerLinksHTML === "function")
-                ? EGE.kit.messengerLinksHTML({ entity: resolvedTutor, available: chAvail, allowHoldAdd: true, message: msgTxt, primaryLabel: "WhatsApp", compact: true })
+                ? `${EGE.kit.messengerLinksHTML({ entity: resolvedTutor, available: chAvail, allowHoldAdd: true, message: msgTxt, primaryLabel: "WhatsApp", compact: true })}<span class="study-hold-hint">Удерживайте WhatsApp, Telegram или MAX, чтобы указать или изменить контакт</span>`
                 : `<a class="btn confirm sm" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>WhatsApp</span></a>`) : ""}
               <div class="home-bid-actions">
                 ${accepted
@@ -1553,7 +1564,7 @@
                   </div>
                   <div class="bid-telemost-box">${tmBlock}</div>
                   ${msgBar}
-                  ${(!ch.tg || !ch.max) ? `<span class="study-hold-hint">Удерживайте серый Telegram или MAX, чтобы указать контакт</span>` : ""}
+                  <span class="study-hold-hint">Удерживайте WhatsApp, Telegram или MAX, чтобы указать или изменить контакт</span>
                   <button type="button" class="btn ghost sm study-cancel-btn" data-a="mkt-cancel-book" data-id="${esc(bk.id)}">Отменить занятие</button>
                 </article>`;
               }).join("")}</div>`
@@ -1797,7 +1808,8 @@
       const weekly = draft.weekly !== false;
       const botText = formatWeeklyBotPhrase(dows, hour, weekly);
       bk.schedulePlan = {
-        status: "sent_to_tutor",
+        status: "confirmed",
+        autoConfirmed: true,
         dows,
         hour,
         weekly,
@@ -1813,14 +1825,14 @@
         EGE.realtime.publish({
           channel: "tutor",
           eventType: "market.schedule.proposed",
-          title: "Бот: график занятий от ученика",
-          message: `Ученик хочет заниматься ${botText} (${bk.subjectName})`,
+          title: "Бот: график занятий закреплён",
+          message: `Ученик занимается ${botText} (${bk.subjectName})`,
           tutorSlug: String((tutor && (tutor.slug || tutor.id)) || bk.tutorId || "tutor"),
           payload: { bookingId: bk.id, schedulePlan: bk.schedulePlan }
         });
       }
       if (typeof _ctx.notifySide === "function") {
-        _ctx.notifySide("Бот отправил график преподавателю", `Ученик хочет заниматься ${botText}`);
+        _ctx.notifySide("График закреплён в «Учёбе»", `${bk.dayLabel} · ${hour} · бот уведомил преподавателя`);
       }
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       return true;

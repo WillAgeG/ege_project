@@ -782,10 +782,13 @@
       ? (` data-a="${esc(opts.dataAction)}"` + (opts.dataId ? ` data-id="${esc(opts.dataId)}"` : ""))
       : "";
     const holdAdd = !!opts.allowHoldAdd;
+    const holdAttrs = (chKey, lbl) => holdAdd
+      ? ` data-hold-ch="${chKey}" data-tutor-id="${esc(ent.id || "")}" data-tutor-name="${esc(ent.name || "")}" data-hold-lbl="${esc(lbl)}"`
+      : "";
     const item = (chKey, active, cls, href, svg, lbl, titleOn, titleOff) => active
-      ? `<a class="btn-msg ${cls}" href="${esc(href)}" target="_blank" rel="noopener"${extraAttr} title="${esc(titleOn)}">${svg}<span>${esc(lbl)}</span></a>`
-      : (holdAdd && (chKey === "tg" || chKey === "max"))
-        ? `<button type="button" class="btn-msg ${cls} is-disabled is-hold-add" aria-disabled="true" data-a="msg-hold-hint" data-hold-ch="${chKey}" data-tutor-id="${esc(ent.id || "")}" data-tutor-name="${esc(ent.name || "")}" title="Удерживайте, чтобы указать ${esc(lbl)}">${svg}<span>${esc(lbl)}</span></button>`
+      ? `<a class="btn-msg ${cls}${holdAdd ? " is-hold-add" : ""}" href="${esc(href)}" target="_blank" rel="noopener"${extraAttr}${holdAttrs(chKey, lbl)} title="${esc(holdAdd ? (titleOn + " · удерживайте, чтобы изменить") : titleOn)}">${svg}<span>${esc(lbl)}</span></a>`
+      : holdAdd
+        ? `<button type="button" class="btn-msg ${cls} is-disabled is-hold-add" aria-disabled="true" data-a="msg-hold-hint"${holdAttrs(chKey, lbl)} title="Удерживайте, чтобы указать ${esc(lbl)}">${svg}<span>${esc(lbl)}</span></button>`
         : `<span class="btn-msg ${cls} is-disabled" aria-disabled="true" title="${esc(titleOff)}">${svg}<span>${esc(lbl)}</span></span>`;
     return `<div class="msg-channel-bar${compact ? " is-compact" : ""}" role="group" aria-label="Написать через мессенджер">
       ${item("wa", avail.wa, "is-wa", urls.whatsapp, MSG_SVGS.wa, waLbl, "Написать в WhatsApp", "WhatsApp не указан")}
