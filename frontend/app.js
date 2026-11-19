@@ -1458,10 +1458,7 @@
             <p class="bal-flat-copy">Деньги хранятся на защищённом счёте и переводятся преподавателю только после проведения урока. Контакты в WhatsApp, Telegram и MAX открываются сразу после отправки заявки.</p>
           </div>
           <div class="stack" style="gap:8px">
-            <div class="row between" style="align-items:center">
-              <span class="label">Способ оплаты</span>
-              <span class="ygo-rail-note">Листайте влево-вправо →</span>
-            </div>
+            <span class="label">Способ оплаты</span>
             <div class="ygo-pay-rail" role="radiogroup" aria-label="Способ оплаты">
               <button type="button" class="ygo-pay-tile${method === "sbp" ? " is-on" : ""}" data-a="bal-method" data-v="sbp" role="radio" aria-checked="${method === "sbp" ? "true" : "false"}">
                 <div class="ygo-tile-top">
