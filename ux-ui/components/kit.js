@@ -781,13 +781,16 @@
     const extraAttr = opts.dataAction
       ? (` data-a="${esc(opts.dataAction)}"` + (opts.dataId ? ` data-id="${esc(opts.dataId)}"` : ""))
       : "";
-    const item = (active, cls, href, svg, lbl, titleOn, titleOff) => active
+    const holdAdd = !!opts.allowHoldAdd;
+    const item = (chKey, active, cls, href, svg, lbl, titleOn, titleOff) => active
       ? `<a class="btn-msg ${cls}" href="${esc(href)}" target="_blank" rel="noopener"${extraAttr} title="${esc(titleOn)}">${svg}<span>${esc(lbl)}</span></a>`
-      : `<span class="btn-msg ${cls} is-disabled" aria-disabled="true" title="${esc(titleOff)}">${svg}<span>${esc(lbl)}</span></span>`;
+      : (holdAdd && (chKey === "tg" || chKey === "max"))
+        ? `<button type="button" class="btn-msg ${cls} is-disabled is-hold-add" aria-disabled="true" data-a="msg-hold-hint" data-hold-ch="${chKey}" data-tutor-id="${esc(ent.id || "")}" data-tutor-name="${esc(ent.name || "")}" title="Удерживайте, чтобы указать ${esc(lbl)}">${svg}<span>${esc(lbl)}</span></button>`
+        : `<span class="btn-msg ${cls} is-disabled" aria-disabled="true" title="${esc(titleOff)}">${svg}<span>${esc(lbl)}</span></span>`;
     return `<div class="msg-channel-bar${compact ? " is-compact" : ""}" role="group" aria-label="Написать через мессенджер">
-      ${item(avail.wa, "is-wa", urls.whatsapp, MSG_SVGS.wa, waLbl, "Написать в WhatsApp", "WhatsApp не указан")}
-      ${item(avail.tg, "is-tg", urls.telegram, MSG_SVGS.tg, tgLbl, "Написать в Telegram", "Контакт Telegram не указан (доступен WhatsApp)")}
-      ${item(avail.max, "is-max", urls.max, MSG_SVGS.max, maxLbl, "Написать в MAX", "Контакт MAX не указан (доступен WhatsApp)")}
+      ${item("wa", avail.wa, "is-wa", urls.whatsapp, MSG_SVGS.wa, waLbl, "Написать в WhatsApp", "WhatsApp не указан")}
+      ${item("tg", avail.tg, "is-tg", urls.telegram, MSG_SVGS.tg, tgLbl, "Написать в Telegram", "Контакт Telegram не указан (доступен WhatsApp)")}
+      ${item("max", avail.max, "is-max", urls.max, MSG_SVGS.max, maxLbl, "Написать в MAX", "Контакт MAX не указан (доступен WhatsApp)")}
     </div>`;
   }
 

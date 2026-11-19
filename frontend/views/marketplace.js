@@ -166,18 +166,40 @@
   ];
   const SCHED_HOURS = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00", "23:00"];
 
+  function resolveTutorWithContacts(t) {
+    if (!t) return t;
+    const st = getMkt();
+    const ov = st && st.tutorContacts && typeof st.tutorContacts === "object" ? st.tutorContacts[t.id] : null;
+    if (!ov || typeof ov !== "object") return t;
+    const hasTg = Boolean(ov.telegram && String(ov.telegram).trim());
+    const hasMax = Boolean(ov.maxHandle && String(ov.maxHandle).trim());
+    const baseAvail = (t.availableChannels && typeof t.availableChannels === "object")
+      ? t.availableChannels
+      : { wa: Boolean(t.whatsapp || !t.telegram), tg: Boolean(t.telegram), max: Boolean(t.maxHandle) };
+    return Object.assign({}, t, {
+      telegram: hasTg ? String(ov.telegram).trim() : (t.telegram || ""),
+      maxHandle: hasMax ? String(ov.maxHandle).trim() : (t.maxHandle || ""),
+      availableChannels: {
+        wa: !!baseAvail.wa,
+        tg: !!baseAvail.tg || hasTg,
+        max: !!baseAvail.max || hasMax
+      }
+    });
+  }
+
   function tutorChannels(t) {
-    if (t && t.availableChannels && typeof t.availableChannels === "object") {
+    const resolved = resolveTutorWithContacts(t);
+    if (resolved && resolved.availableChannels && typeof resolved.availableChannels === "object") {
       return {
-        wa: !!t.availableChannels.wa,
-        tg: !!t.availableChannels.tg,
-        max: !!t.availableChannels.max
+        wa: !!resolved.availableChannels.wa,
+        tg: !!resolved.availableChannels.tg,
+        max: !!resolved.availableChannels.max
       };
     }
     return {
-      wa: Boolean(!t || t.whatsapp || !t.telegram),
-      tg: Boolean(t && t.telegram && String(t.telegram).trim()),
-      max: Boolean(t && t.maxHandle && String(t.maxHandle).trim())
+      wa: Boolean(!resolved || resolved.whatsapp || !resolved.telegram),
+      tg: Boolean(resolved && resolved.telegram && String(resolved.telegram).trim()),
+      max: Boolean(resolved && resolved.maxHandle && String(resolved.maxHandle).trim())
     };
   }
 
@@ -551,11 +573,13 @@
           const waHref = accepted
             ? TDATA.whatsappUrl(tutor || { name: bk.tutorName, subjectName: bk.subjectName, whatsapp: "79142100101" }, msgTxt)
             : "";
+          const resolvedTutor = resolveTutorWithContacts(tutor || { id: bk.tutorId, name: bk.tutorName, subjectName: bk.subjectName, whatsapp: "79142100101" });
           const msgHtml = accepted
             ? (EGE.kit && typeof EGE.kit.messengerLinksHTML === "function"
                 ? EGE.kit.messengerLinksHTML({
-                    entity: tutor || { id: bk.tutorId, name: bk.tutorName, subjectName: bk.subjectName, whatsapp: "79142100101" },
-                    available: tutorChannels(tutor),
+                    entity: resolvedTutor,
+                    available: tutorChannels(resolvedTutor),
+                    allowHoldAdd: true,
                     message: msgTxt,
                     primaryLabel: "WhatsApp",
                     compact: true
@@ -717,9 +741,10 @@
                   <button type="button" class="btn ghost sm bid-telemost-edit" data-a="bid-telemost-edit" data-id="${esc(bk.id)}">Изменить ссылку</button>
                 </div>`
               : `<button type="button" class="btn ghost sm bid-telemost-add" data-a="bid-telemost-edit" data-id="${esc(bk.id)}">${icon("video")}<span>Добавить ссылку на Яндекс Телемост</span></button>`;
+          const resolvedTutor = resolveTutorWithContacts(tutor);
           const msgTxt = `Здравствуйте, ${bk.tutorName}! Напоминаю про занятие (${bk.subjectName}, ${bk.dayLabel} в ${bk.hour}, ${isTrial ? "пробный урок" : "ставка " + bk.offerPrice + " ₽/ч"}).${telemostUrl ? " Ссылка на Яндекс Телемост: " + telemostUrl : ""}`;
-          const waHref = TDATA.whatsappUrl(tutor, msgTxt);
-          const chAvail = tutorChannels(tutor);
+          const waHref = TDATA.whatsappUrl(resolvedTutor, msgTxt);
+          const chAvail = tutorChannels(resolvedTutor);
           return `<article class="card tutor-card${isProCard ? " is-pro" : ""} is-home-bid" data-tutor-id="${esc(tutor.id)}" data-booking-id="${esc(bk.id)}">
             <div class="tutor-card-top">
               <div class="tutor-head">
@@ -762,7 +787,7 @@
               ${accepted ? renderHomeScheduleBoxHTML(bk, tutor) : ""}
               <div class="bid-telemost-box">${tmHTML}</div>
               ${accepted ? ((EGE.kit && typeof EGE.kit.messengerLinksHTML === "function")
-                ? EGE.kit.messengerLinksHTML({ entity: tutor, available: chAvail, message: msgTxt, primaryLabel: "WhatsApp", compact: true })
+                ? EGE.kit.messengerLinksHTML({ entity: resolvedTutor, available: chAvail, allowHoldAdd: true, message: msgTxt, primaryLabel: "WhatsApp", compact: true })
                 : `<a class="btn confirm sm" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>WhatsApp</span></a>`) : ""}
               <div class="home-bid-actions">
                 ${accepted
@@ -1391,9 +1416,10 @@
             isActions: true,
             render: (row) => {
               const tm = row.booking && row.booking.telemostUrl ? String(row.booking.telemostUrl) : "";
-              const waHref = TDATA.whatsappUrl(row.tutor, row.msgTxt);
+              const resolvedTutor = resolveTutorWithContacts(row.tutor);
+              const waHref = TDATA.whatsappUrl(resolvedTutor, row.msgTxt);
               const linksHtml = (EGE.kit && typeof EGE.kit.messengerLinksHTML === "function")
-                ? EGE.kit.messengerLinksHTML({ entity: row.tutor, available: tutorChannels(row.tutor), message: row.msgTxt, primaryLabel: "WhatsApp", compact: true })
+                ? EGE.kit.messengerLinksHTML({ entity: resolvedTutor, available: tutorChannels(resolvedTutor), allowHoldAdd: true, message: row.msgTxt, primaryLabel: "WhatsApp", compact: true })
                 : `<a class="btn confirm sm" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>WhatsApp</span></a>`;
               return tm
                 ? `<div class="row" style="gap:6px;flex-wrap:wrap"><a class="btn soft sm" href="${esc(tm)}" target="_blank" rel="noopener noreferrer">${icon("video")}<span>Телемост</span></a>${linksHtml}</div>`
@@ -1408,12 +1434,16 @@
       return `${header}
         <div class="hh-notice-card">
           <b>Чаты только с вашими преподавателями</b>
-          <span class="small ink2">Здесь собраны преподаватели, к которым вы записались. Нажмите для перехода в доступный мессенджер с готовым текстом.</span>
+          <span class="small ink2">Здесь собраны преподаватели, к которым вы записались. Нажмите на активный канал или удерживайте серый Telegram / MAX, чтобы указать контакт.</span>
         </div>
         <div class="hh-chat-list" style="padding:14px">${chatsTableHtml}</div>`;
     }
 
     const weekRange = `${weekDays[0].num} ${weekDays[0].month} — ${weekDays[6].num} ${weekDays[6].month}`;
+    const todayIso = (() => {
+      const now = new Date();
+      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    })();
 
     const enrolledSection = !st.bookings.length
       ? `<div class="empty">
@@ -1431,11 +1461,12 @@
           const weekPicker = `<div class="hh-seg" role="group" aria-label="Выбор недели">
             <button type="button" data-a="study-week" data-w="0" aria-pressed="${weekOffset === 0}">Эта неделя</button>
             <button type="button" data-a="study-week" data-w="1" aria-pressed="${weekOffset === 1}">Следующая неделя</button>
-          </div>
-          <div class="chip-rail swipe" role="group" aria-label="Фильтр по предмету">
+          </div>`;
+          const subjStrip = `<div class="chip-rail swipe" role="group" aria-label="Фильтр по предмету">
             <button type="button" class="chip-btn${subjFilter === "all" ? " on" : ""}" data-a="study-subj" data-v="all">Все предметы</button>
             ${TDATA.SUBJECTS.map((sb) => `<button type="button" class="chip-btn${subjFilter === sb.id ? " on" : ""}" data-a="study-subj" data-v="${sb.id}">${esc(sb.short)}</button>`).join("")}
           </div>`;
+          const dayGroups = [];
           const weekRows = [];
           weekDays.forEach((d) => {
             const dayBookings = filteredBookings.filter((bk) => {
@@ -1445,15 +1476,18 @@
               }
               return bk.dayIso === d.iso || (bk.dow != null && Number(bk.dow) === d.dow);
             });
-            dayBookings.forEach((bk) => {
-              const tutor = TDATA.LIST.find((x) => x.id === bk.tutorId) || { id: bk.tutorId, name: bk.tutorName, subjectName: bk.subjectName, whatsapp: "79142100101", verified: true };
+            const dayLessons = dayBookings.map((bk) => {
+              const rawTutor = TDATA.LIST.find((x) => x.id === bk.tutorId) || { id: bk.tutorId, name: bk.tutorName, subjectName: bk.subjectName, whatsapp: "79142100101", verified: true };
+              const tutor = resolveTutorWithContacts(rawTutor);
               const isTrial = !!bk.isTrial;
               const sp = bk.schedulePlan;
               const usePlanHour = sp && (sp.status === "confirmed" || sp.status === "sent_to_tutor") && sp.hour;
-              weekRows.push({
+              const lessonHour = usePlanHour ? sp.hour : (bk.hour || "14:00");
+              const rowObj = {
                 id: `${bk.id}-${d.iso}`,
                 dayLabel: d.fullLabel,
-                hour: usePlanHour ? sp.hour : bk.hour,
+                dayShort: d.shortLabel,
+                hour: lessonHour,
                 format: bk.format || "Онлайн",
                 tutorName: bk.tutorName,
                 subjectName: bk.subjectName,
@@ -1462,9 +1496,91 @@
                 status: bk.status || "pending",
                 tutor,
                 booking: bk
-              });
-            });
+              };
+              weekRows.push(rowObj);
+              return rowObj;
+            }).sort((a, b) => String(a.hour || "").localeCompare(String(b.hour || "")));
+            dayGroups.push({ day: d, lessons: dayLessons });
           });
+
+          const selectedGroup =
+            (ui.studySelectedIso && dayGroups.find((g) => g.day.iso === ui.studySelectedIso)) ||
+            dayGroups.find((g) => g.day.iso === todayIso && g.lessons.length > 0) ||
+            dayGroups.find((g) => g.lessons.length > 0) ||
+            dayGroups.find((g) => g.day.iso === todayIso) ||
+            dayGroups[0];
+          const selectedIso = selectedGroup ? selectedGroup.day.iso : (weekDays[0] && weekDays[0].iso) || "";
+          const activeLessons = selectedGroup ? selectedGroup.lessons : [];
+
+          const daysStripHTML = `<div class="study-week-days" role="group" aria-label="Дни недели и количество уроков">
+            ${dayGroups.map((g) => {
+              const cnt = g.lessons.length;
+              const isOn = g.day.iso === selectedIso;
+              return `<button type="button" class="study-week-day-btn${isOn ? " on" : ""}${cnt > 0 ? " has-lessons" : ""}" data-a="study-day-pick" data-iso="${esc(g.day.iso)}" aria-pressed="${isOn}">
+                <span class="swd-wd">${esc(g.day.wd)}</span>
+                <span class="swd-num num">${g.day.num}</span>
+                ${cnt > 0 ? `<span class="swd-cnt num">${cnt}</span>` : `<span class="swd-dot" aria-hidden="true"></span>`}
+              </button>`;
+            }).join("")}
+          </div>`;
+
+          const dayLessonsHTML = activeLessons.length
+            ? `<div class="study-day-cards">${activeLessons.map((row) => {
+                const bk = row.booking;
+                const accepted = bk.status === "accepted";
+                const ch = tutorChannels(row.tutor);
+                const telemostUrl = String(bk.telemostUrl || "").trim();
+                const isEditingTm = ui.telemostEditId === bk.id;
+                const tmBlock = isEditingTm
+                  ? `<form class="bid-telemost-form" data-f="bid-telemost" data-id="${esc(bk.id)}">
+                      <label class="small muted" for="tm-inp-${esc(bk.id)}">Ссылка на видеоурок (Яндекс Телемост)</label>
+                      <input class="input bid-telemost-inp" id="tm-inp-${esc(bk.id)}" name="url" type="url" placeholder="https://telemost.yandex.ru/j/..." value="${esc(telemostUrl)}">
+                      ${ui.telemostError ? `<div class="small" style="color:var(--bad);font-weight:600">${esc(ui.telemostError)}</div>` : ""}
+                      <div class="bid-telemost-form-actions">
+                        <button type="submit" class="btn sm">Сохранить</button>
+                        <button type="button" class="btn soft sm" data-a="bid-telemost-gen" data-id="${esc(bk.id)}">Создать ссылку</button>
+                        <button type="button" class="btn ghost sm" data-a="bid-telemost-cancel">Отмена</button>
+                      </div>
+                    </form>`
+                  : telemostUrl
+                    ? `<div class="bid-telemost-saved">
+                        <a class="btn soft sm bid-telemost-join" href="${esc(telemostUrl)}" target="_blank" rel="noopener noreferrer">${icon("video")}<span>Зайти в Яндекс Телемост · ${esc(row.hour)}</span></a>
+                        <button type="button" class="btn ghost sm bid-telemost-edit" data-a="bid-telemost-edit" data-id="${esc(bk.id)}">Изменить ссылку</button>
+                      </div>`
+                    : `<button type="button" class="btn soft sm bid-telemost-add" data-a="bid-telemost-edit" data-id="${esc(bk.id)}">${icon("video")}<span>Зайти в Яндекс Телемост · добавить ссылку</span></button>`;
+                const msgTxt = `Здравствуйте, ${row.tutorName}! Пишу по уроку ${row.dayShort} в ${row.hour} (${row.subjectName}).${telemostUrl ? " Ссылка на Яндекс Телемост: " + telemostUrl : ""}`;
+                const waHref = TDATA.whatsappUrl(row.tutor, msgTxt);
+                const msgBar = (EGE.kit && typeof EGE.kit.messengerLinksHTML === "function")
+                  ? EGE.kit.messengerLinksHTML({ entity: row.tutor, available: ch, allowHoldAdd: true, message: msgTxt, primaryLabel: "WhatsApp", compact: true })
+                  : `<a class="btn confirm sm" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>WhatsApp</span></a>`;
+                const isWeekly = bk.schedulePlan && bk.schedulePlan.weekly !== false;
+                return `<article class="study-lesson-card" data-booking-id="${esc(bk.id)}">
+                  <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
+                    <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center">
+                      <b class="num" style="font-size:15px">Урок в ${esc(row.hour)}</b>
+                      <span class="small muted">${esc(row.dayShort)} · ${esc(row.format)}</span>
+                      ${isWeekly ? `<span class="chip accent">Каждую неделю</span>` : ""}
+                    </div>
+                    <span class="bb-tbl-st ${accepted ? "is-confirmed" : "is-pending"}">${accepted ? "Подтверждён" : "На рассмотрении"}</span>
+                  </div>
+                  <div class="tutor-name-line">
+                    ${tutorAvatarHTML(row.tutor)}
+                    <div class="tutor-person-meta">
+                      <div class="tutor-title-inline">
+                        <b class="tutor-person-name">${esc(row.tutorName)}</b>
+                        ${row.tutor.verified !== false ? `<span class="verified-badge">${icon("check")}</span>` : ""}
+                      </div>
+                      <span class="small muted">${esc(bk.exam || "ЕГЭ")} · ${esc(row.subjectName)} · ${row.isTrial ? `Пробный ${row.offerPrice.toLocaleString("ru-RU")} ₽` : `${row.offerPrice.toLocaleString("ru-RU")} ₽/ч`}</span>
+                    </div>
+                  </div>
+                  <div class="bid-telemost-box">${tmBlock}</div>
+                  ${msgBar}
+                  ${(!ch.tg || !ch.max) ? `<span class="study-hold-hint">Удерживайте серый Telegram или MAX, чтобы указать контакт преподавателя</span>` : ""}
+                  <button type="button" class="btn ghost sm study-cancel-btn" data-a="mkt-cancel-book" data-id="${esc(bk.id)}">Отменить занятие</button>
+                </article>`;
+              }).join("")}</div>`
+            : `<div class="empty"><b>На ${esc(selectedGroup ? selectedGroup.day.fullLabel : "этот день")} занятий нет</b><span>Выберите другой день с цифрой выше или подберите преподавателя в «Поиске».</span></div>`;
+
           const schedCols = [3, 5, 7].includes(Number(ui.studySchedCols)) ? Number(ui.studySchedCols) : 5;
           const scheduleTableHtml = weekRows.length
             ? `<div class="card pad-lg stack" style="gap:10px">${renderDataTable({
@@ -1532,12 +1648,14 @@
                     isActions: true,
                     render: (row) => {
                       const tm = row.booking && row.booking.telemostUrl ? String(row.booking.telemostUrl) : "";
+                      const resolvedTutor = resolveTutorWithContacts(row.tutor);
                       const msgTxt = `Здравствуйте, ${row.tutorName}! Пишу по уроку на ${row.dayLabel} (${row.hour}), предмет — ${row.subjectName}.`;
-                      const waHref = TDATA.whatsappUrl(row.tutor, msgTxt);
+                      const waHref = TDATA.whatsappUrl(resolvedTutor, msgTxt);
                       const linksHtml = (EGE.kit && typeof EGE.kit.messengerLinksHTML === "function")
                         ? EGE.kit.messengerLinksHTML({
-                            entity: row.tutor,
-                            available: tutorChannels(row.tutor),
+                            entity: resolvedTutor,
+                            available: tutorChannels(resolvedTutor),
+                            allowHoldAdd: true,
                             message: msgTxt,
                             primaryLabel: "WhatsApp",
                             compact: true
@@ -1554,16 +1672,28 @@
                 emptyText: "По поисковому запросу уроков не найдено."
               })}</div>`
             : `<div class="empty"><b>По выбранному предмету записей пока нет</b><span>Переключите фильтр на «Все предметы» или добавьте занятие.</span></div>`;
-          return `<div class="stack" style="gap:10px">
-            <div class="row between"><h2 class="h2">Календарь ваших уроков: ${esc(weekRange)}</h2></div>
+
+          return `<section class="card pad stack study-cal-card" id="study-week-strip">
+            <div class="row between" style="gap:8px;flex-wrap:wrap">
+              <h2 class="h2">Календарь ваших уроков: ${esc(weekRange)}</h2>
+            </div>
             ${weekPicker}
-          </div>
+            ${daysStripHTML}
+            ${subjStrip}
+            <div class="study-day-panel">
+              <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
+                <b>${esc(selectedGroup ? selectedGroup.day.fullLabel : "")}</b>
+                <span class="chip num">${activeLessons.length} ${plural(activeLessons.length, "урок", "урока", "уроков")}</span>
+              </div>
+              ${dayLessonsHTML}
+            </div>
+          </section>
           ${scheduleTableHtml}`;
         })();
 
     return `${header}
-      ${bookingsStripHTML(st)}
       ${enrolledSection}
+      ${bookingsStripHTML(st)}
       ${studentLeadCardHTML(TDATA, ui)}
       ${EGE.views && EGE.views.trainer && typeof EGE.views.trainer.studyOverviewCardsHTML === "function" ? EGE.views.trainer.studyOverviewCardsHTML() : ""}`;
   }
@@ -1804,6 +1934,11 @@
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       return true;
     }
+    if (act === "study-day-pick") {
+      ui.studySelectedIso = String(d.iso || "");
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return true;
+    }
     return false;
   }
 
@@ -1835,7 +1970,7 @@
       const el = target && typeof target.closest === "function" ? target.closest("[data-a]") : null;
       if (!el || el.disabled) return;
       const act = (el.dataset && el.dataset.a) || "";
-      if (act === "home-bid-filter" || act === "mkt-bk-filter" || act === "mkt-bk-cols" || act === "study-sched-cols" || act === "study-sched-filter" || act === "study-chats-cols" || act === "study-chats-filter") {
+      if (act === "home-bid-filter" || act === "study-day-pick" || act === "mkt-bk-filter" || act === "mkt-bk-cols" || act === "study-sched-cols" || act === "study-sched-filter" || act === "study-chats-cols" || act === "study-chats-filter") {
         if (handleAction(act, el) && typeof e.preventDefault === "function") e.preventDefault();
       }
     });
@@ -1857,6 +1992,7 @@
     resolveTutorTrial,
     plainBidLabel,
     priceFilterLabel,
+    resolveTutorWithContacts,
     tutorChannels,
     tutorChannelNote,
     suggestTwoDows,

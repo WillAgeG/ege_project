@@ -1578,6 +1578,14 @@
     const studyWithCardsHtml = env5.elements.get("main").innerHTML;
     assert(
       studyWithCardsHtml.includes('id="study-overview-cards"') &&
+      studyWithCardsHtml.includes('id="study-week-strip"') &&
+      (studyWithCardsHtml.match(/class="study-week-day-btn/g) || []).length === 7 &&
+      studyWithCardsHtml.includes('class="swd-cnt num"') &&
+      studyWithCardsHtml.includes('class="study-lesson-card"') &&
+      studyWithCardsHtml.includes("Зайти в Яндекс Телемост") &&
+      studyWithCardsHtml.includes("Отменить занятие") &&
+      studyWithCardsHtml.includes("is-hold-add") &&
+      studyWithCardsHtml.includes('data-hold-ch="tg"') &&
       studyWithCardsHtml.includes("Главный срок") &&
       studyWithCardsHtml.includes("Быстрый переход") &&
       studyWithCardsHtml.includes("Телемост") &&
@@ -1588,8 +1596,52 @@
       !studyWithCardsHtml.includes("График (") &&
       !studyWithCardsHtml.includes("Чаты (") &&
       (studyWithCardsHtml.match(/data-label="День и час"/g) || []).length >= 2,
-      "expected Photo 3 blocks, both weekly schedule days in #study-schedule-table, and Телемост inside Учёба without blue Ваших записей card"
+      "expected 7-day strip with counts, daily Telemost/cancel/messenger card, both schedule days, and clean Расписание/Чаты tabs"
     );
+
+    const otherDayMatch = /data-a="study-day-pick" data-iso="([^"]+)" aria-pressed="false"/.exec(studyWithCardsHtml);
+    assert(otherDayMatch, "expected unselected weekday button in #study-week-strip");
+    clickAction(env5, { a: "study-day-pick", iso: otherDayMatch[1] });
+    await flushMicrotasks(2);
+    assert(
+      env5.elements.get("main").innerHTML.includes(`data-a="study-day-pick" data-iso="${otherDayMatch[1]}" aria-pressed="true"`),
+      "expected study-day-pick to switch active day in 7-day calendar strip"
+    );
+    const lessonDayMatch = /data-a="study-day-pick" data-iso="([^"]+)"[^>]*>[\s\S]*?<span class="swd-cnt/.exec(studyWithCardsHtml);
+    if (lessonDayMatch) {
+      clickAction(env5, { a: "study-day-pick", iso: lessonDayMatch[1] });
+      await flushMicrotasks(2);
+    }
+
+    const holdMatch = /data-hold-ch="tg" data-tutor-id="([^"]*)" data-tutor-name="([^"]*)"/.exec(studyWithCardsHtml);
+    assert(holdMatch, "expected data-hold-ch='tg' button metadata on greyed Telegram pill");
+    clickAction(env5, { a: "tutor-contact-open", tutorId: holdMatch[1], tutorName: holdMatch[2], holdCh: "tg" });
+    await flushMicrotasks(2);
+    const tcModalHtml = env5.elements.get("modal-root").innerHTML;
+    assert(
+      tcModalHtml.includes('data-f="tutor-contact-save"') &&
+      tcModalHtml.includes("is-sheet-back") &&
+      tcModalHtml.includes("sheet-grabber"),
+      "expected hold-to-add Telegram bottom-sheet grabber modal"
+    );
+    env5.emitDoc("submit", {
+      target: {
+        closest: () => ({
+          dataset: { f: "tutor-contact-save" },
+          elements: { contact: { value: "@sokolova_bio" } }
+        })
+      },
+      preventDefault() {}
+    });
+    await flushMicrotasks(3);
+    const afterTgSaveHtml = env5.elements.get("main").innerHTML;
+    assert(
+      !env5.elements.get("modal-root").innerHTML.trim() &&
+      afterTgSaveHtml.includes("https://t.me/sokolova_bio") &&
+      !afterTgSaveHtml.includes("btn-msg is-tg is-disabled"),
+      "expected saving @sokolova_bio via hold modal to activate Telegram link in Расписание"
+    );
+
     clickAction(env5, { a: "go", v: "market" });
     await flushMicrotasks(3);
     assert(

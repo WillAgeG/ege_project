@@ -444,7 +444,7 @@
     "filter-open": () => { ui.filterModal = true; renderModal(); },
     "filter-close": () => { ui.filterModal = false; renderModal(); },
     "study-tab": (el) => { ui.studyTab = el.dataset.tab || "week"; scheduleRender(true); },
-    "study-week": (el) => { ui.studyWeekOffset = el.dataset.w === "1" ? 1 : 0; scheduleRender(); },
+    "study-week": (el) => { ui.studyWeekOffset = el.dataset.w === "1" ? 1 : 0; ui.studySelectedIso = ""; scheduleRender(); },
     "study-subj": (el) => { ui.studySubj = el.dataset.v || "all"; scheduleRender(); },
     "tests-guide-chip": (el) => { ui.guideSid = "all"; ui.guideQ = el.dataset.q || ""; go("tutor"); },
     "mkt-fav": (el) => {

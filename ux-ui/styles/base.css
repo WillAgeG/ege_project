@@ -1163,6 +1163,25 @@ body[data-auth="1"] .top-bal-slot { display: none !important; }
 .btn-msg.is-disabled svg {
   opacity: .65;
 }
+.btn-msg.is-disabled.is-hold-add,
+:root[data-theme="dark"] .btn-msg.is-disabled.is-hold-add {
+  pointer-events: auto;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.btn-msg.is-disabled.is-hold-add:hover {
+  transform: none;
+  opacity: .78;
+}
+.btn-msg.is-disabled.is-hold-add.is-holding,
+:root[data-theme="dark"] .btn-msg.is-disabled.is-hold-add.is-holding {
+  transform: scale(.96);
+  border-color: var(--accent);
+  color: var(--accent);
+  opacity: .92;
+}
 .auto-ch-bar {
   display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap;
 }

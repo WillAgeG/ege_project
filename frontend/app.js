@@ -1732,6 +1732,56 @@
       </div>
     </div>`;
   }
+  function openTutorContactModal(tutorId, tutorName, ch) {
+    const channel = ch === "max" ? "max" : "tg";
+    const st = mkt();
+    const map = st.tutorContacts && typeof st.tutorContacts === "object" ? st.tutorContacts : {};
+    const ov = (tutorId && map[tutorId]) || {};
+    const tutorObj = TDATA && Array.isArray(TDATA.LIST) ? TDATA.LIST.find((x) => x.id === tutorId) : null;
+    const resolvedName = tutorName || (tutorObj && tutorObj.name) || "Преподаватель";
+    const curVal = channel === "max"
+      ? String(ov.maxHandle || (tutorObj && tutorObj.maxHandle) || "")
+      : String(ov.telegram || (tutorObj && tutorObj.telegram) || "");
+    ui.tutorContactModal = {
+      tutorId: String(tutorId || ""),
+      tutorName: resolvedName,
+      channel,
+      value: curVal,
+      error: ""
+    };
+    ui.focusNext = "tc-contact-inp";
+    renderModal();
+  }
+  function tutorContactModalHTML() {
+    const m = ui.tutorContactModal || { tutorId: "", tutorName: "Преподаватель", channel: "tg", value: "", error: "" };
+    const isMax = m.channel === "max";
+    const chName = isMax ? "MAX" : "Telegram";
+    const ph = isMax ? "@username или ссылка max.ru/..." : "@username или +7 (914) 000-00-00";
+    return `<div class="modal-back is-sheet-back" role="dialog" aria-modal="true" aria-labelledby="tcm-modal-title">
+      <div class="modal-card sheet-modal" data-sheet-kind="tutor-contact">
+        <div class="sheet-grabber-zone" data-sheet-drag="1" role="button" tabindex="0" data-a="tutor-contact-close" aria-label="Свернуть окно">
+          <span class="sheet-grabber"></span>
+        </div>
+        <div class="sheet-head is-booking-head">
+          <div class="row" style="gap:8px">${icon("msg")}<b id="tcm-modal-title">Указать ${chName} преподавателя</b></div>
+        </div>
+        <div class="sheet-body">
+          <p class="small ink2" style="margin:0;line-height:1.45">${esc(m.tutorName || "Преподаватель")} пока подключён только через WhatsApp. Если вы узнали его контакт в ${chName}, сохраните его — кнопка сразу станет активной.</p>
+          <form class="stack" style="gap:12px" data-f="tutor-contact-save">
+            <div class="field">
+              <label for="tc-contact-inp">Ник, телефон или ссылка в ${chName}</label>
+              <input class="input" id="tc-contact-inp" name="contact" type="text" maxlength="64" placeholder="${esc(ph)}" value="${esc(m.value || "")}">
+              ${m.error ? `<span class="small" style="color:var(--bad);font-weight:600">${esc(m.error)}</span>` : ""}
+            </div>
+            <div class="stack" style="gap:8px">
+              <button type="submit" class="btn sm" style="width:100%;justify-content:center">Сохранить контакт</button>
+              <button type="button" class="btn ghost sm" style="width:100%;justify-content:center" data-a="tutor-contact-close">Отмена</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>`;
+  }
   function renderModal() {
     const root = $("#modal-root");
     if (!root) return;
@@ -1746,6 +1796,7 @@
       if (nb && savedBackTop) nb.scrollTop = savedBackTop;
       if (nc && savedCardTop) nc.scrollTop = savedCardTop;
     };
+    if (ui.tutorContactModal) { root.innerHTML = tutorContactModalHTML(); restoreModalScroll(); return; }
     if (ui.contactVerifyModal) { root.innerHTML = contactVerifyModalHTML(); restoreModalScroll(); return; }
     if (ui.cardBindModal) { root.innerHTML = cardBindModalHTML(); restoreModalScroll(); return; }
     if (ui.authModal) { root.innerHTML = authModalHTML(); restoreModalScroll(); return; }
@@ -2388,6 +2439,17 @@
     "bug-q": (el) => { ui.bug = buildBugReport({ qid: el.dataset.qid, qnum: el.dataset.qnum }); ui.focusNext = "bug-body"; renderModal(); },
     "bug-copy": () => { if (ui.bug) copyText(ui.bug.body, "#bug-body"); },
     "bug-close": () => { ui.bug = null; renderModal(); },
+    "tutor-contact-open": (el) => {
+      openTutorContactModal((el.dataset && (el.dataset.tutorId || el.dataset.id)) || "", (el.dataset && el.dataset.tutorName) || "", (el.dataset && (el.dataset.holdCh || el.dataset.ch)) || "tg");
+    },
+    "tutor-contact-close": () => {
+      ui.tutorContactModal = null;
+      renderModal();
+    },
+    "msg-hold-hint": (el) => {
+      const ch = el.dataset && el.dataset.holdCh === "max" ? "MAX" : "Telegram";
+      toast(`Удерживайте серый ${ch}, чтобы указать контакт преподавателя`);
+    },
     go: (el) => go(el.dataset.v, { sid: el.dataset.sid, id: el.dataset.id, fromNav: !!(el.closest && el.closest("#side-nav, #tabbar")) }),
     "brand-go-tutors": () => {
       if (HOST_SITE === "tutor" || ui.role === "tutor") {
@@ -2979,6 +3041,53 @@
       if (EGE.views.marketplace && typeof EGE.views.marketplace.saveTelemostForBooking === "function") {
         EGE.views.marketplace.saveTelemostForBooking(id, rawUrl);
       }
+    },
+    "tutor-contact-save": (form) => {
+      const m = ui.tutorContactModal;
+      if (!m) return;
+      const inp = (form && form.elements && form.elements.contact) || $("#tc-contact-inp");
+      const raw = String(inp ? inp.value : "").trim();
+      const ch = m.channel === "max" ? "max" : "tg";
+      let cleanVal = "";
+      if (ch === "tg") {
+        const noUrl = raw.replace(/^https?:\/\/(t\.me|telegram\.me)\//i, "").trim();
+        const digits = TDATA && typeof TDATA.normalizePhoneDigits === "function"
+          ? TDATA.normalizePhoneDigits(noUrl)
+          : noUrl.replace(/\D+/g, "");
+        if (/^[a-zA-Z0-9_@.-]{3,}$/.test(noUrl.replace(/\s+/g, ""))) {
+          cleanVal = TDATA && typeof TDATA.formatTelegramContact === "function"
+            ? TDATA.formatTelegramContact(noUrl)
+            : (noUrl.startsWith("@") ? noUrl : "@" + noUrl.replace(/^@+/, ""));
+        } else if (digits.length >= 10) {
+          cleanVal = TDATA && typeof TDATA.formatTelegramContact === "function"
+            ? TDATA.formatTelegramContact(noUrl)
+            : "+" + digits;
+        }
+        if (!cleanVal) {
+          m.error = "Укажите @username в Telegram или номер телефона (от 10 цифр).";
+          renderModal();
+          return;
+        }
+      } else {
+        cleanVal = raw.replace(/^https?:\/\/max\.ru\//i, "").replace(/^@+/, "").trim();
+        if (!cleanVal || cleanVal.length < 2) {
+          m.error = "Укажите ник или ID преподавателя в MAX (минимум 2 символа).";
+          renderModal();
+          return;
+        }
+      }
+      const st = mkt();
+      const map = st.tutorContacts && typeof st.tutorContacts === "object" ? st.tutorContacts : (st.tutorContacts = {});
+      const prev = map[m.tutorId] && typeof map[m.tutorId] === "object" ? map[m.tutorId] : {};
+      map[m.tutorId] = Object.assign({}, prev, ch === "max" ? { maxHandle: cleanVal } : { telegram: cleanVal });
+      saveMkt();
+      ui.tutorContactModal = null;
+      renderModal();
+      notifySide(
+        ch === "max" ? "Контакт MAX сохранён" : "Контакт Telegram сохранён",
+        `${m.tutorName || "Преподаватель"} · ${cleanVal}`
+      );
+      scheduleRender();
     }
   };
 
@@ -3034,13 +3143,14 @@
       renderModal();
       return true;
     }
-    ui.bug = null; ui.booking = null; ui.authModal = false; ui.authPrompt = ""; ui.pendingBookingAfterAuth = null; ui.filterModal = false; ui.bbModal = false; ui.tutorApplyModal = false; ui.coopModal = false; ui.balanceModal = null; ui.payoutModal = null;
+    ui.bug = null; ui.booking = null; ui.authModal = false; ui.authPrompt = ""; ui.pendingBookingAfterAuth = null; ui.filterModal = false; ui.bbModal = false; ui.tutorApplyModal = false; ui.coopModal = false; ui.balanceModal = null; ui.payoutModal = null; ui.tutorContactModal = null;
     renderModal();
     return true;
   }
 
   document.addEventListener("click", (e) => {
     if (suppressSheetClick) { suppressSheetClick = false; if (typeof e.preventDefault === "function") e.preventDefault(); return; }
+    if (suppressHoldClick) { suppressHoldClick = false; if (typeof e.preventDefault === "function") e.preventDefault(); return; }
     if (closeSelectMenus(e.target)) scheduleRender();
     if (e.target && e.target.classList && e.target.classList.contains("modal-back")) {
       dismissActiveModal();
@@ -3058,7 +3168,7 @@
     if (act && act.indexOf("adm-") === 0 && EGE.views.admin && typeof EGE.views.admin.handleAction === "function") {
       if (EGE.views.admin.handleAction(act, el)) { if (!isExtLink) e.preventDefault(); return; }
     }
-    if (act && (act === "home-bid-filter" || act.indexOf("bid-telemost-") === 0 || act.indexOf("bid-sched-") === 0 || act.indexOf("mkt-bk-") === 0 || act.indexOf("study-sched-") === 0 || act.indexOf("study-chats-") === 0) && EGE.views.marketplace && typeof EGE.views.marketplace.handleAction === "function") {
+    if (act && (act === "home-bid-filter" || act === "study-day-pick" || act.indexOf("bid-telemost-") === 0 || act.indexOf("bid-sched-") === 0 || act.indexOf("mkt-bk-") === 0 || act.indexOf("study-sched-") === 0 || act.indexOf("study-chats-") === 0) && EGE.views.marketplace && typeof EGE.views.marketplace.handleAction === "function") {
       if (e.defaultPrevented) return;
       if (EGE.views.marketplace.handleAction(act, el)) { if (!isExtLink) e.preventDefault(); return; }
     }
@@ -3541,7 +3651,7 @@
       dismissActiveModal();
       return;
     }
-    if (ui.bug || ui.booking || ui.authModal || ui.contactVerifyModal || ui.cardBindModal || ui.filterModal || ui.bbModal || ui.tutorApplyModal || ui.coopModal || ui.balanceModal || ui.payoutModal) return;
+    if (ui.bug || ui.booking || ui.authModal || ui.contactVerifyModal || ui.cardBindModal || ui.filterModal || ui.bbModal || ui.tutorApplyModal || ui.coopModal || ui.balanceModal || ui.payoutModal || ui.tutorContactModal) return;
     if (e.target && e.target.id === "chat-input" && e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(ui.chat.draft); return; }
     if (ui.view !== "quiz" || !ui.quiz || ui.quiz.done || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.target && e.target.id === "self-text") return; // в поле развёрнутого ответа Enter — перенос строки
@@ -3565,6 +3675,47 @@
   let swipeToast = null;
   let sheetDrag = null;
   let suppressSheetClick = false;
+  let holdContactTimer = null;
+  let holdContactState = null;
+  let suppressHoldClick = false;
+  function clearHoldContact() {
+    if (holdContactTimer) {
+      clearTimeout(holdContactTimer);
+      holdContactTimer = null;
+    }
+    if (holdContactState && holdContactState.el && holdContactState.el.classList) {
+      holdContactState.el.classList.remove("is-holding");
+    }
+    holdContactState = null;
+  }
+  function startHoldContact(e) {
+    if (!e || !e.target || typeof e.target.closest !== "function") return;
+    if (typeof e.button === "number" && e.button !== 0) return;
+    const btn = e.target.closest(".btn-msg.is-disabled.is-hold-add[data-hold-ch]");
+    if (!btn) return;
+    clearHoldContact();
+    const x0 = swipeClientPt(e, "x");
+    const y0 = swipeClientPt(e, "y");
+    if (btn.classList) btn.classList.add("is-holding");
+    holdContactState = { el: btn, x0, y0 };
+    holdContactTimer = setTimeout(() => {
+      const cur = holdContactState;
+      clearHoldContact();
+      if (!cur || !cur.el) return;
+      suppressHoldClick = true;
+      const d = cur.el.dataset || {};
+      openTutorContactModal(d.tutorId || "", d.tutorName || "", d.holdCh || "tg");
+    }, 450);
+  }
+  function moveHoldContact(e) {
+    if (!holdContactState) return;
+    const dx = Math.abs(swipeClientPt(e, "x") - holdContactState.x0);
+    const dy = Math.abs(swipeClientPt(e, "y") - holdContactState.y0);
+    if (dx > 12 || dy > 12) clearHoldContact();
+  }
+  function endHoldContact() {
+    clearHoldContact();
+  }
   function swipeClientPt(e, axis) {
     if (e.touches && e.touches[0]) return axis === "x" ? e.touches[0].clientX : e.touches[0].clientY;
     if (e.changedTouches && e.changedTouches[0]) return axis === "x" ? e.changedTouches[0].clientX : e.changedTouches[0].clientY;
@@ -3671,12 +3822,13 @@
       }
     }
   }
-  document.addEventListener("pointerdown", (e) => { startSwipeToast(e); startSheetDrag(e); });
-  document.addEventListener("pointerup", () => { endSwipeToast(); endSheetDrag(); });
-  document.addEventListener("pointercancel", () => { endSwipeToast(); endSheetDrag(); });
+  document.addEventListener("pointerdown", (e) => { startSwipeToast(e); startSheetDrag(e); startHoldContact(e); });
+  document.addEventListener("pointerup", () => { endSwipeToast(); endSheetDrag(); endHoldContact(); });
+  document.addEventListener("pointercancel", () => { endSwipeToast(); endSheetDrag(); endHoldContact(); });
   document.addEventListener("pointermove", (e) => {
     moveSwipeToast(e);
     moveSheetDrag(e);
+    moveHoldContact(e);
     if (!e || typeof document.getElementById !== "function") return;
     const wrap = document.getElementById("hero-stage-wrap");
     if (!wrap || !wrap.getBoundingClientRect || !wrap.style || !wrap.style.setProperty) return;
@@ -3687,6 +3839,16 @@
     wrap.style.setProperty("--mx", mx.toFixed(1) + "%");
     wrap.style.setProperty("--my", my.toFixed(1) + "%");
   }, { passive: true });
+  document.addEventListener("contextmenu", (e) => {
+    const btn = e && e.target && typeof e.target.closest === "function"
+      ? e.target.closest(".btn-msg.is-disabled.is-hold-add[data-hold-ch]")
+      : null;
+    if (!btn) return;
+    if (typeof e.preventDefault === "function") e.preventDefault();
+    clearHoldContact();
+    const d = btn.dataset || {};
+    openTutorContactModal(d.tutorId || "", d.tutorName || "", d.holdCh || "tg");
+  });
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") { refreshBackendDocs(); syncHeroMotion(); }
     else stopMotionTimers();
