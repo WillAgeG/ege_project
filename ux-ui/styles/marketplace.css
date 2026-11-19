@@ -2533,3 +2533,144 @@ body:has(.land-page:not(#brandbook-page)) .main,
   align-items: center;
   gap: 6px;
 }
+
+.study-bill-banner {
+  padding: 14px 16px;
+  display: grid;
+  gap: 12px;
+}
+.study-bill-banner.is-due {
+  border-color: color-mix(in srgb, var(--notif) 46%, var(--line));
+  background: linear-gradient(160deg, color-mix(in srgb, var(--notif-soft) 68%, var(--surface)) 0%, var(--surface) 78%);
+}
+.study-bill-banner.is-ok {
+  border-color: color-mix(in srgb, var(--good) 36%, var(--line));
+  background: color-mix(in srgb, var(--good) 8%, var(--surface));
+}
+.study-bill-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.study-bill-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 220px;
+}
+.study-bill-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.study-bill-ico {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.study-bill-banner.is-due .study-bill-ico {
+  background: color-mix(in srgb, var(--notif) 16%, transparent);
+  color: var(--notif);
+}
+.study-bill-banner.is-ok .study-bill-ico {
+  background: color-mix(in srgb, var(--good) 16%, transparent);
+  color: var(--good);
+}
+.study-bill-title {
+  font-size: 15px;
+  line-height: 1.25;
+}
+.study-bill-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.study-bill-details {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+}
+.study-bill-note {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+  line-height: 1.45;
+}
+.study-bill-list {
+  display: grid;
+  gap: 8px;
+}
+.study-bill-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 11px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  min-width: 0;
+}
+.study-bill-row-info {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.study-bill-row-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+.study-bill-tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.study-bill-tag.is-ok {
+  background: color-mix(in srgb, var(--good) 14%, transparent);
+  color: var(--good);
+}
+.study-bill-tag.is-warn {
+  background: color-mix(in srgb, var(--notif) 16%, transparent);
+  color: var(--notif);
+}
+.study-bill-summary {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.study-bill-sum-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.study-bill-sum-line.is-total {
+  padding-top: 6px;
+  border-top: 1px dashed var(--line);
+  font-weight: 700;
+  color: var(--ink);
+}
+@media (max-width: 520px) {
+  .study-bill-actions { width: 100%; }
+  .study-bill-actions .btn { flex: 1 1 auto; }
+}

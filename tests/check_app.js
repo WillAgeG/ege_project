@@ -973,16 +973,31 @@
     clickAction(env4, { a: "go", v: "study" });
     await flushMicrotasks(4);
     const studyBookedHtml = env4.elements.get("main").innerHTML;
-    assert(studyBookedHtml.includes("Календарь ваших уроков") && studyBookedHtml.includes('id="study-schedule-table"') && studyBookedHtml.includes("bb-data-table") && studyBookedHtml.includes("data-label=") && studyBookedHtml.includes("https://wa.me/") && studyBookedHtml.includes("Соколова"), "expected enrolled tutor schedule in Brandbook #study-schedule-table and WhatsApp link in study view after booking");
-    clickAction(env4, { a: "study-sched-cols", cols: "7" });
-    await flushMicrotasks(3);
-    assert(env4.elements.get("main").innerHTML.includes("bb-data-table cols-7"), "expected study-sched-cols=7 to re-render #study-schedule-table with 7 columns");
-    env4.emitDoc("input", { target: { id: "study-sched-q", value: "НесуществующийСлот", dataset: { a: "study-sched-q" } } });
-    await flushMicrotasks(3);
-    assert(env4.elements.get("main").innerHTML.includes('data-label="Результат"'), "expected study-sched-q input to filter and re-render #study-schedule-table");
-    clickAction(env4, { a: "study-sched-filter", v: "all", clearQ: "1" });
-    clickAction(env4, { a: "study-sched-cols", cols: "5" });
+    assert(
+      studyBookedHtml.includes("Календарь ваших уроков") &&
+      !studyBookedHtml.includes('id="study-schedule-table"') &&
+      !studyBookedHtml.includes("Запланированные уроки") &&
+      studyBookedHtml.includes('id="study-billing-notice"') &&
+      studyBookedHtml.includes("Баланса хватает на все уроки") &&
+      studyBookedHtml.includes("https://wa.me/") &&
+      studyBookedHtml.includes("Соколова"),
+      "expected study view without #study-schedule-table, showing top billing notice and WhatsApp link for Соколова"
+    );
+    clickAction(env4, { a: "study-billing-toggle" });
     await flushMicrotasks(2);
+    const studyDetailsHtml = env4.elements.get("main").innerHTML;
+    assert(
+      studyDetailsHtml.includes('id="study-billing-details"') &&
+      studyDetailsHtml.includes("Почему такая сумма:") &&
+      studyDetailsHtml.includes("Соколова"),
+      "expected Подробнее button in study billing notice to expand lesson-by-lesson explanation"
+    );
+    clickAction(env4, { a: "study-billing-toggle" });
+    await flushMicrotasks(2);
+    assert(
+      !env4.elements.get("main").innerHTML.includes('id="study-billing-details"'),
+      "expected second click on study-billing-toggle to collapse explanation"
+    );
     clickAction(env4, { a: "study-tab", tab: "chats" });
     await flushMicrotasks(4);
     assert(env4.elements.get("main").innerHTML.includes("hh-chat-list") && env4.elements.get("main").innerHTML.includes('id="study-chats-table"') && env4.elements.get("main").innerHTML.includes("bb-data-table") && env4.elements.get("main").innerHTML.includes("https://wa.me/"), "expected WhatsApp chat list in Brandbook #study-chats-table only for booked tutor in study chats tab");
@@ -1605,9 +1620,46 @@
       !studyWithCardsHtml.includes("study-tabs-rail") &&
       !studyWithCardsHtml.includes("Подобрать ещё") &&
       !studyWithCardsHtml.includes('data-a="study-subj"') &&
-      (studyWithCardsHtml.match(/data-label="День и час"/g) || []).length >= 2,
-      "expected 7-day strip without filters/sub-tabs/Подобрать ещё, daily card with single-line swipe pills, hold on WA/TG/MAX, Telemost & cancel"
+      !studyWithCardsHtml.includes('id="study-schedule-table"') &&
+      !studyWithCardsHtml.includes("Запланированные уроки") &&
+      studyWithCardsHtml.includes('id="study-billing-notice"'),
+      "expected 7-day strip without #study-schedule-table/filters/sub-tabs/Подобрать ещё, top billing notice, daily card with single-line swipe pills, hold on WA/TG/MAX, Telemost & cancel"
     );
+    const computeBillingFn = globalThis.EGE.views.marketplace.computeStudyWeekBilling;
+    assert(typeof computeBillingFn === "function", "expected computeStudyWeekBilling export on EGE.views.marketplace");
+    const sampleBk = { id: "bk-test", reserved: 1500, schedulePlan: { status: "confirmed", dows: [3, 5] } };
+    const sampleRows = [
+      { id: "r1", dayShort: "Ср", hour: "16:00", tutorName: "Тест", subjectName: "Математика", offerPrice: 1500, booking: sampleBk },
+      { id: "r2", dayShort: "Пт", hour: "16:00", tutorName: "Тест", subjectName: "Математика", offerPrice: 1500, booking: sampleBk }
+    ];
+    const billW0 = computeBillingFn({ balance: 500 }, sampleRows, 0);
+    assert(
+      billW0.lessonCount === 2 && billW0.totalCost === 3000 && billW0.coveredByReserve === 1500 && billW0.neededFromBalance === 1500 && billW0.deficit === 1000,
+      "expected week 0 billing to deduct frozen escrow reserve once across 2 weekly lessons and compute deficit"
+    );
+    const billW1 = computeBillingFn({ balance: 500 }, sampleRows, 1);
+    assert(
+      billW1.coveredByReserve === 0 && billW1.neededFromBalance === 3000 && billW1.deficit === 2500,
+      "expected week 1 recurring billing not to double-credit initial booking reserve"
+    );
+    clickAction(env5, { a: "study-billing-toggle" });
+    await flushMicrotasks(2);
+    assert(
+      env5.elements.get("main").innerHTML.includes('id="study-billing-details"') &&
+      env5.elements.get("main").innerHTML.includes("Почему такая сумма:"),
+      "expected Подробнее button on multi-lesson week in study view to expand explanation"
+    );
+    clickAction(env5, { a: "bal-open", amount: "2180", reason: "На этой неделе у вас 2 урока на 4 360 ₽. Не хватает 2 180 ₽." });
+    await flushMicrotasks(2);
+    const prefillBalHtml = env5.elements.get("modal-root").innerHTML;
+    assert(
+      prefillBalHtml.includes('id="bal-custom-amount"') &&
+      prefillBalHtml.includes('value="2180"') &&
+      prefillBalHtml.includes("На этой неделе у вас 2 урока на 4 360 ₽"),
+      "expected bal-open with data-amount & data-reason from study billing notice to prefill amount and show reason"
+    );
+    clickAction(env5, { a: "bal-close" });
+    await flushMicrotasks(2);
 
     const otherDayMatch = /data-a="study-day-pick" data-iso="([^"]+)" aria-pressed="false"/.exec(studyWithCardsHtml);
     assert(otherDayMatch, "expected unselected weekday button in #study-week-strip");

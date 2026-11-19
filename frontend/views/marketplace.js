@@ -1233,6 +1233,137 @@
     </section>`;
   }
 
+  /**
+   * Считает стоимость уроков выбранной недели, учёт замороженного резерва (escrow)
+   * и сумму пополнения баланса, чтобы хватило на все занятия недели.
+   */
+  function computeStudyWeekBilling(st, weekRows, weekOffset) {
+    const rows = Array.isArray(weekRows) ? weekRows : [];
+    const balance = Math.max(0, Math.round(Number(st && st.balance) || 0));
+    const reserveLeftByBooking = {};
+    const seenBk = new Set();
+    rows.forEach((row) => {
+      const bk = row && row.booking;
+      if (!bk || !bk.id || seenBk.has(bk.id)) return;
+      seenBk.add(bk.id);
+      const sp = bk.schedulePlan;
+      const hasPlanDows = !!(sp && (sp.status === "confirmed" || sp.status === "sent_to_tutor") && Array.isArray(sp.dows) && sp.dows.length);
+      const recursEveryWeek = hasPlanDows || bk.dow != null;
+      // Резерв по заявке покрывает первый урок текущей недели (или единственную разовую дату, если она на следующей неделе).
+      const reserveAppliesHere = weekOffset === 0 || !recursEveryWeek;
+      reserveLeftByBooking[bk.id] = reserveAppliesHere ? Math.max(0, Math.round(Number(bk.reserved) || 0)) : 0;
+    });
+
+    let totalCost = 0;
+    let coveredByReserve = 0;
+    let neededFromBalance = 0;
+    const items = rows.map((row) => {
+      const price = Math.max(0, Math.round(Number(row.offerPrice) || 0));
+      const bkId = row.booking && row.booking.id ? String(row.booking.id) : "";
+      const availReserve = bkId ? (reserveLeftByBooking[bkId] || 0) : 0;
+      const fromReserve = Math.min(price, availReserve);
+      if (bkId) reserveLeftByBooking[bkId] = Math.max(0, availReserve - fromReserve);
+      const fromBalance = Math.max(0, price - fromReserve);
+      totalCost += price;
+      coveredByReserve += fromReserve;
+      neededFromBalance += fromBalance;
+      return {
+        id: row.id,
+        dayShort: row.dayShort,
+        hour: row.hour,
+        tutorName: row.tutorName,
+        subjectName: row.subjectName,
+        price,
+        fromReserve,
+        fromBalance,
+        isTrial: !!row.isTrial
+      };
+    });
+
+    const deficit = Math.max(0, neededFromBalance - balance);
+    return {
+      lessonCount: items.length,
+      totalCost,
+      coveredByReserve,
+      neededFromBalance,
+      balance,
+      deficit,
+      items
+    };
+  }
+
+  /** Верхний баннер уведомления о балансе на выбранную неделю во вкладке «Учёба». */
+  function studyBillingNoticeHTML(b, ui, weekOffset) {
+    if (!b || !b.lessonCount) return "";
+    const fmt = (n) => Math.max(0, Math.round(Number(n) || 0)).toLocaleString("ru-RU");
+    const weekWord = weekOffset === 0 ? "На этой неделе" : "На следующей неделе";
+    const lessonsTxt = `${b.lessonCount} ${plural(b.lessonCount, "урок", "урока", "уроков")}`;
+    const isDue = b.deficit > 0;
+    const isOpen = !!(ui && ui.studyBillingOpen);
+    const reasonTxt = `${weekWord} у вас ${lessonsTxt} на ${fmt(b.totalCost)} ₽. Не хватает ${fmt(b.deficit)} ₽.`;
+    const plannedVerb = plural(b.lessonCount, "запланирован", "запланировано", "запланировано");
+    const title = isDue ? `Нужно пополнить счёт на ${fmt(b.deficit)} ₽` : "Баланса хватает на все уроки";
+    const sub = isDue
+      ? `${weekWord} у вас ${lessonsTxt} на ${fmt(b.totalCost)} ₽${b.coveredByReserve > 0 ? ` (${fmt(b.coveredByReserve)} ₽ уже в резерве)` : ""}`
+      : `${weekWord} ${plannedVerb} ${lessonsTxt} на ${fmt(b.totalCost)} ₽`;
+
+    const noteTxt = b.coveredByReserve > 0
+      ? `Почему такая сумма: за ${lessonsTxt} (${fmt(b.totalCost)} ₽) первый урок (${fmt(b.coveredByReserve)} ₽) уже заморожен в резерве при записи, а для оставшихся уроков (${fmt(b.neededFromBalance)} ₽) используются средства с баланса (${fmt(b.balance)} ₽).`
+      : `Почему такая сумма: за ${lessonsTxt} нужно ${fmt(b.totalCost)} ₽, сейчас на балансе ${fmt(b.balance)} ₽.`;
+
+    const rowsHtml = b.items.map((it) => {
+      const tag = it.price === 0
+        ? `<span class="study-bill-tag is-ok">Бесплатно</span>`
+        : it.fromBalance === 0
+          ? `<span class="study-bill-tag is-ok">В резерве</span>`
+          : it.fromReserve > 0
+            ? `<span class="study-bill-tag is-warn">Частично с баланса</span>`
+            : `<span class="study-bill-tag is-warn">С баланса</span>`;
+      const meta = [it.tutorName, it.subjectName].filter(Boolean).join(" · ");
+      return `<div class="study-bill-row">
+        <div class="study-bill-row-info">
+          <b>${esc(it.dayShort)} · ${esc(it.hour)}</b>
+          <span class="small muted">${esc(meta)}</span>
+        </div>
+        <div class="study-bill-row-right">
+          ${tag}
+          <b class="num">${it.price > 0 ? `${fmt(it.price)} ₽` : "0 ₽"}</b>
+        </div>
+      </div>`;
+    }).join("");
+
+    const summaryHtml = `<div class="study-bill-summary">
+      <div class="study-bill-sum-line"><span>Всего за ${esc(lessonsTxt)}</span><b class="num">${fmt(b.totalCost)} ₽</b></div>
+      ${b.coveredByReserve > 0 ? `<div class="study-bill-sum-line"><span>Уже в резерве по заявке</span><b class="num">−${fmt(b.coveredByReserve)} ₽</b></div>` : ""}
+      <div class="study-bill-sum-line"><span>На балансе сейчас</span><b class="num">${fmt(b.balance)} ₽</b></div>
+      <div class="study-bill-sum-line is-total">
+        <span>${isDue ? "Нужно пополнить" : "Останется после уроков"}</span>
+        <b class="num">${fmt(isDue ? b.deficit : Math.max(0, b.balance - b.neededFromBalance))} ₽</b>
+      </div>
+    </div>`;
+
+    return `<section class="card study-bill-banner ${isDue ? "is-due" : "is-ok"}" id="study-billing-notice" aria-live="polite">
+      <div class="study-bill-head">
+        <div class="study-bill-copy">
+          <div class="study-bill-title-row">
+            <span class="study-bill-ico" aria-hidden="true">${icon(isDue ? "wallet" : "check")}</span>
+            <b class="study-bill-title">${esc(title)}</b>
+          </div>
+          <span class="small ink2">${esc(sub)}</span>
+        </div>
+        <div class="study-bill-actions">
+          ${isDue ? `<button type="button" class="btn sm" data-a="bal-open" data-amount="${b.deficit}" data-reason="${esc(reasonTxt)}">${icon("wallet")}<span>Пополнить ${fmt(b.deficit)} ₽</span></button>` : ""}
+          <button type="button" class="btn ${isDue ? "ghost" : "soft"} sm" data-a="study-billing-toggle" aria-expanded="${isOpen ? "true" : "false"}">${isOpen ? "Скрыть" : "Подробнее"}</button>
+        </div>
+      </div>
+      ${isOpen ? `<div class="study-bill-details" id="study-billing-details">
+        <div class="study-bill-note small">${esc(noteTxt)}</div>
+        <div class="study-bill-list">${rowsHtml}</div>
+        ${summaryHtml}
+      </div>` : ""}
+    </section>`;
+  }
+
   /** Вкладка «Учёба»: только записанные репетиторы, переписка WhatsApp, поиск преподавателя и план ЕГЭ. */
   function viewStudy() {
     const TDATA = getTDATA();
@@ -1402,14 +1533,19 @@
       return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     })();
 
-    const enrolledSection = !st.bookings.length
+    const activeStudyBookings = (st.bookings || []).filter((bk) => {
+      if (!bk) return false;
+      const stLower = String(bk.status || "").toLowerCase();
+      return stLower !== "cancelled" && stLower !== "declined" && stLower !== "refunded";
+    });
+    const enrolledSection = !activeStudyBookings.length
       ? `<div class="empty">
           <b>Вы пока не записаны ни к одному преподавателю</b>
           <span>Откройте «Поиск», выберите пробный (490 ₽ или бесплатно) либо предложите свою ставку за урок.</span>
           <button type="button" class="btn sm" data-a="go" data-v="market">Выбрать преподавателя</button>
         </div>`
       : (() => {
-          const allBookings = st.bookings;
+          const allBookings = activeStudyBookings;
           const weekPicker = `<div class="hh-seg" role="group" aria-label="Выбор недели">
             <button type="button" data-a="study-week" data-w="0" aria-pressed="${weekOffset === 0}">Эта неделя</button>
             <button type="button" data-a="study-week" data-w="1" aria-pressed="${weekOffset === 1}">Следующая неделя</button>
@@ -1431,7 +1567,7 @@
               const sp = bk.schedulePlan;
               const usePlanHour = sp && (sp.status === "confirmed" || sp.status === "sent_to_tutor") && sp.hour;
               const lessonHour = usePlanHour ? sp.hour : (bk.hour || "14:00");
-              const rowObj = {
+              return {
                 id: `${bk.id}-${d.iso}`,
                 dayLabel: d.fullLabel,
                 dayShort: d.shortLabel,
@@ -1445,9 +1581,8 @@
                 tutor,
                 booking: bk
               };
-              weekRows.push(rowObj);
-              return rowObj;
             }).sort((a, b) => String(a.hour || "").localeCompare(String(b.hour || "")));
+            weekRows.push(...dayLessons);
             dayGroups.push({ day: d, lessons: dayLessons });
           });
 
@@ -1529,99 +1664,11 @@
               }).join("")}</div>`
             : `<div class="empty"><b>На ${esc(selectedGroup ? selectedGroup.day.fullLabel : "этот день")} занятий нет</b><span>Выберите другой день с цифрой выше или подберите преподавателя в «Поиске».</span></div>`;
 
-          const schedCols = [3, 5, 7].includes(Number(ui.studySchedCols)) ? Number(ui.studySchedCols) : 5;
-          const scheduleTableHtml = weekRows.length
-            ? `<div class="card pad-lg stack" style="gap:10px">${renderDataTable({
-                id: "study-schedule-table",
-                cardWrap: false,
-                showPresetSwitch: false,
-                eyebrow: "Недельный график",
-                title: "Запланированные уроки",
-                cols: schedCols,
-                query: ui.studySchedQuery || "",
-                colsAction: "study-sched-cols",
-                filterAction: "study-sched-filter",
-                searchAction: "study-sched-q",
-                searchId: "study-sched-q",
-                searchPlaceholder: "Поиск: преподаватель, предмет, день…",
-                filters: [],
-                columns: [
-                  {
-                    key: "day",
-                    label: "День и час",
-                    render: (row) => `<div class="stack" style="gap:2px">
-                      <b>${esc(row.dayLabel)}</b>
-                      <span class="small muted num">${esc(row.hour)} · ${esc(row.format)}</span>
-                    </div>`
-                  },
-                  {
-                    key: "tutor",
-                    label: "Преподаватель и предмет",
-                    render: (row, h) => `<div class="stack" style="gap:4px">
-                      <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center">
-                        <b>${esc(row.tutorName)}</b>
-                        ${row.tutor.verified !== false ? `<span class="verified-badge">${icon("check")}</span>` : ""}
-                      </div>
-                      ${h.cols < 7 ? `<div class="row" style="gap:6px;flex-wrap:wrap"><span class="chip">${esc(row.subjectName)}</span></div>` : ""}
-                    </div>`
-                  },
-                  {
-                    key: "price",
-                    label: "Ставка",
-                    minCols: 5,
-                    num: true,
-                    render: (row) => `<b class="num">${row.isTrial ? `Пробный ${row.offerPrice.toLocaleString("ru-RU")} ₽` : `${row.offerPrice.toLocaleString("ru-RU")} ₽/ч`}</b>`
-                  },
-                  {
-                    key: "status",
-                    label: "Статус",
-                    minCols: 5,
-                    render: (row) => `<span class="bb-tbl-st ${row.status === "accepted" ? "is-confirmed" : "is-pending"}">${row.status === "accepted" ? "Подтверждён" : "На рассмотрении"}</span>`
-                  },
-                  {
-                    key: "subject",
-                    label: "Предмет",
-                    minCols: 7,
-                    render: (row) => `<span class="chip">${esc(row.subjectName)}</span>`
-                  },
-                  {
-                    key: "format",
-                    label: "Формат",
-                    minCols: 7,
-                    render: (row) => `<span class="small">${esc(row.format)}</span>`
-                  },
-                  {
-                    key: "contact",
-                    label: "Связь",
-                    isActions: true,
-                    render: (row) => {
-                      const tm = row.booking && row.booking.telemostUrl ? String(row.booking.telemostUrl) : "";
-                      const resolvedTutor = resolveTutorWithContacts(row.tutor);
-                      const msgTxt = `Здравствуйте, ${row.tutorName}! Пишу по уроку на ${row.dayLabel} (${row.hour}), предмет — ${row.subjectName}.`;
-                      const waHref = TDATA.whatsappUrl(resolvedTutor, msgTxt);
-                      const linksHtml = (EGE.kit && typeof EGE.kit.messengerLinksHTML === "function")
-                        ? EGE.kit.messengerLinksHTML({
-                            entity: resolvedTutor,
-                            available: tutorChannels(resolvedTutor),
-                            allowHoldAdd: true,
-                            message: msgTxt,
-                            primaryLabel: "WhatsApp",
-                            compact: true
-                          })
-                        : `<a class="btn confirm sm" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>WhatsApp</span></a>`;
-                      return tm
-                        ? `<div class="row" style="gap:6px;flex-wrap:wrap"><a class="btn soft sm" href="${esc(tm)}" target="_blank" rel="noopener noreferrer">${icon("video")}<span>Телемост</span></a>${linksHtml}</div>`
-                        : linksHtml;
-                    }
-                  }
-                ],
-                rows: weekRows,
-                searchFields: (row) => [row.dayLabel, row.hour, row.format, row.tutorName, row.subjectName, row.status].join(" "),
-                emptyText: "По поисковому запросу уроков не найдено."
-              })}</div>`
-            : `<div class="empty"><b>Записей пока нет</b><span>Выберите преподавателя в разделе «Поиск» и отправьте заявку.</span></div>`;
+          const billing = computeStudyWeekBilling(st, weekRows, weekOffset);
+          const billingBannerHTML = studyBillingNoticeHTML(billing, ui, weekOffset);
 
-          return `<section class="card pad stack study-cal-card" id="study-week-strip">
+          return `${billingBannerHTML}
+          <section class="card pad stack study-cal-card" id="study-week-strip">
             <div class="row between" style="gap:8px;flex-wrap:wrap">
               <h2 class="h2">Календарь ваших уроков: ${esc(weekRange)}</h2>
             </div>
@@ -1634,8 +1681,7 @@
               </div>
               ${dayLessonsHTML}
             </div>
-          </section>
-          ${scheduleTableHtml}`;
+          </section>`;
         })();
 
     return `${header}
@@ -1872,14 +1918,8 @@
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       return true;
     }
-    if (act === "study-sched-cols") {
-      const c = Number(d.cols);
-      ui.studySchedCols = [3, 5, 7].includes(c) ? c : 5;
-      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
-      return true;
-    }
-    if (act === "study-sched-filter") {
-      if (d.clearQ === "1") ui.studySchedQuery = "";
+    if (act === "study-billing-toggle") {
+      ui.studyBillingOpen = !ui.studyBillingOpen;
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       return true;
     }
@@ -1911,11 +1951,6 @@
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       return true;
     }
-    if (act === "study-sched-q") {
-      ui.studySchedQuery = String(el.value || "");
-      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
-      return true;
-    }
     if (act === "study-chats-q") {
       ui.studyChatsQuery = String(el.value || "");
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
@@ -1930,7 +1965,7 @@
       const el = target && typeof target.closest === "function" ? target.closest("[data-a]") : null;
       if (!el || el.disabled) return;
       const act = (el.dataset && el.dataset.a) || "";
-      if (act === "home-bid-filter" || act === "study-day-pick" || act === "mkt-bk-filter" || act === "mkt-bk-cols" || act === "study-sched-cols" || act === "study-sched-filter" || act === "study-chats-cols" || act === "study-chats-filter") {
+      if (act === "home-bid-filter" || act === "study-day-pick" || act === "mkt-bk-filter" || act === "mkt-bk-cols" || act === "study-chats-cols" || act === "study-chats-filter") {
         if (handleAction(act, el) && typeof e.preventDefault === "function") e.preventDefault();
       }
     });
@@ -1938,7 +1973,7 @@
       const el = e && e.target;
       const d = el && el.dataset;
       const act = (d && d.a) || (el && el.id) || "";
-      if (act === "mkt-bk-q" || act === "study-sched-q" || act === "study-chats-q") {
+      if (act === "mkt-bk-q" || act === "study-chats-q") {
         handleInput(el);
       }
     });
@@ -1965,6 +2000,8 @@
     tutorCardHTML,
     bookingsStripHTML,
     studentHomeBidsHTML,
+    computeStudyWeekBilling,
+    studyBillingNoticeHTML,
     saveTelemostForBooking,
     marketSectionHTML,
     viewMarket,

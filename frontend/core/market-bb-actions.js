@@ -308,14 +308,20 @@
     "bal-open": (el) => {
       const st = mkt();
       const trialRub = (TDATA && TDATA.TRIAL_PRICE != null) ? Number(TDATA.TRIAL_PRICE) : 490;
-      const reason = el && el.dataset && el.dataset.reason === "trial"
+      const d = (el && el.dataset) || {};
+      const customReason = d.reason && d.reason !== "trial" ? String(d.reason) : "";
+      const reason = d.reason === "trial"
         ? `Пополните баланс минимум на ${trialRub} ₽ для записи на занятие.`
-        : "";
+        : customReason;
       const pendingBooking = ui.booking ? Object.assign({}, ui.booking) : null;
       const minTopup = st.initialPaid ? 100 : trialRub;
-      const customAmt = pendingBooking && Number(pendingBooking.offerPrice) > (Number(st.balance) || 0)
+      const rawAmt = d.amount != null && d.amount !== "" ? Number(d.amount) : NaN;
+      const explicitAmt = Number.isFinite(rawAmt) && rawAmt > 0
+        ? Math.max(minTopup, Math.min(200000, Math.round(rawAmt)))
+        : 0;
+      const customAmt = explicitAmt || (pendingBooking && Number(pendingBooking.offerPrice) > (Number(st.balance) || 0)
         ? Math.max(minTopup, Number(pendingBooking.offerPrice) - (Number(st.balance) || 0))
-        : (st.initialPaid ? 500 : trialRub);
+        : (st.initialPaid ? 500 : trialRub));
       if (pendingBooking) ui.booking = null;
       const cards = Array.isArray(st.savedCards) ? st.savedCards : (st.savedCard && st.savedCard.last4 ? [st.savedCard] : []);
       ui.cardBindModal = null;
