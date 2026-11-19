@@ -1092,7 +1092,7 @@
         </nav>
         <div class="land-top-actions">
           ${inside
-            ? `<button type="button" class="btn sm" data-a="go" data-v="${ui.role === "tutor" ? "cabinet" : "tests"}">В кабинет</button>`
+            ? `<button type="button" class="btn sm" data-a="go" data-v="${ui.role === "tutor" ? "cabinet" : "home"}">В кабинет</button>`
             : `<button type="button" class="btn sm" data-a="auth-modal-open">Войти</button>`}
         </div>
       </header>

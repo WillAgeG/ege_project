@@ -11,7 +11,7 @@
   let EGEPayments, MOTION_PRESETS, TDATA, ai, defaultMarketState, draft, go;
   let heroMotionMeta, isUserAuthenticated, mkt, notifySide, patchHeroMotionDOM, patchSavingsDOM;
   let renderModal, requireAuthForBid, saveMkt, scheduleRender, stopMotionTimers, tile, toast, ui;
-  let updateBookingModalLive;
+  let updateBookingModalLive, writeHash;
 
   function buildBookingDraft(tutor, el, TDATA_ref, mkt_ref, ui_ref) {
     const st = mkt_ref();
@@ -195,7 +195,7 @@
       EGEPayments, MOTION_PRESETS, TDATA, ai, defaultMarketState, draft, go,
       heroMotionMeta, isUserAuthenticated, mkt, notifySide, patchHeroMotionDOM, patchSavingsDOM,
       renderModal, requireAuthForBid, saveMkt, scheduleRender, stopMotionTimers, tile, toast, ui,
-      updateBookingModalLive
+      updateBookingModalLive, writeHash
     } = ctx || {});
 
     Object.assign(ACTIONS, {
@@ -224,6 +224,10 @@
         return;
       }
       if (id === "land-market") {
+        if (ui.view === "landing" && typeof isUserAuthenticated === "function" && isUserAuthenticated() && ui.role !== "tutor" && ui.role !== "admin") {
+          go("market");
+          return;
+        }
         ui.landWhiteStage = true;
         if (typeof document !== "undefined") {
           if (document.body && document.body.classList) document.body.classList.add("is-land-white");
@@ -581,6 +585,11 @@
       if (!tutor) return;
       const draftBooking = buildBookingDraft(tutor, el, TDATA, mkt, ui);
       if (typeof requireAuthForBid === "function" && requireAuthForBid(draftBooking)) return;
+      if (ui.view === "landing" && typeof isUserAuthenticated === "function" && isUserAuthenticated() && ui.role !== "tutor" && ui.role !== "admin") {
+        ui.view = "market";
+        if (typeof writeHash === "function") writeHash();
+        scheduleRender();
+      }
       ui.booking = draftBooking;
       renderModal();
     },
@@ -588,6 +597,11 @@
       if (!TDATA) return;
       const tutor = TDATA.LIST.find((x) => x.id === el.dataset.id);
       if (!tutor) return;
+      if (ui.view === "landing" && typeof isUserAuthenticated === "function" && isUserAuthenticated() && ui.role !== "tutor" && ui.role !== "admin") {
+        ui.view = "market";
+        if (typeof writeHash === "function") writeHash();
+        scheduleRender();
+      }
       ui.booking = buildBookingDraft(tutor, el, TDATA, mkt, ui);
       renderModal();
     },
@@ -595,6 +609,11 @@
       if (!TDATA) return;
       const tutor = TDATA.LIST.find((x) => x.id === el.dataset.id);
       if (!tutor) return;
+      if (ui.view === "landing" && typeof isUserAuthenticated === "function" && isUserAuthenticated() && ui.role !== "tutor" && ui.role !== "admin") {
+        ui.view = "market";
+        if (typeof writeHash === "function") writeHash();
+        scheduleRender();
+      }
       const draftBooking = buildBookingDraft(tutor, el, TDATA, mkt, ui);
       ui.booking = draftBooking;
       if (!draftBooking.firstLessonGuarantee) {
@@ -769,6 +788,10 @@
       };
       st.bookings.unshift(newBooking);
       ui.booking = null;
+      if (ui.view === "landing" && ui.role !== "tutor" && ui.role !== "admin") {
+        ui.view = "market";
+        if (typeof writeHash === "function") writeHash();
+      }
       saveMkt();
       if (EGE.views.marketplace && typeof EGE.views.marketplace.publishStudentBid === "function") {
         EGE.views.marketplace.publishStudentBid(newBooking, tutor);

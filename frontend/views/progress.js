@@ -11,9 +11,9 @@
   const { icon } = EGE.ui;
 
   let CONTENT, DIAG_PLAN_ID, QUIZ_SIZE, SUBJ, SUBJECT_META, SUBJECT_NAME, TOPIC_QUIZ, TOPICS, QS;
-  let ai, caps, cloud, store, ui;
+  let ai, caps, cloud, mkt, store, ui;
   let accountCard, defaultName, draft, dueQs, findPlanItem, formatAvg, getThemeMode, go;
-  let localNotice, minutesByDay, mistakeQs, mocks, patchDoc, planDoc, planItems, profile;
+  let localNotice, minutesByDay, mistakeQs, mocks, needsPrepSetup, patchDoc, planDoc, planItems, profile;
   let prog, questionAttemptBreakdown, replaceDoc, scheduleRender, sessions, staleNotice;
   let subjSelect, subjectAccuracy, subjectReadCount, subjectStats, tile, toast, todoItem;
   let topicRef, topicStats, totals;
@@ -26,9 +26,9 @@
   function configure(ctx) {
     ({
       CONTENT, DIAG_PLAN_ID, QUIZ_SIZE, SUBJ, SUBJECT_META, SUBJECT_NAME, TOPIC_QUIZ, TOPICS, QS,
-      ai, caps, cloud, store, ui,
+      ai, caps, cloud, mkt, store, ui,
       accountCard, defaultName, draft, dueQs, findPlanItem, formatAvg, getThemeMode, go,
-      localNotice, minutesByDay, mistakeQs, mocks, patchDoc, planDoc, planItems, profile,
+      localNotice, minutesByDay, mistakeQs, mocks, needsPrepSetup, patchDoc, planDoc, planItems, profile,
       prog, questionAttemptBreakdown, replaceDoc, scheduleRender, sessions, staleNotice,
       subjSelect, subjectAccuracy, subjectReadCount, subjectStats, tile, toast, todoItem,
       topicRef, topicStats, totals
@@ -164,7 +164,8 @@
       ${moreBtn}
     </section>`;
   }
-  function viewStats() {
+  function viewStats(opts) {
+    const embedded = !!(opts && opts.embedded);
     const tot = totals(), prof = profile(), pd = planDoc();
     const allSess = sessions(), allMocks = mocks();
     const recent = allSess.slice(0, 15);
@@ -176,8 +177,11 @@
     const rep2Plus = repAll.n2.length + repAll.n3.length + repAll.n4.length;
     const seenCount = repAll.n1.length + rep2Plus;
     const subjCards = CONTENT.map((s) => subjectAutoCard(s, prof, allSess, allMocks, pd)).join("");
-    return `<div class="head"><div class="eyebrow">Показатели</div><h1 class="h1">Подготовка в цифрах</h1><p class="lead">Считается автоматически по тестам, конспектам, повторениям и полным вариантам. Занятия с учебником или бумажные пробники можно добавить внизу.</p></div>
-      ${store.mode === "local" ? localNotice() : staleNotice()}
+    const headHTML = embedded
+      ? `<div class="row between" style="gap:8px;flex-wrap:wrap"><h2 class="h2">Подготовка в цифрах</h2><span class="small muted">Тесты, конспекты и пробники</span></div>`
+      : `<div class="head"><div class="eyebrow">Показатели</div><h1 class="h1">Подготовка в цифрах</h1><p class="lead">Считается автоматически по тестам, конспектам, повторениям и полным вариантам. Занятия с учебником или бумажные пробники можно добавить внизу.</p></div>`;
+    return `${headHTML}
+      ${!embedded && store.mode === "local" ? localNotice() : !embedded ? staleNotice() : ""}
       <div class="tiles">
         ${tile("Сегодня", minutesText(tot.today), "")}
         ${tile("За 7 дней", minutesText(tot.d7), weekNote)}
@@ -343,8 +347,47 @@
     const prof = profile();
     const isTutor = ui.role === "tutor";
     const isAdmin = ui.role === "admin";
-    return `<div class="head"><div class="eyebrow">Настройки</div><h1 class="h1">Профиль и данные</h1></div>
+    const showSetupNotif = typeof needsPrepSetup === "function"
+      ? needsPrepSetup()
+      : Boolean(!isTutor && !isAdmin && store.ready && !prof.exists && store.error !== "readonly" && (!store.backend || store.user || ui.guest));
+    const setupNotifHTML = showSetupNotif
+      ? `<section class="card profile-setup-notif${ui.prepSetupOpen ? " is-open" : ""}" id="profile-setup-notif" aria-label="Настройка подготовки">
+          <div class="profile-setup-bar">
+            <div class="row" style="gap:10px;align-items:center;min-width:0">
+              <span class="chip notif num">+1</span>
+              <div class="stack" style="gap:2px;min-width:0">
+                <b>Давай настроим подготовку</b>
+                <span class="small muted">Укажите целевые баллы — план и отсчёты подстроятся под вас</span>
+              </div>
+            </div>
+            <button type="button" class="btn soft sm" data-a="prep-setup-toggle" aria-expanded="${ui.prepSetupOpen ? "true" : "false"}">${ui.prepSetupOpen ? "Свернуть" : "Настроить"}</button>
+          </div>
+          ${ui.prepSetupOpen && EGE.views.trainer && typeof EGE.views.trainer.onboardingCard === "function"
+            ? `<div class="profile-setup-body">${EGE.views.trainer.onboardingCard()}</div>`
+            : ""}
+        </section>`
+      : "";
+    const vc = typeof mkt === "function" && mkt() && mkt().verifiedContact;
+    const phoneCardHTML = vc && vc.value
+      ? `<section class="card pad-lg row between" style="gap:10px;flex-wrap:wrap">
+          <div class="stack" style="gap:2px">
+            <span class="small muted">Подтверждённый телефон (СМС)</span>
+            <b class="num">${esc(vc.value)}</b>
+          </div>
+          <span class="chip good">Подтверждён ✓</span>
+        </section>`
+      : "";
+    return `<div class="head"><div class="eyebrow">Профиль</div><h1 class="h1">Профиль и настройки</h1></div>
+      ${setupNotifHTML}
       ${store.backend ? accountCard() : ""}
+      ${phoneCardHTML}
+      <section class="card pad-lg row between" style="gap:10px;flex-wrap:wrap">
+        <div class="stack" style="gap:2px">
+          <b>Статистика и показатели</b>
+          <span class="small muted">Графики активности, точность и повторяемость тем</span>
+        </div>
+        <button type="button" class="btn soft sm" data-a="go" data-v="stats">${icon("chart")}<span>Открыть показатели</span></button>
+      </section>
       <section class="card pad-lg stack">
         <div class="row between" style="flex-wrap:wrap;gap:8px">
           <h2 class="h2">Режим кабинета</h2>
@@ -492,6 +535,7 @@
       toast("Прогресс " + SUBJ[cf.sid].po + " сброшен");
     },
     "confirm-cancel": () => { ui.confirm = null; scheduleRender(); },
+    "prep-setup-toggle": () => { ui.prepSetupOpen = !ui.prepSetupOpen; scheduleRender(); },
     });
   }
 

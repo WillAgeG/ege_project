@@ -2171,3 +2171,41 @@ body:has(.land-page:not(#brandbook-page)) .main,
   .hh-sort-seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
   .hh-sort-seg button { padding: 7px 6px; font-size: 12.5px; text-align: center; justify-content: center; }
 }
+
+/* ---------- Главная ученика: отклики и уведомление настройки в Профиле ---------- */
+.home-bid-list { display: grid; gap: 12px; }
+.home-bid-card {
+  border-radius: 16px; border: 1px solid var(--line);
+  padding: 14px 16px; background: var(--surface-2);
+}
+.home-bid-status {
+  padding: 10px 12px; border-radius: 12px;
+  display: grid; gap: 3px; font-size: 13px; line-height: 1.4;
+}
+.home-bid-status.is-pending {
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, transparent);
+  color: var(--ink);
+}
+.home-bid-status.is-pending b { color: var(--accent); font-weight: 700; }
+.home-bid-status.is-accepted {
+  background: var(--confirm-soft);
+  border: 1px solid color-mix(in srgb, var(--confirm) 30%, transparent);
+  color: var(--ink);
+}
+.home-bid-status.is-accepted b { color: var(--confirm); font-weight: 700; }
+.home-bid-status span { font-size: 12.5px; color: var(--ink-2); }
+
+.profile-setup-notif {
+  padding: 14px 16px;
+  border-color: color-mix(in srgb, var(--notif) 42%, var(--line));
+  background: color-mix(in srgb, var(--notif-soft) 55%, var(--surface));
+  display: grid; gap: 12px;
+}
+.profile-setup-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+}
+.profile-setup-body {
+  padding-top: 12px; border-top: 1px solid var(--line);
+}
+.profile-setup-body .card.pad-lg { padding: 0; border: 0; background: transparent; box-shadow: none; }

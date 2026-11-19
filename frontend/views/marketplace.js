@@ -380,6 +380,99 @@
     return `<section class="card pad-lg stack reqs-strip" style="gap:10px" aria-label="Мои заявки">${tableHtml}</section>`;
   }
 
+  function studentHomeBidsHTML() {
+    const TDATA = getTDATA();
+    if (!TDATA) return "";
+    const st = getMkt();
+    const ui = getUi();
+    const all = Array.isArray(st.bookings) ? st.bookings : [];
+    const vc = st.verifiedContact && st.verifiedContact.value ? String(st.verifiedContact.value) : "";
+    if (!all.length) {
+      return `<section class="card pad-lg stack" id="home-bids-section" style="gap:12px" aria-label="Мои отклики преподавателям">
+        <div class="row between" style="gap:8px;flex-wrap:wrap">
+          <div>
+            <div class="eyebrow">Отклики и ответы</div>
+            <h2 class="h2">Мои отклики преподавателям</h2>
+          </div>
+        </div>
+        <p class="small ink2" style="margin:0">Откликов пока нет. Найдите преподавателя в разделе «Поиск» и предложите свою цену — здесь сразу появится статус: ожидаем ответ или уже написали вам в СМС и мессенджер.</p>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <button type="button" class="btn sm" data-a="go" data-v="market">Найти преподавателя</button>
+          <button type="button" class="btn soft sm" data-a="go-student-lead">Оставить заявку</button>
+        </div>
+      </section>`;
+    }
+    const pendingCnt = all.filter((b) => b.status !== "accepted").length;
+    const acceptedCnt = all.length - pendingCnt;
+    const flt = ["all", "pending", "accepted"].includes(ui.homeBidFilter) ? ui.homeBidFilter : "all";
+    const rows = flt === "pending"
+      ? all.filter((b) => b.status !== "accepted")
+      : (flt === "accepted" ? all.filter((b) => b.status === "accepted") : all);
+    const cardsHTML = rows.length
+      ? `<div class="home-bid-list">${rows.map((bk) => {
+          const accepted = bk.status === "accepted";
+          const tutor = TDATA.LIST.find((x) => x.id === bk.tutorId) || {
+            id: bk.tutorId,
+            name: bk.tutorName,
+            subjectName: bk.subjectName,
+            verified: true,
+            whatsapp: "79142100101"
+          };
+          const trialDefault = TDATA.TRIAL_PRICE != null ? Number(TDATA.TRIAL_PRICE) : 490;
+          const isTrial = !!bk.isTrial;
+          const trialRub = bk.offerPrice != null && Number.isFinite(Number(bk.offerPrice)) ? Number(bk.offerPrice) : trialDefault;
+          const priceTxt = isTrial
+            ? (trialRub === 0 ? "Пробный · 0 ₽" : `Пробный · ${trialRub.toLocaleString("ru-RU")} ₽`)
+            : `${Number(bk.offerPrice || 0).toLocaleString("ru-RU")} ₽/ч`;
+          const msgTxt = `Здравствуйте, ${bk.tutorName}! Напоминаю про занятие (${bk.subjectName}, ${bk.dayLabel} в ${bk.hour}, ${isTrial ? "пробный урок" : "ставка " + bk.offerPrice + " ₽/ч"}).`;
+          const waHref = TDATA.whatsappUrl(tutor, msgTxt);
+          return `<article class="home-bid-card stack" style="gap:10px">
+            <div class="row between" style="gap:10px;flex-wrap:wrap;align-items:flex-start">
+              <div class="row" style="gap:10px;align-items:center;min-width:0">
+                ${tutorAvatarHTML(tutor)}
+                <div class="stack" style="gap:3px;min-width:0">
+                  <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center">
+                    <b>${esc(bk.tutorName)}</b>
+                    ${tutor.verified !== false ? `<span class="verified-badge">${icon("check")}</span>` : ""}
+                    <span class="chip">${esc(bk.exam || "ЕГЭ")} · ${esc(bk.subjectName)}</span>
+                  </div>
+                  <span class="small muted">${esc(bk.dayLabel)} · ${esc(bk.hour)} · ${esc(bk.format || "Онлайн")}${bk.note ? ` · «${esc(bk.note)}»` : ""}</span>
+                </div>
+              </div>
+              <b class="num" style="font-size:15px;white-space:nowrap">${esc(priceTxt)}</b>
+            </div>
+            <div class="home-bid-status ${accepted ? "is-accepted" : "is-pending"}">
+              <b>${accepted ? "Преподаватель ответил · занятие подтверждено" : "Ожидаем ответ преподавателя"}</b>
+              <span>${accepted
+                ? `Написали вам в СМС${vc ? ` (${esc(vc)})` : ""} и мессенджер (WhatsApp, Telegram, MAX)`
+                : `Написали преподавателю · как только ответит, придёт СМС${vc ? ` на ${esc(vc)}` : ""} или уведомление в мессенджер (WhatsApp, Telegram, MAX)`}</span>
+            </div>
+            <div class="row" style="gap:8px;flex-wrap:wrap">
+              ${accepted ? `${(EGE.kit && typeof EGE.kit.messengerLinksHTML === "function")
+                ? EGE.kit.messengerLinksHTML({ entity: tutor, message: msgTxt, primaryLabel: "WhatsApp", compact: true })
+                : `<a class="btn confirm sm" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>WhatsApp</span></a>`}<button type="button" class="btn soft sm" data-a="go" data-v="study">Открыть «Учёбу»</button><button type="button" class="btn ghost sm" data-a="mkt-cancel-book" data-id="${esc(bk.id)}">Сменить</button>`
+                : `<button type="button" class="btn soft sm" data-a="mkt-sim-accept" data-id="${esc(bk.id)}">Тест: подтвердить</button><button type="button" class="btn ghost sm" data-a="mkt-cancel-book" data-id="${esc(bk.id)}">Отменить</button>`}
+            </div>
+          </article>`;
+        }).join("")}</div>`
+      : `<div class="empty"><span>В этом фильтре откликов пока нет.</span></div>`;
+    return `<section class="card pad-lg stack" id="home-bids-section" style="gap:12px" aria-label="Мои отклики преподавателям">
+      <div class="row between" style="gap:8px;flex-wrap:wrap">
+        <div>
+          <div class="eyebrow">Отклики и ответы</div>
+          <h2 class="h2">Мои отклики преподавателям</h2>
+        </div>
+        <button type="button" class="btn soft sm" data-a="go" data-v="market">Найти ещё</button>
+      </div>
+      <div class="chip-rail" role="group" aria-label="Фильтр откликов">
+        <button type="button" class="chip-btn${flt === "all" ? " on" : ""}" data-a="home-bid-filter" data-v="all">Все (${all.length})</button>
+        <button type="button" class="chip-btn${flt === "pending" ? " on" : ""}" data-a="home-bid-filter" data-v="pending">Ожидаем ответ (${pendingCnt})</button>
+        <button type="button" class="chip-btn${flt === "accepted" ? " on" : ""}" data-a="home-bid-filter" data-v="accepted">Ответили (${acceptedCnt})</button>
+      </div>
+      ${cardsHTML}
+    </section>`;
+  }
+
   function activeFilterCount(st) {
     st = st || getMkt();
     let n = 0;
@@ -691,7 +784,7 @@
   }
 
   function viewMarket() {
-    return `<div class="head"><div class="row between" style="flex-wrap:wrap;gap:10px"><div><div class="eyebrow">Маркетплейс</div><h1 class="h1">Подбор репетитора</h1></div><button type="button" class="btn ghost sm" data-a="go" data-v="landing">Витрина</button></div></div>
+    return `<div class="head"><div class="row between" style="flex-wrap:wrap;gap:10px"><div><div class="eyebrow">Поиск</div><h1 class="h1">Поиск репетитора</h1></div><button type="button" class="btn ghost sm" data-a="go" data-v="landing">Витрина</button></div></div>
       ${marketSectionHTML()}`;
   }
 
@@ -868,12 +961,22 @@
       </div>
       <div class="chip-rail">
         <button type="button" class="chip-btn${tab === "week" ? " on" : ""}" data-a="study-tab" data-tab="week">График (${st.bookings.length})</button>
-        <button type="button" class="chip-btn${tab === "chats" ? " on" : ""}" data-a="study-tab" data-tab="chats">Чаты · WA · TG · MAX (${bookedList.length})</button>
+        <button type="button" class="chip-btn${tab === "chats" ? " on" : ""}" data-a="study-tab" data-tab="chats">Чаты (${bookedList.length})</button>
+        <button type="button" class="chip-btn${tab === "tests" ? " on" : ""}" data-a="study-tab" data-tab="tests">Тесты ЕГЭ</button>
         <button type="button" class="chip-btn${tab === "plan" ? " on" : ""}" data-a="study-tab" data-tab="plan">План ЕГЭ</button>
+        <button type="button" class="chip-btn${tab === "stats" ? " on" : ""}" data-a="study-tab" data-tab="stats">Показатели</button>
       </div>`;
+
+    if (tab === "tests") {
+      return `${header}${typeof _ctx.viewTests === "function" ? _ctx.viewTests({ embedded: true }) : ""}`;
+    }
 
     if (tab === "plan") {
       return `${header}${typeof _ctx.viewPlan === "function" ? _ctx.viewPlan() : ""}`;
+    }
+
+    if (tab === "stats") {
+      return `${header}${typeof _ctx.viewStats === "function" ? _ctx.viewStats({ embedded: true }) : ""}`;
     }
 
     if (tab === "chats") {
@@ -881,8 +984,8 @@
         return `${header}
           <div class="empty">
             <b>Пока нет преподавателей, к которым вы записаны</b>
-            <span>Выберите преподавателя во вкладке «Репетиторы» — после записи здесь появятся прямые чаты WhatsApp, Telegram и MAX.</span>
-            <button type="button" class="btn sm" data-a="go" data-v="market">Перейти в «Репетиторы»</button>
+            <span>Выберите преподавателя во вкладке «Поиск» — после записи здесь появятся прямые чаты WhatsApp, Telegram и MAX.</span>
+            <button type="button" class="btn sm" data-a="go" data-v="market">Перейти в «Поиск»</button>
           </div>
           ${studentLeadCardHTML(TDATA, ui)}`;
       }
@@ -995,7 +1098,7 @@
         <b>${st.bookings.length ? `Ваших записей к преподавателям: ${st.bookings.length}` : "В разделе «Учёба» только ваши преподаватели"}</b>
         <span class="chip accent num">Баланс: ${st.balance.toLocaleString("ru-RU")} ₽</span>
       </div>
-      <span class="small ink2">${st.bookings.length ? "Здесь показаны только преподаватели, к которым у вас есть заявка или подтверждённый урок." : "После записи в «Репетиторах» здесь появятся ваше расписание, статус подтверждения и прямые контакты WhatsApp, Telegram и MAX."}</span>
+      <span class="small ink2">${st.bookings.length ? "Здесь показаны только преподаватели, к которым у вас есть заявка или подтверждённый урок." : "После записи в «Поиске» здесь появятся ваше расписание, статус подтверждения и прямые контакты WhatsApp, Telegram и MAX."}</span>
       <div class="row" style="gap:8px;flex-wrap:wrap">
         <button type="button" class="btn sm" data-a="go" data-v="market">Подобрать репетитора</button>
         ${!hasMinBalance(st) ? `<button type="button" class="btn soft sm" data-a="bal-open">${icon("wallet")}<span>Пополнить по СБП от 490 ₽</span></button>` : ""}
@@ -1005,7 +1108,7 @@
     const enrolledSection = !st.bookings.length
       ? `<div class="empty">
           <b>Вы пока не записаны ни к одному преподавателю</b>
-          <span>Откройте «Репетиторы», выберите пробный (490 ₽ или бесплатно) либо предложите свою ставку за урок.</span>
+          <span>Откройте «Поиск», выберите пробный (490 ₽ или бесплатно) либо предложите свою ставку за урок.</span>
           <button type="button" class="btn sm" data-a="go" data-v="market">Выбрать преподавателя</button>
         </div>`
       : (() => {
@@ -1166,6 +1269,11 @@
   function handleAction(act, el) {
     const ui = getUi();
     const d = (el && el.dataset) || {};
+    if (act === "home-bid-filter") {
+      ui.homeBidFilter = ["all", "pending", "accepted"].includes(d.v) ? d.v : "all";
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return true;
+    }
     if (act === "mkt-bk-filter") {
       if (d.clearQ === "1") ui.mktBkQuery = "";
       ui.mktBkFilter = ["pending", "accepted"].includes(d.v) ? d.v : "all";
@@ -1231,7 +1339,7 @@
       const el = target && typeof target.closest === "function" ? target.closest("[data-a]") : null;
       if (!el || el.disabled) return;
       const act = (el.dataset && el.dataset.a) || "";
-      if (act === "mkt-bk-filter" || act === "mkt-bk-cols" || act === "study-sched-cols" || act === "study-sched-filter" || act === "study-chats-cols" || act === "study-chats-filter") {
+      if (act === "home-bid-filter" || act === "mkt-bk-filter" || act === "mkt-bk-cols" || act === "study-sched-cols" || act === "study-sched-filter" || act === "study-chats-cols" || act === "study-chats-filter") {
         if (handleAction(act, el) && typeof e.preventDefault === "function") e.preventDefault();
       }
     });
@@ -1260,6 +1368,7 @@
     plansSectionHTML,
     tutorCardHTML,
     bookingsStripHTML,
+    studentHomeBidsHTML,
     marketSectionHTML,
     viewMarket,
     viewStudy,

@@ -837,7 +837,7 @@
     : readRolePref();
   const INITIAL_VIEW = HOST_SITE === "tutor"
     ? (((typeof window !== "undefined" && window.EGE_HOST && window.EGE_HOST.view === "fees") || (typeof location !== "undefined" && location.pathname === "/fees")) ? "fees" : "cabinet")
-    : (HOST_SITE === "admin" ? "admin" : (HOST_SITE === "brandbook" ? "brandbook" : "tests"));
+    : (HOST_SITE === "admin" ? "admin" : (HOST_SITE === "brandbook" ? "brandbook" : "home"));
   const ui = {
     view: INITIAL_VIEW,
     role: INITIAL_ROLE,
@@ -882,6 +882,8 @@
     demoAuthed: false,
     authPrompt: "",
     pendingBookingAfterAuth: null,
+    prepSetupOpen: false,
+    homeBidFilter: "all",
     mktVisibleCount: 8,
     landWhiteStage: false,
     brandbook: { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, vpWidth: 390, chipOn: true, sent: false, fav: true, switchVal: "online", multiSubjs: ["bio", "chem"], multiMenuOpen: false, pickedPlan: "month10k", quizOpt: 1, marketDemoAccepted: false, reducedMotion: false, balFunded: true, chartStyle: "sticks", chartDataset: "income", chartActiveIdx: 3, chartLines: 1, chartPoints: 7, linePtIdx: 3, donutDataset: "channels", donutSliceIdx: 0, tableCols: 5, tableFilter: "all", tableSearch: "", maskPhone: "+7 (914) 210-05-11", maskTg: "@aytal_bio", maskMax: "aytal_ege", payMethod: "sbp", payState: "frozen", payInitialDone: false, tablePreset: "requests", confirmedRows: {}, essayOpenIdx: 0 }
@@ -1032,12 +1034,12 @@
         if (location.pathname === "/landing") { ui.view = "landing"; return; }
         if (location.pathname === "/admin" || HOST_SITE === "admin") { ui.role = "admin"; ui.view = "admin"; return; }
         if (HOST_SITE === "tutor") { ui.role = "tutor"; ui.view = "cabinet"; return; }
-        if (HOST_SITE === "student") { ui.role = "student"; ui.view = "tests"; return; }
+        if (HOST_SITE === "student") { ui.role = "student"; ui.view = "home"; return; }
       }
     } catch (e) { /* игнор */ }
     if (!h && typeof window !== "undefined" && window.EGE_HOST && window.EGE_HOST.landing) ui.view = "landing";
   }
-  function applyPostAuthView() {
+  function applyPostAuthView(forceDefault) {
     if (HOST_SITE === "student" || HOST_SITE === "tutor" || HOST_SITE === "admin") {
       ui.role = HOST_SITE;
     }
@@ -1050,11 +1052,11 @@
       return;
     }
     if (ui.role === "tutor") {
-      if (!["cabinet", "fees", "tutor"].includes(ui.view)) ui.view = "cabinet";
+      if (forceDefault || !["cabinet", "fees", "tutor"].includes(ui.view)) ui.view = "cabinet";
       writeHash();
       return;
     }
-    if (ui.view !== "market") ui.view = "tests";
+    if (forceDefault || ui.view !== "market") ui.view = "home";
     writeHash();
   }
   function writeHash() {
@@ -1175,7 +1177,7 @@
     syncHeroMotion();
   }
   const BUG_EMAIL = "willagegg@gmail.com";
-  const VIEW_LABELS = { home: "Тесты", tests: "Тесты", study: "Учёба", subject: "Предмет", topic: "Тема", quiz: "Тест", plan: "План поступления", stats: "Показатели", tutor: "Справочник", cabinet: "Кабинет преподавателя", essay: "Сочинение", market: "Репетиторы", landing: "О сервисе и тарифы", brandbook: "Брендбук и UI Kit", fees: "Оплата и сервисный сбор", profile: "Настройки" };
+  const VIEW_LABELS = { home: "Главная", tests: "Тесты", study: "Учёба", subject: "Предмет", topic: "Тема", quiz: "Тест", plan: "План поступления", stats: "Показатели", tutor: "Справочник", cabinet: "Кабинет преподавателя", essay: "Сочинение", market: "Поиск", landing: "О сервисе и тарифы", brandbook: "Брендбук и UI Kit", fees: "Оплата и сервисный сбор", profile: "Профиль" };
   function bugMailtoHref(bug) {
     return `mailto:${BUG_EMAIL}?subject=${encodeURIComponent(bug.subject)}&body=${encodeURIComponent(bug.body)}`;
   }
@@ -1822,13 +1824,22 @@
     if (url) return `<img src="${esc(url)}" alt="">`;
     return `<span class="avatar${lg ? " lg" : ""}" aria-hidden="true">${esc(initials(name))}</span>`;
   }
+  function needsPrepSetup() {
+    if (ui.role === "tutor" || ui.role === "admin") return false;
+    const prof = profile();
+    return Boolean(store.ready && !prof.exists && store.error !== "readonly" && (!store.backend || store.user || ui.guest));
+  }
   function renderChrome() {
     const isTutor = ui.role === "tutor";
     const isAdmin = ui.role === "admin";
-    const inTests = ["tests", "subject", "topic", "quiz", "essay", "home"].includes(ui.view);
+    const inHome = ui.view === "home";
+    const inGuide = ui.view === "tutor";
     const inMarket = ui.view === "market" || ui.view === "landing";
-    const inStudy = ui.view === "study" || ui.view === "plan";
-    const bkCount = mkt().bookings.length;
+    const inStudy = ["study", "tests", "subject", "topic", "quiz", "essay", "plan", "stats"].includes(ui.view);
+    const inProfile = ui.view === "profile";
+    const bidsBadge = mkt().bookings.length;
+    const acceptedBadge = mkt().bookings.filter((b) => b.status === "accepted").length;
+    const prepBadge = needsPrepSetup() ? "+1" : 0;
     const tcPending = EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.pendingCount === "function"
       ? EGE.views.tutorCabinet.pendingCount()
       : 0;
@@ -1858,14 +1869,15 @@
             ["tutor", "Справочник", "book", ui.view === "tutor", 0, ""]
           ]
         : [
-            ["tests", "Тесты", "list", inTests, 0, ""],
-            ["tutor", "Справочник", "book", ui.view === "tutor", 0, ""],
-            ["market", "Репетиторы", "search", inMarket, 0, ""],
-            ["study", "Учёба", "cal", inStudy, bkCount, ""],
-            ["stats", "Показатели", "chart", ui.view === "stats", 0, ""]
+            ["home", "Главная", "home", inHome, bidsBadge, ""],
+            ["tutor", "Справочник", "book", inGuide, 0, ""],
+            ["market", "Поиск", "search", inMarket, 0, ""],
+            ["study", "Учёба", "cal", inStudy, acceptedBadge, ""],
+            ["profile", "Профиль", "user", inProfile, prepBadge, ""]
           ];
     $("#side-nav").innerHTML = sideNav.map(([v, l, ic, cur, badge, badgeAct]) => {
-      const btn = `<button type="button" class="nav-btn" data-a="go" data-v="${v}"${cur ? ' aria-current="page"' : ""}>${icon(ic)}<span style="flex:1">${l}</span>${badge && !badgeAct ? `<span class="chip ${isTutor ? "notif" : "accent"} num">${badge}</span>` : ""}</button>`;
+      const chipTone = (isTutor || v === "profile") ? "notif" : "accent";
+      const btn = `<button type="button" class="nav-btn" data-a="go" data-v="${v}"${cur ? ' aria-current="page"' : ""}>${icon(ic)}<span style="flex:1">${l}</span>${badge && !badgeAct ? `<span class="chip ${chipTone} num">${badge}</span>` : ""}</button>`;
       if (badge && badgeAct) {
         return `<div class="nav-row${cur ? " is-cur" : ""}">${btn}<button type="button" class="chip ${isTutor ? "notif" : "accent"} num side-badge-jump" data-a="${badgeAct}" title="Перейти к ожидающим заявкам (${badge})" aria-label="Открыть ожидающие заявки (${badge})">${badge}</button></div>`;
       }
@@ -2130,7 +2142,7 @@
     </form>`;
   }
   // ---------- модульные экраны (src/views/*) ----------
-  EGE.views.marketplace.configure({ ui, mkt, TDATA, viewPlan, scheduleRender });
+  EGE.views.marketplace.configure({ ui, mkt, TDATA, viewPlan, viewTests, viewStats, scheduleRender });
   EGE.views.landing.configure({
     ui, effectiveDark, SUBJ, TOPICS, QS, CONTENT, firstSubject,
     BUG_EMAIL, TDATA, tablesHTML, scheduleRender
@@ -2187,8 +2199,10 @@
   function resumePendingAfterAuth() {
     ui.authPrompt = "";
     if (!ui.pendingBookingAfterAuth) return false;
-    if (ui.view !== "market" && ui.view !== "landing") ui.view = "landing";
-    if (ui.view === "landing") ui.landWhiteStage = true;
+    if (ui.role !== "tutor" && ui.role !== "admin") {
+      ui.view = "market";
+      writeHash();
+    }
     ui.booking = ui.pendingBookingAfterAuth;
     ui.pendingBookingAfterAuth = null;
     renderModal();
@@ -2224,7 +2238,7 @@
   }
   // ---------- модульные делегаты (views/trainer, essay-guide, progress, market-bb-actions) ----------
   function viewHome() { return EGE.views.trainer.viewHome(); }
-  function viewTests() { return EGE.views.trainer.viewTests(); }
+  function viewTests(opts) { return EGE.views.trainer.viewTests(opts); }
   function viewSubject(sid) { return EGE.views.trainer.viewSubject(sid); }
   function viewTopic(id) { return EGE.views.trainer.viewTopic(id); }
   function viewQuiz() { return EGE.views.trainer.viewQuiz(); }
@@ -2241,7 +2255,7 @@
   function weight(st, today) { return EGE.views.trainer.weight(st, today); }
 
   function viewPlan() { return EGE.views.progress.viewPlan(); }
-  function viewStats() { return EGE.views.progress.viewStats(); }
+  function viewStats(opts) { return EGE.views.progress.viewStats(opts); }
   function viewProfile() { return EGE.views.progress.viewProfile(); }
   function toggleTodo(id, custom, checked) { return EGE.views.progress.toggleTodo(id, custom, checked); }
   function drawCharts() { return EGE.views.progress.drawCharts(); }
@@ -2416,7 +2430,7 @@
       if (next === "admin" && EGE.views.admin && typeof EGE.views.admin.setTab === "function") {
         EGE.views.admin.setTab("overview");
       }
-      ui.view = next === "tutor" ? "cabinet" : next === "admin" ? "admin" : "tests";
+      ui.view = next === "tutor" ? "cabinet" : next === "admin" ? "admin" : "home";
       writeHash();
       if (next === "admin" && store.backend && EGE.views.admin && typeof EGE.views.admin.loadData === "function") {
         EGE.views.admin.loadData(false);
@@ -2498,7 +2512,7 @@
       ui.authModal = false;
       ui.auth.error = "";
       if (resumePendingAfterAuth()) return;
-      applyPostAuthView();
+      applyPostAuthView(true);
       scheduleRender(true);
     },
     "auth-screen": () => {
@@ -2559,6 +2573,7 @@
         payload.messengerApp = vc.app || "";
       }
       patchDoc("profile", payload);
+      ui.prepSetupOpen = false;
       clearDrafts("ob.");
       toast("Готово! Подготовка началась");
     },
@@ -2571,6 +2586,7 @@
         exams[s.id] = validISO(d) ? d : prof.exams[s.id];
       });
       patchDoc("profile", { name: String(draft("pf.name", prof.name || defaultName())).trim().slice(0, 40), targets, exams });
+      ui.prepSetupOpen = false;
       clearDrafts("pf.");
       toast("Сохранено");
     },
@@ -2631,8 +2647,9 @@
           return;
         }
         if (!resumePendingAfterAuth()) {
+          applyPostAuthView();
           renderModal();
-          scheduleRender();
+          scheduleRender(true);
         }
         return;
       }
@@ -2801,7 +2818,7 @@
       toast("Номер подтверждён");
       notifySide("Номер подтверждён", `Телефон ${cv.contact} привязан к аккаунту`);
       if (!resumePendingAfterAuth()) {
-        if (ui.view !== "landing" && ui.view !== "market") applyPostAuthView();
+        if (ui.view !== "market") applyPostAuthView();
         renderModal();
         scheduleRender(true);
       }
@@ -3031,7 +3048,7 @@
     if (act && act.indexOf("adm-") === 0 && EGE.views.admin && typeof EGE.views.admin.handleAction === "function") {
       if (EGE.views.admin.handleAction(act, el)) { if (!isExtLink) e.preventDefault(); return; }
     }
-    if (act && (act.indexOf("mkt-bk-") === 0 || act.indexOf("study-sched-") === 0 || act.indexOf("study-chats-") === 0) && EGE.views.marketplace && typeof EGE.views.marketplace.handleAction === "function") {
+    if (act && (act === "home-bid-filter" || act.indexOf("mkt-bk-") === 0 || act.indexOf("study-sched-") === 0 || act.indexOf("study-chats-") === 0) && EGE.views.marketplace && typeof EGE.views.marketplace.handleAction === "function") {
       if (e.defaultPrevented) return;
       if (EGE.views.marketplace.handleAction(act, el)) { if (!isExtLink) e.preventDefault(); return; }
     }
@@ -3693,12 +3710,12 @@
     accountCard, ai, caps, clearActiveQuiz, cloud, codeLabel, completePlanFromQuiz,
     defaultMarketState, defaultName, draft, dueQs, findPlanItem, firstSubject, formatAvg,
     getThemeMode: () => themeMode, go, hash, heroMotionMeta, localNotice, markPlanPrep,
-    minutesByDay, mistakeQs, mkt, mocks, nextExam, notifySide, patchDoc, patchHeroMotionDOM,
+    minutesByDay, mistakeQs, mkt, mocks, needsPrepSetup, nextExam, notifySide, patchDoc, patchHeroMotionDOM,
     patchSavingsDOM, planDoc, planItems, profile, prog, questionAttemptBreakdown, renderModal,
     isUserAuthenticated, requireAuthForBid,
     replaceDoc, saveActiveQuiz, saveMkt, scheduleRender, sessions, staleNotice, stepBtn,
     stopMotionTimers, store, subjSelect, subjectAccuracy, subjectReadCount, subjectStats,
-    tile, toast, todoItem, topicRef, topicStats, totals, ui, updateBookingModalLive
+    tile, toast, todoItem, topicRef, topicStats, totals, ui, updateBookingModalLive, writeHash
   };
   EGE.views.trainer.configure(appCtx);
   EGE.views.trainer.registerActions(ACTIONS);

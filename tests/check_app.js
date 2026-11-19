@@ -674,13 +674,28 @@
     clickAction(env4, { a: "cv-autofill" });
     env4.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "contact-verify-check" } }) }, preventDefault() {} });
     await flushMicrotasks(6);
+    const homeFreshHtml = env4.elements.get("main").innerHTML;
+    assert(!homeFreshHtml.includes("Давай настроим подготовку"), "expected onboarding form NOT to block Главная");
+    assert(homeFreshHtml.includes("Мои отклики преподавателям"), "expected fresh backend student to land on Главная");
+    assert(env4.elements.get("side-nav").innerHTML.includes(">+1<") && env4.elements.get("tabbar").innerHTML.includes(">+1<"), "expected +1 badge on Профиль when prep setup is pending");
+
+    clickAction(env4, { a: "go", v: "profile" });
+    await flushMicrotasks(4);
+    const profSetupCollapsed = env4.elements.get("main").innerHTML;
+    assert(profSetupCollapsed.includes('id="profile-setup-notif"') && profSetupCollapsed.includes("+1") && profSetupCollapsed.includes("Давай настроим подготовку") && !profSetupCollapsed.includes('data-f="onboard"'), "expected collapsed +1 prep setup notification inside Профиль");
+    clickAction(env4, { a: "prep-setup-toggle" });
+    await flushMicrotasks(2);
     const obHtml = env4.elements.get("main").innerHTML;
-    assert(obHtml.includes("Давай настроим подготовку"), "expected onboarding form for fresh backend user");
-    assert(!obHtml.includes("Как к тебе обращаться") && !obHtml.includes('id="ob-name"'), "should not ask display name again during onboarding");
+    const obBlock = obHtml.slice(obHtml.indexOf('id="profile-setup-notif"'), obHtml.indexOf('data-f="profile"'));
+    assert(obBlock.includes('data-f="onboard"') && obBlock.includes("Давай настроим подготовку"), "expected expanding +1 notification to show onboarding form in Профиль");
+    assert(!obBlock.includes("Как к тебе обращаться") && !obBlock.includes('id="ob-name"'), "should not ask display name again during onboarding");
 
     env4.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "onboard" } }) }, preventDefault() {} });
     await flushMicrotasks(12);
-    assert(env4.elements.get("main").innerHTML.includes("Привет, Игорь!"), "expected registration name in greeting after onboarding");
+    assert(!env4.elements.get("side-nav").innerHTML.includes(">+1<") && !env4.elements.get("tabbar").innerHTML.includes(">+1<"), "expected +1 badge to clear once prep setup is submitted");
+    clickAction(env4, { a: "go", v: "home" });
+    await flushMicrotasks(4);
+    assert(env4.elements.get("main").innerHTML.includes("Привет, Игорь!"), "expected registration name in Главная greeting after onboarding");
 
     clickAction(env4, { a: "go", v: "plan" });
     await flushMicrotasks(8);
@@ -743,19 +758,19 @@
     await flushMicrotasks(6);
     assert(!globalThis.document.documentElement.dataset.theme, "expected auto theme to clear data-theme");
 
-    // Нижняя шестерёнка + «Выйти» в сайдбаре, баланс снизу слева (десктоп) и сверху справа (мобилка), 5 вкладок (Тесты, Справочник, Репетиторы, Учёба, Показатели)
+    // Нижняя шестерёнка + «Выйти» в сайдбаре, баланс снизу слева (десктоп) и сверху справа (мобилка), 5 вкладок (Главная, Справочник, Поиск, Учёба, Профиль)
     const sideNavHtml = env4.elements.get("side-nav").innerHTML;
     const sideFootHtml = env4.elements.get("side-foot").innerHTML;
     const topBalHtml = env4.elements.get("top-balance-slot").innerHTML;
     const tabHtml = env4.elements.get("tabbar").innerHTML;
-    assert(!sideNavHtml.includes('data-v="profile"'), "expected Settings removed from top sidebar nav");
+    assert(sideNavHtml.includes('data-v="profile"'), "expected Профиль in 5-tab student navigation");
     assert(sideFootHtml.includes('data-v="profile"') && sideFootHtml.includes('data-a="auth-logout"') && sideFootHtml.includes("Выйти"), "expected Settings gear and Logout button in sidebar footer");
     assert(!sideFootHtml.includes("Админ-панель") && !sideFootHtml.includes("Система и API"), "expected Admin panel and System/API links hidden from student sidebar footer");
     assert(sideFootHtml.includes("Преподаватель") && !sideFootHtml.includes(">Препод<") && !sideFootHtml.includes("hh-seg equal side-role-seg"), "expected full label Преподаватель without Препод abbreviation or equal grid clipping");
     assert(sideFootHtml.includes('id="side-balance-slot"') && sideFootHtml.includes("top-bal-pill") && sideFootHtml.includes("Пополнить"), "expected persistent student bottom-left balance slot inside #side-foot");
     assert(topBalHtml.includes("top-bal-pill") && topBalHtml.includes("Пополнить") && !env4.elements.get("top-balance-slot").hidden, "expected persistent student top-right balance slot in mobile .topbar");
     assert(!env4.elements.get("main").innerHTML.includes("desktop-top-bar"), "expected duplicate desktop-top-bar removed");
-    for (const label of ["Тесты", "Справочник", "Репетиторы", "Учёба", "Показатели"]) {
+    for (const label of ["Главная", "Справочник", "Поиск", "Учёба", "Профиль"]) {
       assert(sideNavHtml.includes(label) && tabHtml.includes(label), `expected ${label} in sidebar and bottom tabbar`);
     }
     clickAction(env4, { a: "go", v: "profile" });
@@ -1388,6 +1403,12 @@
     env5.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "contact-verify-check" } }) }, preventDefault() {} });
     await flushMicrotasks(4);
     assert(env5.elements.get("modal-root").innerHTML.includes('id="bid-submit-btn"') && env5.elements.get("modal-root").innerHTML.includes('value="1150"'), "expected confirmed Google + 4-digit SMS OTP to resume booking sheet with preserved 1150 ₽ offer");
+    assert(
+      !globalThis.document.body.dataset.fullbleed &&
+      env5.elements.get("main").innerHTML.includes("Поиск репетитора") &&
+      env5.elements.get("tabbar").innerHTML.includes("Главная"),
+      "expected proposing a price from landing to enter the student cabinet (Поиск with 5-tab bar) instead of staying on fullbleed landing"
+    );
 
     clickAction(env5, { a: "book-submit" });
     await flushMicrotasks(3);
@@ -1422,11 +1443,24 @@
     const afterBookHtml = env5.elements.get("main").innerHTML;
     assert(afterBookHtml.includes("На рассмотрении · уведомим") && hasNum(afterBookHtml, "3 440 ₽"), "expected 1150 ₽ reserved from 4 590 ₽ balance leaving 3 440 ₽");
 
+    clickAction(env5, { a: "go", v: "home" });
+    await flushMicrotasks(3);
+    const homePendingHtml = env5.elements.get("main").innerHTML;
+    assert(homePendingHtml.includes('id="home-bids-section"') && homePendingHtml.includes("Ожидаем ответ преподавателя"), "expected Главная to list sent bid with Ожидаем ответ преподавателя status");
+    clickAction(env5, { a: "go", v: "market" });
+    await flushMicrotasks(3);
+
     const acceptIdMatch = /data-a="mkt-sim-accept" data-id="([^"]+)"/.exec(afterBookHtml);
     assert(acceptIdMatch, "expected sim-accept button for pending booking");
     clickAction(env5, { a: "mkt-sim-accept", id: acceptIdMatch[1] });
     await flushMicrotasks(4);
     assert(env5.elements.get("main").innerHTML.includes("Преподаватель подтвердил"), "expected tutor accepted state");
+    clickAction(env5, { a: "go", v: "home" });
+    await flushMicrotasks(3);
+    const homeAcceptedHtml = env5.elements.get("main").innerHTML;
+    assert(homeAcceptedHtml.includes("Преподаватель ответил") && homeAcceptedHtml.includes("Написали вам в СМС"), "expected Главная to display Написали вам в СМС & messenger notice once accepted");
+    clickAction(env5, { a: "go", v: "market" });
+    await flushMicrotasks(3);
 
     clickAction(env5, { a: "mkt-cancel-book", id: acceptIdMatch[1] });
     await flushMicrotasks(4);
@@ -1773,8 +1807,9 @@
     assert(!landFullHtml.includes("land-search-strip") && !landFullHtml.includes("hh-blue-banner") && !landFullHtml.includes("hero-iphone-bezel") && landFullHtml.includes("/assets/hero-tutor-student.jpg") && landFullHtml.includes("/assets/hero-book-pages.jpg") && landFullHtml.includes("hero-float-drift") && !landFullHtml.includes("−30% к рынку"), "expected Gemini Hero 4 pure moving photos without overlays or search strip");
     assert(landFullHtml.includes('class="land-plain-line"') && !landFullHtml.includes("sakha-gold-emblem") && landFullHtml.includes('class="land-footer is-minimal small muted"') && landFullHtml.includes("land-mobile-sticky"), "expected plain bottom line, no gold emblem, minimal 4-link footer, and sticky mobile CTA");
     assert(
-      !landFullHtml.includes("Комиссия 5%") && !landFullHtml.includes("760 ₽"),
-      "expected landing to keep 5% commission split off /landing"
+      !landFullHtml.includes("Комиссия 5%") && !landFullHtml.includes("760 ₽") &&
+      !landFullHtml.includes("wa-btn") && !landFullHtml.includes("bid-stepper"),
+      "expected landing to keep 5% commission split and legacy wa-btn/bid-stepper classes off /landing"
     );
 
     clickAction(env5, { a: "coop-open" });
@@ -1811,9 +1846,10 @@
     await flushMicrotasks(2);
     const modalBookHtml = env5.elements.get("modal-root").innerHTML;
     assert(modalBookHtml.includes('id="bid-submit-btn"') && modalBookHtml.includes("bid-submit-main") && modalBookHtml.includes("Предложить ") && !modalBookHtml.includes("sakha-pattern") && !modalBookHtml.includes("Сөп · Предложить"), "expected booking modal to use clean plain Предложить CTA button centered in footer");
+    assert(env5.elements.get("main").innerHTML.includes("Поиск репетитора"), "expected book-open while already authenticated on landing to transition into student Поиск cabinet");
     clickAction(env5, { a: "book-close" });
     await flushMicrotasks(2);
-    assert(!env5.elements.get("main").innerHTML.includes("wa-btn") && !env5.elements.get("main").innerHTML.includes("bid-stepper"), "expected zero legacy wa-btn or bid-stepper classes remaining in rendered landing HTML");
+    assert(!env5.elements.get("main").innerHTML.includes("wa-btn") && !env5.elements.get("main").innerHTML.includes("bid-stepper"), "expected zero legacy wa-btn or bid-stepper classes remaining in rendered cabinet HTML");
 
     clickAction(env5, { a: "mkt-reset" });
     await flushMicrotasks(2);
@@ -1838,14 +1874,27 @@
     const studentSideHtml = env5.elements.get("side-nav").innerHTML;
     const studentTabHtml = env5.elements.get("tabbar").innerHTML;
     const studentMainHtml = env5.elements.get("main").innerHTML;
-    assert(studentSideHtml.includes("Репетиторы") && studentSideHtml.includes("Справочник") && studentTabHtml.includes("Справочник"), "expected 5-tab nav with Справочник for student");
+    assert(
+      studentSideHtml.includes("Главная") && studentSideHtml.includes("Справочник") && studentSideHtml.includes("Поиск") && studentSideHtml.includes("Учёба") && studentSideHtml.includes("Профиль") &&
+      studentTabHtml.includes("Главная") && studentTabHtml.includes("Справочник") && studentTabHtml.includes("Поиск") && studentTabHtml.includes("Учёба") && studentTabHtml.includes("Профиль"),
+      "expected 5-tab nav (Главная, Справочник, Поиск, Учёба, Профиль) for student"
+    );
     assert(env5.elements.get("tutor-balance-dock").hidden === true && env5.elements.get("tutor-balance-dock").innerHTML === "", "expected teacher floating balance dock hidden in student mode");
-    assert(studentMainHtml.includes("Тесты ЕГЭ") && !studentMainHtml.slice(0, studentMainHtml.indexOf("grid-3")).includes('data-v="tutor"'), "expected Тесты ЕГЭ hub without duplicate top Справочник button in head");
+    assert(studentMainHtml.includes("Мои отклики преподавателям"), "expected demo student login to land on Главная with bids overview");
     assert(!readFileText("frontend/index.html").includes('id="top-market"'), "expected top-market removed from mobile topbar");
+
+    clickAction(env5, { a: "go", v: "study" });
+    await flushMicrotasks(3);
+    clickAction(env5, { a: "study-tab", tab: "tests" });
+    await flushMicrotasks(3);
+    assert(env5.elements.get("main").innerHTML.includes("Тесты ЕГЭ"), "expected Учёба -> Тесты ЕГЭ tab to render trainer hub");
+    clickAction(env5, { a: "study-tab", tab: "stats" });
+    await flushMicrotasks(3);
+    assert(env5.elements.get("main").innerHTML.includes("Подготовка в цифрах"), "expected Учёба -> Показатели tab to render stats");
 
     clickAction(env5, { a: "brand-go-tutors" });
     await flushMicrotasks(4);
-    assert(env5.elements.get("main").innerHTML.includes("Подбор репетитора"), "expected clicking logo (brand-go-tutors) to navigate to tutors catalog");
+    assert(env5.elements.get("main").innerHTML.includes("Поиск репетитора"), "expected clicking logo (brand-go-tutors) to navigate to Поиск репетитора");
 
     clickAction(env5, { a: "go", v: "profile" });
     await flushMicrotasks(3);
@@ -2437,7 +2486,7 @@
 
     clickAction(env5, { a: "role-set", role: "student" });
     await flushMicrotasks(4);
-    assert(env5.elements.get("main").innerHTML.includes("Тесты ЕГЭ") && env5.elements.get("tutor-balance-dock").hidden === true, "expected role-set back to student to return cleanly to Тесты ЕГЭ and hide teacher balance dock");
+    assert(env5.elements.get("main").innerHTML.includes("Мои отклики преподавателям") && env5.elements.get("tutor-balance-dock").hidden === true, "expected role-set back to student to return cleanly to Главная and hide teacher balance dock");
 
     // Realtime SSE/WS/BroadcastChannel клиент + Two-Way .ics / GCal UTC+9 / UTC+3 + live заявка /market -> кабинет репетитора
     assert(globalThis.EGE.realtime && typeof globalThis.EGE.realtime.publish === "function" && typeof globalThis.EGE.realtime.importIcs === "function", "expected window.EGE.realtime module to be loaded");
@@ -2676,7 +2725,7 @@
     // Возврат обратно к роли Ученик
     clickAction(env5, { a: "role-set", role: "student" });
     await flushMicrotasks(3);
-    assert(env5.elements.get("main").innerHTML.includes("Тесты ЕГЭ") && env5.elements.get("side-subjects-wrap").hidden === false, "expected role-set back to student from admin to restore Тесты ЕГЭ and student sidebar");
+    assert(env5.elements.get("main").innerHTML.includes("Мои отклики преподавателям") && env5.elements.get("side-subjects-wrap").hidden === false, "expected role-set back to student from admin to restore Главная and student sidebar");
 
     // Проверка отсутствия переключателя 3/7 колонок в таблицах ученика (/study и /market)
     clickAction(env5, { a: "go", v: "study" });
@@ -2700,10 +2749,10 @@
     vmRun(readFileText("frontend/app.js"), "frontend/app.js");
     await flushMicrotasks(10);
     assert(
-      envSiteStu.elements.get("main").innerHTML.includes("Тесты ЕГЭ") &&
+      envSiteStu.elements.get("main").innerHTML.includes("Мои отклики преподавателям") &&
       envSiteStu.elements.get("side-foot").innerHTML.includes("side-site-links") &&
       envSiteStu.elements.get("tutor-balance-dock").hidden === true,
-      "expected site=student to render Тесты ЕГЭ, .side-site-links, and hidden #tutor-balance-dock"
+      "expected site=student to render Главная, .side-site-links, and hidden #tutor-balance-dock"
     );
 
     const envSiteTut = installGlobals({ host: { backend: true, site: "tutor" }, fetch: mkAuthedFetch() });

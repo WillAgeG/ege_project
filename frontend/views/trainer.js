@@ -31,15 +31,19 @@
     } = ctx || {});
   }
 
-  function viewTests() {
+  function viewTests(opts) {
+    const embedded = !!(opts && opts.embedded);
     const prof = profile();
     const name = prof.name || (store.ready ? defaultName() : "");
     const parts = [];
-    parts.push(`<div class="head"><div><div class="eyebrow">${name ? `Привет, ${esc(name)}! · ` : ""}ЕГЭ 2027 · Тренажёр</div><h1 class="h1">Тесты ЕГЭ</h1></div><p class="lead">Отработка заданий ФИПИ по трём предметам, полные варианты КИМ и быстрый поиск по правилам без нейросети.</p></div>`);
-    if (store.backend && store.ready && !store.user) parts.push(`<div class="notice"><b>Гостевой режим.</b><span>Прогресс хранится в этом браузере. <button type="button" class="link-btn" data-a="auth-modal-open">Войти или создать аккаунт</button>, чтобы синхронизировать.</span></div>`);
-    if (store.ready && !prof.exists && store.error !== "readonly" && (!store.backend || store.user || ui.guest)) parts.push(onboardingCard());
-    if (store.mode === "local" && !store.backend) parts.push(localNotice());
-    parts.push(staleNotice());
+    if (embedded) {
+      parts.push(`<div class="row between" style="gap:8px;flex-wrap:wrap"><h2 class="h2">Тесты ЕГЭ</h2><span class="small muted">3 предмета · ФИПИ и КИМ</span></div>`);
+    } else {
+      parts.push(`<div class="head"><div><div class="eyebrow">${name ? `Привет, ${esc(name)}! · ` : ""}ЕГЭ 2027 · Тренажёр</div><h1 class="h1">Тесты ЕГЭ</h1></div><p class="lead">Отработка заданий ФИПИ по трём предметам, полные варианты КИМ и быстрый поиск по правилам без нейросети.</p></div>`);
+      if (store.backend && store.ready && !store.user && !ui.demoAuthed) parts.push(`<div class="notice"><b>Гостевой режим.</b><span>Прогресс хранится в этом браузере. <button type="button" class="link-btn" data-a="auth-modal-open">Войти или создать аккаунт</button>, чтобы синхронизировать.</span></div>`);
+      if (store.mode === "local" && !store.backend) parts.push(localNotice());
+      parts.push(staleNotice());
+    }
 
     const subjCards = CONTENT.map((s) => {
       const st = subjectStats(s.id);
@@ -91,20 +95,29 @@
     const prof = profile();
     const name = prof.name || (store.ready ? defaultName() : "");
     const parts = [];
-    parts.push(`<div class="head"><div class="eyebrow">${esc(capitalize(fmtWeekday.format(new Date())))}</div><h1 class="h1">${name ? "Привет, " + esc(name) + "!" : "Привет!"}</h1><p class="lead">Подготовка к ЕГЭ по трём предметам: ${esc(CONTENT.map((s) => s.name.toLowerCase()).join(", "))}. Здесь темы и тесты, план подготовки и твои показатели.</p></div>`);
-    if (store.backend && store.ready && !store.user) parts.push(`<div class="notice"><b>Гостевой режим.</b><span>Прогресс сохраняется только в этом браузере. <button type="button" class="link-btn" data-a="auth-screen">Войти или создать аккаунт</button>, чтобы синхронизировать с сервером.</span></div>`);
-    if (store.ready && !prof.exists && store.error !== "readonly" && (!store.backend || store.user || ui.guest)) parts.push(onboardingCard());
+    parts.push(`<div class="head"><div class="eyebrow">Главная · ${esc(capitalize(fmtWeekday.format(new Date())))}</div><h1 class="h1">${name ? "Привет, " + esc(name) + "!" : "Главная"}</h1><p class="lead">Отклики преподавателям, статусы ответов (СМС и мессенджер) и быстрый переход к занятиям.</p></div>`);
+    if (store.backend && store.ready && !store.user && !ui.demoAuthed) parts.push(`<div class="notice"><b>Гостевой режим.</b><span>Прогресс сохраняется только в этом браузере. <button type="button" class="link-btn" data-a="auth-modal-open">Войти или создать аккаунт</button>, чтобы синхронизировать с сервером.</span></div>`);
     if (store.mode === "local" && !store.backend) parts.push(localNotice());
     parts.push(staleNotice());
-    parts.push(`<div class="grid-hero">${heroCard(prof)}${readinessCard(prof)}</div>`);
+    if (EGE.views.marketplace && typeof EGE.views.marketplace.studentHomeBidsHTML === "function") {
+      parts.push(EGE.views.marketplace.studentHomeBidsHTML());
+    }
     const stMkt = mkt();
-    const balTxt = stMkt.balance
-      ? "Активный баланс: " + stMkt.balance.toLocaleString("ru-RU") + " ₽ · выбери кружочек времени и предложи ставку"
-      : "Задания и справочник бесплатны всегда · или пробный 60 мин за 990 ₽ и абонементы по СБП с выбором времени в кружочках";
-    parts.push(`<section class="section"><div class="card" style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><div class="stack" style="gap:3px"><b>Маркетплейс репетиторов (ЕГЭ / ОГЭ)</b><span class="small muted">${esc(balTxt)}</span></div><div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="btn soft sm" data-a="go" data-v="landing">Тарифы 390 / 990 / 4 590 ₽</button><button type="button" class="btn sm" data-a="go" data-v="market">Подобрать репетитора</button></div></div></section>`);
-    parts.push(`<section class="section"><div class="section-head"><h2 class="h2">Что дальше</h2><span class="small muted">по твоему прогрессу</span></div><div class="steps">${nextSteps().map(stepBtn).join("")}</div></section>`);
-    parts.push(`<div class="grid-2">${upcomingCard()}${examsCard(prof)}</div>`);
-    parts.push(activityCard());
+    const balRub = Number(stMkt.balance) || 0;
+    parts.push(`<section class="section"><div class="card" style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><div class="stack" style="gap:3px"><b>Баланс СБП: <span class="num">${balRub.toLocaleString("ru-RU")} ₽</span></b><span class="small muted">${balRub >= 490 ? "Средства готовы к бронированию урока с защитой СБП" : "Пополните баланс от 490 ₽ по СБП без комиссии или предложите цену преподавателю"}</span></div><div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="btn soft sm" data-a="bal-open">${icon("wallet")}<span>Пополнить</span></button><button type="button" class="btn sm" data-a="go" data-v="market">Поиск репетитора</button></div></div></section>`);
+    const quickNavCard = `<section class="card stack" style="gap:12px" aria-label="Быстрые разделы">
+      <div>
+        <div class="eyebrow">Подготовка к ЕГЭ</div>
+        <h2 class="h2">Быстрый переход</h2>
+      </div>
+      <div class="steps" style="grid-template-columns:1fr">
+        ${stepBtn({ a: "go", v: "tutor", ico: "book", title: "Справочник без ИИ", sub: "Конспекты, таблицы и сочинение №27" })}
+        ${stepBtn({ a: "go", v: "tests", ico: "list", title: "Тесты ЕГЭ", sub: "Задания ФИПИ и полные варианты КИМ" })}
+        ${stepBtn({ a: "go", v: "stats", ico: "chart", title: "Показатели", sub: "Точность, время и повторяемость тем" })}
+        ${stepBtn({ a: "go", v: "profile", ico: "gear", title: "Профиль", sub: "Целевые баллы, телефон и настройки" })}
+      </div>
+    </section>`;
+    parts.push(`<div class="grid-hero">${heroCard(prof)}${quickNavCard}</div>`);
     return parts.join("");
   }
   function onboardingCard() {
@@ -1179,6 +1192,7 @@
     generateQuestions,
     grade,
     logQuizSession,
+    onboardingCard,
     pickMixed,
     pickTopic,
     pickVariant,
