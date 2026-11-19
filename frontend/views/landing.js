@@ -375,9 +375,21 @@
 
   function syncHeroMotion() {
     const ui = getUi();
-    const onLanding = ui.view === "landing";
+    const landEl = typeof document !== "undefined" && typeof document.querySelector === "function"
+      ? document.querySelector(".land-page:not(#brandbook-page)")
+      : null;
+    const mainEl = typeof document !== "undefined" && typeof document.getElementById === "function"
+      ? document.getElementById("main")
+      : null;
+    const mainHasLand = !!(mainEl && typeof mainEl.innerHTML === "string" && mainEl.innerHTML.includes('class="land-page'));
+    const onLanding = ui.view === "landing" || !!landEl || mainHasLand;
+    const isLandWhite = !!(onLanding && (ui.landWhiteStage || (landEl && landEl.classList && landEl.classList.contains("is-white-stage"))));
+    if (!onLanding) {
+      ui.landWhiteStage = false;
+      ui.landWhiteLockUntil = 0;
+    }
     if (typeof document !== "undefined" && document.body && document.body.classList) {
-      document.body.classList.toggle("is-land-white", !!(onLanding && ui.landWhiteStage));
+      document.body.classList.toggle("is-land-white", isLandWhite);
     }
     if (EGE.kit && typeof EGE.kit.animateHeroCounters === "function") {
       EGE.kit.animateHeroCounters(typeof document !== "undefined" ? document : null);
@@ -1080,9 +1092,24 @@
 
     const ui = getUi();
     const totalNum = (TDATA && TDATA.CATALOG_TOTAL) ? Number(TDATA.CATALOG_TOTAL) : 2480;
+    const prevLandEl = typeof document !== "undefined" && typeof document.querySelector === "function"
+      ? document.querySelector(".land-page:not(#brandbook-page)")
+      : null;
+    const prevLockUntil = Math.max(
+      Number(ui.landWhiteLockUntil) || 0,
+      prevLandEl && prevLandEl.dataset ? Number(prevLandEl.dataset.whiteLockUntil || 0) : 0
+    );
+    const lockedWhite = prevLockUntil > Date.now();
+    const bodyWhite = !!(typeof document !== "undefined" && document.body && document.body.classList && document.body.classList.contains("is-land-white"));
+    const scrolledDown = typeof window !== "undefined" && typeof window.scrollY === "number" && window.scrollY > 110;
+    const isWhiteStage = prevLandEl
+      ? (lockedWhite || !!(prevLandEl.classList && prevLandEl.classList.contains("is-white-stage")) || bodyWhite || scrolledDown)
+      : (lockedWhite || !!ui.landWhiteStage || bodyWhite || scrolledDown);
+    ui.landWhiteStage = isWhiteStage;
+    const lockAttr = lockedWhite ? ` data-white-lock-until="${prevLockUntil}"` : "";
 
-    return `<div class="land-page${ui.landWhiteStage ? " is-white-stage" : ""}" data-inside="${inside ? 1 : 0}">
-      <header class="land-top${ui.landWhiteStage ? " is-scrolled-light" : ""}">
+    return `<div class="land-page${isWhiteStage ? " is-white-stage" : ""}"${lockAttr} data-inside="${inside ? 1 : 0}">
+      <header class="land-top${isWhiteStage ? " is-scrolled-light" : ""}">
         <a href="#land-market" class="brand-home-link" data-a="land-scroll" data-target="land-market" aria-label="Вектор — к репетиторам">${brandLockupHTML({})}</a>
         <nav class="land-links" aria-label="Разделы лендинга">
           <a href="#land-market" data-a="land-scroll" data-target="land-market">Репетиторы</a>

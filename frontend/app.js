@@ -1136,6 +1136,25 @@
       }
     } catch (e) { /* игнор */ }
   }
+  function siteLoaderHTML() {
+    return `<div class="site-boot-loader is-inline" role="status" aria-live="polite" aria-label="Загрузка">
+      <svg class="site-loader-logo" viewBox="0 0 64 64" width="56" height="56" fill="none" aria-hidden="true">
+        <path d="M32.00 4.40C33.25 4.40 35.57 16.51 39.60 18.84C43.63 21.16 55.28 17.12 55.90 18.20C56.53 19.28 47.20 27.35 47.20 32.00C47.20 36.65 56.53 44.72 55.90 45.80C55.28 46.88 43.63 42.84 39.60 45.16C35.57 47.49 33.25 59.60 32.00 59.60C30.75 59.60 28.43 47.49 24.40 45.16C20.37 42.84 8.72 46.88 8.10 45.80C7.47 44.72 16.80 36.65 16.80 32.00C16.80 27.35 7.47 19.28 8.10 18.20C8.72 17.12 20.37 21.16 24.40 18.84C28.43 16.51 30.75 4.40 32.00 4.40Z" fill="url(#vektor-bm-grad-base)"/>
+        <path d="M32.00 4.40C33.25 4.40 35.57 16.51 39.60 18.84C43.63 21.16 55.28 17.12 55.90 18.20C56.53 19.28 47.20 27.35 47.20 32.00C47.20 36.65 56.53 44.72 55.90 45.80C55.28 46.88 43.63 42.84 39.60 45.16C35.57 47.49 33.25 59.60 32.00 59.60C30.75 59.60 28.43 47.49 24.40 45.16C20.37 42.84 8.72 46.88 8.10 45.80C7.47 44.72 16.80 36.65 16.80 32.00C16.80 27.35 7.47 19.28 8.10 18.20C8.72 17.12 20.37 21.16 24.40 18.84C28.43 16.51 30.75 4.40 32.00 4.40Z" fill="url(#vektor-bm-grad-red)"/>
+        <path d="M32.00 4.40C33.25 4.40 35.57 16.51 39.60 18.84C43.63 21.16 55.28 17.12 55.90 18.20C56.53 19.28 47.20 27.35 47.20 32.00C47.20 36.65 56.53 44.72 55.90 45.80C55.28 46.88 43.63 42.84 39.60 45.16C35.57 47.49 33.25 59.60 32.00 59.60C30.75 59.60 28.43 47.49 24.40 45.16C20.37 42.84 8.72 46.88 8.10 45.80C7.47 44.72 16.80 36.65 16.80 32.00C16.80 27.35 7.47 19.28 8.10 18.20C8.72 17.12 20.37 21.16 24.40 18.84C28.43 16.51 30.75 4.40 32.00 4.40Z" fill="url(#vektor-bm-grad-amber)"/>
+        <path d="M32.00 4.40C33.25 4.40 35.57 16.51 39.60 18.84C43.63 21.16 55.28 17.12 55.90 18.20C56.53 19.28 47.20 27.35 47.20 32.00C47.20 36.65 56.53 44.72 55.90 45.80C55.28 46.88 43.63 42.84 39.60 45.16C35.57 47.49 33.25 59.60 32.00 59.60C30.75 59.60 28.43 47.49 24.40 45.16C20.37 42.84 8.72 46.88 8.10 45.80C7.47 44.72 16.80 36.65 16.80 32.00C16.80 27.35 7.47 19.28 8.10 18.20C8.72 17.12 20.37 21.16 24.40 18.84C28.43 16.51 30.75 4.40 32.00 4.40Z" fill="url(#vektor-bm-grad-green)"/>
+      </svg>
+      <div class="site-loader-text">Загрузка...</div>
+    </div>`;
+  }
+  function dismissSiteBootLoader() {
+    if (typeof document === "undefined" || typeof document.getElementById !== "function") return;
+    const loader = document.getElementById("site-boot-loader");
+    if (!loader || loader.hidden) return;
+    if (loader.classList) loader.classList.add("is-hidden");
+    if (typeof setTimeout === "function") setTimeout(() => { loader.hidden = true; }, 240);
+    else loader.hidden = true;
+  }
   function render() {
     try {
       if (document.documentElement && document.documentElement.classList) {
@@ -1178,7 +1197,7 @@
       if (tutorDock) { tutorDock.hidden = true; tutorDock.innerHTML = ""; }
       html = store.ready
         ? (ui.view === "brandbook" ? viewBrandbook({ inside: false }) : ui.view === "fees" ? viewFees({ inside: false }) : authScreen())
-        : `<div class="auth-wrap"><div class="auth-brand">${brandLockupHTML()}<p class="muted">Подключаюсь к серверу…</p></div></div>`;
+        : siteLoaderHTML();
       main.innerHTML = html;
     } else {
       try { html = (VIEWS[ui.view] || viewTests)(); }
@@ -1222,6 +1241,7 @@
     }
     lastRenderedView = ui.view;
     syncHeroMotion();
+    if (store.ready || !store.backend) dismissSiteBootLoader();
   }
   const BUG_EMAIL = "willagegg@gmail.com";
   const VIEW_LABELS = { home: "Главная", tests: "Тесты", study: "Учёба", subject: "Предмет", topic: "Тема", quiz: "Тест", plan: "План поступления", stats: "Показатели", tutor: "Справочник", cabinet: "Кабинет преподавателя", essay: "Сочинение", market: "Поиск", landing: "О сервисе и тарифы", brandbook: "Брендбук и UI Kit", fees: "Оплата и сервисный сбор", profile: "Профиль" };
@@ -2809,7 +2829,17 @@
     }
     if (el.id === "subj-q") { ui.subjQ = el.value; scheduleRender(); return; }
     if (el.id === "guide-q") { ui.guideQ = el.value; scheduleRender(); return; }
-    if (el.id === "mkt-q" || el.id === "mkt-q-modal") { mkt().q = el.value; ui.mktVisibleCount = 8; saveMkt(); scheduleRender(); return; }
+    if (el.id === "mkt-q" || el.id === "mkt-q-modal") {
+      if (typeof document !== "undefined" && document.body && document.body.classList && document.body.classList.contains("is-land-white")) {
+        ui.landWhiteStage = true;
+        ui.landWhiteLockUntil = Math.max(Number(ui.landWhiteLockUntil) || 0, Date.now() + 700);
+      }
+      mkt().q = el.value;
+      ui.mktVisibleCount = 8;
+      saveMkt();
+      scheduleRender();
+      return;
+    }
     if (el.id === "hero-banner-q") { ui.heroQuickQ = el.value; return; }
     if (el.id === "bb-hero-demo-q") { bbState().heroQ = el.value; return; }
     if (el.id === "bb-catalog-q") { bbState().catQ = el.value; scheduleRender(); return; }

@@ -13,6 +13,16 @@
   let renderModal, requireAuthForBid, saveMkt, scheduleRender, stopMotionTimers, store, tile, toast, ui;
   let updateBookingModalLive, writeHash;
 
+  function preserveLandingWhiteStage(ms) {
+    if (typeof document === "undefined") return;
+    const bodyWhite = !!(document.body && document.body.classList && document.body.classList.contains("is-land-white"));
+    const lp = typeof document.querySelector === "function" ? document.querySelector(".land-page:not(#brandbook-page)") : null;
+    const domWhite = !!(lp && lp.classList && lp.classList.contains("is-white-stage"));
+    if (ui.landWhiteStage || bodyWhite || domWhite) {
+      ui.landWhiteStage = true;
+      ui.landWhiteLockUntil = Math.max(Number(ui.landWhiteLockUntil) || 0, Date.now() + (ms || 700));
+    }
+  }
   function isBackendAuthed() {
     return !!(store && store.backend && store.user && EGE.api);
   }
@@ -243,10 +253,11 @@
           return;
         }
         ui.landWhiteStage = true;
+        ui.landWhiteLockUntil = Date.now() + 1400;
         if (typeof document !== "undefined") {
           if (document.body && document.body.classList) document.body.classList.add("is-land-white");
           const lp = typeof document.querySelector === "function" ? document.querySelector(".land-page:not(#brandbook-page)") : null;
-          if (lp && lp.dataset) lp.dataset.whiteLockUntil = String(Date.now() + 1400);
+          if (lp && lp.dataset) lp.dataset.whiteLockUntil = String(ui.landWhiteLockUntil);
           if (lp && lp.classList) lp.classList.add("is-white-stage");
           const top = lp && typeof lp.querySelector === "function" ? lp.querySelector(".land-top") : null;
           if (top && top.classList) top.classList.add("is-scrolled-light");
@@ -259,6 +270,7 @@
       }
     },
     "mkt-load-more": () => {
+      preserveLandingWhiteStage();
       ui.mktVisibleCount = (Number(ui.mktVisibleCount) || 8) + 8;
       scheduleRender();
     },
@@ -486,9 +498,10 @@
       saveMkt();
       scheduleRender();
     },
-    "mkt-clear-q": () => { mkt().q = ""; ui.mktVisibleCount = 8; saveMkt(); ui.focusNext = "mkt-q"; if (ui.filterModal) renderModal(); scheduleRender(); },
-    "mkt-bumped-set": (el) => { mkt().onlyBumped = el.dataset.v === "1"; ui.mktVisibleCount = 8; saveMkt(); if (ui.filterModal) renderModal(); scheduleRender(); },
+    "mkt-clear-q": () => { preserveLandingWhiteStage(); mkt().q = ""; ui.mktVisibleCount = 8; saveMkt(); ui.focusNext = "mkt-q"; if (ui.filterModal) renderModal(); scheduleRender(); },
+    "mkt-bumped-set": (el) => { preserveLandingWhiteStage(); mkt().onlyBumped = el.dataset.v === "1"; ui.mktVisibleCount = 8; saveMkt(); if (ui.filterModal) renderModal(); scheduleRender(); },
     "mkt-sort-cycle": () => {
+      preserveLandingWhiteStage();
       const order = ["actual", "price_asc", "rating_desc"];
       const st = mkt();
       st.sort = order[(order.indexOf(st.sort) + 1) % order.length];
@@ -497,6 +510,7 @@
       scheduleRender();
     },
     "mkt-reset-chip": (el) => {
+      preserveLandingWhiteStage();
       const st = mkt(), k = el.dataset.k;
       if (!k) return;
       const def = defaultMarketState();
@@ -520,6 +534,7 @@
       scheduleRender();
     },
     "mkt-preset": () => {
+      preserveLandingWhiteStage();
       if (!TDATA) return;
       const st = mkt();
       st.exam = "ЕГЭ";
@@ -539,6 +554,7 @@
       scheduleRender();
     },
     "mkt-exam": (el) => {
+      preserveLandingWhiteStage();
       const st = mkt();
       st.exam = el.dataset.v || "all";
       if ((st.exam === "ЕГЭ" || st.exam === "ОГЭ") && st.subject && st.subject !== "all" && TDATA) {
@@ -550,10 +566,11 @@
       if (ui.filterModal) renderModal();
       scheduleRender();
     },
-    "mkt-format": (el) => { mkt().format = el.dataset.v || "all"; ui.mktVisibleCount = 8; saveMkt(); if (ui.filterModal) renderModal(); scheduleRender(); },
-    "mkt-city": (el) => { mkt().city = el.dataset.v || "all"; ui.mktVisibleCount = 8; saveMkt(); if (ui.filterModal) renderModal(); scheduleRender(); },
-    "mkt-subj": (el) => { mkt().subject = el.dataset.v || "all"; ui.mktVisibleCount = 8; saveMkt(); if (ui.filterModal) renderModal(); scheduleRender(); },
+    "mkt-format": (el) => { preserveLandingWhiteStage(); mkt().format = el.dataset.v || "all"; ui.mktVisibleCount = 8; saveMkt(); if (ui.filterModal) renderModal(); scheduleRender(); },
+    "mkt-city": (el) => { preserveLandingWhiteStage(); mkt().city = el.dataset.v || "all"; ui.mktVisibleCount = 8; saveMkt(); if (ui.filterModal) renderModal(); scheduleRender(); },
+    "mkt-subj": (el) => { preserveLandingWhiteStage(); mkt().subject = el.dataset.v || "all"; ui.mktVisibleCount = 8; saveMkt(); if (ui.filterModal) renderModal(); scheduleRender(); },
     "mkt-price": (el) => {
+      preserveLandingWhiteStage();
       const v = Math.max(0, Math.round(Number(el.dataset.v) || 0));
       const st = mkt();
       st.minPrice = 0;
@@ -566,17 +583,19 @@
       scheduleRender();
     },
     "mkt-price-custom": () => {
+      preserveLandingWhiteStage();
       const st = mkt();
       st.priceCustom = !st.priceCustom;
       saveMkt();
       if (ui.filterModal) renderModal();
       scheduleRender();
     },
-    "mkt-bumped": () => { const st = mkt(); st.onlyBumped = !st.onlyBumped; ui.mktVisibleCount = 8; saveMkt(); if (ui.filterModal) renderModal(); scheduleRender(); },
-    "mkt-sort": (el) => { mkt().sort = el.dataset.v || "actual"; ui.mktVisibleCount = 8; saveMkt(); scheduleRender(); },
-    "mkt-day": (el) => { mkt().day = el.dataset.v || "all"; ui.mktVisibleCount = 8; saveMkt(); scheduleRender(); },
-    "mkt-hour": (el) => { mkt().hour = el.dataset.v || "all"; ui.mktVisibleCount = 8; saveMkt(); scheduleRender(); },
+    "mkt-bumped": () => { preserveLandingWhiteStage(); const st = mkt(); st.onlyBumped = !st.onlyBumped; ui.mktVisibleCount = 8; saveMkt(); if (ui.filterModal) renderModal(); scheduleRender(); },
+    "mkt-sort": (el) => { preserveLandingWhiteStage(); mkt().sort = el.dataset.v || "actual"; ui.mktVisibleCount = 8; saveMkt(); scheduleRender(); },
+    "mkt-day": (el) => { preserveLandingWhiteStage(); mkt().day = el.dataset.v || "all"; ui.mktVisibleCount = 8; saveMkt(); scheduleRender(); },
+    "mkt-hour": (el) => { preserveLandingWhiteStage(); mkt().hour = el.dataset.v || "all"; ui.mktVisibleCount = 8; saveMkt(); scheduleRender(); },
     "mkt-reset": () => {
+      preserveLandingWhiteStage();
       const cur = mkt(), fresh = defaultMarketState();
       fresh.planId = cur.planId;
       fresh.balance = cur.balance;
@@ -584,6 +603,7 @@
       fresh.calcRate = cur.calcRate;
       fresh.favs = cur.favs;
       fresh.bookings = cur.bookings;
+      fresh.telemostUrl = cur.telemostUrl || "";
       ui.market = fresh;
       ui.mktVisibleCount = 8;
       saveMkt();

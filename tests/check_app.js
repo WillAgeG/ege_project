@@ -1321,6 +1321,26 @@
       env5.body.classList.contains("is-land-white"),
       "expected Подобрать click (land-scroll -> land-market) to activate gradual black-to-white class on body"
     );
+    for (const sortKey of ["price_asc", "rating_desc", "actual"]) {
+      clickAction(env5, { a: "mkt-sort", v: sortKey });
+      await flushMicrotasks(2);
+      const sortedLandHtml = env5.elements.get("main").innerHTML;
+      assert(
+        env5.body.classList.contains("is-land-white") &&
+        sortedLandHtml.includes('class="land-page is-white-stage"') &&
+        sortedLandHtml.includes('class="land-top is-scrolled-light"'),
+        `expected mkt-sort=${sortKey} in white stage not to flash dark theme on landing`
+      );
+    }
+    const loaderHtmlCheck = readFileText("frontend/index.html");
+    assert(
+      loaderHtmlCheck.includes('id="site-boot-loader"') &&
+      loaderHtmlCheck.includes("site-loader-logo") &&
+      loaderHtmlCheck.includes("siteLoaderSpin") &&
+      loaderHtmlCheck.includes(">Загрузка...<") &&
+      !loaderHtmlCheck.includes("Загружаю подготовку"),
+      "expected clean spinning Vektor logo loader with 'Загрузка...' in index.html"
+    );
     clickAction(env5, { a: "coop-open" });
     await flushMicrotasks(2);
     assert(env5.elements.get("modal-root").innerHTML.includes('id="coop-modal-title"'), "expected coop-open to open Cooperation modal");

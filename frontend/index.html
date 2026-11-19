@@ -186,7 +186,52 @@
 .side-admin-pill.is-on {
   background: var(--pro-soft); border-color: var(--pro); color: var(--pro);
 }
+@keyframes siteLoaderSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.site-boot-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: var(--bg);
+  color: var(--ink);
+  transition: opacity .22s ease, visibility .22s ease;
+}
+.site-boot-loader.is-inline {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+}
+.site-boot-loader.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.site-loader-logo {
+  width: 56px;
+  height: 56px;
+  display: block;
+  animation: siteLoaderSpin 1.6s linear infinite;
+  will-change: transform;
+}
+.site-loader-text {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: .01em;
+  color: var(--muted);
+}
+@media (prefers-reduced-motion: reduce) {
+  .site-loader-logo { animation: none; }
+}
 </style>
+<script>(function(){try{var t=localStorage.getItem("vektor-ege:theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t;}catch(e){}})();</script>
 <link rel="stylesheet" href="ux-ui/styles/base.css">
 <link rel="stylesheet" href="styles/study.css">
 <link rel="stylesheet" href="styles/marketplace.css">
@@ -194,6 +239,16 @@
 <link rel="stylesheet" href="ux-ui/styles/tables.css">
 
 <svg aria-hidden="true" width="0" height="0" style="position:fixed;width:0;height:0;overflow:hidden;pointer-events:none"><defs><linearGradient id="vektor-bm-grad-base" gradientUnits="userSpaceOnUse" x1="8" y1="12" x2="58" y2="52"><stop offset="0%" stop-color="#4285f4"/><stop offset="56%" stop-color="#2b7fff"/><stop offset="100%" stop-color="#669df6"/></linearGradient><radialGradient id="vektor-bm-grad-red" gradientUnits="userSpaceOnUse" cx="16" cy="15" r="30"><stop offset="0%" stop-color="#ff5252" stop-opacity="1"/><stop offset="46%" stop-color="#ea4335" stop-opacity=".92"/><stop offset="100%" stop-color="#ea4335" stop-opacity="0"/></radialGradient><radialGradient id="vektor-bm-grad-amber" gradientUnits="userSpaceOnUse" cx="13" cy="47" r="29"><stop offset="0%" stop-color="#fbbc04" stop-opacity="1"/><stop offset="48%" stop-color="#f9ab00" stop-opacity=".88"/><stop offset="100%" stop-color="#fbbc04" stop-opacity="0"/></radialGradient><radialGradient id="vektor-bm-grad-green" gradientUnits="userSpaceOnUse" cx="32" cy="59" r="26"><stop offset="0%" stop-color="#34a853" stop-opacity=".96"/><stop offset="44%" stop-color="#22c55e" stop-opacity=".68"/><stop offset="100%" stop-color="#34a853" stop-opacity="0"/></radialGradient></defs></svg>
+
+<div class="site-boot-loader" id="site-boot-loader" role="status" aria-live="polite" aria-label="Загрузка">
+  <svg class="site-loader-logo" viewBox="0 0 64 64" width="56" height="56" fill="none" aria-hidden="true">
+    <path d="M32.00 4.40C33.25 4.40 35.57 16.51 39.60 18.84C43.63 21.16 55.28 17.12 55.90 18.20C56.53 19.28 47.20 27.35 47.20 32.00C47.20 36.65 56.53 44.72 55.90 45.80C55.28 46.88 43.63 42.84 39.60 45.16C35.57 47.49 33.25 59.60 32.00 59.60C30.75 59.60 28.43 47.49 24.40 45.16C20.37 42.84 8.72 46.88 8.10 45.80C7.47 44.72 16.80 36.65 16.80 32.00C16.80 27.35 7.47 19.28 8.10 18.20C8.72 17.12 20.37 21.16 24.40 18.84C28.43 16.51 30.75 4.40 32.00 4.40Z" fill="url(#vektor-bm-grad-base)"/>
+    <path d="M32.00 4.40C33.25 4.40 35.57 16.51 39.60 18.84C43.63 21.16 55.28 17.12 55.90 18.20C56.53 19.28 47.20 27.35 47.20 32.00C47.20 36.65 56.53 44.72 55.90 45.80C55.28 46.88 43.63 42.84 39.60 45.16C35.57 47.49 33.25 59.60 32.00 59.60C30.75 59.60 28.43 47.49 24.40 45.16C20.37 42.84 8.72 46.88 8.10 45.80C7.47 44.72 16.80 36.65 16.80 32.00C16.80 27.35 7.47 19.28 8.10 18.20C8.72 17.12 20.37 21.16 24.40 18.84C28.43 16.51 30.75 4.40 32.00 4.40Z" fill="url(#vektor-bm-grad-red)"/>
+    <path d="M32.00 4.40C33.25 4.40 35.57 16.51 39.60 18.84C43.63 21.16 55.28 17.12 55.90 18.20C56.53 19.28 47.20 27.35 47.20 32.00C47.20 36.65 56.53 44.72 55.90 45.80C55.28 46.88 43.63 42.84 39.60 45.16C35.57 47.49 33.25 59.60 32.00 59.60C30.75 59.60 28.43 47.49 24.40 45.16C20.37 42.84 8.72 46.88 8.10 45.80C7.47 44.72 16.80 36.65 16.80 32.00C16.80 27.35 7.47 19.28 8.10 18.20C8.72 17.12 20.37 21.16 24.40 18.84C28.43 16.51 30.75 4.40 32.00 4.40Z" fill="url(#vektor-bm-grad-amber)"/>
+    <path d="M32.00 4.40C33.25 4.40 35.57 16.51 39.60 18.84C43.63 21.16 55.28 17.12 55.90 18.20C56.53 19.28 47.20 27.35 47.20 32.00C47.20 36.65 56.53 44.72 55.90 45.80C55.28 46.88 43.63 42.84 39.60 45.16C35.57 47.49 33.25 59.60 32.00 59.60C30.75 59.60 28.43 47.49 24.40 45.16C20.37 42.84 8.72 46.88 8.10 45.80C7.47 44.72 16.80 36.65 16.80 32.00C16.80 27.35 7.47 19.28 8.10 18.20C8.72 17.12 20.37 21.16 24.40 18.84C28.43 16.51 30.75 4.40 32.00 4.40Z" fill="url(#vektor-bm-grad-green)"/>
+  </svg>
+  <div class="site-loader-text">Загрузка...</div>
+</div>
 
 <div class="shell">
   <aside class="side" aria-label="Разделы сайта">
@@ -239,15 +294,7 @@
     </div>
   </header>
 
-  <main class="main" id="main" tabindex="-1">
-    <div class="page">
-      <div class="head">
-        <div class="eyebrow">Вектор ЕГЭ</div>
-        <h1 class="h1">Загружаю подготовку…</h1>
-        <p class="lead">Темы и тесты по биологии, русскому языку и химии, план подготовки и твои показатели появятся через секунду.</p>
-      </div>
-    </div>
-  </main>
+  <main class="main" id="main" tabindex="-1"></main>
 
   <nav class="tabbar" id="tabbar" aria-label="Разделы"></nav>
 </div>
