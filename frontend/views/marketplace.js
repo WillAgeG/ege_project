@@ -269,8 +269,8 @@
           const isTrial = !!bk.isTrial;
           const trialRub = bk.offerPrice != null && Number.isFinite(Number(bk.offerPrice)) ? Number(bk.offerPrice) : trialDefault;
           return `<div class="stack" style="gap:4px;min-width:0">
+            <b>${esc(bk.tutorName)}</b>
             <div class="row" style="gap:6px;flex-wrap:wrap">
-              <b>${esc(bk.tutorName)}</b>
               <span class="chip">${esc(bk.exam)} · ${esc(bk.subjectName)}</span>
               ${isTrial ? `<span class="chip gold">${trialRub === 0 ? "Пробный · Бесплатно" : `Пробный · ${trialRub.toLocaleString("ru-RU")} ₽`}</span>` : ""}
             </div>
@@ -294,9 +294,12 @@
         render: (bk) => {
           const isTrial = !!bk.isTrial;
           const trialRub = bk.offerPrice != null && Number.isFinite(Number(bk.offerPrice)) ? Number(bk.offerPrice) : trialDefault;
+          const offerNum = Number(bk.offerPrice);
+          const tutorNum = Number(bk.tutorPrice);
+          const showOldPrice = Number.isFinite(tutorNum) && tutorNum > 0 && Number.isFinite(offerNum) && offerNum !== tutorNum;
           return isTrial
             ? `<b class="num">${trialRub === 0 ? "Пробный · Бесплатно" : `Пробный ${trialRub.toLocaleString("ru-RU")} ₽`}</b>`
-            : `<div class="stack" style="gap:2px"><b class="num">${Number(bk.offerPrice).toLocaleString("ru-RU")} ₽/ч</b><span class="small muted num">вместо ${Number(bk.tutorPrice).toLocaleString("ru-RU")} ₽</span></div>`;
+            : `<div class="stack" style="gap:2px"><b class="num">${offerNum.toLocaleString("ru-RU")} ₽/ч</b>${showOldPrice ? `<span class="small muted num">вместо ${tutorNum.toLocaleString("ru-RU")} ₽</span>` : ""}</div>`;
         }
       },
       {
@@ -332,20 +335,21 @@
           const waHref = accepted
             ? TDATA.whatsappUrl(tutor || { name: bk.tutorName, subjectName: bk.subjectName, whatsapp: "79142100101" }, msgTxt)
             : "";
-          return `<div class="stack" style="gap:6px">
-            ${h.cols === 3 ? `<span class="bb-tbl-st ${accepted ? "is-confirmed" : "is-pending"}">${accepted ? "Преподаватель подтвердил" : "На рассмотрении · уведомим"}</span>` : ""}
-            <div class="row" style="gap:6px;flex-wrap:wrap">
-              ${accepted ? (EGE.kit && typeof EGE.kit.messengerLinksHTML === "function"
+          const msgHtml = accepted
+            ? (EGE.kit && typeof EGE.kit.messengerLinksHTML === "function"
                 ? EGE.kit.messengerLinksHTML({
                     entity: tutor || { id: bk.tutorId, name: bk.tutorName, subjectName: bk.subjectName, whatsapp: "79142100101" },
                     message: msgTxt,
-                    primaryLabel: "Написать · WA",
+                    primaryLabel: "WhatsApp",
                     compact: true
                   })
-                : `<a class="btn confirm sm" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>Написать</span></a>`) : ""}
-              ${!accepted ? `<button type="button" class="btn soft sm" data-a="mkt-sim-accept" data-id="${esc(bk.id)}">Тест: подтвердить</button>` : ""}
-              <button type="button" class="btn ${accepted ? "ghost" : "danger bb-btn-adaptive"} sm" data-a="mkt-cancel-book" data-id="${esc(bk.id)}">${accepted ? "Сменить репетитора" : "Отменить"}</button>
-            </div>
+                : `<a class="btn confirm sm" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>WhatsApp</span></a>`)
+            : "";
+          return `<div class="stack bk-tbl-actions-stack" style="gap:8px">
+            ${h.cols === 3 ? `<span class="bb-tbl-st ${accepted ? "is-confirmed" : "is-pending"}">${accepted ? "Преподаватель подтвердил" : "На рассмотрении · уведомим"}</span>` : ""}
+            ${accepted
+              ? `${msgHtml}<button type="button" class="btn ghost sm bk-tbl-secondary-btn" data-a="mkt-cancel-book" data-id="${esc(bk.id)}">Сменить репетитора</button>`
+              : `<div class="bk-tbl-pending-btns"><button type="button" class="btn confirm sm" data-a="mkt-sim-accept" data-id="${esc(bk.id)}">${icon("check")}<span>Подтвердить</span></button><button type="button" class="btn ghost sm" data-a="mkt-cancel-book" data-id="${esc(bk.id)}">Отменить</button></div>`}
           </div>`;
         }
       }
@@ -368,7 +372,7 @@
       confirmAction: "mkt-sim-accept",
       filters: [
         { id: "all", label: `Все (${st.bookings.length})`, match: () => true },
-        { id: "pending", label: `На рассмотрении (${pendingCnt})`, match: (r) => r.status !== "accepted" },
+        { id: "pending", label: `Ждут ответа (${pendingCnt})`, match: (r) => r.status !== "accepted" },
         { id: "accepted", label: `Подтверждены (${acceptedCnt})`, match: (r) => r.status === "accepted" }
       ],
       columns: bkColumns,
@@ -484,7 +488,7 @@
                 <label class="small muted" for="tm-inp-${esc(bk.id)}">Ссылка на видеоурок (Яндекс Телемост)</label>
                 <input class="input bid-telemost-inp" id="tm-inp-${esc(bk.id)}" name="url" type="url" placeholder="https://telemost.yandex.ru/j/..." value="${esc(telemostUrl)}">
                 ${ui.telemostError ? `<div class="small" style="color:var(--bad);font-weight:600">${esc(ui.telemostError)}</div>` : ""}
-                <div class="row" style="gap:6px;flex-wrap:wrap">
+                <div class="bid-telemost-form-actions">
                   <button type="submit" class="btn sm">Сохранить</button>
                   <button type="button" class="btn soft sm" data-a="bid-telemost-gen" data-id="${esc(bk.id)}">Создать ссылку</button>
                   <button type="button" class="btn ghost sm" data-a="bid-telemost-cancel">Отмена</button>
@@ -493,7 +497,7 @@
             : telemostUrl
               ? `<div class="bid-telemost-saved">
                   <a class="btn soft sm bid-telemost-join" href="${esc(telemostUrl)}" target="_blank" rel="noopener noreferrer">${icon("video")}<span>Яндекс Телемост · Подключиться</span></a>
-                  <button type="button" class="btn ghost sm" data-a="bid-telemost-edit" data-id="${esc(bk.id)}">Изменить</button>
+                  <button type="button" class="btn ghost sm bid-telemost-edit" data-a="bid-telemost-edit" data-id="${esc(bk.id)}">Изменить ссылку</button>
                 </div>`
               : `<button type="button" class="btn ghost sm bid-telemost-add" data-a="bid-telemost-edit" data-id="${esc(bk.id)}">${icon("video")}<span>Добавить ссылку на Яндекс Телемост</span></button>`;
           const msgTxt = `Здравствуйте, ${bk.tutorName}! Напоминаю про занятие (${bk.subjectName}, ${bk.dayLabel} в ${bk.hour}, ${isTrial ? "пробный урок" : "ставка " + bk.offerPrice + " ₽/ч"}).${telemostUrl ? " Ссылка на Яндекс Телемост: " + telemostUrl : ""}`;
@@ -534,8 +538,8 @@
               <div class="home-bid-status ${accepted ? "is-accepted" : "is-pending"}">
                 <b>${accepted ? "Преподаватель ответил · занятие подтверждено" : "Ожидаем ответ преподавателя"}</b>
                 <span>${accepted
-                  ? `Написали вам в СМС${vc ? ` (${esc(vc)})` : ""} и мессенджер (WhatsApp, Telegram, MAX)`
-                  : `Написали преподавателю · как только ответит, придёт СМС${vc ? ` на ${esc(vc)}` : ""} или уведомление в мессенджер (WhatsApp, Telegram, MAX)`}</span>
+                  ? `Написали вам в СМС${vc ? ` (${esc(vc)})` : ""} · контакты открыты ниже`
+                  : `Как только ответит, придёт СМС${vc ? ` на ${esc(vc)}` : ""} и уведомление в мессенджер`}</span>
               </div>
               <div class="bid-telemost-box">${tmHTML}</div>
               ${accepted ? ((EGE.kit && typeof EGE.kit.messengerLinksHTML === "function")
@@ -549,7 +553,7 @@
             </div>
           </article>`;
         }).join("")}</div>`
-      : `<div class="card pad-lg"><div class="empty"><span>В этом фильтре откликов пока нет.</span></div></div>`;
+      : `<div class="empty home-bid-empty"><b>В этом фильтре откликов пока нет</b><span>Переключите вкладку выше или отправьте новый отклик преподавателю в «Поиске».</span></div>`;
     return `<section class="stack home-bids-wrap" id="home-bids-section" style="gap:12px" aria-label="Мои отклики преподавателям">
       <div class="home-bids-head">
         <div>
@@ -1049,13 +1053,13 @@
           <div><div class="eyebrow">Учёба</div><h1 class="h1">Мои преподаватели и расписание</h1></div>
           <div class="row" style="gap:8px;flex-wrap:wrap">
             <button type="button" class="btn soft sm" data-a="go" data-v="market">Подобрать ещё</button>
-            <button type="button" class="btn ghost sm" data-a="bal-open">${icon("wallet")}<span>${st.balance.toLocaleString("ru-RU")} ₽</span></button>
+            ${!hasMinBalance(st) ? `<button type="button" class="btn ghost sm" data-a="bal-open">${icon("wallet")}<span>Пополнить</span></button>` : ""}
           </div>
         </div>
       </div>
-      <div class="chip-rail">
-        <button type="button" class="chip-btn${tab === "week" ? " on" : ""}" data-a="study-tab" data-tab="week">График (${st.bookings.length})</button>
-        <button type="button" class="chip-btn${tab === "chats" ? " on" : ""}" data-a="study-tab" data-tab="chats">Чаты (${bookedList.length})</button>
+      <div class="chip-rail swipe study-tabs-rail" role="tablist" aria-label="Подразделы учёбы">
+        <button type="button" class="chip-btn${tab === "week" ? " on" : ""}" data-a="study-tab" data-tab="week">Расписание</button>
+        <button type="button" class="chip-btn${tab === "chats" ? " on" : ""}" data-a="study-tab" data-tab="chats">Чаты</button>
         <button type="button" class="chip-btn${tab === "tests" ? " on" : ""}" data-a="study-tab" data-tab="tests">Тесты ЕГЭ</button>
         <button type="button" class="chip-btn${tab === "plan" ? " on" : ""}" data-a="study-tab" data-tab="plan">План ЕГЭ</button>
         <button type="button" class="chip-btn${tab === "stats" ? " on" : ""}" data-a="study-tab" data-tab="stats">Показатели</button>
@@ -1191,17 +1195,6 @@
     }
 
     const weekRange = `${weekDays[0].num} ${weekDays[0].month} — ${weekDays[6].num} ${weekDays[6].month}`;
-    const noticeCard = `<div class="hh-notice-card">
-      <div class="row between" style="gap:8px;flex-wrap:wrap">
-        <b>${st.bookings.length ? `Ваших записей к преподавателям: ${st.bookings.length}` : "В разделе «Учёба» только ваши преподаватели"}</b>
-        <span class="chip accent num">Баланс: ${st.balance.toLocaleString("ru-RU")} ₽</span>
-      </div>
-      <span class="small ink2">${st.bookings.length ? "Здесь показаны только преподаватели, к которым у вас есть заявка или подтверждённый урок." : "После записи в «Поиске» здесь появятся ваше расписание, статус подтверждения и прямые контакты WhatsApp, Telegram и MAX."}</span>
-      <div class="row" style="gap:8px;flex-wrap:wrap">
-        <button type="button" class="btn sm" data-a="go" data-v="market">Подобрать репетитора</button>
-        ${!hasMinBalance(st) ? `<button type="button" class="btn soft sm" data-a="bal-open">${icon("wallet")}<span>Пополнить по СБП от 490 ₽</span></button>` : ""}
-      </div>
-    </div>`;
 
     const enrolledSection = !st.bookings.length
       ? `<div class="empty">
@@ -1273,12 +1266,12 @@
                   {
                     key: "tutor",
                     label: "Преподаватель и предмет",
-                    render: (row, h) => `<div class="stack" style="gap:3px">
-                      <div class="row" style="gap:6px;flex-wrap:wrap">
+                    render: (row, h) => `<div class="stack" style="gap:4px">
+                      <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center">
                         <b>${esc(row.tutorName)}</b>
                         ${row.tutor.verified !== false ? `<span class="verified-badge">${icon("check")}</span>` : ""}
-                        ${h.cols < 7 ? `<span class="chip">${esc(row.subjectName)}</span>` : ""}
                       </div>
+                      ${h.cols < 7 ? `<div class="row" style="gap:6px;flex-wrap:wrap"><span class="chip">${esc(row.subjectName)}</span></div>` : ""}
                     </div>`
                   },
                   {
@@ -1341,7 +1334,6 @@
         })();
 
     return `${header}
-      ${noticeCard}
       ${bookingsStripHTML(st)}
       ${enrolledSection}
       ${studentLeadCardHTML(TDATA, ui)}

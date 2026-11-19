@@ -2179,15 +2179,19 @@ body:has(.land-page:not(#brandbook-page)) .main,
 }
 .home-bids-head .btn { flex: none; white-space: nowrap; }
 .home-bid-seg {
-  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; width: 100%; gap: 4px;
+  display: grid;
+  grid-template-columns: minmax(0, .78fr) minmax(0, 1.38fr) minmax(0, .94fr);
+  width: 100%;
+  gap: 4px;
 }
 .home-bid-seg button {
   white-space: nowrap; justify-content: center; text-align: center;
-  padding: 8px 10px; font-size: 12.5px; min-width: 0;
+  padding: 8px 6px; font-size: 12.5px; min-width: 0;
 }
 @media (max-width: 390px) {
-  .home-bid-seg button { padding: 7px 6px; font-size: 11.5px; }
+  .home-bid-seg button { padding: 7px 4px; font-size: 11.5px; }
 }
+.home-bid-empty { background: var(--surface); }
 .home-bid-grid { min-width: 0; }
 .tutor-card.is-home-bid .home-bid-slot {
   display: flex; align-items: flex-start; gap: 6px;
@@ -2202,12 +2206,18 @@ body:has(.land-page:not(#brandbook-page)) .main,
 .home-bid-actions .btn { width: 100%; justify-content: center; }
 .bid-telemost-box { display: grid; gap: 6px; width: 100%; }
 .bid-telemost-add { width: 100%; justify-content: center; border-style: dashed; }
-.bid-telemost-saved { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.bid-telemost-join { flex: 1 1 auto; justify-content: center; }
+.bid-telemost-saved { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; width: 100%; }
+.bid-telemost-join,
+.bid-telemost-edit { width: 100%; justify-content: center; }
 .bid-telemost-form {
   display: grid; gap: 8px; padding: 10px 12px; border-radius: 12px;
   border: 1px solid var(--line); background: var(--surface-2);
 }
+.bid-telemost-form-actions {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; width: 100%;
+}
+.bid-telemost-form-actions .btn { width: 100%; justify-content: center; }
+.bid-telemost-form-actions .btn[data-a="bid-telemost-cancel"] { grid-column: 1 / -1; }
 .bid-telemost-inp { min-height: 38px; font-size: 13.5px; }
 .home-bid-list { display: grid; gap: 12px; }
 .home-bid-card {
@@ -2215,8 +2225,8 @@ body:has(.land-page:not(#brandbook-page)) .main,
   padding: 14px 16px; background: var(--surface-2);
 }
 .home-bid-status {
-  padding: 10px 12px; border-radius: 12px;
-  display: grid; gap: 3px; font-size: 13px; line-height: 1.4;
+  padding: 12px 14px; border-radius: 14px;
+  display: grid; gap: 4px; font-size: 13px; line-height: 1.4;
 }
 .home-bid-status.is-pending {
   background: var(--accent-soft);
@@ -2231,6 +2241,22 @@ body:has(.land-page:not(#brandbook-page)) .main,
 }
 .home-bid-status.is-accepted b { color: var(--confirm); font-weight: 700; }
 .home-bid-status span { font-size: 12.5px; color: var(--ink-2); }
+.tutor-card.is-home-bid .msg-channel-bar {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; width: 100%;
+}
+.tutor-card.is-home-bid .msg-channel-bar .btn-msg {
+  width: 100%; min-width: 0; justify-content: center;
+  padding: 0 8px; min-height: 36px; font-size: 12.5px; border-radius: 12px;
+}
+.study-tabs-rail {
+  display: flex; flex-wrap: nowrap; align-items: center; gap: 8px;
+  width: 100%; max-width: 100%; min-width: 0;
+  overflow-x: auto; overflow-y: visible;
+  padding: 2px 0 6px; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.study-tabs-rail > * { flex: 0 0 auto; white-space: nowrap; }
+.study-tabs-rail::-webkit-scrollbar { display: none; }
+.bk-tbl-pending-btns { display: flex; flex-wrap: wrap; gap: 6px; }
 
 .profile-setup-notif {
   padding: 14px 16px;

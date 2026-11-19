@@ -918,7 +918,15 @@
     clickAction(env4, { a: "book-submit" });
     await flushMicrotasks(3);
     assert(hasNum(env4.elements.get("side-foot").innerHTML, "5 300") && hasNum(env4.elements.get("top-balance-slot").innerHTML, "5 300"), "expected 1 200 ₽ escrow reservation to reduce available balance from 6500 to 5300");
-    assert(env4.elements.get("main").innerHTML.includes('id="student-bookings-table"') && env4.elements.get("main").innerHTML.includes("bb-data-table") && env4.elements.get("main").innerHTML.includes("data-label="), "expected #student-bookings-table Brandbook table on /market after booking");
+    assert(
+      env4.elements.get("main").innerHTML.includes('id="student-bookings-table"') &&
+      env4.elements.get("main").innerHTML.includes("bb-data-table") &&
+      env4.elements.get("main").innerHTML.includes("bb-tbl-filters") &&
+      !env4.elements.get("main").innerHTML.includes("Тест: подтвердить") &&
+      !env4.elements.get("main").innerHTML.includes("вместо 1 200 ₽") &&
+      env4.elements.get("main").innerHTML.includes("data-label="),
+      "expected #student-bookings-table Brandbook table on /market with bb-tbl-filters, clean Подтвердить button, and no redundant вместо X ₽"
+    );
     clickAction(env4, { a: "mkt-bk-cols", cols: "3" });
     await flushMicrotasks(3);
     assert(env4.elements.get("main").innerHTML.includes("bb-data-table cols-3"), "expected mkt-bk-cols=3 to re-render #student-bookings-table with 3 columns");
@@ -1460,6 +1468,17 @@
       !homePendingHtml.includes("Быстрый переход"),
       "expected Главная with 1-line filter seg, search-identical tutor card, Подтвердить/Отменить, Telemost CTA, and without Photo 3 blocks"
     );
+    clickAction(env5, { a: "home-bid-filter", v: "accepted" });
+    await flushMicrotasks(2);
+    const homeEmptyAcceptedHtml = env5.elements.get("main").innerHTML;
+    assert(
+      homeEmptyAcceptedHtml.includes("home-bid-empty") &&
+      !homeEmptyAcceptedHtml.includes('<div class="card pad-lg"><div class="empty"'),
+      "expected empty state on Главная -> Ответили without double-box card+empty wrapper"
+    );
+    clickAction(env5, { a: "home-bid-filter", v: "all" });
+    await flushMicrotasks(2);
+
     const acceptIdMatch = /data-a="mkt-sim-accept" data-id="([^"]+)"/.exec(homePendingHtml);
     assert(acceptIdMatch, "expected Подтвердить button for pending booking on Главная");
     clickAction(env5, { a: "bid-telemost-edit", id: acceptIdMatch[1] });
@@ -1469,8 +1488,10 @@
     await flushMicrotasks(3);
     assert(
       env5.elements.get("main").innerHTML.includes("Яндекс Телемост · Подключиться") &&
+      env5.elements.get("main").innerHTML.includes("bid-telemost-edit") &&
+      env5.elements.get("main").innerHTML.includes("Изменить ссылку") &&
       env5.elements.get("main").innerHTML.includes("https://telemost.yandex.ru/j/12345678901234"),
-      "expected saved Yandex Telemost link on Главная bid card"
+      "expected saved Yandex Telemost link and full-width Изменить ссылку button on Главная bid card"
     );
     clickAction(env5, { a: "bid-telemost-gen", id: acceptIdMatch[1] });
     await flushMicrotasks(2);
@@ -1487,8 +1508,14 @@
       studyWithCardsHtml.includes('id="study-overview-cards"') &&
       studyWithCardsHtml.includes("Главный срок") &&
       studyWithCardsHtml.includes("Быстрый переход") &&
-      studyWithCardsHtml.includes("Телемост"),
-      "expected Photo 3 blocks (Главный срок & Быстрый переход) and Телемост join link inside Учёба"
+      studyWithCardsHtml.includes("Телемост") &&
+      !studyWithCardsHtml.includes("Ваших записей к преподавателям") &&
+      studyWithCardsHtml.includes("study-tabs-rail") &&
+      studyWithCardsHtml.includes(">Расписание<") &&
+      studyWithCardsHtml.includes(">Чаты<") &&
+      !studyWithCardsHtml.includes("График (") &&
+      !studyWithCardsHtml.includes("Чаты ("),
+      "expected Photo 3 blocks and Телемост inside Учёба without blue Ваших записей card and with clean Расписание/Чаты tabs"
     );
     clickAction(env5, { a: "go", v: "market" });
     await flushMicrotasks(3);

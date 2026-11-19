@@ -864,7 +864,7 @@
 
     const toolbarHtml = (allFilters.length || opts.showSearch !== false || toolbarExtraHTML)
       ? `<div class="bb-tbl-toolbar">
-          ${allFilters.length ? `<div class="row" style="gap:6px;flex-wrap:wrap" role="group" aria-label="Фильтр строк таблицы">
+          ${allFilters.length ? `<div class="bb-tbl-filters" role="group" aria-label="Фильтр строк таблицы">
             ${allFilters.map((f) => `<button type="button" class="chip-btn${filter === f.id ? " on" : ""}" data-a="${esc(filterAction)}" data-v="${esc(f.id)}">${esc(f.label)}</button>`).join("")}
           </div>` : ""}
           ${opts.showSearch !== false ? `<label class="bb-tbl-search" for="${esc(searchId)}">
