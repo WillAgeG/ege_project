@@ -1304,14 +1304,105 @@
       });
     }
   }
+  const PHONE_COUNTRIES = [
+    { code: "RU", name: "Россия", flag: "🇷🇺", dial: "7", len: 10, mask: "ru", placeholder: "+7 (914) 210-05-11" },
+    { code: "KZ", name: "Казахстан", flag: "🇰🇿", dial: "7", len: 10, mask: "ru", placeholder: "+7 (701) 123-45-67" },
+    { code: "BY", name: "Беларусь", flag: "🇧🇾", dial: "375", len: 9, mask: "by", placeholder: "+375 (29) 123-45-67" },
+    { code: "UZ", name: "Узбекистан", flag: "🇺🇿", dial: "998", len: 9, mask: "by", placeholder: "+998 (90) 123-45-67" },
+    { code: "KG", name: "Кыргызстан", flag: "🇰🇬", dial: "996", len: 9, mask: "kg", placeholder: "+996 (555) 123-456" },
+    { code: "AM", name: "Армения", flag: "🇦🇲", dial: "374", len: 8, mask: "am", placeholder: "+374 (77) 123-456" },
+    { code: "AZ", name: "Азербайджан", flag: "🇦🇿", dial: "994", len: 9, mask: "by", placeholder: "+994 (50) 123-45-67" },
+    { code: "GE", name: "Грузия", flag: "🇬🇪", dial: "995", len: 9, mask: "kg", placeholder: "+995 (555) 123-456" },
+    { code: "TJ", name: "Таджикистан", flag: "🇹🇯", dial: "992", len: 9, mask: "by", placeholder: "+992 (90) 123-45-67" },
+    { code: "OTHER", name: "Другая страна", flag: "🌍", dial: "", len: 15, mask: "intl", placeholder: "+1 415 555 0199" }
+  ];
+  function phoneCountryByCode(code) {
+    return PHONE_COUNTRIES.find((c) => c.code === code) || PHONE_COUNTRIES[0];
+  }
+  function formatPhoneForCountry(raw, countryCode) {
+    const trimmed = String(raw || "").trim();
+    const digits = String(raw || "").replace(/\D+/g, "");
+    let c = phoneCountryByCode(countryCode);
+    if (trimmed.startsWith("+") && c.code !== "OTHER") {
+      const explicitMatch = PHONE_COUNTRIES.find((x) => x.dial && x.dial.length > 1 && digits.startsWith(x.dial));
+      if (explicitMatch) c = explicitMatch;
+    }
+    if (c.mask === "intl") {
+      const d = digits.slice(0, 15);
+      if (!d) return { formatted: trimmed === "+" ? "+" : "", nationalDigits: "", country: c, valid: false };
+      const groups = [];
+      let i = 0;
+      const g1 = d.length > 10 ? d.length - 10 : Math.min(3, d.length);
+      groups.push(d.slice(0, g1));
+      i = g1;
+      while (i < d.length) {
+        const take = (d.length - i) <= 4 ? (d.length - i) : 3;
+        groups.push(d.slice(i, i + take));
+        i += take;
+      }
+      return { formatted: "+" + groups.join(" "), nationalDigits: d, country: c, valid: d.length >= 7 && d.length <= 15 };
+    }
+    let national = digits;
+    if (c.dial === "7") {
+      if (trimmed.startsWith("+")) {
+        national = digits.startsWith("7") ? digits.slice(1) : digits;
+      } else if (!digits) {
+        national = "";
+      } else if (digits.length === 1) {
+        if ((digits === "8" && c.code === "RU") || (digits === "7" && c.code === "RU")) national = "";
+        else national = digits;
+      } else if (digits.length > 10 && (digits[0] === "7" || (c.code === "RU" && digits[0] === "8"))) {
+        national = digits.slice(1);
+      } else if (digits.length <= 10 && c.code === "RU" && (digits[0] === "7" || digits[0] === "8") && digits[1] === "9") {
+        national = digits.slice(1);
+      }
+      national = national.slice(0, 10);
+      if (!digits) return { formatted: trimmed === "+" ? "+" : "", nationalDigits: "", country: c, valid: false };
+      if (!national) return { formatted: trimmed === "+7" ? "+7" : "+7 ", nationalDigits: "", country: c, valid: false };
+      let out = "+7 (" + national.slice(0, 3);
+      if (national.length > 3) out += ") " + national.slice(3, 6);
+      if (national.length > 6) out += "-" + national.slice(6, 8);
+      if (national.length > 8) out += "-" + national.slice(8, 10);
+      return { formatted: out, nationalDigits: national, country: c, valid: national.length === 10 };
+    }
+    if (trimmed.startsWith("+") && digits.startsWith(c.dial)) national = digits.slice(c.dial.length);
+    else if (digits.startsWith(c.dial) && digits.length >= c.dial.length + c.len) national = digits.slice(c.dial.length);
+    national = national.slice(0, c.len);
+    if (!digits) return { formatted: trimmed === "+" ? "+" : "", nationalDigits: "", country: c, valid: false };
+    if (!national) {
+      const bareDial = "+" + c.dial;
+      return { formatted: trimmed === bareDial ? bareDial : (bareDial + " "), nationalDigits: "", country: c, valid: false };
+    }
+    let out = "+" + c.dial + " (";
+    if (c.mask === "by") {
+      out += national.slice(0, 2);
+      if (national.length > 2) out += ") " + national.slice(2, 5);
+      if (national.length > 5) out += "-" + national.slice(5, 7);
+      if (national.length > 7) out += "-" + national.slice(7, 9);
+    } else if (c.mask === "kg") {
+      out += national.slice(0, 3);
+      if (national.length > 3) out += ") " + national.slice(3, 6);
+      if (national.length > 6) out += "-" + national.slice(6, 9);
+    } else {
+      out += national.slice(0, 2);
+      if (national.length > 2) out += ") " + national.slice(2, 5);
+      if (national.length > 5) out += "-" + national.slice(5, 8);
+    }
+    return { formatted: out, nationalDigits: national, country: c, valid: national.length === c.len };
+  }
   function openContactVerifyModal(opts) {
     opts = opts || {};
     const existing = mkt().verifiedContact;
+    const countryCode = (opts.country && phoneCountryByCode(opts.country).code)
+      || (existing && existing.country && phoneCountryByCode(existing.country).code)
+      || "RU";
+    const defCountry = phoneCountryByCode(countryCode);
+    const seedContact = opts.contact || (existing && existing.value) || (defCountry.dial ? ("+" + defCountry.dial + " ") : "");
     ui.contactVerifyModal = {
       step: "input",
-      channel: opts.channel === "tg" ? "tg" : ((existing && existing.channel === "tg") ? "tg" : "phone"),
-      app: opts.app === "max" ? "max" : "whatsapp",
-      contact: opts.contact || (existing && existing.value) || "",
+      country: defCountry.code,
+      countryMenuOpen: false,
+      contact: seedContact,
       digits: ["", "", "", ""],
       expectedCode: "4829",
       required: opts.required !== false,
@@ -1469,45 +1560,51 @@
   function contactVerifyModalHTML() {
     const cv = ui.contactVerifyModal;
     if (!cv) return "";
-    const isTg = cv.channel === "tg";
     const isOtp = cv.step === "otp";
-    const appLabel = isTg ? "Telegram" : (cv.app === "max" ? "MAX" : "WhatsApp");
+    const country = phoneCountryByCode(cv.country || "RU");
     const digits = Array.isArray(cv.digits) ? cv.digits : ["", "", "", ""];
+    const countryMenuHTML = cv.countryMenuOpen
+      ? `<div class="cv-country-menu" role="listbox" aria-label="Выбор страны">
+          ${PHONE_COUNTRIES.map((c) => {
+            const on = c.code === country.code;
+            const codeText = c.dial ? ("+" + c.dial) : "Код";
+            return `<button type="button" class="cv-country-opt${on ? " is-on" : ""}" data-a="cv-country-pick" data-v="${esc(c.code)}" role="option" aria-selected="${on ? "true" : "false"}">
+              <span>${c.flag} ${esc(c.name)}</span>
+              <span class="small num muted">${esc(codeText)}</span>
+            </button>`;
+          }).join("")}
+        </div>`
+      : "";
     return `<div class="modal-back is-sheet-back" role="dialog" aria-modal="true" aria-labelledby="cv-modal-title">
       <div class="modal-card sheet-modal is-contact-verify-sheet" data-sheet-kind="contact-verify">
-        <div class="sheet-grabber-zone" data-sheet-drag="1" role="button" tabindex="0" data-a="cv-close" aria-label="Свернуть подтверждение контакта">
+        <div class="sheet-grabber-zone" data-sheet-drag="1" role="button" tabindex="0" data-a="cv-close" aria-label="Свернуть подтверждение номера">
           <span class="sheet-grabber"></span>
         </div>
         <div class="sheet-head is-booking-head">
           ${isOtp
-            ? `<button type="button" class="sheet-back-btn" data-a="cv-back">${icon("back")}<span>Контакт</span></button>`
+            ? `<button type="button" class="sheet-back-btn" data-a="cv-back">${icon("back")}<span>Номер</span></button>`
             : `<span style="width:64px" aria-hidden="true"></span>`}
-          <b id="cv-modal-title">${isOtp ? "Код из 4 цифр" : "Подтвердите контакт"}</b>
+          <b id="cv-modal-title">${isOtp ? "Код из СМС" : "Подтвердите номер телефона"}</b>
           <span style="width:64px" aria-hidden="true"></span>
         </div>
         <div class="sheet-body">
           ${!isOtp ? `
-            <p class="small ink2" style="margin:0;line-height:1.48">Обязательный шаг: укажите телефон (WhatsApp или MAX) или Telegram, чтобы мы прислали код подтверждения и уведомления об ответах преподавателей.</p>
-            <div class="hh-seg equal" role="group" aria-label="Способ связи">
-              <button type="button" data-a="cv-channel" data-v="phone" aria-pressed="${!isTg}"><span>Телефон · WA / MAX</span></button>
-              <button type="button" data-a="cv-channel" data-v="tg" aria-pressed="${isTg}"><span>Telegram</span></button>
-            </div>
+            <p class="small ink2" style="margin:0;line-height:1.48">Обязательный шаг: введите номер телефона — мы отправим обычное СМС с кодом из 4 цифр для подтверждения аккаунта.</p>
             <form class="stack" style="gap:12px" data-f="contact-verify-send">
-              ${!isTg ? `
-                <div class="stack" style="gap:6px">
-                  <span class="label">Куда прислать код из 4 цифр</span>
-                  <div class="cv-app-row">
-                    <button type="button" class="chip-btn${cv.app !== "max" ? " is-on" : ""}" data-a="cv-app" data-v="whatsapp">WhatsApp</button>
-                    <button type="button" class="chip-btn${cv.app === "max" ? " is-on" : ""}" data-a="cv-app" data-v="max">MAX</button>
-                  </div>
+              <div class="cv-phone-field" id="cv-phone-field">
+                <label for="cv-contact-inp">Номер телефона (${esc(country.name)})</label>
+                <div class="cv-phone-wrap">
+                  <button type="button" class="cv-country-btn" data-a="cv-country-toggle" aria-expanded="${cv.countryMenuOpen ? "true" : "false"}" aria-label="Выбрать страну: ${esc(country.name)}">
+                    <span>${country.flag}</span>
+                    <span>${esc(country.code === "OTHER" ? "Мир" : country.code)}</span>
+                    ${icon("chevDown")}
+                  </button>
+                  <input class="cv-phone-inp num" id="cv-contact-inp" name="contact" type="tel" inputmode="tel" autocomplete="tel" placeholder="${esc(country.placeholder)}" value="${esc(cv.contact || "")}">
                 </div>
-              ` : ""}
-              <div class="field">
-                <label for="cv-contact-inp">${isTg ? "Ник или телефон в Telegram" : `Номер телефона (${appLabel})`}</label>
-                <input class="input${isTg ? "" : " num"}" id="cv-contact-inp" name="contact" type="${isTg ? "text" : "tel"}" inputmode="${isTg ? "text" : "tel"}" autocomplete="tel" placeholder="${isTg ? "@username или +7 914 210-05-11" : "+7 (914) 210-05-11"}" value="${esc(cv.contact || "")}">
+                ${countryMenuHTML}
               </div>
               ${cv.error ? `<div class="small" style="color:var(--bad);font-weight:600">${esc(cv.error)}</div>` : ""}
-              <button type="submit" class="btn bal-submit-btn" id="cv-send-btn">Получить код из 4 цифр</button>
+              <button type="submit" class="btn bal-submit-btn" id="cv-send-btn">Получить СМС с кодом</button>
               <div class="row center" style="gap:12px">
                 ${cv.fromGoogleDemo
                   ? `<button type="button" class="link-btn small" data-a="cv-close">Назад ко входу</button>`
@@ -1515,22 +1612,22 @@
               </div>
             </form>
           ` : `
-            <p class="small ink2" style="margin:0;line-height:1.48">Мы отправили уведомление с 4-значным кодом в <b>${esc(appLabel)}</b> на <b>${esc(cv.contact)}</b>. Введите код ниже, чтобы подтвердить аккаунт.</p>
+            <p class="small ink2" style="margin:0;line-height:1.48">Мы отправили СМС с 4-значным кодом на номер <b>${esc(cv.contact)}</b>. Введите код из сообщения, чтобы подтвердить аккаунт.</p>
             <div class="cv-demo-push">
               <div class="cv-demo-push-copy">
-                <b>Уведомление · ${esc(appLabel)}</b>
-                <span>Код подтверждения Вектор: <b class="num">${esc(cv.expectedCode)}</b></span>
+                <b>СМС · Вектор</b>
+                <span>Код подтверждения аккаунта: <b class="num">${esc(cv.expectedCode)}</b></span>
               </div>
               <button type="button" class="chip-btn" data-a="cv-autofill">Подставить</button>
             </div>
             <form class="stack" style="gap:14px" data-f="contact-verify-check">
-              <div class="otp-4-grid" aria-label="Код подтверждения из 4 цифр">
+              <div class="otp-4-grid" aria-label="Код из СМС (4 цифры)">
                 ${[0, 1, 2, 3].map((idx) => `<input class="otp-digit-box" id="cv-d${idx}" data-otp-idx="${idx}" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="${idx === 0 ? "one-time-code" : "off"}" value="${esc(digits[idx] || "")}" aria-label="Цифра ${idx + 1}">`).join("")}
               </div>
               ${cv.error ? `<div class="small" style="color:var(--bad);font-weight:600;text-align:center">${esc(cv.error)}</div>` : ""}
               <button type="submit" class="btn bal-submit-btn" id="cv-check-btn">Подтвердить аккаунт</button>
               <div class="row center small" style="gap:8px">
-                <span class="muted">Не пришло уведомление?</span>
+                <span class="muted">Не пришло СМС?</span>
                 <button type="button" class="link-btn small" data-a="cv-resend">Отправить снова</button>
               </div>
             </form>
@@ -1983,7 +2080,7 @@
       ${hasGoogle
         ? `<a class="btn ghost google-btn" href="/api/auth/google/start">${GOOGLE_SVG}<span>Продолжить через Google</span></a>`
         : `<button type="button" class="btn ghost google-btn" data-a="auth-google-start">${GOOGLE_SVG}<span>Продолжить через Google</span></button>`}
-      <p class="hint" style="text-align:center">После регистрации или входа через Google — подтверждение WhatsApp, MAX или Telegram кодом из 4 цифр.</p>
+      <p class="hint" style="text-align:center">После регистрации или входа через Google — подтверждение номера телефона по СМС (код из 4 цифр).</p>
       <div class="auth-sep"><span>или по логину</span></div>
       ${reg ? `<div class="fields">
         <div class="field"><label for="auth-name">Как к тебе обращаться</label><input class="input" id="auth-name" name="displayName" type="text" autocomplete="name" maxlength="40" placeholder="Имя (необязательно)" data-d="auth.name" value="${esc(draft("auth.name", ""))}"></div>
@@ -2316,23 +2413,36 @@
       ui.auth.error = "";
       openContactVerifyModal({ fromGoogleDemo: true, required: true });
     },
-    "cv-channel": (el) => {
+    "cv-country-toggle": () => {
       if (!ui.contactVerifyModal) return;
-      ui.contactVerifyModal.channel = el && el.dataset && el.dataset.v === "tg" ? "tg" : "phone";
-      ui.contactVerifyModal.step = "input";
-      ui.contactVerifyModal.contact = "";
-      ui.contactVerifyModal.error = "";
+      ui.contactVerifyModal.countryMenuOpen = !ui.contactVerifyModal.countryMenuOpen;
       renderModal();
     },
-    "cv-app": (el) => {
+    "cv-country-pick": (el) => {
       if (!ui.contactVerifyModal) return;
-      ui.contactVerifyModal.app = el && el.dataset && el.dataset.v === "max" ? "max" : "whatsapp";
-      ui.contactVerifyModal.error = "";
+      const cv = ui.contactVerifyModal;
+      const nextCode = el && el.dataset && el.dataset.v ? el.dataset.v : "RU";
+      const prevParsed = formatPhoneForCountry(cv.contact, cv.country);
+      const nextCountry = phoneCountryByCode(nextCode);
+      cv.country = nextCountry.code;
+      cv.countryMenuOpen = false;
+      cv.error = "";
+      if (prevParsed.nationalDigits) {
+        cv.contact = formatPhoneForCountry(
+          nextCountry.dial ? ("+" + nextCountry.dial + prevParsed.nationalDigits) : prevParsed.nationalDigits,
+          nextCountry.code
+        ).formatted;
+      } else {
+        cv.contact = nextCountry.dial ? ("+" + nextCountry.dial + " ") : "+";
+      }
       renderModal();
+      const inp = typeof document !== "undefined" && document.getElementById ? document.getElementById("cv-contact-inp") : null;
+      if (inp && typeof inp.focus === "function") inp.focus();
     },
     "cv-back": () => {
       if (!ui.contactVerifyModal) return;
       ui.contactVerifyModal.step = "input";
+      ui.contactVerifyModal.countryMenuOpen = false;
       ui.contactVerifyModal.digits = ["", "", "", ""];
       ui.contactVerifyModal.error = "";
       renderModal();
@@ -2343,9 +2453,8 @@
       cv.expectedCode = cv.expectedCode === "4829" ? "7391" : "4829";
       cv.digits = ["", "", "", ""];
       cv.error = "";
-      const appLabel = cv.channel === "tg" ? "Telegram" : (cv.app === "max" ? "MAX" : "WhatsApp");
       renderModal();
-      notifySide(`Повторный код · ${appLabel}`, `Отправили код ${cv.expectedCode} на ${cv.contact}`);
+      notifySide("Повторное СМС · Вектор", `Отправили код ${cv.expectedCode} на ${cv.contact}`);
     },
     "cv-autofill": () => {
       if (!ui.contactVerifyModal) return;
@@ -2365,7 +2474,7 @@
         renderModal();
         return;
       }
-      cv.error = "Обязательный шаг: подтвердите телефон (WhatsApp / MAX) или Telegram кодом из 4 цифр.";
+      cv.error = "Обязательный шаг: подтвердите номер телефона кодом из СМС.";
       renderModal();
     },
     "auth-guest": () => {
@@ -2610,34 +2719,21 @@
       if (!cv) return;
       const inpEl = (form && form.elements && form.elements.contact) || $("#cv-contact-inp");
       const raw = String((inpEl && inpEl.value) || cv.contact || "").trim();
-      const isTg = cv.channel === "tg";
-      if (isTg) {
-        const digits = raw.replace(/\D+/g, "");
-        const isPhoneLike = /^\+?\d[\d\s()-]{8,}$/.test(raw) && digits.length >= 10;
-        const handle = raw.replace(/^@+/, "").trim();
-        if (!isPhoneLike && handle.length < 3) {
-          cv.error = "Укажите @username или номер телефона в Telegram.";
-          renderModal();
-          return;
-        }
-        cv.contact = isPhoneLike ? raw : ("@" + handle);
-      } else {
-        const digits = raw.replace(/\D+/g, "");
-        if (digits.length < 10 || digits.length > 11) {
-          cv.error = "Введите корректный номер телефона (WhatsApp или MAX).";
-          renderModal();
-          return;
-        }
-        const fmtP = EGE.kit && EGE.kit.formatPhoneMask;
-        cv.contact = typeof fmtP === "function" ? (fmtP(raw) || raw) : raw;
+      const parsed = formatPhoneForCountry(raw, cv.country || "RU");
+      cv.country = parsed.country.code;
+      cv.contact = parsed.formatted || raw;
+      cv.countryMenuOpen = false;
+      if (!parsed.valid) {
+        cv.error = `Введите корректный номер телефона (${parsed.country.name}) для получения СМС.`;
+        renderModal();
+        return;
       }
       cv.step = "otp";
       cv.digits = ["", "", "", ""];
       if (!cv.expectedCode) cv.expectedCode = "4829";
       cv.error = "";
-      const appLabel = isTg ? "Telegram" : (cv.app === "max" ? "MAX" : "WhatsApp");
       renderModal();
-      notifySide(`Код из 4 цифр · ${appLabel}`, `Отправили код ${cv.expectedCode} на ${cv.contact}`);
+      notifySide("СМС с кодом · Вектор", `Отправили код ${cv.expectedCode} на ${cv.contact}`);
       if (typeof document !== "undefined" && typeof document.getElementById === "function") {
         const d0 = document.getElementById("cv-d0");
         if (d0 && typeof d0.focus === "function") d0.focus();
@@ -2654,26 +2750,31 @@
       };
       const code = [0, 1, 2, 3].map(readDigit).join("");
       if (code.length < 4 || code !== String(cv.expectedCode || "4829")) {
-        cv.error = "Неверный код из 4 цифр. Проверьте уведомление и попробуйте снова.";
+        cv.error = "Неверный код из СМС. Проверьте сообщение и попробуйте снова.";
         renderModal();
         return;
       }
-      const appLabel = cv.channel === "tg" ? "Telegram" : (cv.app === "max" ? "MAX" : "WhatsApp");
       if (cv.fromGoogleDemo && !store.user) {
         store.user = { id: "google-local", username: "google_user", displayName: "Аккаунт Google", authProvider: "google" };
         ui.demoAuthed = true;
         ui.guest = false;
       }
-      mkt().verifiedContact = { channel: cv.channel, app: appLabel, value: cv.contact, verifiedAt: Date.now() };
+      mkt().verifiedContact = {
+        channel: "sms",
+        app: "СМС",
+        country: cv.country || "RU",
+        value: cv.contact,
+        verifiedAt: Date.now()
+      };
       saveMkt();
       if (store.backend && store.user && store.docs && store.docs.profile) {
-        patchDoc("profile", { contactVerified: true, messengerContact: cv.contact, messengerApp: appLabel });
+        patchDoc("profile", { contactVerified: true, phone: cv.contact, phoneCountry: cv.country || "RU" });
       }
       ui.contactVerifyModal = null;
       ui.authModal = false;
       ui.auth.error = "";
-      toast("Аккаунт подтверждён");
-      notifySide("Контакт подтверждён", `${appLabel} (${cv.contact}) привязан — ответы преподавателей придут туда`);
+      toast("Номер подтверждён");
+      notifySide("Номер подтверждён", `Телефон ${cv.contact} привязан к аккаунту`);
       if (!resumePendingAfterAuth()) {
         if (ui.view !== "landing" && ui.view !== "market") applyPostAuthView();
         renderModal();
@@ -2856,6 +2957,10 @@
       ui.booking.timeMenuOpen = false;
       renderModal();
     }
+    if (ui.contactVerifyModal && ui.contactVerifyModal.countryMenuOpen && (!target || typeof target.closest !== "function" || !target.closest("#cv-phone-field"))) {
+      ui.contactVerifyModal.countryMenuOpen = false;
+      renderModal();
+    }
     return changed;
   }
 
@@ -2868,7 +2973,7 @@
         renderModal();
         return true;
       }
-      ui.contactVerifyModal.error = "Обязательный шаг: подтвердите телефон (WhatsApp / MAX) или Telegram кодом из 4 цифр.";
+      ui.contactVerifyModal.error = "Обязательный шаг: подтвердите номер телефона кодом из СМС.";
       renderModal();
       return false;
     }
@@ -2975,16 +3080,16 @@
     }
     if (el.id === "cv-contact-inp") {
       const cv = ui.contactVerifyModal;
-      let val = String(el.value || "");
-      if (cv && cv.channel === "phone") {
-        const d = val.replace(/\D+/g, "");
-        const fmtP = EGE.kit && EGE.kit.formatPhoneMask;
-        if (typeof fmtP === "function" && d.length >= 10) {
-          const masked = fmtP(val);
-          if (masked && masked !== val) { val = masked; el.value = masked; }
-        }
+      const curCountry = (cv && cv.country) || "RU";
+      const parsed = formatPhoneForCountry(el.value, curCountry);
+      if (el.value !== parsed.formatted) el.value = parsed.formatted;
+      if (cv) {
+        const countryChanged = parsed.country.code !== cv.country;
+        cv.country = parsed.country.code;
+        cv.contact = parsed.formatted;
+        cv.error = "";
+        if (countryChanged) renderModal();
       }
-      if (cv) { cv.contact = val; cv.error = ""; }
       return true;
     }
     if (el.dataset && el.dataset.otpIdx != null) {
@@ -3017,6 +3122,16 @@
     }
     return false;
   }
+  document.addEventListener("focusin", (e) => {
+    const el = e && e.target;
+    if (el && el.id === "cv-contact-inp" && ui.contactVerifyModal && !String(el.value || "").trim()) {
+      const c = phoneCountryByCode(ui.contactVerifyModal.country || "RU");
+      if (c.dial) {
+        el.value = "+" + c.dial + " ";
+        ui.contactVerifyModal.contact = el.value;
+      }
+    }
+  });
   document.addEventListener("input", (e) => {
     const el = e.target;
     const inpAct = (el && el.dataset && el.dataset.a) || "";

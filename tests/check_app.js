@@ -476,37 +476,45 @@
     assert(!homeAuthed.includes("Лечебное дело") && !homeAuthed.includes("СВФУ"), "expected universal 3-subject copy without medical uni");
     assert(env2.elements.get("side-foot").innerHTML.includes("Оля"), "expected sidebar user name");
 
-    // Обязательное подтверждение контакта (WhatsApp / MAX / Telegram) и кода из 4 цифр сразу после регистрации
+    // Обязательное подтверждение номера телефона по обычному СМС (без WA / MAX / TG) и кода из 4 цифр после регистрации
     const regVerifyHtml = env2.elements.get("modal-root").innerHTML;
     assert(
       regVerifyHtml.includes("is-contact-verify-sheet") &&
       regVerifyHtml.includes("sheet-grabber") &&
-      regVerifyHtml.includes("Подтвердите контакт") &&
-      regVerifyHtml.includes("WhatsApp") &&
-      regVerifyHtml.includes("MAX"),
-      "expected mandatory contact verification grabber sheet after registration"
+      regVerifyHtml.includes("Подтвердите номер телефона") &&
+      regVerifyHtml.includes("обычное СМС") &&
+      regVerifyHtml.includes('data-a="cv-country-toggle"') &&
+      regVerifyHtml.includes('value="+7 "') &&
+      !regVerifyHtml.includes("Telegram") &&
+      !regVerifyHtml.includes("WhatsApp") &&
+      !regVerifyHtml.includes("MAX"),
+      "expected SMS-only phone grabber with default +7 and country selector after registration"
     );
-    env2.emitDoc("click", {
-      target: { closest: (sel) => sel === "[data-a]" ? { dataset: { a: "cv-app", v: "max" }, disabled: false } : null },
-      preventDefault() {}
-    });
-    env2.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "contact-verify-send" }, elements: { contact: { value: "+79142100511" } } }) }, preventDefault() {} });
+    const cvLiveInp = { id: "cv-contact-inp", value: "9", dataset: {} };
+    env2.emitDoc("input", { target: cvLiveInp });
+    assert(cvLiveInp.value === "+7 (9", `expected first digit 9 to auto-prefix +7 (, got ${cvLiveInp.value}`);
+    cvLiveInp.value = "9142100511";
+    env2.emitDoc("input", { target: cvLiveInp });
+    assert(cvLiveInp.value === "+7 (914) 210-05-11", `expected full RU phone mask, got ${cvLiveInp.value}`);
+    env2.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "contact-verify-send" }, elements: { contact: { value: cvLiveInp.value } } }) }, preventDefault() {} });
     await flushMicrotasks(4);
     const regOtpHtml = env2.elements.get("modal-root").innerHTML;
     assert(
       regOtpHtml.includes("otp-4-grid") &&
+      regOtpHtml.includes("Код из СМС") &&
+      regOtpHtml.includes("СМС · Вектор") &&
       regOtpHtml.includes('id="cv-d0"') &&
       regOtpHtml.includes('id="cv-d3"') &&
-      regOtpHtml.includes("MAX") &&
+      regOtpHtml.includes("+7 (914) 210-05-11") &&
       regOtpHtml.includes("4829"),
-      "expected 4-digit OTP confirmation screen for MAX contact"
+      "expected 4-digit SMS OTP screen after phone submission"
     );
     env2.emitDoc("submit", {
       target: { closest: () => ({ dataset: { f: "contact-verify-check" }, elements: { d0: { value: "0" }, d1: { value: "0" }, d2: { value: "0" }, d3: { value: "0" } } }) },
       preventDefault() {}
     });
     await flushMicrotasks(4);
-    assert(env2.elements.get("modal-root").innerHTML.includes("Неверный код из 4 цифр"), "expected wrong 4-digit code to be rejected");
+    assert(env2.elements.get("modal-root").innerHTML.includes("Неверный код из СМС"), "expected wrong 4-digit SMS code to be rejected");
     env2.emitDoc("submit", {
       target: { closest: () => ({ dataset: { f: "contact-verify-check" }, elements: { d0: { value: "4" }, d1: { value: "8" }, d2: { value: "2" }, d3: { value: "9" } } }) },
       preventDefault() {}
@@ -1319,23 +1327,35 @@
     const modalStepped = env5.elements.get("modal-root").innerHTML;
     assert(modalStepped.includes('value="1150"') && hasNum(modalStepped, "Предложить 1 150 ₽") && !modalStepped.includes("1 092 ₽"), "expected -50 step to update centered Предложить CTA to 1150 without Yakut logo");
 
-    // Воронка «Предложить 1 150 ₽»: без входа -> Google + обязательное подтверждение TG/WA/MAX (4 цифры) -> пополнение СБП -> заявка + уведомление студенту
+    // Воронка «Предложить 1 150 ₽»: без входа -> Google + обязательное подтверждение телефона по СМС (выбор страны Казахстан +7 и 4 цифры) -> пополнение СБП -> заявка
     clickAction(env5, { a: "book-submit" });
     await flushMicrotasks(3);
     const authGateHtml = env5.elements.get("modal-root").innerHTML;
     assert(authGateHtml.includes('data-f="auth"') && authGateHtml.includes('data-a="auth-google-start"') && authGateHtml.includes("sheet-grabber"), "expected book-submit while logged out to open grabber auth sheet with Google button");
     clickAction(env5, { a: "auth-google-start" });
     await flushMicrotasks(2);
-    clickAction(env5, { a: "cv-channel", v: "tg" });
+    clickAction(env5, { a: "cv-country-toggle" });
     await flushMicrotasks(2);
-    assert(env5.elements.get("modal-root").innerHTML.includes("is-contact-verify-sheet") && env5.elements.get("modal-root").innerHTML.includes('id="cv-contact-inp"'), "expected Google sign-in to require messenger contact grabber");
-    env5.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "contact-verify-send" }, elements: { contact: { value: "aytal_student" } } }) }, preventDefault() {} });
+    const countryDropHtml = env5.elements.get("modal-root").innerHTML;
+    assert(
+      countryDropHtml.includes("Россия") &&
+      countryDropHtml.includes("Казахстан") &&
+      countryDropHtml.includes("Беларусь") &&
+      countryDropHtml.includes("Другая страна"),
+      "expected RU, KZ, CIS and Other country options in phone country dropdown"
+    );
+    clickAction(env5, { a: "cv-country-pick", v: "KZ" });
     await flushMicrotasks(2);
-    assert(env5.elements.get("modal-root").innerHTML.includes("otp-4-grid") && env5.elements.get("modal-root").innerHTML.includes("@aytal_student"), "expected 4-digit OTP sheet after Telegram submission");
+    const kzInp = { id: "cv-contact-inp", value: "+7 7011234567", dataset: {} };
+    env5.emitDoc("input", { target: kzInp });
+    assert(kzInp.value === "+7 (701) 123-45-67", `expected KZ +7 phone mask, got ${kzInp.value}`);
+    env5.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "contact-verify-send" }, elements: { contact: { value: kzInp.value } } }) }, preventDefault() {} });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("modal-root").innerHTML.includes("otp-4-grid") && env5.elements.get("modal-root").innerHTML.includes("+7 (701) 123-45-67"), "expected 4-digit SMS OTP sheet after KZ phone submission");
     clickAction(env5, { a: "cv-autofill" });
     env5.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "contact-verify-check" } }) }, preventDefault() {} });
     await flushMicrotasks(4);
-    assert(env5.elements.get("modal-root").innerHTML.includes('id="bid-submit-btn"') && env5.elements.get("modal-root").innerHTML.includes('value="1150"'), "expected confirmed Google + 4-digit OTP to resume booking sheet with preserved 1150 ₽ offer");
+    assert(env5.elements.get("modal-root").innerHTML.includes('id="bid-submit-btn"') && env5.elements.get("modal-root").innerHTML.includes('value="1150"'), "expected confirmed Google + 4-digit SMS OTP to resume booking sheet with preserved 1150 ₽ offer");
 
     clickAction(env5, { a: "book-submit" });
     await flushMicrotasks(3);
