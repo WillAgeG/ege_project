@@ -367,6 +367,11 @@
       statsPeriod: "7d",
       chartStyle: "sticks",
       monthlyGoal: 60000,
+      payoutScope: "all",
+      payoutRateOpen: false,
+      goalCustomOpen: false,
+      feeDetailsOpen: false,
+      historyDetailsOpen: false,
       bumpedToday: false,
       autoBump24h: true,
       autoBumpHour: "09:00",
@@ -873,14 +878,23 @@
       : {};
     const cur = map[reqId];
     if (cur && typeof cur === "object") {
+      const leads = normalizeLeadList(cur.leads);
+      const lastLeads = Array.isArray(cur.lastLeads) && cur.lastLeads.length
+        ? normalizeLeadList(cur.lastLeads)
+        : (leads.length ? leads.slice() : DEFAULT_WA_LEADS.slice());
       return {
-        enabled: cur.enabled !== false,
-        leads: normalizeLeadList(cur.leads)
+        enabled: leads.length > 0,
+        leads,
+        lastLeads
       };
     }
+    const defLeads = stu ? normalizeLeadList(stu.autoLeads) : DEFAULT_WA_LEADS.slice();
+    const stuEnabled = stu ? (stu.autoNotify !== false) : true;
+    const leads = stuEnabled ? defLeads : [];
     return {
-      enabled: stu ? (stu.autoNotify !== false) : true,
-      leads: normalizeLeadList(stu && stu.autoLeads)
+      enabled: leads.length > 0,
+      leads,
+      lastLeads: defLeads.length ? defLeads.slice() : DEFAULT_WA_LEADS.slice()
     };
   }
 
@@ -891,6 +905,7 @@
     return `<div class="tc-notify-box" role="group" aria-label="Автоуведомление перед уроком">
       <div class="tc-notify-top">
         <span class="tc-notify-title">${icon("bell")}<span>Автоуведомление</span></span>
+        <button type="button" class="tc-switch-pill${cfg.enabled ? " is-on" : ""}" data-a="tc-lesson-notify-toggle" data-id="${esc(reqId)}" data-stu-id="${esc(stuId)}" aria-pressed="${cfg.enabled}">${cfg.enabled ? "Вкл" : "Выкл"}</button>
       </div>
       <div class="tc-lead-pills" role="group" aria-label="Когда напомнить">
         ${WA_LEAD_OPTIONS.map((o) => {

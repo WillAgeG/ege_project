@@ -2380,8 +2380,8 @@
       afterAcceptHtml.includes("Подключиться к Яндекс Телемосту") &&
       afterAcceptHtml.includes("https://telemost.yandex.ru/j/") &&
       afterAcceptHtml.includes("Автоуведомление") &&
-      !afterAcceptHtml.includes("tc-lesson-notify-toggle") &&
-      !afterAcceptHtml.includes("tc-switch-pill") &&
+      afterAcceptHtml.includes('data-a="tc-lesson-notify-toggle" data-id="tc-req-1" data-stu-id="st-alina" aria-pressed="true"') &&
+      afterAcceptHtml.includes("tc-switch-pill is-on") &&
       afterAcceptHtml.includes('data-a="tc-lesson-lead-toggle" data-id="tc-req-1" data-stu-id="st-alina" data-v="24h" aria-pressed="true"') &&
       afterAcceptHtml.includes('data-a="tc-lesson-lead-toggle" data-id="tc-req-1" data-stu-id="st-alina" data-v="1h" aria-pressed="true"') &&
       afterAcceptHtml.includes('data-a="tc-lesson-lead-toggle" data-id="tc-req-1" data-stu-id="st-alina" data-v="15m" aria-pressed="false"') &&
@@ -2392,7 +2392,7 @@
       afterAcceptHtml.includes("tc-sched-box") &&
       afterAcceptHtml.includes("Бот Вектора: ученик хочет заниматься в 16:00 в среду и четверг каждую неделю") &&
       afterAcceptHtml.includes('data-a="tc-sched-accept" data-id="tc-req-3"'),
-      "expected tc-req-accept to render icon-only hold-to-add logos, Telemost join CTA, default 24h+1h auto-notify blue pills without on/off switch, and Bot schedule card"
+      "expected tc-req-accept to render icon-only hold-to-add logos, Telemost join CTA, synced Вкл + default 24h+1h blue pills, and Bot schedule card"
     );
     clickAction(env5, { a: "tc-lesson-lead-toggle", id: "tc-req-1", stuId: "st-alina", v: "15m" });
     await flushMicrotasks(1);
@@ -2403,9 +2403,33 @@
       all3LeadsHtml.includes('data-a="tc-lesson-lead-toggle" data-id="tc-req-1" data-stu-id="st-alina" data-v="15m" aria-pressed="true"'),
       "expected selecting 15m timing to allow all 3 timings (24h, 1h, 15m) enabled simultaneously"
     );
+    clickAction(env5, { a: "tc-lesson-notify-toggle", id: "tc-req-1", stuId: "st-alina" });
+    await flushMicrotasks(1);
+    const notifyOffHtml = env5.elements.get("main").innerHTML;
+    assert(
+      notifyOffHtml.includes('data-a="tc-lesson-notify-toggle" data-id="tc-req-1" data-stu-id="st-alina" aria-pressed="false"') &&
+      notifyOffHtml.includes('data-a="tc-lesson-lead-toggle" data-id="tc-req-1" data-stu-id="st-alina" data-v="24h" aria-pressed="false"') &&
+      notifyOffHtml.includes('data-a="tc-lesson-lead-toggle" data-id="tc-req-1" data-stu-id="st-alina" data-v="1h" aria-pressed="false"') &&
+      notifyOffHtml.includes('data-a="tc-lesson-lead-toggle" data-id="tc-req-1" data-stu-id="st-alina" data-v="15m" aria-pressed="false"'),
+      "expected turning Выкл to clear all 3 lead pills"
+    );
     clickAction(env5, { a: "tc-lesson-lead-toggle", id: "tc-req-1", stuId: "st-alina", v: "15m" });
     await flushMicrotasks(1);
-    assert(env5.elements.get("main").innerHTML.includes('data-a="tc-lesson-lead-toggle" data-id="tc-req-1" data-stu-id="st-alina" data-v="15m" aria-pressed="false"'), "expected tapping active lead pill to toggle it off");
+    const notifySyncOnHtml = env5.elements.get("main").innerHTML;
+    assert(
+      notifySyncOnHtml.includes('data-a="tc-lesson-lead-toggle" data-id="tc-req-1" data-stu-id="st-alina" data-v="15m" aria-pressed="true"') &&
+      notifySyncOnHtml.includes('data-a="tc-lesson-notify-toggle" data-id="tc-req-1" data-stu-id="st-alina" aria-pressed="true"'),
+      "expected picking a timing while Выкл to turn Вкл automatically"
+    );
+    clickAction(env5, { a: "tc-lesson-notify-toggle", id: "tc-req-1", stuId: "st-alina" });
+    await flushMicrotasks(1);
+    clickAction(env5, { a: "tc-lesson-notify-toggle", id: "tc-req-1", stuId: "st-alina" });
+    await flushMicrotasks(1);
+    assert(
+      env5.elements.get("main").innerHTML.includes('data-a="tc-lesson-notify-toggle" data-id="tc-req-1" data-stu-id="st-alina" aria-pressed="true"') &&
+      env5.elements.get("main").innerHTML.includes('data-a="tc-lesson-lead-toggle" data-id="tc-req-1" data-stu-id="st-alina" data-v="15m" aria-pressed="true"'),
+      "expected toggling Выкл -> Вкл to restore last selected timings"
+    );
     clickAction(env5, { a: "tc-sched-alt-open", id: "tc-req-3" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes("Предложить ученику другие дни"), "expected tc-sched-alt-open to reveal tutor alternative 1-7 day picker");
@@ -2599,27 +2623,57 @@
       "expected fluid tabbar columns, 999px pill radius on .btn-msg, and capsule outline on .tc-bar-col.is-active"
     );
 
-    // Выплаты и статистика: KPIs + Статистика преподавателя + Цель дохода (без лишней кнопки «← В кабинет», без двойной рамки кошелька)
+    // Выплаты и статистика: За всё время / За последний месяц, только 3 KPI, финтех-кошелёк, 1-строчная цель и Подробнее для расчёта/истории
     clickAction(env5, { a: "go", v: "fees" });
     await flushMicrotasks(3);
     const tcPayoutsHtml = env5.elements.get("main").innerHTML;
     assert(
       !tcPayoutsHtml.includes("← В кабинет") &&
-      tcPayoutsHtml.includes("tc-wallet-card") &&
-      tcPayoutsHtml.includes("tc-kpi-tiles") &&
-      tcPayoutsHtml.includes("Новые заявки") &&
-      tcPayoutsHtml.includes("Подтверждено") &&
+      tcPayoutsHtml.includes('data-a="tc-payout-scope" data-v="all" aria-pressed="true"') &&
+      tcPayoutsHtml.includes('data-a="tc-payout-scope" data-v="month" aria-pressed="false"') &&
+      tcPayoutsHtml.includes("tc-payout-summary") &&
+      tcPayoutsHtml.includes("Ставка в анкете") &&
       tcPayoutsHtml.includes("Чистый доход (95%)") &&
       tcPayoutsHtml.includes("Проведено уроков") &&
-      tcPayoutsHtml.includes("Заработано за месяц") &&
-      tcPayoutsHtml.includes("Ставка в анкете") &&
+      !tcPayoutsHtml.includes("Новые заявки") &&
+      !tcPayoutsHtml.includes("Подтверждено") &&
+      !tcPayoutsHtml.includes("Заработано за месяц") &&
+      !tcPayoutsHtml.includes("Новый вывод") &&
+      tcPayoutsHtml.includes("tc-wallet-card") &&
+      tcPayoutsHtml.includes("tc-wallet-amount") &&
+      tcPayoutsHtml.includes("tc-goal-row") &&
+      tcPayoutsHtml.includes("40 тыс") &&
+      tcPayoutsHtml.includes("90 тыс") &&
+      tcPayoutsHtml.includes("Своя цель") &&
+      !tcPayoutsHtml.includes("bid-fee-row") &&
+      !tcPayoutsHtml.includes('id="tc-payout-history"') &&
       tcPayoutsHtml.includes("Статистика преподавателя") &&
       tcPayoutsHtml.includes("Цель дохода на месяц") &&
       !tcPayoutsHtml.includes('data-a="tc-bump"') &&
       !tcPayoutsHtml.includes("3 колонки") &&
       !tcPayoutsHtml.includes("7 колонок"),
-      "expected polished Выплаты dashboard without back button, with flattened wallet card, KPI tiles, stats chart and monthly goal"
+      "expected redesigned Выплаты with all-time default scope, 3 KPIs, fintech wallet, 1-row goals, and collapsed fee/history details"
     );
+    clickAction(env5, { a: "tc-payout-scope", v: "month" });
+    await flushMicrotasks(1);
+    assert(env5.elements.get("main").innerHTML.includes("за последний месяц") && env5.elements.get("main").innerHTML.includes('data-a="tc-payout-scope" data-v="month" aria-pressed="true"'), "expected tc-payout-scope=month to switch tiles to last month");
+    clickAction(env5, { a: "tc-payout-scope", v: "all" });
+    await flushMicrotasks(1);
+    clickAction(env5, { a: "tc-payout-rate-toggle" });
+    await flushMicrotasks(1);
+    assert(env5.elements.get("main").innerHTML.includes("tc-rate-edit-box") && env5.elements.get("main").innerHTML.includes('data-a="tc-rate-step"'), "expected clicking Ставка в анкете to expand inline rate editor");
+    clickAction(env5, { a: "tc-payout-rate-toggle" });
+    await flushMicrotasks(1);
+    clickAction(env5, { a: "tc-goal-custom-toggle" });
+    await flushMicrotasks(1);
+    env5.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "tc-goal-custom" }, elements: { goal: { value: "75000" } } }) }, preventDefault() {} });
+    await flushMicrotasks(1);
+    assert(hasNum(env5.elements.get("main").innerHTML, "75 000 ₽"), "expected custom goal form tc-goal-custom to update monthly goal");
+    clickAction(env5, { a: "tc-fee-details-toggle" });
+    await flushMicrotasks(1);
+    clickAction(env5, { a: "tc-history-details-toggle" });
+    await flushMicrotasks(1);
+    assert(env5.elements.get("main").innerHTML.includes("bid-fee-row") && env5.elements.get("main").innerHTML.includes('id="tc-payout-history"'), "expected Подробнее toggles to expand fee breakdown and payout history");
     clickAction(env5, { a: "tc-stats-period", v: "30d" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes("прогноз за месяц") && env5.elements.get("main").innerHTML.includes("tc-bar-chart is-sticks"), "expected 30d period switch and default stick chart in Выплаты stats");

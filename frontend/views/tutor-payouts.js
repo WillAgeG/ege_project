@@ -42,7 +42,7 @@
       return { wd: d.wd, rev, lessons, isGold: st.bumpedToday || slotCnt >= 3 || d.dow === "6" };
     });
     const maxRev = Math.max(1, ...dayBars.map((b) => b.rev));
-    const goal = Math.max(20000, Number(st.monthlyGoal) || 60000);
+    const goal = Math.max(10000, Number(st.monthlyGoal) || 60000);
     const lessonsNeededMonth = Math.ceil(goal / Math.max(500, sp.payout));
     const lessonsPerWeek = (lessonsNeededMonth / 4.3).toFixed(1);
     const curMonthlyProj = Math.max(totalPayout, (acceptedList.length + 3) * 4 * sp.payout);
@@ -99,14 +99,20 @@
       </div>
 
       <div class="card stack" style="gap:12px">
-        <div class="row between" style="gap:8px;flex-wrap:wrap">
+        <div class="stack" style="gap:8px">
           <div>
             <div class="eyebrow">Финансовый планировщик</div>
             <h3 class="h2">Цель дохода на месяц: <span class="num savings-gold-txt">${goal.toLocaleString("ru-RU")} ₽</span></h3>
           </div>
-          <div class="row" style="gap:6px;flex-wrap:wrap">
-            ${GOAL_PRESETS.map((g) => `<button type="button" class="chip-btn${goal === g ? " on" : ""}" data-a="tc-goal" data-v="${g}">${Math.round(g / 1000)} тыс ₽</button>`).join("")}
+          <div class="tc-goal-row" role="group" aria-label="Быстрый выбор цели дохода">
+            <button type="button" class="chip-btn${goal === 40000 && !st.goalCustomOpen ? " on" : ""}" data-a="tc-goal" data-v="40000">40 тыс</button>
+            <button type="button" class="chip-btn${goal === 90000 && !st.goalCustomOpen ? " on" : ""}" data-a="tc-goal" data-v="90000">90 тыс</button>
+            <button type="button" class="chip-btn${(st.goalCustomOpen || (goal !== 40000 && goal !== 90000)) ? " on" : ""}" data-a="tc-goal-custom-toggle">Своя цель</button>
           </div>
+          ${st.goalCustomOpen ? `<form class="tc-goal-custom-form" data-f="tc-goal-custom">
+            <input class="input num" name="goal" type="number" min="10000" max="500000" step="5000" value="${goal}" placeholder="Сумма в ₽" aria-label="Своя цель дохода на месяц">
+            <button type="submit" class="btn sm">Сохранить</button>
+          </form>` : ""}
         </div>
         <div class="tc-hh-meter"><i style="width:${goalPct}%"></i></div>
         <div class="row between small muted" style="gap:8px;flex-wrap:wrap">
@@ -457,6 +463,7 @@
     };
     if (!Array.isArray(st.payouts)) st.payouts = [];
     st.payouts.unshift(payoutRow);
+    st.historyDetailsOpen = true;
     saveState();
     const ctxStore = getCtx().store;
     if (ctxStore && ctxStore.backend && ctxStore.user && EGE.api && EGE.api.tutor) {
@@ -491,63 +498,61 @@
       ? `Карта ···· ${String(s.card || "").replace(/\D+/g, "").slice(-4) || "4419"}`
       : `СБП · ${s.bank || "АЭБ (Алмазэргиэнбанк)"} (${s.phone || "+7 (914) 210-01-99"})`;
     return `<section class="card stack tc-wallet-card" aria-label="Баланс и вывод средств">
-      <div class="tc-wallet-head">
-        <div class="stack" style="gap:4px;min-width:0;flex:1 1 240px">
-          <div class="eyebrow">Кошелёк преподавателя</div>
-          <h2 class="h2">Баланс и вывод средств</h2>
-          <p class="small muted">Реквизиты по умолчанию: <b class="ink2">${esc(reqLabel)}</b> · ${s.npdReceipt ? "чек НПД (4–6%) вкл." : "без чека НПД"}</p>
-        </div>
-        <div class="tc-wallet-cta">
-          <button type="button" class="btn confirm" data-a="tc-payout-open"${wallet.availableRub < wallet.minPayout ? " disabled" : ""}>${icon("wallet")}<span>Вывести средства</span></button>
-        </div>
+      <div class="tc-wallet-top">
+        <div class="eyebrow">Кошелёк преподавателя</div>
+        <span class="chip${s.npdReceipt ? " confirm" : ""}">${s.npdReceipt ? "Чек НПД ✓" : "Без НПД"}</span>
       </div>
-      <div class="tc-payout-kpis">
-        <div class="tc-payout-kpi">
-          <span class="small muted">Доступно к выводу</span>
-          <b class="num" style="color:var(--confirm)">${wallet.availableRub.toLocaleString("ru-RU")} ₽</b>
-        </div>
-        <div class="tc-payout-kpi">
+      <div class="tc-wallet-hero">
+        <span class="small muted">Доступно к выводу</span>
+        <div class="tc-wallet-amount num">${wallet.availableRub.toLocaleString("ru-RU")} ₽</div>
+      </div>
+      <div class="tc-wallet-sub">
+        <div class="tc-wallet-sub-item">
           <span class="small muted">В резерве до урока</span>
           <b class="num">${wallet.escrowRub.toLocaleString("ru-RU")} ₽</b>
         </div>
-        <div class="tc-payout-kpi">
+        <div class="tc-wallet-sub-item">
           <span class="small muted">Уже выведено</span>
           <b class="num">${wallet.withdrawnTotal.toLocaleString("ru-RU")} ₽</b>
         </div>
       </div>
+      <div class="tc-wallet-req">${icon("wallet")}<span class="muted">${esc(reqLabel)}</span></div>
+      <button type="button" class="btn confirm tc-wallet-submit" data-a="tc-payout-open"${wallet.availableRub < wallet.minPayout ? " disabled" : ""}>${icon("wallet")}<span>Вывести средства</span></button>
     </section>`;
   }
 
-  function renderPayoutHistorySection(wallet) {
+  function renderPayoutHistorySection(wallet, st) {
+    const curSt = st || tState();
     const list = Array.isArray(wallet.payouts) ? wallet.payouts : [];
-    const bodyHtml = !list.length
-      ? `<div class="empty"><b>Выводов пока не было</b><span>Нажмите «Вывести средства», чтобы перевести доступный остаток на СБП или карту РФ.</span></div>`
-      : `<div class="tc-payout-list" id="tc-payout-history">
-          ${list.map((row) => `<div class="tc-payout-item">
-            <div class="stack" style="gap:4px;min-width:0;flex:1 1 200px">
-              <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center">
-                <b>${esc(row.methodLabel || "СБП")}</b>
-                ${row.npdReceipt ? '<span class="chip good">Чек НПД</span>' : '<span class="chip">Без НПД</span>'}
+    const isOpen = !!curSt.historyDetailsOpen;
+    const bodyHtml = !isOpen
+      ? ""
+      : (!list.length
+        ? `<div class="empty"><b>Выводов пока не было</b><span>Нажмите «Вывести средства», чтобы перевести доступный остаток на СБП или карту РФ.</span></div>`
+        : `<div class="tc-payout-list" id="tc-payout-history">
+            ${list.map((row) => `<div class="tc-payout-item">
+              <div class="stack" style="gap:4px;min-width:0;flex:1 1 200px">
+                <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center">
+                  <b>${esc(row.methodLabel || "СБП")}</b>
+                  ${row.npdReceipt ? '<span class="chip good">Чек НПД</span>' : '<span class="chip">Без НПД</span>'}
+                </div>
+                <div class="small muted num">${esc(row.createdAtLabel || "—")} · ${esc(row.destination || "—")}</div>
               </div>
-              <div class="small muted num">${esc(row.createdAtLabel || "—")} · ${esc(row.destination || "—")}</div>
-            </div>
-            <div class="tc-payout-item-right">
-              <b class="num" style="font-size:15px">${Number(row.amount || 0).toLocaleString("ru-RU")} ₽</b>
-              <span class="bb-tbl-st ${row.status === "processing" ? "is-pending" : "is-confirmed"}">${esc(row.statusLabel || "Исполнено ✓")}</span>
-            </div>
-          </div>`).join("")}
-        </div>`;
+              <div class="tc-payout-item-right">
+                <b class="num" style="font-size:15px">${Number(row.amount || 0).toLocaleString("ru-RU")} ₽</b>
+                <span class="bb-tbl-st ${row.status === "processing" ? "is-pending" : "is-confirmed"}">${esc(row.statusLabel || "Исполнено ✓")}</span>
+              </div>
+            </div>`).join("")}
+          </div>`);
 
     return `<section class="card stack" style="gap:12px" aria-label="История выводов средств">
-      <div class="row between" style="gap:10px;flex-wrap:wrap;align-items:center">
-        <div>
+      <div class="tc-fold-head">
+        <div class="stack" style="gap:2px;min-width:0">
           <div class="eyebrow">Операции по счёту</div>
           <h2 class="h2">История выводов средств</h2>
+          <span class="small muted num">${list.length} ${plural(list.length, "выплата", "выплаты", "выплат")} · ${wallet.withdrawnTotal.toLocaleString("ru-RU")} ₽</span>
         </div>
-        <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
-          <span class="chip num">${list.length} ${plural(list.length, "выплата", "выплаты", "выплат")}</span>
-          <button type="button" class="btn soft sm" data-a="tc-payout-open">${icon("upload")}<span>Новый вывод</span></button>
-        </div>
+        <button type="button" class="btn soft sm" data-a="tc-history-details-toggle" aria-expanded="${isOpen}">${isOpen ? "Скрыть" : "Подробнее"}</button>
       </div>
       ${bodyHtml}
     </section>`;
@@ -558,8 +563,9 @@
     const TDATA = getTDATA();
     const st = tState();
     const p = st.profile;
+    const isMonth = st.payoutScope === "month";
+    const scopeLabel = isMonth ? "за последний месяц" : "за всё время";
     const allReqs = syncedRequests();
-    const pendingList = allReqs.filter((r) => r.status === "pending");
     const acceptedList = allReqs.filter((r) => r.status === "accepted");
     const baseSplit = TDATA && typeof TDATA.commissionSplit === "function"
       ? TDATA.commissionSplit(p.price)
@@ -570,9 +576,12 @@
       return acc + sp.payout;
     }, 0);
     const studentsDoneLessons = (st.students || []).reduce((sum, s) => sum + (Number(s.lessonsDone) || 0), 0);
-    const totalLessonsCount = studentsDoneLessons + acceptedList.length;
-    const netIncomeTotal = (studentsDoneLessons * baseSplit.payout) + totalReqPayout;
-    const monthEarned = Math.max(netIncomeTotal, (acceptedList.length + 4) * 4 * baseSplit.payout);
+    const lessonsAll = studentsDoneLessons + acceptedList.length;
+    const lessonsMonth = Math.max(acceptedList.length, Math.min(lessonsAll, acceptedList.length + Math.round(studentsDoneLessons * 0.45)));
+    const netIncomeAll = (studentsDoneLessons * baseSplit.payout) + totalReqPayout;
+    const netIncomeMonth = Math.round(lessonsMonth * baseSplit.payout);
+    const shownIncome = isMonth ? netIncomeMonth : netIncomeAll;
+    const shownLessons = isMonth ? lessonsMonth : lessonsAll;
     const wallet = getWalletSummary();
 
     return `
@@ -581,61 +590,75 @@
           <div class="eyebrow">Финансы преподавателя · 95% на руки</div>
           <h1 class="h1">Выплаты и статистика</h1>
         </div>
-        <p class="lead">Заявки, подтверждённые уроки, ставка в анкете, чистый доход (95%), статистика и цель на месяц.</p>
       </div>
 
-      <div class="tiles tc-kpi-tiles">
-        <div class="tile">
-          <span class="tile-label">Новые заявки</span>
-          <span class="tile-value num">
-            <button type="button" class="tc-kpi-jump num" data-a="tc-jump-pending" style="color:${pendingList.length ? "var(--notif)" : "var(--ink)"}" title="Нажмите, чтобы перейти к ожидающим заявкам">${pendingList.length}</button>
-          </span>
-          <span class="tile-note">${pendingList.length ? `<button type="button" class="link-btn small tc-kpi-link" data-a="tc-jump-pending">Ждут ответа →</button>` : "Все разобраны"}</span>
+      <div class="hh-seg equal tc-payout-scope-seg" role="group" aria-label="Период статистики выплат">
+        <button type="button" data-a="tc-payout-scope" data-v="all" aria-pressed="${!isMonth}">За всё время</button>
+        <button type="button" data-a="tc-payout-scope" data-v="month" aria-pressed="${isMonth}">За последний месяц</button>
+      </div>
+
+      <div class="tc-payout-summary">
+        <div class="tc-rate-tile">
+          <button type="button" class="tc-rate-tile-btn" data-a="tc-payout-rate-toggle" aria-expanded="${!!st.payoutRateOpen}">
+            <div class="stack" style="gap:3px;min-width:0">
+              <span class="tile-label">Ставка в анкете</span>
+              <span class="tile-value num">${p.price.toLocaleString("ru-RU")} ₽/ч</span>
+              <span class="tile-note">торг от ${p.minFair.toLocaleString("ru-RU")} ₽/ч</span>
+            </div>
+            <span class="chip">${st.payoutRateOpen ? "Свернуть" : "Изменить ›"}</span>
+          </button>
+          ${st.payoutRateOpen ? `<div class="tc-rate-edit-box">
+            <div class="field">
+              <span class="label">Базовая ставка (₽/ч)</span>
+              <div class="hh-price-stepper compact">
+                <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="price" data-step="-50">−50 ₽</button>
+                <div class="hh-step-readout"><b class="num">${p.price.toLocaleString("ru-RU")} ₽/ч</b></div>
+                <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="price" data-step="50">+50 ₽</button>
+              </div>
+            </div>
+            <div class="field">
+              <span class="label">Минимальный порог торга</span>
+              <div class="hh-price-stepper compact">
+                <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="minFair" data-step="-50">−50 ₽</button>
+                <div class="hh-step-readout"><b class="num">${p.minFair.toLocaleString("ru-RU")} ₽/ч</b></div>
+                <button type="button" class="hh-step-btn" data-a="tc-rate-step" data-which="minFair" data-step="50">+50 ₽</button>
+              </div>
+            </div>
+            <button type="button" class="btn soft sm" data-a="tc-payout-rate-toggle" style="width:100%;justify-content:center">Готово</button>
+          </div>` : ""}
         </div>
-        <div class="tile">
-          <span class="tile-label">Подтверждено</span>
-          <span class="tile-value num" style="color:var(--confirm)">${acceptedList.length}</span>
-          <span class="tile-note">${plural(acceptedList.length, "урок на неделе", "урока на неделе", "уроков на неделе")}</span>
-        </div>
-        <div class="tile">
-          <span class="tile-label">Ставка в анкете</span>
-          <span class="tile-value num">${p.price.toLocaleString("ru-RU")} ₽/ч</span>
-          <span class="tile-note">торг от ${p.minFair.toLocaleString("ru-RU")} ₽/ч</span>
-        </div>
+
         <div class="tile">
           <span class="tile-label">Чистый доход (95%)</span>
-          <span class="tile-value num savings-gold-txt">${netIncomeTotal.toLocaleString("ru-RU")} ₽</span>
-          <span class="tile-note">после 5% сбора</span>
+          <span class="tile-value num savings-gold-txt">${shownIncome.toLocaleString("ru-RU")} ₽</span>
+          <span class="tile-note">${scopeLabel}</span>
         </div>
+
         <div class="tile">
           <span class="tile-label">Проведено уроков</span>
-          <span class="tile-value num">${totalLessonsCount}</span>
-          <span class="tile-note">учеников: ${(st.students || []).length}</span>
-        </div>
-        <div class="tile">
-          <span class="tile-label">Заработано за месяц</span>
-          <span class="tile-value num" style="color:var(--confirm)">${monthEarned.toLocaleString("ru-RU")} ₽</span>
-          <span class="tile-note">прогноз цикла</span>
+          <span class="tile-value num">${shownLessons}</span>
+          <span class="tile-note">${scopeLabel}</span>
         </div>
       </div>
 
       ${renderPayoutWalletSection(wallet)}
 
-      ${renderPayoutStatsBlocks(st, TDATA, allReqs, acceptedList, netIncomeTotal)}
+      ${renderPayoutStatsBlocks(st, TDATA, allReqs, acceptedList, netIncomeAll)}
 
       <section class="card stack" style="gap:12px" aria-label="Условия выплат и сервисный сбор 5%">
-        <div class="row between" style="gap:8px;flex-wrap:wrap">
-          <div>
-            <div class="eyebrow">Прозрачная комиссия</div>
-            <h2 class="h2">Расчёт с урока по ставке анкеты</h2>
+        <div class="tc-fold-head">
+          <div class="stack" style="gap:2px;min-width:0">
+            <div class="eyebrow">Прозрачная комиссия · 5%</div>
+            <h2 class="h2">Расчёт с урока</h2>
+            <span class="small muted num">${p.price.toLocaleString("ru-RU")} ₽ → ${baseSplit.payout.toLocaleString("ru-RU")} ₽ вам (сбор ${baseSplit.fee} ₽)</span>
           </div>
-          <span class="chip accent">Комиссия системы: 5%</span>
+          <button type="button" class="btn soft sm" data-a="tc-fee-details-toggle" aria-expanded="${!!st.feeDetailsOpen}">${st.feeDetailsOpen ? "Скрыть" : "Подробнее"}</button>
         </div>
-        <div class="bid-fee-row">${feeSplitHTML(p.price, TDATA)}</div>
-        <p class="small muted">Средства ученика замораживаются до урока и переводятся преподавателю сразу после проведения занятия (95% на руки, 5% — сервис и поддержка расписания).</p>
+        ${st.feeDetailsOpen ? `<div class="bid-fee-row">${feeSplitHTML(p.price, TDATA)}</div>
+        <p class="small muted">Средства ученика замораживаются до урока и переводятся преподавателю сразу после проведения занятия (95% на руки, 5% — сервис и поддержка расписания).</p>` : ""}
       </section>
 
-      ${renderPayoutHistorySection(wallet)}`;
+      ${renderPayoutHistorySection(wallet, st)}`;
   }
 
 

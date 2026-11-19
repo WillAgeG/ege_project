@@ -16,7 +16,7 @@
   const TC = EGE._tutorCab;
   const {
     TC_LS_KEY, DAY_MS, FOUR_HOURS_MS, DAY_LIST, EXAM_OPTIONS, FORMAT_OPTIONS,
-    CITY_OPTIONS, TZ_OPTIONS, WA_LEAD_OPTIONS, AUTO_CHANNELS, AUTO_BUMP_HOURS,
+    CITY_OPTIONS, TZ_OPTIONS, WA_LEAD_OPTIONS, DEFAULT_WA_LEADS, AUTO_CHANNELS, AUTO_BUMP_HOURS,
     GOAL_PRESETS, QUICK_TEMPLATES, DEFAULT_REQUESTS, DEFAULT_STUDENTS,
     SAMPLE_GCAL_ICS, MIN_PAYOUT_RUB, PAYOUT_BANKS,
     getCtx, configure, getTDATA, getTutorSlug, syncTutorCalendar, publishRtUpdate,
@@ -711,9 +711,21 @@
       if (!st.lessonAutoNotify || typeof st.lessonAutoNotify !== "object") st.lessonAutoNotify = {};
       const stu = d.stuId ? (st.students || []).find((x) => x.id === d.stuId) : null;
       const prev = getLessonNotifyConfig(st, id, stu);
-      const nextEnabled = !prev.enabled;
-      st.lessonAutoNotify[id] = { enabled: nextEnabled, leads: prev.leads.slice() };
-      if (stu) stu.autoNotify = nextEnabled;
+      if (prev.leads.length > 0) {
+        const savedLeads = prev.leads.slice();
+        st.lessonAutoNotify[id] = { enabled: false, leads: [], lastLeads: savedLeads };
+        if (stu) {
+          stu.autoLeads = [];
+          stu.autoNotify = false;
+        }
+      } else {
+        const restored = (prev.lastLeads && prev.lastLeads.length) ? prev.lastLeads.slice() : DEFAULT_WA_LEADS.slice();
+        st.lessonAutoNotify[id] = { enabled: true, leads: restored, lastLeads: restored.slice() };
+        if (stu) {
+          stu.autoLeads = restored.slice();
+          stu.autoNotify = true;
+        }
+      }
       saveState();
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
       return true;
@@ -730,7 +742,8 @@
       else nextLeads.push(d.v);
       const normalized = normalizeLeadList(nextLeads);
       const nextEnabled = normalized.length > 0;
-      st.lessonAutoNotify[id] = { enabled: nextEnabled, leads: normalized };
+      const lastLeads = nextEnabled ? normalized.slice() : prev.lastLeads;
+      st.lessonAutoNotify[id] = { enabled: nextEnabled, leads: normalized, lastLeads };
       if (stu) {
         stu.autoLeads = normalized.slice();
         stu.autoNotify = nextEnabled;
@@ -806,8 +819,44 @@
       return true;
     }
 
+    if (act === "tc-payout-scope") {
+      st.payoutScope = d.v === "month" ? "month" : "all";
+      saveState();
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-payout-rate-toggle") {
+      st.payoutRateOpen = !st.payoutRateOpen;
+      saveState();
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      return true;
+    }
+
     if (act === "tc-goal") {
-      st.monthlyGoal = Math.max(20000, Math.min(300000, Number(d.v) || 60000));
+      st.monthlyGoal = Math.max(10000, Math.min(500000, Number(d.v) || 60000));
+      st.goalCustomOpen = false;
+      saveState();
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-goal-custom-toggle") {
+      st.goalCustomOpen = !st.goalCustomOpen;
+      saveState();
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-fee-details-toggle") {
+      st.feeDetailsOpen = !st.feeDetailsOpen;
+      saveState();
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-history-details-toggle") {
+      st.historyDetailsOpen = !st.historyDetailsOpen;
       saveState();
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
       return true;
@@ -1643,6 +1692,17 @@
       syncTutorCalendar(st);
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
       if (typeof getCtx().notifySide === "function") getCtx().notifySide("Ученик записан в календарь", `${sName} · ${dowObj.wd} в ${hour} (${rate.toLocaleString("ru-RU")} ₽/ч)`);
+      return true;
+    }
+
+    if (form.dataset.f === "tc-goal-custom") {
+      const rawGoal = els.goal ? Number(els.goal.value) : 0;
+      const nextGoal = Math.max(10000, Math.min(500000, Math.round(rawGoal || st.monthlyGoal || 60000)));
+      st.monthlyGoal = nextGoal;
+      st.goalCustomOpen = false;
+      saveState();
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      if (typeof getCtx().toast === "function") getCtx().toast(`Цель дохода: ${nextGoal.toLocaleString("ru-RU")} ₽`);
       return true;
     }
 
