@@ -2313,7 +2313,7 @@
       (tutorMain1.match(/<th\b/g) || []).length === 5,
       "expected clean 5-col Teacher Requests table without bump CTA or 3/7 cols switch"
     );
-    assert(!tutorMain1.includes("tc-role-bar") && tutorMain1.includes("is-gold-logo") && !tutorMain1.includes('role="tablist"'), "expected tc-role-bar and desktop tablist removed, keeping only gold line with centered emblem");
+    assert(!tutorMain1.includes("tc-role-bar") && !tutorMain1.includes('role="tablist"') && !tutorMain1.includes("tc-mobile-tabs"), "expected tc-role-bar, desktop tablist, and extra tc-mobile-tabs removed on Заявки");
     assert(
       env5.elements.get("top-balance-slot").hidden === false &&
       env5.elements.get("top-balance-slot").innerHTML.includes("is-tutor") &&
@@ -2331,11 +2331,25 @@
     );
     assert(env5.elements.get("side-subjects-wrap").hidden === true && env5.elements.get("side-subjects").innerHTML === "", "expected student ПРЕДМЕТЫ list hidden in tutor mode sidebar");
     assert(!tutorSideHtml.includes("Каталог") && !tutorSideHtml.includes('data-v="market"'), "expected Каталог removed completely from teacher sidebar");
-    for (const label of ["Заявки", "Календарь учеников", "Мои ученики", "Ученики ищут", "Профиль", "Выплаты", "Справочник"]) {
+    assert(
+      !tutorSideHtml.includes("Календарь") &&
+      !tutorSideHtml.includes("Ученики ищут") &&
+      !tutorSideHtml.includes("Справочник") &&
+      !tutorTabHtml.includes("Календарь"),
+      "expected strictly 4 tutor nav items without Календарь, Ученики ищут, or Справочник"
+    );
+    for (const label of ["Заявки", "Ученики", "Выплаты", "Профиль"]) {
       assert(tutorSideHtml.includes(label), `expected teacher sidebar nav item: ${label}`);
+      assert(tutorTabHtml.includes(label), `expected teacher tabbar nav item: ${label}`);
     }
+    const tutorReqMainHtml = env5.elements.get("main").innerHTML;
+    assert(
+      !tutorReqMainHtml.includes("Новые заявки") &&
+      !tutorReqMainHtml.includes("Ставка в анкете") &&
+      !tutorReqMainHtml.includes("Чистый доход (95%)"),
+      "expected Заявки view not to show KPI cards (moved to Выплаты)"
+    );
     assert(tutorSideHtml.includes('data-a="tc-jump-pending"') && tutorSideHtml.includes("side-badge-jump"), "expected clickable pending badge (2) next to Заявки in left sidebar");
-    assert(tutorTabHtml.includes("Заявки") && tutorTabHtml.includes("Календарь") && tutorTabHtml.includes("Ученики") && tutorTabHtml.includes("Профиль") && tutorTabHtml.includes("Выплаты"), "expected tutor 5-tab bottom bar (Заявки, Календарь, Ученики, Профиль, Выплаты)");
 
     // Клик по цифре 2 (tc-jump-pending) с другой страницы автоматически возвращает на Заявки
     clickAction(env5, { a: "go", v: "fees" });
@@ -2428,24 +2442,31 @@
     clickAction(env5, { a: "tc-tz-pick", v: "UTC+9" });
     await flushMicrotasks(2);
 
-    // Календарь записанных учеников (чистый вид без .cal-sync-card по умолчанию, без tc-bump, с кнопкой tc-cal-import-modal)
+    // Календарь записанных учеников внутри вкладки «Ученики» (как у ученика: 7 дней с цифрами и карточки учеников)
     clickAction(env5, { a: "go", v: "tutor-calendar" });
     await flushMicrotasks(2);
     const tcCalHtml = env5.elements.get("main").innerHTML;
+    const calStripEnd = tcCalHtml.indexOf('id="tc-students-table"');
+    const calOnlySlice = calStripEnd > 0 ? tcCalHtml.slice(tcCalHtml.indexOf('id="tc-week-strip"'), calStripEnd) : tcCalHtml;
     assert(
-      tcCalHtml.includes("Календарь записанных учеников") &&
-      tcCalHtml.includes("Алина С.") &&
-      !tcCalHtml.includes("Тимур К.") &&
-      !tcCalHtml.includes("cal-sync-card") &&
-      tcCalHtml.includes('data-a="tc-cal-import-modal"') &&
-      !tcCalHtml.includes('data-a="tc-bump"'),
-      "expected clean calendar without .cal-sync-card or tc-bump, showing ONLY confirmed students and tc-cal-import-modal CTA"
+      tcCalHtml.includes('id="tc-week-strip"') &&
+      tcCalHtml.includes('id="tc-students-table"') &&
+      calOnlySlice.includes("Календарь записанных учеников") &&
+      (calOnlySlice.match(/class="study-week-day-btn/g) || []).length === 7 &&
+      calOnlySlice.includes('class="study-lesson-card"') &&
+      calOnlySlice.includes("Алина С.") &&
+      !calOnlySlice.includes("Тимур К.") &&
+      !calOnlySlice.includes("Час закрыт для записи") &&
+      !calOnlySlice.includes("cal-sync-card") &&
+      calOnlySlice.includes('data-a="tc-cal-import-modal"') &&
+      !calOnlySlice.includes('data-a="tc-bump"'),
+      "expected unified Ученики calendar strip matching student calendar with confirmed student cards, 7 day buttons, and no empty-slot noise"
     );
     clickAction(env5, { a: "tc-cal-open-add", hour: "11:00" });
     await flushMicrotasks(2);
     env5.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "tc-cal-add" }, elements: { studentName: { value: "Максим Р." }, hour: { value: "11:00" }, offerPrice: { value: "1300" }, note: { value: "Генетика №28" } } }) }, preventDefault() {} });
     await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("Максим Р.") && env5.elements.get("main").innerHTML.includes("Генетика №28"), "expected manually booked student to appear in hourly calendar");
+    assert(env5.elements.get("main").innerHTML.includes("Максим Р.") && env5.elements.get("main").innerHTML.includes("Генетика №28"), "expected manually booked student to appear in tutor calendar");
 
     // Вкладка преподавателя «Ученики ищут» (контр-цена ±50 ₽ tc-lead-step + tc-lead-offer, без tc-bump и без 3/7 колонок)
     clickAction(env5, { a: "go", v: "tutor-leads" });
@@ -2532,6 +2553,8 @@
     await flushMicrotasks(3);
     const tcPayoutsHtml = env5.elements.get("main").innerHTML;
     assert(
+      tcPayoutsHtml.includes("Новые заявки") &&
+      tcPayoutsHtml.includes("Подтверждено") &&
       tcPayoutsHtml.includes("Чистый доход (95%)") &&
       tcPayoutsHtml.includes("Проведено уроков") &&
       tcPayoutsHtml.includes("Заработано за месяц") &&
@@ -2541,7 +2564,7 @@
       !tcPayoutsHtml.includes('data-a="tc-bump"') &&
       !tcPayoutsHtml.includes("3 колонки") &&
       !tcPayoutsHtml.includes("7 колонок"),
-      "expected Выплаты dashboard to show net income KPIs, stats chart and monthly goal without duplicate tc-bump or 3/7 cols switch"
+      "expected Выплаты dashboard to show moved KPI tiles (Новые заявки, Подтверждено, Чистый доход, Ставка), stats chart and monthly goal"
     );
     clickAction(env5, { a: "tc-stats-period", v: "30d" });
     await flushMicrotasks(2);

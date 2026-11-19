@@ -987,7 +987,7 @@
 
   const TUTOR_TAB_VIEWS = {
     "tutor-requests": "requests",
-    "tutor-calendar": "calendar",
+    "tutor-calendar": "students",
     "tutor-students": "students",
     "tutor-leads": "leads",
     "tutor-profile": "profile"
@@ -1530,12 +1530,9 @@
       : isTutor
         ? [
             ["tutor-requests", "Заявки", "chat", ui.view === "cabinet" && tcTab === "requests", tcPending, "tc-jump-pending"],
-            ["tutor-calendar", "Календарь учеников", "cal", ui.view === "cabinet" && tcTab === "calendar", 0, ""],
-            ["tutor-students", "Мои ученики", "users", ui.view === "cabinet" && tcTab === "students", 0, ""],
-            ["tutor-leads", "Ученики ищут", "search", ui.view === "cabinet" && tcTab === "leads", 0, ""],
-            ["tutor-profile", "Профиль", "sliders", ui.view === "cabinet" && tcTab === "profile", 0, ""],
+            ["tutor-students", "Ученики", "users", ui.view === "cabinet" && (tcTab === "students" || tcTab === "calendar"), 0, ""],
             ["fees", "Выплаты", "wallet", ui.view === "fees", 0, ""],
-            ["tutor", "Справочник", "book", ui.view === "tutor", 0, ""]
+            ["tutor-profile", "Профиль", "sliders", ui.view === "cabinet" && tcTab === "profile", 0, ""]
           ]
         : [
             ["home", "Главная", "home", inHome, bidsBadge, ""],
@@ -1659,11 +1656,10 @@
         ]
       : isTutor
         ? [
-            ["tutor-requests", "Заявки", "chat", ui.view === "cabinet" && (tcTab === "requests" || tcTab === "leads"), tcPending],
-            ["tutor-calendar", "Календарь", "cal", ui.view === "cabinet" && tcTab === "calendar", 0],
-            ["tutor-students", "Ученики", "users", ui.view === "cabinet" && tcTab === "students", 0],
-            ["tutor-profile", "Профиль", "sliders", ui.view === "cabinet" && tcTab === "profile", 0],
-            ["fees", "Выплаты", "wallet", ui.view === "fees", 0]
+            ["tutor-requests", "Заявки", "chat", ui.view === "cabinet" && tcTab === "requests", tcPending],
+            ["tutor-students", "Ученики", "users", ui.view === "cabinet" && (tcTab === "students" || tcTab === "calendar"), 0],
+            ["fees", "Выплаты", "wallet", ui.view === "fees", 0],
+            ["tutor-profile", "Профиль", "sliders", ui.view === "cabinet" && tcTab === "profile", 0]
           ]
         : sideNav;
     $("#tabbar").innerHTML = mobileNav.map(([v, l, ic, cur, badge]) =>

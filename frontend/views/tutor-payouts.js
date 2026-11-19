@@ -602,6 +602,7 @@
     const st = tState();
     const p = st.profile;
     const allReqs = syncedRequests();
+    const pendingList = allReqs.filter((r) => r.status === "pending");
     const acceptedList = allReqs.filter((r) => r.status === "accepted");
     const baseSplit = TDATA && typeof TDATA.commissionSplit === "function"
       ? TDATA.commissionSplit(p.price)
@@ -628,10 +629,27 @@
             <button type="button" class="btn ghost sm" data-a="go" data-v="cabinet">← В кабинет</button>
           </div>
         </div>
-        <p class="lead">Чистый доход после 5% комиссии, количество проведённых уроков, заработок за месяц и цель дохода.</p>
+        <p class="lead">Новые заявки, подтверждённые уроки, ставка в анкете, чистый доход (95%), статистика и цель на месяц.</p>
       </div>
 
       <div class="tiles">
+        <div class="tile">
+          <span class="tile-label">Новые заявки</span>
+          <span class="tile-value num">
+            <button type="button" class="tc-kpi-jump num" data-a="tc-jump-pending" style="color:${pendingList.length ? "var(--notif)" : "var(--ink)"}" title="Нажмите, чтобы перейти к ожидающим заявкам">${pendingList.length}</button>
+          </span>
+          <span class="tile-note">${pendingList.length ? `<button type="button" class="link-btn small" data-a="tc-jump-pending">ждут вашего ответа →</button>` : "все разобраны"}</span>
+        </div>
+        <div class="tile">
+          <span class="tile-label">Подтверждено</span>
+          <span class="tile-value num" style="color:var(--confirm)">${acceptedList.length}</span>
+          <span class="tile-note">${plural(acceptedList.length, "урок на неделе", "урока на неделе", "уроков на неделе")}</span>
+        </div>
+        <div class="tile">
+          <span class="tile-label">Ставка в анкете</span>
+          <span class="tile-value num">${p.price.toLocaleString("ru-RU")} ₽/ч</span>
+          <span class="tile-note">торг от ${p.minFair.toLocaleString("ru-RU")} ₽/ч · на руки ${baseSplit.payout.toLocaleString("ru-RU")} ₽</span>
+        </div>
         <div class="tile">
           <span class="tile-label">Чистый доход (95%)</span>
           <span class="tile-value num savings-gold-txt">${netIncomeTotal.toLocaleString("ru-RU")} ₽</span>
@@ -646,11 +664,6 @@
           <span class="tile-label">Заработано за месяц</span>
           <span class="tile-value num" style="color:var(--confirm)">${monthEarned.toLocaleString("ru-RU")} ₽</span>
           <span class="tile-note">прогноз на текущий цикл</span>
-        </div>
-        <div class="tile">
-          <span class="tile-label">Ставка в анкете</span>
-          <span class="tile-value num">${p.price.toLocaleString("ru-RU")} ₽/ч</span>
-          <span class="tile-note">на руки ${baseSplit.payout.toLocaleString("ru-RU")} ₽ · сбор ${baseSplit.fee.toLocaleString("ru-RU")} ₽</span>
         </div>
       </div>
 

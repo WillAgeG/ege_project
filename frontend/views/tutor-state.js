@@ -783,7 +783,8 @@
 
   function setTab(nextTab) {
     const st = tState();
-    st.tab = ["requests", "leads", "profile", "calendar", "students"].includes(nextTab) ? nextTab : "requests";
+    const mapped = nextTab === "calendar" ? "students" : nextTab;
+    st.tab = ["requests", "leads", "profile", "students"].includes(mapped) ? mapped : "requests";
     saveState();
   }
 

@@ -22,6 +22,16 @@
     findReq, updateReq, pendingCount, renderDataTable, getTab, setTab, toggleArrayVal
   } = TC;
 
+  function lessonMatchesDow(r, dowStr) {
+    if (!r) return false;
+    const sp = r.schedulePlan;
+    if (sp && (sp.status === "confirmed" || sp.status === "sent_to_tutor") && Array.isArray(sp.dows) && sp.dows.length) {
+      return sp.dows.map((x) => String(x)).includes(dowStr);
+    }
+    const rDow = r.dow != null ? String(r.dow) : String(dayDowFromLabel(r.dayLabel));
+    return rDow === dowStr;
+  }
+
   function renderCalendarTab(st, TDATA, allReqs) {
     const hours = (TDATA && TDATA.HOURS) ? TDATA.HOURS : ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
     const weekOffset = st.calWeek ? 1 : 0;
@@ -32,9 +42,18 @@
     const dowStr = String(activeDay.dow);
     const dayKeyByDow = { "1": "mon", "2": "tue", "3": "wed", "4": "thu", "5": "fri", "6": "sat", "0": "sun" };
     const activeDayKey = dayKeyByDow[dowStr] || "sat";
-    const dayOpenSlots = Array.isArray(st.slots[dowStr]) ? st.slots[dowStr] : [];
-    const activeLessons = allReqs.filter((r) => r.status === "accepted" && (String(r.dow || dayDowFromLabel(r.dayLabel)) === dowStr));
-    const weekCount = allReqs.filter((r) => r.status === "accepted").length;
+    const confirmedReqs = allReqs.filter((r) => r.status === "accepted");
+    const activeLessons = confirmedReqs
+      .filter((r) => lessonMatchesDow(r, dowStr))
+      .sort((a, b) => {
+        const ha = String((a.schedulePlan && a.schedulePlan.hour) || a.hour || "");
+        const hb = String((b.schedulePlan && b.schedulePlan.hour) || b.hour || "");
+        return ha.localeCompare(hb);
+      });
+    const weekCount = weekDays.reduce((sum, d) => {
+      const k = String(d.dow);
+      return sum + confirmedReqs.filter((r) => lessonMatchesDow(r, k)).length;
+    }, 0);
 
     const rtCal = (EGE.realtime && typeof EGE.realtime.getState === "function") ? EGE.realtime.getState().calendar : null;
     const cs = st.calendarSync || {};
@@ -43,57 +62,113 @@
       : ((rtCal && Array.isArray(rtCal.busySlots)) ? rtCal.busySlots : []);
     const busyForActiveDay = busySlots.filter((b) => String(b.day || "") === activeDayKey || (b.dow !== undefined && b.dow !== null && b.dow !== "" && String(b.dow) === dowStr));
     const gcalConnected = !!(cs.gcalConnected || busySlots.length > 0);
+    const unbookedGcal = busyForActiveDay.filter((b) => !activeLessons.some((l) => String((l.schedulePlan && l.schedulePlan.hour) || l.hour || "") === String(b.hour || "")));
 
-    return `<div class="stack" style="gap:14px">
-      <div class="card stack" style="gap:12px">
-        <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
-          <div>
-            <div class="eyebrow">Живое расписание · 10:00–20:00</div>
-            <h2 class="h2">Календарь записанных учеников (${weekCount})</h2>
-          </div>
-          <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
-            ${gcalConnected ? `<span class="chip confirm">✓ GCal подключён</span>` : ""}
-            <button type="button" class="btn soft sm" data-a="tc-cal-open-add" data-hour="${hours[0]}">+ Записать ученика</button>
-            <button type="button" class="btn ghost sm" data-a="tc-copy-day">Скопировать день</button>
-            <button type="button" class="btn ghost sm" data-a="tc-cal-import-modal">Календарь Google / Apple</button>
-          </div>
-        </div>
+    const daysStripHTML = `<div class="study-week-days" role="group" aria-label="Дни недели и записанные ученики">
+      ${weekDays.map((d) => {
+        const k = String(d.dow);
+        const bookedCnt = confirmedReqs.filter((r) => lessonMatchesDow(r, k)).length;
+        const isOn = k === dowStr;
+        return `<button type="button" class="study-week-day-btn${isOn ? " on" : ""}${bookedCnt > 0 ? " has-lessons" : ""}" data-a="tc-day" data-dow="${k}" aria-pressed="${isOn}">
+          <span class="swd-wd">${esc(d.wd)}</span>
+          <span class="swd-num num">${esc(d.num)}</span>
+          ${bookedCnt > 0 ? `<span class="swd-cnt num">${bookedCnt}</span>` : `<span class="swd-dot" aria-hidden="true"></span>`}
+        </button>`;
+      }).join("")}
+    </div>`;
 
-        ${st.calImportOpen ? `<form class="card stack" style="gap:10px;border-color:var(--accent)" data-f="tc-cal-import">
-          <div class="row between" style="gap:8px">
-            <b>Подключить календарь Google / Apple / Яндекс</b>
-            <button type="button" class="icon-btn sm" data-a="tc-cal-import-close" aria-label="Закрыть">${icon("x")}</button>
-          </div>
-          <div class="field">
-            <label for="tc-ics-text">Вставьте экспортированный файл расписания (.ics) из вашего календаря — занятые часы автоматически скроются из записи</label>
-            <textarea class="textarea" id="tc-ics-text" name="icsText" rows="5" placeholder="Скопируйте содержимое файла .ics из Google, Apple или Яндекс Календаря">${esc(st.calImportDraft || SAMPLE_GCAL_ICS)}</textarea>
-          </div>
-          <div class="row" style="gap:8px;flex-wrap:wrap">
-            <button type="submit" class="btn sm">${icon("check")}<span>Перенести занятые слоты (${esc(st.profile.timezone || "UTC+9")})</span></button>
-            <button type="button" class="btn soft sm" data-a="tc-cal-import-sample">Тестовое расписание GCal</button>
-            <button type="button" class="btn ghost sm" data-a="tc-cal-import-close">Отмена</button>
-          </div>
-        </form>` : ""}
-
-        <div class="hh-seg equal" role="group" aria-label="Неделя календаря">
-          <button type="button" data-a="tc-cal-week" data-w="0" aria-pressed="${weekOffset === 0}"><span>Эта неделя</span></button>
-          <button type="button" data-a="tc-cal-week" data-w="1" aria-pressed="${weekOffset === 1}"><span>Следующая неделя</span></button>
-        </div>
-
-        <div class="cal-days" aria-label="Выбор дня недели">
-          ${weekDays.map((d) => {
-            const k = String(d.dow);
-            const openCnt = Array.isArray(st.slots[k]) ? st.slots[k].length : 0;
-            const bookedCnt = allReqs.filter((r) => r.status === "accepted" && String(r.dow || dayDowFromLabel(r.dayLabel)) === k).length;
-            const sel = k === dowStr;
-            return `<button type="button" class="day-cir${sel ? " on" : ""}" data-a="tc-day" data-dow="${k}">
-              <span class="day-wd">${esc(d.wd)} · ${esc(d.num)}</span>
-              <span class="day-dot">${bookedCnt}</span>
-              <span class="day-cnt">${bookedCnt ? plural(bookedCnt, "ученик", "ученика", "учеников") : (openCnt + " ок.")}</span>
-            </button>`;
+    const dayLessonsHTML = (activeLessons.length || unbookedGcal.length)
+      ? `<div class="study-day-cards">
+          ${activeLessons.map((lesson) => {
+            const sp = lesson.schedulePlan;
+            const lessonHour = String((sp && sp.hour) || lesson.hour || "14:00");
+            const isWeekly = !!(sp && sp.weekly !== false);
+            const rate = Number(lesson.counterPrice || lesson.offerPrice) || st.profile.price;
+            const gcalBusy = busyForActiveDay.find((b) => b.hour === lessonHour);
+            const tmUrl = String(lesson.telemostUrl || "").trim();
+            const msgBar = (EGE.kit && typeof EGE.kit.messengerLinksHTML === "function")
+              ? EGE.kit.messengerLinksHTML({
+                  entity: { id: lesson.id, name: lesson.studentName, whatsapp: lesson.whatsapp || "79142100511", telegram: lesson.telegram || "", maxHandle: lesson.maxHandle || "" },
+                  message: `Здравствуйте, ${lesson.studentName}! Напоминаю про занятие (${lesson.subjectName}, ${activeDay.shortLabel} в ${lessonHour}) на платформе Вектор ЕГЭ.`,
+                  primaryLabel: "WhatsApp",
+                  compact: true
+                })
+              : `<button type="button" class="btn soft sm" data-a="tc-req-msg" data-id="${esc(lesson.id)}">${icon("msg")}<span>Написать ученику</span></button>`;
+            return `<article class="study-lesson-card" data-req-id="${esc(lesson.id)}">
+              <div class="study-lesson-time-row">
+                <b class="num" style="font-size:15px">Урок в ${esc(lessonHour)}</b>
+                <span class="small muted">${esc(activeDay.shortLabel)} · ${esc(lesson.format || "Онлайн")}</span>
+              </div>
+              <div class="study-lesson-pills">
+                ${isWeekly ? `<span class="chip accent">Каждую неделю</span>` : ""}
+                <span class="bb-tbl-st is-confirmed">✓ Подтверждён</span>
+                ${gcalBusy ? `<span class="chip bad">Конфликт GCal</span>` : ""}
+              </div>
+              <div class="tutor-name-line">
+                <span class="tutor-avatar" aria-hidden="true">${esc(initials(lesson.studentName))}</span>
+                <div class="tutor-person-meta">
+                  <div class="tutor-title-inline">
+                    <b class="tutor-person-name">${esc(lesson.studentName)}</b>
+                  </div>
+                  <span class="small muted">${esc(lesson.exam || "ЕГЭ")} · ${esc(lesson.subjectName || "")} · ${rate.toLocaleString("ru-RU")} ₽/ч</span>
+                </div>
+              </div>
+              ${lesson.note ? `<div class="tc-req-quote">${esc(lesson.note)}</div>` : ""}
+              ${tmUrl ? `<a class="btn soft sm bid-telemost-join" href="${esc(tmUrl)}" target="_blank" rel="noopener noreferrer">${icon("video")}<span>Зайти в Яндекс Телемост</span></a>` : ""}
+              ${msgBar}
+              <button type="button" class="btn ghost sm study-cancel-btn" data-a="tc-req-decline" data-id="${esc(lesson.id)}">Снять с расписания</button>
+            </article>`;
           }).join("")}
+          ${unbookedGcal.map((gcalBusy) => `<div class="tc-cal-slot is-gcal-busy">
+            <div class="row" style="gap:10px;min-width:0;flex:1 1 220px;flex-wrap:wrap;align-items:center">
+              <span class="tc-cal-time">${esc(gcalBusy.hour)}</span>
+              <span class="badge">Занято в GCal</span>
+              <span class="small">${esc(gcalBusy.summary || "Событие Google Calendar")}</span>
+            </div>
+            <span class="small muted">Пересчитано в ${esc(st.profile.timezone || "UTC+9")}</span>
+          </div>`).join("")}
+        </div>`
+      : `<div class="empty">
+          <b>На ${esc(activeDay.fullLabel)} записанных учеников нет</b>
+          <span>Выберите день с цифрой выше или запишите ученика вручную.</span>
+          <button type="button" class="btn soft sm" data-a="tc-cal-open-add" data-hour="${hours[0]}">+ Записать ученика</button>
+        </div>`;
+
+    return `<section class="card pad stack study-cal-card" id="tc-week-strip">
+      <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
+        <div>
+          <div class="eyebrow">Живое расписание · 10:00–20:00</div>
+          <h2 class="h2">Календарь записанных учеников (${weekCount})</h2>
+        </div>
+        <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
+          ${gcalConnected ? `<span class="chip confirm">✓ GCal подключён</span>` : ""}
+          <button type="button" class="btn soft sm" data-a="tc-cal-open-add" data-hour="${hours[0]}">+ Записать ученика</button>
+          <button type="button" class="btn ghost sm" data-a="tc-cal-import-modal">Календарь Google / Apple</button>
         </div>
       </div>
+
+      ${st.calImportOpen ? `<form class="card stack" style="gap:10px;border-color:var(--accent)" data-f="tc-cal-import">
+        <div class="row between" style="gap:8px">
+          <b>Подключить календарь Google / Apple / Яндекс</b>
+          <button type="button" class="icon-btn sm" data-a="tc-cal-import-close" aria-label="Закрыть">${icon("x")}</button>
+        </div>
+        <div class="field">
+          <label for="tc-ics-text">Вставьте экспортированный файл расписания (.ics) из вашего календаря — занятые часы автоматически скроются из записи</label>
+          <textarea class="textarea" id="tc-ics-text" name="icsText" rows="5" placeholder="Скопируйте содержимое файла .ics из Google, Apple или Яндекс Календаря">${esc(st.calImportDraft || SAMPLE_GCAL_ICS)}</textarea>
+        </div>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <button type="submit" class="btn sm">${icon("check")}<span>Перенести занятые слоты (${esc(st.profile.timezone || "UTC+9")})</span></button>
+          <button type="button" class="btn soft sm" data-a="tc-cal-import-sample">Тестовое расписание GCal</button>
+          <button type="button" class="btn ghost sm" data-a="tc-cal-import-close">Отмена</button>
+        </div>
+      </form>` : ""}
+
+      <div class="hh-seg equal" role="group" aria-label="Неделя календаря">
+        <button type="button" data-a="tc-cal-week" data-w="0" aria-pressed="${weekOffset === 0}"><span>Эта неделя</span></button>
+        <button type="button" data-a="tc-cal-week" data-w="1" aria-pressed="${weekOffset === 1}"><span>Следующая неделя</span></button>
+      </div>
+
+      ${daysStripHTML}
 
       ${st.calAddOpen ? `<form class="card stack" style="gap:10px;border-color:var(--accent)" data-f="tc-cal-add">
         <div class="row between" style="gap:8px">
@@ -128,72 +203,14 @@
         </div>
       </form>` : ""}
 
-      <div class="card stack" style="gap:10px">
-        <div class="row between" style="gap:8px;flex-wrap:wrap">
-          <b>Почасовая сетка: ${esc(activeDay.fullLabel)}</b>
-          <span class="small muted">${activeLessons.length} ${plural(activeLessons.length, "занятие", "занятия", "занятий")} · ${dayOpenSlots.length} открытых окон</span>
+      <div class="study-day-panel">
+        <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
+          <b>${esc(activeDay.fullLabel)}</b>
+          <span class="chip num">${activeLessons.length} ${plural(activeLessons.length, "урок", "урока", "уроков")}</span>
         </div>
-        <div class="tc-cal-hours">
-          ${hours.map((h) => {
-            const lesson = activeLessons.find((r) => r.hour === h);
-            const gcalBusy = busyForActiveDay.find((b) => b.hour === h);
-            const isOpen = dayOpenSlots.includes(h);
-            if (lesson) {
-              const rate = Number(lesson.counterPrice || lesson.offerPrice) || st.profile.price;
-              const isAcc = lesson.status === "accepted";
-              return `<div class="tc-cal-slot ${isAcc ? "is-booked" : "is-pending"}">
-                <div class="row" style="gap:12px;min-width:0;flex:1 1 240px">
-                  <span class="tc-cal-time">${h}</span>
-                  <div class="stack" style="gap:2px;min-width:0">
-                    <div class="row" style="gap:6px;flex-wrap:wrap">
-                      <b>${esc(lesson.studentName)}</b>
-                      <span class="chip ${isAcc ? "confirm" : "notif"}">${isAcc ? "✓ Подтверждён" : "Ждёт ответа"}</span>
-                      <span class="chip num">${rate.toLocaleString("ru-RU")} ₽/ч</span>
-                      ${gcalBusy ? `<span class="chip bad">Конфликт GCal</span>` : ""}
-                    </div>
-                    <span class="small muted">${esc(lesson.exam)} · ${esc(lesson.subjectName)}${lesson.note ? " — " + esc(lesson.note) : ""}</span>
-                  </div>
-                </div>
-                <div class="row" style="gap:6px;flex-wrap:wrap">
-                  ${!isAcc ? `<button type="button" class="btn confirm sm" data-a="tc-req-accept" data-id="${esc(lesson.id)}">Подтвердить</button>` : ""}
-                  ${EGE.kit && typeof EGE.kit.messengerLinksHTML === "function"
-                    ? EGE.kit.messengerLinksHTML({
-                        entity: { id: lesson.id, name: lesson.studentName, whatsapp: lesson.whatsapp || "79142100511" },
-                        message: `Здравствуйте, ${lesson.studentName}! По занятию (${lesson.subjectName}, ${h}) на платформе Вектор ЕГЭ.`,
-                        primaryLabel: "WA",
-                        compact: true
-                      })
-                    : `<button type="button" class="btn soft sm" data-a="tc-req-msg" data-id="${esc(lesson.id)}">${icon("msg")}<span>Чат</span></button>`}
-                  <button type="button" class="btn ghost sm" data-a="tc-req-decline" data-id="${esc(lesson.id)}">Снять</button>
-                </div>
-              </div>`;
-            }
-            if (gcalBusy) {
-              return `<div class="tc-cal-slot is-gcal-busy">
-                <div class="row" style="gap:10px;min-width:0;flex:1 1 220px;flex-wrap:wrap;align-items:center">
-                  <span class="tc-cal-time">${h}</span>
-                  <span class="badge">Занято в GCal</span>
-                  <span class="small">${esc(gcalBusy.summary || "Событие Google Calendar")}</span>
-                </div>
-                <div class="row" style="gap:6px;flex-wrap:wrap">
-                  <span class="small muted">Пересчитано в ${esc(st.profile.timezone || "UTC+9")}</span>
-                </div>
-              </div>`;
-            }
-            return `<div class="tc-cal-slot${isOpen ? " is-open" : ""}">
-              <div class="row" style="gap:12px;min-width:0">
-                <span class="tc-cal-time">${h}</span>
-                <span class="small ${isOpen ? "ink2" : "muted"}">${isOpen ? "Окно открыто — доступно ученикам в /market" : "Час закрыт для записи"}</span>
-              </div>
-              <div class="row" style="gap:6px;flex-wrap:wrap">
-                <button type="button" class="btn soft sm" data-a="tc-cal-open-add" data-hour="${h}">+ Записать</button>
-                <button type="button" class="btn ghost sm" data-a="tc-slot-toggle" data-hour="${h}" aria-pressed="${isOpen}">${isOpen ? "Закрыть час" : "Открыть час"}</button>
-              </div>
-            </div>`;
-          }).join("")}
-        </div>
+        ${dayLessonsHTML}
       </div>
-    </div>`;
+    </section>`;
   }
 
   function formatWaReminderText(st, student) {

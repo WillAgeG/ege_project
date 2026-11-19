@@ -706,23 +706,21 @@
     const allReqs = syncedRequests();
     const pendingList = allReqs.filter((r) => r.status === "pending");
     const acceptedList = allReqs.filter((r) => r.status === "accepted");
-    const leadsList = TDATA && typeof TDATA.getStudentLeads === "function" ? TDATA.getStudentLeads() : [];
-    const totalPayout = acceptedList.reduce((acc, r) => {
-      const rate = Number(r.counterPrice || r.offerPrice) || p.price;
-      const sp = TDATA && typeof TDATA.commissionSplit === "function" ? TDATA.commissionSplit(rate) : { payout: Math.round(rate * 0.95) };
-      return acc + sp.payout;
-    }, 0);
     const baseSplit = TDATA && typeof TDATA.commissionSplit === "function" ? TDATA.commissionSplit(p.price) : { total: p.price, fee: Math.round(p.price * 0.05), payout: Math.round(p.price * 0.95), pct: 5 };
     const comp = profileCompleteness(p, st.slots);
-    const activeTab = ["requests", "leads", "profile", "calendar", "students"].includes(st.tab) ? st.tab : "requests";
+    const normalizedTab = st.tab === "calendar" ? "students" : st.tab;
+    const activeTab = ["requests", "leads", "profile", "students"].includes(normalizedTab) ? normalizedTab : "requests";
     const lastAutoLabel = formatTimestamp(st.lastAutoBumpAt || st.lastBumpAt);
 
     let bodyHTML = "";
     if (activeTab === "leads") bodyHTML = renderLeadsTab(st, TDATA);
     else if (activeTab === "profile") bodyHTML = renderProfileTab(st, TDATA, baseSplit);
-    else if (activeTab === "calendar") bodyHTML = renderCalendarTab(st, TDATA, allReqs);
-    else if (activeTab === "students") bodyHTML = renderStudentsTab(st);
-    else bodyHTML = renderRequestsTab(st, TDATA, allReqs, pendingList, acceptedList, baseSplit);
+    else if (activeTab === "students") {
+      bodyHTML = `<div class="stack" style="gap:16px">
+        ${renderCalendarTab(st, TDATA, allReqs)}
+        ${renderStudentsTab(st)}
+      </div>`;
+    } else bodyHTML = renderRequestsTab(st, TDATA, allReqs, pendingList, acceptedList, baseSplit);
 
     return `
       <div class="head">
@@ -736,39 +734,7 @@
             ${rtPillHtml}
           </div>
         </div>
-        <p class="lead">Управляйте заявками ±50 ₽, собирайте профиль и фото, ведите календарь записанных учеников и отправляйте автоуведомления в WhatsApp.</p>
-      </div>
-
-      ${sakhaOhyorHTML("Вектор ЕГЭ · Саха", { goldLogo: true })}
-
-      <div class="tiles">
-        <div class="tile">
-          <span class="tile-label">Новые заявки</span>
-          <span class="tile-value num">
-            <button type="button" class="tc-kpi-jump num" data-a="tc-jump-pending" style="color:${pendingList.length ? "var(--notif)" : "var(--ink)"}" title="Нажмите, чтобы перейти к ожидающим заявкам">${pendingList.length}</button>
-          </span>
-          <span class="tile-note">${pendingList.length ? `<button type="button" class="link-btn small" data-a="tc-jump-pending">ждут вашего ответа →</button>` : "все разобраны"}</span>
-        </div>
-        <div class="tile">
-          <span class="tile-label">Подтверждено</span>
-          <span class="tile-value num" style="color:var(--confirm)">${acceptedList.length}</span>
-          <span class="tile-note">${plural(acceptedList.length, "урок на неделе", "урока на неделе", "уроков на неделе")}</span>
-        </div>
-        <div class="tile">
-          <span class="tile-label">Ставка в анкете</span>
-          <span class="tile-value num">${p.price.toLocaleString("ru-RU")} ₽</span>
-          <span class="tile-note">торг от ${p.minFair.toLocaleString("ru-RU")} ₽/ч</span>
-        </div>
-        <div class="tile">
-          <span class="tile-label">Чистый доход (95%)</span>
-          <span class="tile-value num savings-gold-txt">${totalPayout.toLocaleString("ru-RU")} ₽</span>
-          <span class="tile-note"><button type="button" class="link-btn small" data-a="go" data-v="fees">Выплаты и статистика →</button></span>
-        </div>
-      </div>
-
-      <div class="chip-rail swipe tc-mobile-tabs" role="navigation" aria-label="Дополнительные разделы преподавателя">
-        <button type="button" class="chip-btn${activeTab === "leads" ? " on" : ""}" data-a="tc-tab" data-tab="leads">Ученики ищут (${leadsList.length})</button>
-        <button type="button" class="chip-btn" data-a="go" data-v="tutor">Справочник</button>
+        <p class="lead">Управляйте заявками ±50 ₽, расписанием записанных учеников, выплатами и анкетой.</p>
       </div>
 
       ${bodyHTML}`;
@@ -781,7 +747,8 @@
     const id = d.id || "";
 
     if (act === "tc-tab") {
-      const nextTab = ["requests", "leads", "profile", "calendar", "students"].includes(d.tab) ? d.tab : "requests";
+      const rawTab = d.tab === "calendar" ? "students" : d.tab;
+      const nextTab = ["requests", "leads", "profile", "students"].includes(rawTab) ? rawTab : "requests";
       st.tab = nextTab;
       saveState();
       if (typeof getCtx().go === "function") getCtx().go("tutor-" + nextTab);
