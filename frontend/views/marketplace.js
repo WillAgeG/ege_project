@@ -4,7 +4,11 @@
 
   const root = typeof globalThis !== "undefined" ? globalThis : window;
   const EGE = (root.EGE = root.EGE || {});
-  const { esc, plural, initials } = EGE.utils;
+  const {
+    esc, plural, initials,
+    WEEK_DAYS_RU: WEEK_DAYS_UI, SCHED_HOURS_RU: SCHED_HOURS,
+    sortDows, formatDaysShort, formatWeeklyBotPhrase
+  } = EGE.utils;
   const { icon } = EGE.ui;
   const { isValidHHMM, bidBtnLabelHTML, sakhaBidInnerHTML, priceHeadlineHTML, priceDiffTagsHTML, hhSelectHTML, hhMultiSelectHTML, tutorAvatarHTML } = EGE.hh;
   const MIN_ACTION_BALANCE = 490;
@@ -155,17 +159,6 @@
     return "Любая";
   }
 
-  const WEEK_DAYS_UI = [
-    { dow: 1, short: "Пн", acc: "в понедельник" },
-    { dow: 2, short: "Вт", acc: "во вторник" },
-    { dow: 3, short: "Ср", acc: "в среду" },
-    { dow: 4, short: "Чт", acc: "в четверг" },
-    { dow: 5, short: "Пт", acc: "в пятницу" },
-    { dow: 6, short: "Сб", acc: "в субботу" },
-    { dow: 0, short: "Вс", acc: "в воскресенье" }
-  ];
-  const SCHED_HOURS = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00", "23:00"];
-
   function resolveTutorWithContacts(t) {
     if (!t) return t;
     const st = getMkt();
@@ -216,45 +209,6 @@
     }
     if (active.length === 2) return `Отправим преподавателю в ${active[0]} и ${active[1]}`;
     return `Отправим преподавателю в ${active.slice(0, -1).join(", ")} и ${active[active.length - 1]}`;
-  }
-
-  function sortDows(dows) {
-    const order = { 1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 0: 6 };
-    const uniq = [];
-    (Array.isArray(dows) ? dows : []).forEach((x) => {
-      const n = Number(x);
-      if (Number.isInteger(n) && n >= 0 && n <= 6 && !uniq.includes(n)) uniq.push(n);
-    });
-    return uniq.sort((a, b) => (order[a] ?? 9) - (order[b] ?? 9));
-  }
-
-  function formatDaysShort(dows) {
-    const sorted = sortDows(dows);
-    if (!sorted.length) return "не выбрано";
-    if (sorted.length === 7) return "Ежедневно (Пн–Вс)";
-    return sorted.map((d) => {
-      const hit = WEEK_DAYS_UI.find((x) => x.dow === d);
-      return hit ? hit.short : "";
-    }).filter(Boolean).join(", ");
-  }
-
-  function formatWeeklyBotPhrase(dows, hour, weekly) {
-    const sorted = sortDows(dows);
-    const h = String(hour || "16:00");
-    if (!sorted.length) return `в ${h}${weekly !== false ? " каждую неделю" : ""}`;
-    if (sorted.length === 7) return `в ${h} каждый день`;
-    const first = WEEK_DAYS_UI.find((x) => x.dow === sorted[0]);
-    const dayPart = sorted.length === 1
-      ? (first ? first.acc : "")
-      : (() => {
-          const rest = sorted.slice(1).map((dow) => {
-            const hit = WEEK_DAYS_UI.find((x) => x.dow === dow);
-            return hit ? hit.acc.replace(/^во?\s+/i, "") : "";
-          }).filter(Boolean);
-          const tail = rest.pop();
-          return `${first ? first.acc : ""}${rest.length ? ", " + rest.join(", ") : ""} и ${tail}`;
-        })();
-    return `в ${h} ${dayPart}${weekly !== false ? " каждую неделю" : ""}`.trim();
   }
 
   function suggestTwoDows(bk, tutor) {

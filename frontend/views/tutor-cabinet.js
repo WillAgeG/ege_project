@@ -4,7 +4,12 @@
 
   const root = typeof globalThis !== "undefined" ? globalThis : window;
   const EGE = (root.EGE = root.EGE || {});
-  const { esc, plural, initials } = EGE.utils || { esc: (s) => String(s || ""), plural: (n, a) => a, initials: () => "П" };
+  const {
+    esc, plural, initials,
+    WEEK_DAYS_RU: TC_DAYS_UI, SCHED_HOURS_RU: TC_HOURS_UI,
+    sortDows: tcSortDows, formatDaysShort: tcDaysShort, formatWeeklyBotPhrase: tcBotPhrase,
+    readResizedPhotoFile
+  } = EGE.utils || { esc: (s) => String(s || ""), plural: (n, a) => a, initials: () => "П" };
   const { icon, sakhaPatternSVG, sakhaOhyorHTML } = EGE.ui || { icon: () => "", sakhaPatternSVG: () => "", sakhaOhyorHTML: () => "" };
   const { priceHeadlineHTML, priceDiffTagsHTML, feeSplitHTML, hhSelectHTML, hhMultiSelectHTML, tutorAvatarHTML } = EGE.hh || { priceHeadlineHTML: () => "", priceDiffTagsHTML: () => "", feeSplitHTML: () => "", hhSelectHTML: null, hhMultiSelectHTML: null, tutorAvatarHTML: null };
 
@@ -25,56 +30,6 @@
 
   const { renderCalendarTab, renderStudentsTab, renderLeadsTab, formatWaReminderText, studentWaHref, studentReminderUrl } = TC;
   const { renderPayoutStatsBlocks, renderPayoutWalletSection, renderPayoutHistorySection, getWalletSummary, sideBalanceWidgetHTML, desktopDockHTML, mobileTopWidgetHTML, payoutModalHTML, submitPayout, viewPayouts } = TC;
-
-  const TC_DAYS_UI = [
-    { dow: 1, short: "Пн", acc: "в понедельник" },
-    { dow: 2, short: "Вт", acc: "во вторник" },
-    { dow: 3, short: "Ср", acc: "в среду" },
-    { dow: 4, short: "Чт", acc: "в четверг" },
-    { dow: 5, short: "Пт", acc: "в пятницу" },
-    { dow: 6, short: "Сб", acc: "в субботу" },
-    { dow: 0, short: "Вс", acc: "в воскресенье" }
-  ];
-  const TC_HOURS_UI = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00", "23:00"];
-
-  function tcSortDows(dows) {
-    const order = { 1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 0: 6 };
-    const uniq = [];
-    (Array.isArray(dows) ? dows : []).forEach((x) => {
-      const n = Number(x);
-      if (Number.isInteger(n) && n >= 0 && n <= 6 && !uniq.includes(n)) uniq.push(n);
-    });
-    return uniq.sort((a, b) => (order[a] ?? 9) - (order[b] ?? 9));
-  }
-
-  function tcDaysShort(dows) {
-    const sorted = tcSortDows(dows);
-    if (!sorted.length) return "не выбрано";
-    if (sorted.length === 7) return "Ежедневно (Пн–Вс)";
-    return sorted.map((d) => {
-      const hit = TC_DAYS_UI.find((x) => x.dow === d);
-      return hit ? hit.short : "";
-    }).filter(Boolean).join(", ");
-  }
-
-  function tcBotPhrase(dows, hour, weekly) {
-    const sorted = tcSortDows(dows);
-    const h = String(hour || "16:00");
-    if (!sorted.length) return `в ${h}${weekly !== false ? " каждую неделю" : ""}`;
-    if (sorted.length === 7) return `в ${h} каждый день`;
-    const first = TC_DAYS_UI.find((x) => x.dow === sorted[0]);
-    const dayPart = sorted.length === 1
-      ? (first ? first.acc : "")
-      : (() => {
-          const rest = sorted.slice(1).map((dow) => {
-            const hit = TC_DAYS_UI.find((x) => x.dow === dow);
-            return hit ? hit.acc.replace(/^во?\s+/i, "") : "";
-          }).filter(Boolean);
-          const tail = rest.pop();
-          return `${first ? first.acc : ""}${rest.length ? ", " + rest.join(", ") : ""} и ${tail}`;
-        })();
-    return `в ${h} ${dayPart}${weekly !== false ? " каждую неделю" : ""}`.trim();
-  }
 
   function renderTutorScheduleBotHTML(req, st) {
     const sp = req && req.schedulePlan;
@@ -1771,50 +1726,22 @@
 
   function handleFileInput(el) {
     if (!el || !el.files || !el.files[0]) return false;
-    const file = el.files[0];
-    if (!file.type || file.type.indexOf("image/") !== 0) {
-      if (typeof getCtx().toast === "function") getCtx().toast("Выберите файл изображения (JPG, PNG, WebP)");
-      return true;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const rawData = typeof reader.result === "string" ? reader.result : "";
-      if (!rawData) return;
-      const applyPhoto = (url) => {
+    if (typeof readResizedPhotoFile !== "function") return false;
+    readResizedPhotoFile(
+      el.files[0],
+      { maxDim: 240, quality: 0.84, maxLen: 350000 },
+      (url) => {
         const st = tState();
         st.profile.photo = url;
         syncPublishedTutor(st);
         saveState();
         if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
         if (typeof getCtx().toast === "function") getCtx().toast("Фото загружено и обновлено в каталоге");
-      };
-      if (typeof Image === "function" && typeof document !== "undefined") {
-        const img = new Image();
-        img.onload = () => {
-          try {
-            const maxDim = 240;
-            const scale = Math.min(1, maxDim / Math.max(img.width || maxDim, img.height || maxDim));
-            const w = Math.max(1, Math.round((img.width || maxDim) * scale));
-            const h = Math.max(1, Math.round((img.height || maxDim) * scale));
-            const cvs = document.createElement("canvas");
-            cvs.width = w;
-            cvs.height = h;
-            const ctx2d = cvs.getContext("2d");
-            if (ctx2d) {
-              ctx2d.drawImage(img, 0, 0, w, h);
-              applyPhoto(cvs.toDataURL("image/jpeg", 0.84));
-              return;
-            }
-          } catch (e) { /* используем исходный dataURL */ }
-          applyPhoto(rawData.slice(0, 350000));
-        };
-        img.onerror = () => applyPhoto(rawData.slice(0, 350000));
-        img.src = rawData;
-      } else {
-        applyPhoto(rawData.slice(0, 350000));
+      },
+      () => {
+        if (typeof getCtx().toast === "function") getCtx().toast("Выберите файл изображения (JPG, PNG, WebP)");
       }
-    };
-    reader.readAsDataURL(file);
+    );
     el.value = "";
     return true;
   }

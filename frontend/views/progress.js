@@ -6,7 +6,7 @@
   const EGE = (root.EGE = root.EGE || {});
   const {
     $, addDays, byDue, dateDay, dateLong, dateShort, days, daysUntil, esc, initials, isObj,
-    isoDate, minutesText, pad, parseISO, plural, range, todayISO, validISO
+    isoDate, minutesText, pad, parseISO, plural, range, readResizedPhotoFile, todayISO, validISO
   } = EGE.utils;
   const { icon } = EGE.ui;
 
@@ -544,49 +544,19 @@
   }
   function handleProfilePhotoFile(el) {
     if (!el || !el.files || !el.files[0]) return false;
-    const file = el.files[0];
-    if (!file.type || file.type.indexOf("image/") !== 0) {
-      toast("Выберите изображение (JPG, PNG, WebP)");
-      return true;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const rawData = typeof reader.result === "string" ? reader.result : "";
-      if (!rawData) return;
-      const applyPhoto = (url) => {
+    if (typeof readResizedPhotoFile !== "function") return false;
+    readResizedPhotoFile(
+      el.files[0],
+      { maxDim: 240, quality: 0.84, maxLen: 350000 },
+      (url) => {
         const hadDoc = Boolean(store.docs && store.docs.profile);
         const pendingFlag = hadDoc ? Boolean(store.docs.profile.prepSetupPending) : true;
         patchDoc("profile", { photo: url, prepSetupPending: pendingFlag });
         scheduleRender();
         toast("Фото профиля обновлено");
-      };
-      if (typeof Image === "function" && typeof document !== "undefined" && typeof document.createElement === "function") {
-        const img = new Image();
-        img.onload = () => {
-          try {
-            const maxDim = 240;
-            const scale = Math.min(1, maxDim / Math.max(img.width || maxDim, img.height || maxDim));
-            const w = Math.max(1, Math.round((img.width || maxDim) * scale));
-            const h = Math.max(1, Math.round((img.height || maxDim) * scale));
-            const cvs = document.createElement("canvas");
-            cvs.width = w;
-            cvs.height = h;
-            const ctx2d = cvs.getContext("2d");
-            if (ctx2d) {
-              ctx2d.drawImage(img, 0, 0, w, h);
-              applyPhoto(cvs.toDataURL("image/jpeg", 0.84));
-              return;
-            }
-          } catch (e) { /* используем исходный Data URL */ }
-          applyPhoto(rawData.slice(0, 350000));
-        };
-        img.onerror = () => applyPhoto(rawData.slice(0, 350000));
-        img.src = rawData;
-      } else {
-        applyPhoto(rawData.slice(0, 350000));
-      }
-    };
-    reader.readAsDataURL(file);
+      },
+      () => { toast("Выберите изображение (JPG, PNG, WebP)"); }
+    );
     return true;
   }
 
