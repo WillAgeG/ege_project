@@ -918,6 +918,9 @@
     clickAction(env4, { a: "book-submit" });
     await flushMicrotasks(3);
     assert(hasNum(env4.elements.get("side-foot").innerHTML, "5 300") && hasNum(env4.elements.get("top-balance-slot").innerHTML, "5 300"), "expected 1 200 ₽ escrow reservation to reduce available balance from 6500 to 5300");
+    assert(env4.elements.get("main").innerHTML.includes('id="home-bids-section"'), "expected book-submit to navigate student straight to Главная (#home-bids-section)");
+    clickAction(env4, { a: "go", v: "market" });
+    await flushMicrotasks(2);
     assert(
       env4.elements.get("main").innerHTML.includes('id="student-bookings-table"') &&
       env4.elements.get("main").innerHTML.includes("bb-data-table") &&
@@ -1448,14 +1451,10 @@
       bookSideToast.innerHTML.includes("мы напишем вам уведомление в WhatsApp, Telegram или MAX"),
       "expected side notification promising student notification in WhatsApp, Telegram, or MAX"
     );
-    const afterBookHtml = env5.elements.get("main").innerHTML;
-    assert(afterBookHtml.includes("На рассмотрении · уведомим") && hasNum(afterBookHtml, "3 440 ₽"), "expected 1150 ₽ reserved from 4 590 ₽ balance leaving 3 440 ₽");
-
-    clickAction(env5, { a: "go", v: "home" });
-    await flushMicrotasks(3);
     const homePendingHtml = env5.elements.get("main").innerHTML;
     assert(
       homePendingHtml.includes('id="home-bids-section"') &&
+      hasNum(env5.elements.get("top-balance-slot").innerHTML, "3 440") &&
       homePendingHtml.includes("home-bid-seg") &&
       homePendingHtml.includes("tutor-card") &&
       homePendingHtml.includes("tutor-name-line") &&
@@ -1466,8 +1465,13 @@
       homePendingHtml.includes('data-a="bid-telemost-edit"') &&
       !homePendingHtml.includes("Главный срок") &&
       !homePendingHtml.includes("Быстрый переход"),
-      "expected Главная with 1-line filter seg, search-identical tutor card, Подтвердить/Отменить, Telemost CTA, and without Photo 3 blocks"
+      "expected book-submit to land straight on Главная with 3 440 ₽ balance, 1-line filter seg, tutor card, and Telemost CTA"
     );
+    clickAction(env5, { a: "go", v: "market" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("На рассмотрении · уведомим"), "expected /market bookings strip to show pending status");
+    clickAction(env5, { a: "go", v: "home" });
+    await flushMicrotasks(2);
     clickAction(env5, { a: "home-bid-filter", v: "accepted" });
     await flushMicrotasks(2);
     const homeEmptyAcceptedHtml = env5.elements.get("main").innerHTML;
@@ -1504,10 +1508,12 @@
       homeAcceptedHtml.includes("Преподаватель ответил") &&
       homeAcceptedHtml.includes("Написали вам в СМС") &&
       homeAcceptedHtml.includes(`data-sched-box="${acceptIdMatch[1]}"`) &&
+      homeAcceptedHtml.includes('data-hour="23:00"') &&
+      homeAcceptedHtml.includes("Выберите дни и время") &&
       homeAcceptedHtml.includes("btn-msg is-wa") &&
       homeAcceptedHtml.includes("btn-msg is-tg is-disabled") &&
       homeAcceptedHtml.includes("btn-msg is-max is-disabled"),
-      "expected Главная accepted card to open 2-day schedule picker and show active WhatsApp + greyed Telegram/MAX for parsed tutors"
+      "expected Главная accepted card to open 1-7 day 10:00-23:00 schedule picker and show active WhatsApp + greyed Telegram/MAX"
     );
 
     const parsedCheck = globalThis.EGE.tutors.LIST.filter((t) => !t.fromCabinet);
@@ -1517,25 +1523,36 @@
       "expected parsed catalog tutors to expose availableChannels={wa:true,tg:false,max:false}"
     );
 
-    for (const targetDow of ["3", "4"]) {
+    for (const dow of ["1", "2", "3", "4", "5", "6", "0"]) {
       const curHtml = env5.elements.get("main").innerHTML;
-      const isAlreadyOn = new RegExp(`data-a="bid-sched-day" data-id="${acceptIdMatch[1]}" data-dow="${targetDow}" aria-pressed="true"`).test(curHtml);
+      const isAlreadyOn = new RegExp(`data-a="bid-sched-day" data-id="${acceptIdMatch[1]}" data-dow="${dow}" aria-pressed="true"`).test(curHtml);
       if (!isAlreadyOn) {
-        clickAction(env5, { a: "bid-sched-day", id: acceptIdMatch[1], dow: targetDow });
+        clickAction(env5, { a: "bid-sched-day", id: acceptIdMatch[1], dow });
         await flushMicrotasks(2);
       }
     }
-    const afterTwoDaysHtml = env5.elements.get("main").innerHTML;
-    const isOneOfTargetOff = !new RegExp(`data-a="bid-sched-day" data-id="${acceptIdMatch[1]}" data-dow="3" aria-pressed="true"`).test(afterTwoDaysHtml);
-    if (isOneOfTargetOff) {
-      clickAction(env5, { a: "bid-sched-day", id: acceptIdMatch[1], dow: "3" });
+    assert(
+      env5.elements.get("main").innerHTML.includes("Все 7 дней") &&
+      env5.elements.get("main").innerHTML.includes("каждый день"),
+      "expected selecting all 7 days to show 'Все 7 дней' and Bot phrase 'каждый день'"
+    );
+    for (const offDow of ["2", "5", "6", "0"]) {
+      clickAction(env5, { a: "bid-sched-day", id: acceptIdMatch[1], dow: offDow });
       await flushMicrotasks(2);
     }
+    clickAction(env5, { a: "bid-sched-hour", id: acceptIdMatch[1], hour: "23:00" });
+    await flushMicrotasks(2);
+    assert(
+      env5.elements.get("main").innerHTML.includes("3 дня") &&
+      env5.elements.get("main").innerHTML.includes("в 23:00 в понедельник, среду и четверг каждую неделю"),
+      "expected 3-day selection with 23:00 to format 'в 23:00 в понедельник, среду и четверг каждую неделю'"
+    );
+    clickAction(env5, { a: "bid-sched-day", id: acceptIdMatch[1], dow: "1" });
     clickAction(env5, { a: "bid-sched-hour", id: acceptIdMatch[1], hour: "16:00" });
     await flushMicrotasks(2);
     assert(
       env5.elements.get("main").innerHTML.includes("в 16:00 в среду и четверг каждую неделю"),
-      "expected 2-day weekly schedule picker to format Bot phrase 'в 16:00 в среду и четверг каждую неделю'"
+      "expected weekly schedule picker to format Bot phrase 'в 16:00 в среду и четверг каждую неделю'"
     );
     clickAction(env5, { a: "bid-sched-send", id: acceptIdMatch[1] });
     await flushMicrotasks(2);
@@ -2093,7 +2110,7 @@
     );
     clickAction(env5, { a: "tc-sched-alt-open", id: "tc-req-3" });
     await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("Предложить ученику другие 2 дня"), "expected tc-sched-alt-open to reveal tutor alternative 2-day picker");
+    assert(env5.elements.get("main").innerHTML.includes("Предложить ученику другие дни"), "expected tc-sched-alt-open to reveal tutor alternative 1-7 day picker");
     clickAction(env5, { a: "tc-sched-alt-send", id: "tc-req-3" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes("Предложили ученику"), "expected tc-sched-alt-send to notify student of tutor alternative dates");

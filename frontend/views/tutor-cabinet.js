@@ -35,7 +35,7 @@
     { dow: 6, short: "Сб", acc: "в субботу" },
     { dow: 0, short: "Вс", acc: "в воскресенье" }
   ];
-  const TC_HOURS_UI = ["10:00", "11:00", "12:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
+  const TC_HOURS_UI = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00", "23:00"];
 
   function tcSortDows(dows) {
     const order = { 1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 0: 6 };
@@ -48,7 +48,10 @@
   }
 
   function tcDaysShort(dows) {
-    return tcSortDows(dows).map((d) => {
+    const sorted = tcSortDows(dows);
+    if (!sorted.length) return "не выбрано";
+    if (sorted.length === 7) return "Ежедневно (Пн–Вс)";
+    return sorted.map((d) => {
       const hit = TC_DAYS_UI.find((x) => x.dow === d);
       return hit ? hit.short : "";
     }).filter(Boolean).join(", ");
@@ -58,13 +61,17 @@
     const sorted = tcSortDows(dows);
     const h = String(hour || "16:00");
     if (!sorted.length) return `в ${h}${weekly !== false ? " каждую неделю" : ""}`;
+    if (sorted.length === 7) return `в ${h} каждый день`;
     const first = TC_DAYS_UI.find((x) => x.dow === sorted[0]);
     const dayPart = sorted.length === 1
       ? (first ? first.acc : "")
       : (() => {
-          const second = TC_DAYS_UI.find((x) => x.dow === sorted[1]);
-          const secondNoun = second ? second.acc.replace(/^во?\s+/i, "") : "";
-          return `${first ? first.acc : ""} и ${secondNoun}`;
+          const rest = sorted.slice(1).map((dow) => {
+            const hit = TC_DAYS_UI.find((x) => x.dow === dow);
+            return hit ? hit.acc.replace(/^во?\s+/i, "") : "";
+          }).filter(Boolean);
+          const tail = rest.pop();
+          return `${first ? first.acc : ""}${rest.length ? ", " + rest.join(", ") : ""} и ${tail}`;
         })();
     return `в ${h} ${dayPart}${weekly !== false ? " каждую неделю" : ""}`.trim();
   }
@@ -78,15 +85,15 @@
       const drafts = st.schedAltDrafts || (st.schedAltDrafts = {});
       if (!drafts[req.id]) {
         drafts[req.id] = {
-          dows: tcSortDows(sp.altDows && sp.altDows.length ? sp.altDows : [2, 5]).slice(0, 2),
+          dows: tcSortDows(sp.altDows && sp.altDows.length ? sp.altDows : [2, 5]),
           hour: String(sp.altHour || (sp.hour === "18:00" ? "17:00" : "18:00"))
         };
       }
       const dr = drafts[req.id];
-      const dows = tcSortDows(dr.dows).slice(0, 2);
-      const ready = dows.length === 2;
+      const dows = tcSortDows(dr.dows);
+      const ready = dows.length >= 1;
       return `<div class="tc-sched-box is-editing" style="display:grid;gap:6px;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);width:100%">
-        <b class="small">Предложить ученику другие 2 дня:</b>
+        <b class="small">Предложить ученику другие дни (от 1 до 7):</b>
         <div class="row" style="gap:4px;flex-wrap:wrap">
           ${TC_DAYS_UI.map((d) => `<button type="button" class="chip-btn${dows.includes(d.dow) ? " on" : ""}" style="min-height:26px;padding:0 8px;font-size:11.5px" data-a="tc-sched-alt-day" data-id="${esc(req.id)}" data-dow="${d.dow}">${d.short}</button>`).join("")}
         </div>
@@ -1234,7 +1241,7 @@
       const sp = who && who.schedulePlan;
       const drafts = st.schedAltDrafts || (st.schedAltDrafts = {});
       drafts[id] = {
-        dows: tcSortDows(sp && sp.altDows && sp.altDows.length ? sp.altDows : [2, 5]).slice(0, 2),
+        dows: tcSortDows(sp && sp.altDows && sp.altDows.length ? sp.altDows : [2, 5]),
         hour: String((sp && sp.altHour) || (sp && sp.hour === "18:00" ? "17:00" : "18:00"))
       };
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
@@ -1255,10 +1262,7 @@
       const cur = Array.isArray(drafts[id].dows) ? drafts[id].dows.slice() : [];
       const idx = cur.indexOf(dow);
       if (idx >= 0) cur.splice(idx, 1);
-      else {
-        if (cur.length >= 2) cur.shift();
-        cur.push(dow);
-      }
+      else cur.push(dow);
       drafts[id].dows = tcSortDows(cur);
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
       return true;
@@ -1275,9 +1279,9 @@
     if (act === "tc-sched-alt-send") {
       const drafts = st.schedAltDrafts || {};
       const dr = drafts[id];
-      const dows = tcSortDows(dr && dr.dows).slice(0, 2);
-      if (dows.length < 2) {
-        if (typeof getCtx().toast === "function") getCtx().toast("Выберите 2 дня для предложения ученику");
+      const dows = tcSortDows(dr && dr.dows);
+      if (dows.length < 1) {
+        if (typeof getCtx().toast === "function") getCtx().toast("Выберите хотя бы 1 день для предложения ученику");
         return true;
       }
       const hour = String((dr && dr.hour) || "18:00");

@@ -788,9 +788,13 @@
       };
       st.bookings.unshift(newBooking);
       ui.booking = null;
-      if (ui.view === "landing" && ui.role !== "tutor" && ui.role !== "admin") {
-        ui.view = "market";
+      if (ui.role !== "tutor" && ui.role !== "admin") {
+        ui.view = "home";
+        ui.homeBidFilter = "all";
         if (typeof writeHash === "function") writeHash();
+        if (typeof window !== "undefined" && typeof window.scrollTo === "function") {
+          try { window.scrollTo(0, 0); } catch (e) { /* игнор */ }
+        }
       }
       saveMkt();
       if (EGE.views.marketplace && typeof EGE.views.marketplace.publishStudentBid === "function") {
@@ -882,7 +886,7 @@
         };
       }
       saveMkt();
-      toast(`${bk.tutorName} подтвердил(а) занятие — выберите 2 удобных дня и время`);
+      toast(`${bk.tutorName} подтвердил(а) занятие — выберите удобные дни и время`);
       scheduleRender();
     },
     "mkt-cancel-book": (el) => {

@@ -164,7 +164,7 @@
     { dow: 6, short: "Сб", acc: "в субботу" },
     { dow: 0, short: "Вс", acc: "в воскресенье" }
   ];
-  const SCHED_HOURS = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
+  const SCHED_HOURS = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00", "23:00"];
 
   function tutorChannels(t) {
     if (t && t.availableChannels && typeof t.availableChannels === "object") {
@@ -207,6 +207,7 @@
   function formatDaysShort(dows) {
     const sorted = sortDows(dows);
     if (!sorted.length) return "не выбрано";
+    if (sorted.length === 7) return "Ежедневно (Пн–Вс)";
     return sorted.map((d) => {
       const hit = WEEK_DAYS_UI.find((x) => x.dow === d);
       return hit ? hit.short : "";
@@ -217,13 +218,17 @@
     const sorted = sortDows(dows);
     const h = String(hour || "16:00");
     if (!sorted.length) return `в ${h}${weekly !== false ? " каждую неделю" : ""}`;
+    if (sorted.length === 7) return `в ${h} каждый день`;
     const first = WEEK_DAYS_UI.find((x) => x.dow === sorted[0]);
     const dayPart = sorted.length === 1
       ? (first ? first.acc : "")
       : (() => {
-          const second = WEEK_DAYS_UI.find((x) => x.dow === sorted[1]);
-          const secondNoun = second ? second.acc.replace(/^во?\s+/i, "") : "";
-          return `${first ? first.acc : ""} и ${secondNoun}`;
+          const rest = sorted.slice(1).map((dow) => {
+            const hit = WEEK_DAYS_UI.find((x) => x.dow === dow);
+            return hit ? hit.acc.replace(/^во?\s+/i, "") : "";
+          }).filter(Boolean);
+          const tail = rest.pop();
+          return `${first ? first.acc : ""}${rest.length ? ", " + rest.join(", ") : ""} и ${tail}`;
         })();
     return `в ${h} ${dayPart}${weekly !== false ? " каждую неделю" : ""}`.trim();
   }
@@ -259,7 +264,7 @@
     if (!map[bk.id]) {
       const plan = bk.schedulePlan || {};
       const dows = Array.isArray(plan.dows) && plan.dows.length
-        ? sortDows(plan.dows).slice(0, 2)
+        ? sortDows(plan.dows)
         : suggestTwoDows(bk, tutor);
       map[bk.id] = {
         dows,
@@ -278,38 +283,41 @@
 
     if (isEditing) {
       const draft = getSchedDraft(bk, tutor);
-      const dows = sortDows(draft.dows).slice(0, 2);
+      const dows = sortDows(draft.dows);
       const hour = String(draft.hour || "16:00");
       const weekly = draft.weekly !== false;
       const phrase = formatWeeklyBotPhrase(dows, hour, weekly);
-      const ready = dows.length === 2;
+      const ready = dows.length >= 1;
+      const countBadge = dows.length === 7
+        ? "Все 7 дней"
+        : (dows.length ? `${dows.length} ${plural(dows.length, "день", "дня", "дней")}` : "0 дней");
       return `<div class="bid-sched-card" data-sched-box="${esc(bk.id)}">
         <div class="bid-sched-head">
           <div>
-            <b>Выберите 2 дня и время</b>
-            <span class="small muted">Постоянное расписание на платформе</span>
+            <b>Выберите дни и время</b>
+            <span class="small muted">От 1 до 7 дней · 10:00–23:00</span>
           </div>
-          <span class="chip ${ready ? "accent" : ""} num">Выбрано ${dows.length} из 2</span>
+          <span class="chip ${ready ? "accent" : ""} num">${esc(countBadge)}</span>
         </div>
-        <div class="bid-sched-days" role="group" aria-label="Два дня занятий в неделю">
+        <div class="bid-sched-days" role="group" aria-label="Дни занятий (от 1 до 7)">
           ${WEEK_DAYS_UI.map((d) => {
             const on = dows.includes(d.dow);
             return `<button type="button" class="bid-sched-day-btn${on ? " on" : ""}" data-a="bid-sched-day" data-id="${esc(bk.id)}" data-dow="${d.dow}" aria-pressed="${on}">${d.short}</button>`;
           }).join("")}
         </div>
-        <div class="bid-sched-hours" role="group" aria-label="Время начала урока">
+        <div class="bid-sched-hours" role="group" aria-label="Время начала урока с 10:00 до 23:00">
           ${SCHED_HOURS.map((h) => `<button type="button" class="bid-sched-hour-btn${hour === h ? " on" : ""}" data-a="bid-sched-hour" data-id="${esc(bk.id)}" data-hour="${h}" aria-pressed="${hour === h}">${h}</button>`).join("")}
         </div>
         <div class="row between" style="gap:8px;flex-wrap:wrap">
           <button type="button" class="chip-btn${weekly ? " on" : ""}" data-a="bid-sched-weekly" data-id="${esc(bk.id)}" aria-pressed="${weekly}">${icon("cal")}<span>Каждую неделю</span></button>
-          <span class="small muted num">${formatDaysShort(dows)} · ${esc(hour)}</span>
+          <span class="small muted num">${esc(formatDaysShort(dows))} · ${esc(hour)}</span>
         </div>
         <div class="bid-sched-bot">
           <b>Бот напишет преподавателю на платформе:</b>
           <span>«Ученик хочет заниматься ${esc(phrase)}. Можно подтвердить эти даты или выбрать другие — мы сразу предложим их ученику.»</span>
         </div>
         <button type="button" class="btn sm bid-sched-submit" data-a="bid-sched-send" data-id="${esc(bk.id)}"${ready ? "" : " disabled"}>
-          ${ready ? "Отправить график преподавателю" : `Выберите 2 дня (выбрано ${dows.length} из 2)`}
+          ${ready ? "Отправить график преподавателю" : "Выберите хотя бы 1 день"}
         </button>
       </div>`;
     }
@@ -324,7 +332,7 @@
           <span class="chip accent">Ждём ответ</span>
         </div>
         <div class="bid-sched-bot">
-          <span>«Ученик хочет заниматься ${esc(plan.botText || formatWeeklyBotPhrase(plan.dows, plan.hour, plan.weekly))}. Преподаватель может подтвердить или предложить другие 2 даты.»</span>
+          <span>«Ученик хочет заниматься ${esc(plan.botText || formatWeeklyBotPhrase(plan.dows, plan.hour, plan.weekly))}. Преподаватель может подтвердить или предложить другие даты.»</span>
         </div>
         <button type="button" class="btn ghost sm bid-sched-full-btn" data-a="bid-sched-edit" data-id="${esc(bk.id)}">Изменить даты и время</button>
         <div class="bid-sched-actions">
@@ -349,7 +357,7 @@
         </div>
         <div class="bid-sched-actions">
           <button type="button" class="btn confirm sm" data-a="bid-sched-accept-alt" data-id="${esc(bk.id)}">Подходит, закрепить</button>
-          <button type="button" class="btn ghost sm" data-a="bid-sched-edit" data-id="${esc(bk.id)}">Выбрать другие 2 дня</button>
+          <button type="button" class="btn ghost sm" data-a="bid-sched-edit" data-id="${esc(bk.id)}">Выбрать другие дни</button>
         </div>
       </div>`;
     }
@@ -746,10 +754,10 @@
             </div>
             <div class="tutor-card-foot">
               <div class="home-bid-status ${accepted ? "is-accepted" : "is-pending"}">
-                <b>${accepted ? "Преподаватель ответил · занятие подтверждено" : "Ожидаем ответ преподавателя"}</b>
+                <b>${accepted ? "Преподаватель ответил · подтверждено" : "Ожидаем ответ преподавателя"}</b>
                 <span>${accepted
-                  ? `Написали вам в СМС${vc ? ` (${esc(vc)})` : ""} · выберите 2 дня и время ниже`
-                  : `Как только ответит, придёт СМС${vc ? ` на ${esc(vc)}` : ""} и откроется выбор расписания`}</span>
+                  ? `Написали вам в СМС${vc ? ` (${esc(vc)})` : ""} · выберите дни ниже`
+                  : `Придёт СМС${vc ? ` на ${esc(vc)}` : ""} · затем выберите дни`}</span>
               </div>
               ${accepted ? renderHomeScheduleBoxHTML(bk, tutor) : ""}
               <div class="bid-telemost-box">${tmHTML}</div>
@@ -1625,12 +1633,8 @@
       if (!Number.isInteger(dow) || dow < 0 || dow > 6) return false;
       const cur = Array.isArray(draft.dows) ? draft.dows.slice() : [];
       const idx = cur.indexOf(dow);
-      if (idx >= 0) {
-        cur.splice(idx, 1);
-      } else {
-        if (cur.length >= 2) cur.shift();
-        cur.push(dow);
-      }
+      if (idx >= 0) cur.splice(idx, 1);
+      else cur.push(dow);
       draft.dows = sortDows(cur);
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       return true;
@@ -1663,7 +1667,7 @@
       const sp = bk.schedulePlan || {};
       const map = ui.schedDrafts || (ui.schedDrafts = {});
       map[bk.id] = {
-        dows: Array.isArray(sp.dows) && sp.dows.length ? sortDows(sp.dows).slice(0, 2) : suggestTwoDows(bk, tutor),
+        dows: Array.isArray(sp.dows) && sp.dows.length ? sortDows(sp.dows) : suggestTwoDows(bk, tutor),
         hour: String(sp.hour || bk.hour || "16:00"),
         weekly: sp.weekly !== false
       };
@@ -1677,9 +1681,9 @@
       if (!bk) return false;
       const tutor = TDATA && TDATA.LIST ? TDATA.LIST.find((x) => x.id === bk.tutorId) : null;
       const draft = getSchedDraft(bk, tutor);
-      const dows = sortDows(draft.dows).slice(0, 2);
-      if (dows.length < 2) {
-        if (typeof _ctx.toast === "function") _ctx.toast("Выберите 2 дня недели для постоянного графика");
+      const dows = sortDows(draft.dows);
+      if (dows.length < 1) {
+        if (typeof _ctx.toast === "function") _ctx.toast("Выберите хотя бы 1 день недели");
         return true;
       }
       const hour = String(draft.hour || bk.hour || "16:00");
