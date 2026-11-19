@@ -884,6 +884,8 @@
     pendingBookingAfterAuth: null,
     prepSetupOpen: false,
     homeBidFilter: "all",
+    telemostEditId: "",
+    telemostError: "",
     mktVisibleCount: 8,
     landWhiteStage: false,
     brandbook: { mode: "both", hour: 14, price: 1200, day: "all", sliderStyle: "ticks", showBounds: true, vpWidth: 390, chipOn: true, sent: false, fav: true, switchVal: "online", multiSubjs: ["bio", "chem"], multiMenuOpen: false, pickedPlan: "month10k", quizOpt: 1, marketDemoAccepted: false, reducedMotion: false, balFunded: true, chartStyle: "sticks", chartDataset: "income", chartActiveIdx: 3, chartLines: 1, chartPoints: 7, linePtIdx: 3, donutDataset: "channels", donutSliceIdx: 0, tableCols: 5, tableFilter: "all", tableSearch: "", maskPhone: "+7 (914) 210-05-11", maskTg: "@aytal_bio", maskMax: "aytal_ege", payMethod: "sbp", payState: "frozen", payInitialDone: false, tablePreset: "requests", confirmedRows: {}, essayOpenIdx: 0 }
@@ -2142,7 +2144,7 @@
     </form>`;
   }
   // ---------- модульные экраны (src/views/*) ----------
-  EGE.views.marketplace.configure({ ui, mkt, TDATA, viewPlan, viewTests, viewStats, scheduleRender });
+  EGE.views.marketplace.configure({ ui, mkt, saveMkt, notifySide, TDATA, viewPlan, viewTests, viewStats, scheduleRender });
   EGE.views.landing.configure({
     ui, effectiveDark, SUBJ, TOPICS, QS, CONTENT, firstSubject,
     BUG_EMAIL, TDATA, tablesHTML, scheduleRender
@@ -2969,6 +2971,14 @@
       notifySide("Заявка на вывод оформлена", `${amtTxt} ₽ · ${destTxt}${res.payoutRow && res.payoutRow.npdReceipt ? " · чек НПД" : ""}`);
       toast(`Выведено ${amtTxt} ₽`);
       scheduleRender();
+    },
+    "bid-telemost": (form) => {
+      const id = (form && form.dataset && form.dataset.id) || ui.telemostEditId || "";
+      const urlEl = (form && form.elements && form.elements.url) || $("#tm-inp-" + id);
+      const rawUrl = urlEl ? urlEl.value : "";
+      if (EGE.views.marketplace && typeof EGE.views.marketplace.saveTelemostForBooking === "function") {
+        EGE.views.marketplace.saveTelemostForBooking(id, rawUrl);
+      }
     }
   };
 
@@ -3048,7 +3058,7 @@
     if (act && act.indexOf("adm-") === 0 && EGE.views.admin && typeof EGE.views.admin.handleAction === "function") {
       if (EGE.views.admin.handleAction(act, el)) { if (!isExtLink) e.preventDefault(); return; }
     }
-    if (act && (act === "home-bid-filter" || act.indexOf("mkt-bk-") === 0 || act.indexOf("study-sched-") === 0 || act.indexOf("study-chats-") === 0) && EGE.views.marketplace && typeof EGE.views.marketplace.handleAction === "function") {
+    if (act && (act === "home-bid-filter" || act.indexOf("bid-telemost-") === 0 || act.indexOf("mkt-bk-") === 0 || act.indexOf("study-sched-") === 0 || act.indexOf("study-chats-") === 0) && EGE.views.marketplace && typeof EGE.views.marketplace.handleAction === "function") {
       if (e.defaultPrevented) return;
       if (EGE.views.marketplace.handleAction(act, el)) { if (!isExtLink) e.preventDefault(); return; }
     }

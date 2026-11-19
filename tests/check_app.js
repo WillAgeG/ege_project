@@ -1446,19 +1446,50 @@
     clickAction(env5, { a: "go", v: "home" });
     await flushMicrotasks(3);
     const homePendingHtml = env5.elements.get("main").innerHTML;
-    assert(homePendingHtml.includes('id="home-bids-section"') && homePendingHtml.includes("Ожидаем ответ преподавателя"), "expected Главная to list sent bid with Ожидаем ответ преподавателя status");
-    clickAction(env5, { a: "go", v: "market" });
+    assert(
+      homePendingHtml.includes('id="home-bids-section"') &&
+      homePendingHtml.includes("home-bid-seg") &&
+      homePendingHtml.includes("tutor-card") &&
+      homePendingHtml.includes("tutor-name-line") &&
+      homePendingHtml.includes("tutor-bio-wrap") &&
+      homePendingHtml.includes("Ожидаем ответ преподавателя") &&
+      homePendingHtml.includes(">Подтвердить<") &&
+      homePendingHtml.includes(">Отменить<") &&
+      homePendingHtml.includes('data-a="bid-telemost-edit"') &&
+      !homePendingHtml.includes("Главный срок") &&
+      !homePendingHtml.includes("Быстрый переход"),
+      "expected Главная with 1-line filter seg, search-identical tutor card, Подтвердить/Отменить, Telemost CTA, and without Photo 3 blocks"
+    );
+    const acceptIdMatch = /data-a="mkt-sim-accept" data-id="([^"]+)"/.exec(homePendingHtml);
+    assert(acceptIdMatch, "expected Подтвердить button for pending booking on Главная");
+    clickAction(env5, { a: "bid-telemost-edit", id: acceptIdMatch[1] });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes('data-f="bid-telemost"'), "expected inline Yandex Telemost form to open");
+    env5.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "bid-telemost", id: acceptIdMatch[1] }, elements: { url: { value: "https://telemost.yandex.ru/j/12345678901234" } } }) }, preventDefault() {} });
     await flushMicrotasks(3);
+    assert(
+      env5.elements.get("main").innerHTML.includes("Яндекс Телемост · Подключиться") &&
+      env5.elements.get("main").innerHTML.includes("https://telemost.yandex.ru/j/12345678901234"),
+      "expected saved Yandex Telemost link on Главная bid card"
+    );
+    clickAction(env5, { a: "bid-telemost-gen", id: acceptIdMatch[1] });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("https://telemost.yandex.ru/j/"), "expected 1-click Yandex Telemost link generator to persist room URL");
 
-    const acceptIdMatch = /data-a="mkt-sim-accept" data-id="([^"]+)"/.exec(afterBookHtml);
-    assert(acceptIdMatch, "expected sim-accept button for pending booking");
     clickAction(env5, { a: "mkt-sim-accept", id: acceptIdMatch[1] });
     await flushMicrotasks(4);
-    assert(env5.elements.get("main").innerHTML.includes("Преподаватель подтвердил"), "expected tutor accepted state");
-    clickAction(env5, { a: "go", v: "home" });
-    await flushMicrotasks(3);
     const homeAcceptedHtml = env5.elements.get("main").innerHTML;
     assert(homeAcceptedHtml.includes("Преподаватель ответил") && homeAcceptedHtml.includes("Написали вам в СМС"), "expected Главная to display Написали вам в СМС & messenger notice once accepted");
+    clickAction(env5, { a: "go", v: "study" });
+    await flushMicrotasks(3);
+    const studyWithCardsHtml = env5.elements.get("main").innerHTML;
+    assert(
+      studyWithCardsHtml.includes('id="study-overview-cards"') &&
+      studyWithCardsHtml.includes("Главный срок") &&
+      studyWithCardsHtml.includes("Быстрый переход") &&
+      studyWithCardsHtml.includes("Телемост"),
+      "expected Photo 3 blocks (Главный срок & Быстрый переход) and Телемост join link inside Учёба"
+    );
     clickAction(env5, { a: "go", v: "market" });
     await flushMicrotasks(3);
 
@@ -1885,6 +1916,7 @@
 
     clickAction(env5, { a: "go", v: "study" });
     await flushMicrotasks(3);
+    assert(env5.elements.get("main").innerHTML.includes("Главный срок") && env5.elements.get("main").innerHTML.includes("Быстрый переход"), "expected study view default График tab to show Главный срок and Быстрый переход");
     clickAction(env5, { a: "study-tab", tab: "tests" });
     await flushMicrotasks(3);
     assert(env5.elements.get("main").innerHTML.includes("Тесты ЕГЭ"), "expected Учёба -> Тесты ЕГЭ tab to render trainer hub");

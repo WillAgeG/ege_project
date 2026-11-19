@@ -380,6 +380,44 @@
     return `<section class="card pad-lg stack reqs-strip" style="gap:10px" aria-label="Мои заявки">${tableHtml}</section>`;
   }
 
+  function normalizeTelemostUrl(raw) {
+    let val = String(raw == null ? "" : raw).trim();
+    if (!val) return { ok: true, url: "" };
+    if (/^(javascript|data|vbscript):/i.test(val)) {
+      return { ok: false, error: "Укажите корректную https-ссылку, например https://telemost.yandex.ru/j/..." };
+    }
+    if (/^telemost\.yandex\.[a-z]{2,}/i.test(val)) val = "https://" + val;
+    if (!/^https?:\/\/[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:[\/:?#][^\s]*)?$/.test(val) || /\s/.test(val)) {
+      return { ok: false, error: "Укажите корректную ссылку, например https://telemost.yandex.ru/j/..." };
+    }
+    return { ok: true, url: val };
+  }
+
+  function saveTelemostForBooking(bookingId, rawUrl) {
+    const ui = getUi();
+    const st = getMkt();
+    const bk = (st.bookings || []).find((x) => x.id === bookingId);
+    if (!bk) return { ok: false, error: "Заявка не найдена." };
+    const parsed = normalizeTelemostUrl(rawUrl);
+    if (!parsed.ok) {
+      ui.telemostError = parsed.error;
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return parsed;
+    }
+    bk.telemostUrl = parsed.url;
+    ui.telemostEditId = "";
+    ui.telemostError = "";
+    if (typeof _ctx.saveMkt === "function") _ctx.saveMkt();
+    if (typeof _ctx.notifySide === "function") {
+      _ctx.notifySide(
+        "Яндекс Телемост",
+        parsed.url ? `Ссылка на видеоурок сохранена для ${bk.tutorName}` : `Ссылка на видеоурок удалена`
+      );
+    }
+    if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+    return { ok: true, url: parsed.url };
+  }
+
   function studentHomeBidsHTML() {
     const TDATA = getTDATA();
     if (!TDATA) return "";
@@ -388,17 +426,20 @@
     const all = Array.isArray(st.bookings) ? st.bookings : [];
     const vc = st.verifiedContact && st.verifiedContact.value ? String(st.verifiedContact.value) : "";
     if (!all.length) {
-      return `<section class="card pad-lg stack" id="home-bids-section" style="gap:12px" aria-label="Мои отклики преподавателям">
-        <div class="row between" style="gap:8px;flex-wrap:wrap">
+      return `<section class="stack home-bids-wrap" id="home-bids-section" style="gap:12px" aria-label="Мои отклики преподавателям">
+        <div class="home-bids-head">
           <div>
             <div class="eyebrow">Отклики и ответы</div>
             <h2 class="h2">Мои отклики преподавателям</h2>
           </div>
+          <button type="button" class="btn soft sm" data-a="go" data-v="market">Поиск</button>
         </div>
-        <p class="small ink2" style="margin:0">Откликов пока нет. Найдите преподавателя в разделе «Поиск» и предложите свою цену — здесь сразу появится статус: ожидаем ответ или уже написали вам в СМС и мессенджер.</p>
-        <div class="row" style="gap:8px;flex-wrap:wrap">
-          <button type="button" class="btn sm" data-a="go" data-v="market">Найти преподавателя</button>
-          <button type="button" class="btn soft sm" data-a="go-student-lead">Оставить заявку</button>
+        <div class="card pad-lg stack" style="gap:12px">
+          <p class="small ink2" style="margin:0">Откликов пока нет. Найдите преподавателя в разделе «Поиск» и предложите свою цену — здесь появится карточка преподавателя со статусом ответа (СМС / мессенджер) и ссылкой на Яндекс Телемост.</p>
+          <div class="row" style="gap:8px;flex-wrap:wrap">
+            <button type="button" class="btn sm" data-a="go" data-v="market">Найти преподавателя</button>
+            <button type="button" class="btn soft sm" data-a="go-student-lead">Оставить заявку</button>
+          </div>
         </div>
       </section>`;
     }
@@ -408,66 +449,119 @@
     const rows = flt === "pending"
       ? all.filter((b) => b.status !== "accepted")
       : (flt === "accepted" ? all.filter((b) => b.status === "accepted") : all);
+    const expandedMap = ui.expandedBios || {};
     const cardsHTML = rows.length
-      ? `<div class="home-bid-list">${rows.map((bk) => {
+      ? `<div class="tutor-grid home-bid-grid">${rows.map((bk) => {
           const accepted = bk.status === "accepted";
           const tutor = TDATA.LIST.find((x) => x.id === bk.tutorId) || {
             id: bk.tutorId,
             name: bk.tutorName,
             subjectName: bk.subjectName,
+            city: "Онлайн",
+            exp: "Опытный преподаватель",
+            rating: 5.0,
+            reviews: 12,
+            bio: "Индивидуальные занятия по вашим целям и уровню подготовки.",
+            price: bk.tutorPrice || bk.offerPrice || 1200,
+            marketPrice: Math.round(((bk.tutorPrice || bk.offerPrice || 1200) * 1.25) / 50) * 50,
             verified: true,
             whatsapp: "79142100101"
           };
+          const isFav = Array.isArray(st.favs) && st.favs.includes(tutor.id);
+          const isBioOpen = !!expandedMap["bid:" + bk.id];
           const trialDefault = TDATA.TRIAL_PRICE != null ? Number(TDATA.TRIAL_PRICE) : 490;
           const isTrial = !!bk.isTrial;
           const trialRub = bk.offerPrice != null && Number.isFinite(Number(bk.offerPrice)) ? Number(bk.offerPrice) : trialDefault;
-          const priceTxt = isTrial
-            ? (trialRub === 0 ? "Пробный · 0 ₽" : `Пробный · ${trialRub.toLocaleString("ru-RU")} ₽`)
-            : `${Number(bk.offerPrice || 0).toLocaleString("ru-RU")} ₽/ч`;
-          const msgTxt = `Здравствуйте, ${bk.tutorName}! Напоминаю про занятие (${bk.subjectName}, ${bk.dayLabel} в ${bk.hour}, ${isTrial ? "пробный урок" : "ставка " + bk.offerPrice + " ₽/ч"}).`;
+          const offerNum = isTrial ? trialRub : Math.max(0, Number(bk.offerPrice || tutor.price || 1200));
+          const isProCard = !!(tutor.tier === "pro" || Number(tutor.price) > (Number(tutor.marketPrice) || Number(tutor.price)) || (tutor.bumpedToday && Number(tutor.rating) >= 4.9));
+          const priceBlockHTML = isTrial
+            ? `<div class="tutor-rate num">${trialRub === 0 ? "Пробный · 0 ₽" : `Пробный · ${trialRub.toLocaleString("ru-RU")} ₽`}</div>`
+            : `${tutor.marketPrice && offerNum < tutor.marketPrice ? `<s class="hh-price-old num">${tutor.marketPrice.toLocaleString("ru-RU")} ₽</s>` : ""}<div class="tutor-rate num">${offerNum.toLocaleString("ru-RU")} ₽/ч</div>`;
+          const telemostUrl = String(bk.telemostUrl || "").trim();
+          const isEditingTm = ui.telemostEditId === bk.id;
+          const tmHTML = isEditingTm
+            ? `<form class="bid-telemost-form" data-f="bid-telemost" data-id="${esc(bk.id)}">
+                <label class="small muted" for="tm-inp-${esc(bk.id)}">Ссылка на видеоурок (Яндекс Телемост)</label>
+                <input class="input bid-telemost-inp" id="tm-inp-${esc(bk.id)}" name="url" type="url" placeholder="https://telemost.yandex.ru/j/..." value="${esc(telemostUrl)}">
+                ${ui.telemostError ? `<div class="small" style="color:var(--bad);font-weight:600">${esc(ui.telemostError)}</div>` : ""}
+                <div class="row" style="gap:6px;flex-wrap:wrap">
+                  <button type="submit" class="btn sm">Сохранить</button>
+                  <button type="button" class="btn soft sm" data-a="bid-telemost-gen" data-id="${esc(bk.id)}">Создать ссылку</button>
+                  <button type="button" class="btn ghost sm" data-a="bid-telemost-cancel">Отмена</button>
+                </div>
+              </form>`
+            : telemostUrl
+              ? `<div class="bid-telemost-saved">
+                  <a class="btn soft sm bid-telemost-join" href="${esc(telemostUrl)}" target="_blank" rel="noopener noreferrer">${icon("video")}<span>Яндекс Телемост · Подключиться</span></a>
+                  <button type="button" class="btn ghost sm" data-a="bid-telemost-edit" data-id="${esc(bk.id)}">Изменить</button>
+                </div>`
+              : `<button type="button" class="btn ghost sm bid-telemost-add" data-a="bid-telemost-edit" data-id="${esc(bk.id)}">${icon("video")}<span>Добавить ссылку на Яндекс Телемост</span></button>`;
+          const msgTxt = `Здравствуйте, ${bk.tutorName}! Напоминаю про занятие (${bk.subjectName}, ${bk.dayLabel} в ${bk.hour}, ${isTrial ? "пробный урок" : "ставка " + bk.offerPrice + " ₽/ч"}).${telemostUrl ? " Ссылка на Яндекс Телемост: " + telemostUrl : ""}`;
           const waHref = TDATA.whatsappUrl(tutor, msgTxt);
-          return `<article class="home-bid-card stack" style="gap:10px">
-            <div class="row between" style="gap:10px;flex-wrap:wrap;align-items:flex-start">
-              <div class="row" style="gap:10px;align-items:center;min-width:0">
+          return `<article class="card tutor-card${isProCard ? " is-pro" : ""} is-home-bid" data-tutor-id="${esc(tutor.id)}" data-booking-id="${esc(bk.id)}">
+            <div class="tutor-card-top">
+              <div class="tutor-head">
+                <div style="min-width:0">
+                  <h3 class="h3" style="font-size:17px">${esc(bk.subjectName || tutor.subjectName)}</h3>
+                  <div class="hh-price-row" style="margin-top:4px">${priceBlockHTML}</div>
+                  <div class="hh-diff-strip" style="margin-top:6px">${cardDiffTagsHTML(tutor, offerNum)}</div>
+                </div>
+                <button type="button" class="fav-btn" data-a="mkt-fav" data-id="${esc(tutor.id)}" aria-pressed="${isFav}" aria-label="В избранное">${icon(isFav ? "heartFill" : "heart")}</button>
+              </div>
+              <div class="tutor-name-line">
                 ${tutorAvatarHTML(tutor)}
-                <div class="stack" style="gap:3px;min-width:0">
-                  <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center">
-                    <b>${esc(bk.tutorName)}</b>
-                    ${tutor.verified !== false ? `<span class="verified-badge">${icon("check")}</span>` : ""}
-                    <span class="chip">${esc(bk.exam || "ЕГЭ")} · ${esc(bk.subjectName)}</span>
+                <div class="tutor-person-meta">
+                  <div class="tutor-title-inline">
+                    <b class="tutor-person-name">${esc(tutor.name || bk.tutorName)}</b>
+                    ${tutor.verified !== false ? `<span class="verified-badge" title="Преподаватель лично ведёт кабинет на платформе">${icon("check")}</span>` : ""}
                   </div>
-                  <span class="small muted">${esc(bk.dayLabel)} · ${esc(bk.hour)} · ${esc(bk.format || "Онлайн")}${bk.note ? ` · «${esc(bk.note)}»` : ""}</span>
+                  <span class="small muted">${esc(tutor.city || "Онлайн")} · ${esc(tutor.exp || "Репетитор")} · ★ ${Number(tutor.rating || 5).toFixed(1)} (${Number(tutor.reviews || 0)})</span>
                 </div>
               </div>
-              <b class="num" style="font-size:15px;white-space:nowrap">${esc(priceTxt)}</b>
+              ${tutor.bio ? `<div class="tutor-bio-wrap${isBioOpen ? " is-open" : ""}">
+                <p class="tutor-bio">${esc(tutor.bio)}</p>
+                <button type="button" class="tutor-bio-more" data-a="tutor-bio-toggle" data-id="bid:${esc(bk.id)}" aria-expanded="${isBioOpen ? "true" : "false"}" title="${isBioOpen ? "Свернуть описание" : "Развернуть описание"}">
+                  <span>${isBioOpen ? "Свернуть" : "Развернуть"}</span>
+                  ${icon("chevDown")}
+                </button>
+              </div>` : ""}
+              <div class="home-bid-slot">
+                ${icon("cal")}
+                <span>${esc(bk.exam || "ЕГЭ")} · ${esc(bk.dayLabel)} · ${esc(bk.hour)} · ${esc(bk.format || "Онлайн")}${bk.note ? ` · «${esc(bk.note)}»` : ""}</span>
+              </div>
             </div>
-            <div class="home-bid-status ${accepted ? "is-accepted" : "is-pending"}">
-              <b>${accepted ? "Преподаватель ответил · занятие подтверждено" : "Ожидаем ответ преподавателя"}</b>
-              <span>${accepted
-                ? `Написали вам в СМС${vc ? ` (${esc(vc)})` : ""} и мессенджер (WhatsApp, Telegram, MAX)`
-                : `Написали преподавателю · как только ответит, придёт СМС${vc ? ` на ${esc(vc)}` : ""} или уведомление в мессенджер (WhatsApp, Telegram, MAX)`}</span>
-            </div>
-            <div class="row" style="gap:8px;flex-wrap:wrap">
-              ${accepted ? `${(EGE.kit && typeof EGE.kit.messengerLinksHTML === "function")
+            <div class="tutor-card-foot">
+              <div class="home-bid-status ${accepted ? "is-accepted" : "is-pending"}">
+                <b>${accepted ? "Преподаватель ответил · занятие подтверждено" : "Ожидаем ответ преподавателя"}</b>
+                <span>${accepted
+                  ? `Написали вам в СМС${vc ? ` (${esc(vc)})` : ""} и мессенджер (WhatsApp, Telegram, MAX)`
+                  : `Написали преподавателю · как только ответит, придёт СМС${vc ? ` на ${esc(vc)}` : ""} или уведомление в мессенджер (WhatsApp, Telegram, MAX)`}</span>
+              </div>
+              <div class="bid-telemost-box">${tmHTML}</div>
+              ${accepted ? ((EGE.kit && typeof EGE.kit.messengerLinksHTML === "function")
                 ? EGE.kit.messengerLinksHTML({ entity: tutor, message: msgTxt, primaryLabel: "WhatsApp", compact: true })
-                : `<a class="btn confirm sm" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>WhatsApp</span></a>`}<button type="button" class="btn soft sm" data-a="go" data-v="study">Открыть «Учёбу»</button><button type="button" class="btn ghost sm" data-a="mkt-cancel-book" data-id="${esc(bk.id)}">Сменить</button>`
-                : `<button type="button" class="btn soft sm" data-a="mkt-sim-accept" data-id="${esc(bk.id)}">Тест: подтвердить</button><button type="button" class="btn ghost sm" data-a="mkt-cancel-book" data-id="${esc(bk.id)}">Отменить</button>`}
+                : `<a class="btn confirm sm" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>WhatsApp</span></a>`) : ""}
+              <div class="home-bid-actions">
+                ${accepted
+                  ? `<button type="button" class="btn soft sm" data-a="go" data-v="study">Открыть «Учёбу»</button><button type="button" class="btn ghost sm" data-a="mkt-cancel-book" data-id="${esc(bk.id)}">Отменить</button>`
+                  : `<button type="button" class="btn confirm sm" data-a="mkt-sim-accept" data-id="${esc(bk.id)}">${icon("check")}<span>Подтвердить</span></button><button type="button" class="btn ghost sm" data-a="mkt-cancel-book" data-id="${esc(bk.id)}">Отменить</button>`}
+              </div>
             </div>
           </article>`;
         }).join("")}</div>`
-      : `<div class="empty"><span>В этом фильтре откликов пока нет.</span></div>`;
-    return `<section class="card pad-lg stack" id="home-bids-section" style="gap:12px" aria-label="Мои отклики преподавателям">
-      <div class="row between" style="gap:8px;flex-wrap:wrap">
+      : `<div class="card pad-lg"><div class="empty"><span>В этом фильтре откликов пока нет.</span></div></div>`;
+    return `<section class="stack home-bids-wrap" id="home-bids-section" style="gap:12px" aria-label="Мои отклики преподавателям">
+      <div class="home-bids-head">
         <div>
           <div class="eyebrow">Отклики и ответы</div>
           <h2 class="h2">Мои отклики преподавателям</h2>
         </div>
         <button type="button" class="btn soft sm" data-a="go" data-v="market">Найти ещё</button>
       </div>
-      <div class="chip-rail" role="group" aria-label="Фильтр откликов">
-        <button type="button" class="chip-btn${flt === "all" ? " on" : ""}" data-a="home-bid-filter" data-v="all">Все (${all.length})</button>
-        <button type="button" class="chip-btn${flt === "pending" ? " on" : ""}" data-a="home-bid-filter" data-v="pending">Ожидаем ответ (${pendingCnt})</button>
-        <button type="button" class="chip-btn${flt === "accepted" ? " on" : ""}" data-a="home-bid-filter" data-v="accepted">Ответили (${acceptedCnt})</button>
+      <div class="hh-seg home-bid-seg" role="group" aria-label="Фильтр откликов">
+        <button type="button" data-a="home-bid-filter" data-v="all" aria-pressed="${flt === "all"}">Все (${all.length})</button>
+        <button type="button" data-a="home-bid-filter" data-v="pending" aria-pressed="${flt === "pending"}">Ожидаем ответ (${pendingCnt})</button>
+        <button type="button" data-a="home-bid-filter" data-v="accepted" aria-pressed="${flt === "accepted"}">Ответили (${acceptedCnt})</button>
       </div>
       ${cardsHTML}
     </section>`;
@@ -1073,10 +1167,14 @@
             label: "Мессенджеры",
             isActions: true,
             render: (row) => {
+              const tm = row.booking && row.booking.telemostUrl ? String(row.booking.telemostUrl) : "";
               const waHref = TDATA.whatsappUrl(row.tutor, row.msgTxt);
-              return (EGE.kit && typeof EGE.kit.messengerLinksHTML === "function")
+              const linksHtml = (EGE.kit && typeof EGE.kit.messengerLinksHTML === "function")
                 ? EGE.kit.messengerLinksHTML({ entity: row.tutor, message: row.msgTxt, primaryLabel: "WhatsApp", compact: true })
                 : `<a class="btn confirm sm" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>WhatsApp</span></a>`;
+              return tm
+                ? `<div class="row" style="gap:6px;flex-wrap:wrap"><a class="btn soft sm" href="${esc(tm)}" target="_blank" rel="noopener noreferrer">${icon("video")}<span>Телемост</span></a>${linksHtml}</div>`
+                : linksHtml;
             }
           }
         ],
@@ -1213,9 +1311,10 @@
                     label: "Связь",
                     isActions: true,
                     render: (row) => {
+                      const tm = row.booking && row.booking.telemostUrl ? String(row.booking.telemostUrl) : "";
                       const msgTxt = `Здравствуйте, ${row.tutorName}! Пишу по уроку на ${row.dayLabel} (${row.hour}), предмет — ${row.subjectName}.`;
                       const waHref = TDATA.whatsappUrl(row.tutor, msgTxt);
-                      return (EGE.kit && typeof EGE.kit.messengerLinksHTML === "function")
+                      const linksHtml = (EGE.kit && typeof EGE.kit.messengerLinksHTML === "function")
                         ? EGE.kit.messengerLinksHTML({
                             entity: row.tutor,
                             message: msgTxt,
@@ -1223,6 +1322,9 @@
                             compact: true
                           })
                         : `<a class="btn confirm sm" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>WhatsApp</span></a>`;
+                      return tm
+                        ? `<div class="row" style="gap:6px;flex-wrap:wrap"><a class="btn soft sm" href="${esc(tm)}" target="_blank" rel="noopener noreferrer">${icon("video")}<span>Телемост</span></a>${linksHtml}</div>`
+                        : linksHtml;
                     }
                   }
                 ],
@@ -1242,7 +1344,8 @@
       ${noticeCard}
       ${bookingsStripHTML(st)}
       ${enrolledSection}
-      ${studentLeadCardHTML(TDATA, ui)}`;
+      ${studentLeadCardHTML(TDATA, ui)}
+      ${EGE.views && EGE.views.trainer && typeof EGE.views.trainer.studyOverviewCardsHTML === "function" ? EGE.views.trainer.studyOverviewCardsHTML() : ""}`;
   }
 
   function publishStudentBid(booking, tutor) {
@@ -1271,6 +1374,31 @@
     const d = (el && el.dataset) || {};
     if (act === "home-bid-filter") {
       ui.homeBidFilter = ["all", "pending", "accepted"].includes(d.v) ? d.v : "all";
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return true;
+    }
+    if (act === "bid-telemost-edit") {
+      ui.telemostEditId = d.id || "";
+      ui.telemostError = "";
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return true;
+    }
+    if (act === "bid-telemost-cancel") {
+      ui.telemostEditId = "";
+      ui.telemostError = "";
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return true;
+    }
+    if (act === "bid-telemost-gen") {
+      const st = getMkt();
+      const bk = (st.bookings || []).find((x) => x.id === d.id);
+      if (!bk) return false;
+      const roomCode = String(Date.now()).slice(-8) + String(Math.floor(100000 + Math.random() * 900000));
+      bk.telemostUrl = `https://telemost.yandex.ru/j/${roomCode}`;
+      ui.telemostEditId = "";
+      ui.telemostError = "";
+      if (typeof _ctx.saveMkt === "function") _ctx.saveMkt();
+      if (typeof _ctx.notifySide === "function") _ctx.notifySide("Яндекс Телемост", "Ссылка на видеоурок добавлена к отклику");
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       return true;
     }
@@ -1369,6 +1497,7 @@
     tutorCardHTML,
     bookingsStripHTML,
     studentHomeBidsHTML,
+    saveTelemostForBooking,
     marketSectionHTML,
     viewMarket,
     viewStudy,

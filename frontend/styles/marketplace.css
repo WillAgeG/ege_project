@@ -2172,7 +2172,43 @@ body:has(.land-page:not(#brandbook-page)) .main,
   .hh-sort-seg button { padding: 7px 6px; font-size: 12.5px; text-align: center; justify-content: center; }
 }
 
-/* ---------- Главная ученика: отклики и уведомление настройки в Профиле ---------- */
+/* ---------- Главная ученика: отклики, однострочный фильтр, карточки как в Поиске, Телемост и Профиль ---------- */
+.home-bids-wrap { min-width: 0; }
+.home-bids-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: nowrap;
+}
+.home-bids-head .btn { flex: none; white-space: nowrap; }
+.home-bid-seg {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; width: 100%; gap: 4px;
+}
+.home-bid-seg button {
+  white-space: nowrap; justify-content: center; text-align: center;
+  padding: 8px 10px; font-size: 12.5px; min-width: 0;
+}
+@media (max-width: 390px) {
+  .home-bid-seg button { padding: 7px 6px; font-size: 11.5px; }
+}
+.home-bid-grid { min-width: 0; }
+.tutor-card.is-home-bid .home-bid-slot {
+  display: flex; align-items: flex-start; gap: 6px;
+  font-size: 12.5px; color: var(--muted); line-height: 1.4;
+}
+.tutor-card.is-home-bid .home-bid-slot svg {
+  width: 14px; height: 14px; flex: none; margin-top: 2px;
+}
+.home-bid-actions {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: 100%;
+}
+.home-bid-actions .btn { width: 100%; justify-content: center; }
+.bid-telemost-box { display: grid; gap: 6px; width: 100%; }
+.bid-telemost-add { width: 100%; justify-content: center; border-style: dashed; }
+.bid-telemost-saved { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.bid-telemost-join { flex: 1 1 auto; justify-content: center; }
+.bid-telemost-form {
+  display: grid; gap: 8px; padding: 10px 12px; border-radius: 12px;
+  border: 1px solid var(--line); background: var(--surface-2);
+}
+.bid-telemost-inp { min-height: 38px; font-size: 13.5px; }
 .home-bid-list { display: grid; gap: 12px; }
 .home-bid-card {
   border-radius: 16px; border: 1px solid var(--line);

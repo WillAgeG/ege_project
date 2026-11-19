@@ -95,16 +95,17 @@
     const prof = profile();
     const name = prof.name || (store.ready ? defaultName() : "");
     const parts = [];
-    parts.push(`<div class="head"><div class="eyebrow">Главная · ${esc(capitalize(fmtWeekday.format(new Date())))}</div><h1 class="h1">${name ? "Привет, " + esc(name) + "!" : "Главная"}</h1><p class="lead">Отклики преподавателям, статусы ответов (СМС и мессенджер) и быстрый переход к занятиям.</p></div>`);
+    parts.push(`<div class="head"><div class="eyebrow">Главная · ${esc(capitalize(fmtWeekday.format(new Date())))}</div><h1 class="h1">${name ? "Привет, " + esc(name) + "!" : "Главная"}</h1><p class="lead">Отклики преподавателям, статусы ответов (СМС и мессенджер) и ссылка на Яндекс Телемост.</p></div>`);
     if (store.backend && store.ready && !store.user && !ui.demoAuthed) parts.push(`<div class="notice"><b>Гостевой режим.</b><span>Прогресс сохраняется только в этом браузере. <button type="button" class="link-btn" data-a="auth-modal-open">Войти или создать аккаунт</button>, чтобы синхронизировать с сервером.</span></div>`);
     if (store.mode === "local" && !store.backend) parts.push(localNotice());
     parts.push(staleNotice());
     if (EGE.views.marketplace && typeof EGE.views.marketplace.studentHomeBidsHTML === "function") {
       parts.push(EGE.views.marketplace.studentHomeBidsHTML());
     }
-    const stMkt = mkt();
-    const balRub = Number(stMkt.balance) || 0;
-    parts.push(`<section class="section"><div class="card" style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><div class="stack" style="gap:3px"><b>Баланс СБП: <span class="num">${balRub.toLocaleString("ru-RU")} ₽</span></b><span class="small muted">${balRub >= 490 ? "Средства готовы к бронированию урока с защитой СБП" : "Пополните баланс от 490 ₽ по СБП без комиссии или предложите цену преподавателю"}</span></div><div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="btn soft sm" data-a="bal-open">${icon("wallet")}<span>Пополнить</span></button><button type="button" class="btn sm" data-a="go" data-v="market">Поиск репетитора</button></div></div></section>`);
+    return parts.join("");
+  }
+  function studyOverviewCardsHTML() {
+    const prof = profile();
     const quickNavCard = `<section class="card stack" style="gap:12px" aria-label="Быстрые разделы">
       <div>
         <div class="eyebrow">Подготовка к ЕГЭ</div>
@@ -117,8 +118,7 @@
         ${stepBtn({ a: "go", v: "profile", ico: "gear", title: "Профиль", sub: "Целевые баллы, телефон и настройки" })}
       </div>
     </section>`;
-    parts.push(`<div class="grid-hero">${heroCard(prof)}${quickNavCard}</div>`);
-    return parts.join("");
+    return `<div class="grid-hero" id="study-overview-cards">${heroCard(prof)}${quickNavCard}</div>`;
   }
   function onboardingCard() {
     const cloudText = store.mode === "cloud"
@@ -1200,6 +1200,7 @@
     saveVariantMock,
     sendChat,
     startQuiz,
+    studyOverviewCardsHTML,
     subjectAI,
     tablesHTML,
     viewHome,
