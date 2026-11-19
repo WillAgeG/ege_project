@@ -101,19 +101,21 @@
         ? `<span class="chip accent">Предложена ставка ${bidRate.toLocaleString("ru-RU")} ₽/ч</span>`
         : req.status === "declined"
           ? `<span class="chip bad">Отклонено</span>`
-          : `<span class="chip notif">Ожидает ответа · ${esc(req.createdLabel || "новое")}</span>`;
+          : `<span class="chip notif">Ожидает ответа</span>`;
 
     return `<article class="tc-req-card${isPending ? " is-pending" : isAccepted ? " is-accepted" : ""}"${isFirstPending ? ' id="tc-first-pending"' : ""}>
       <div class="tc-req-head">
         <div class="tc-req-who">
           <span class="tutor-avatar" aria-hidden="true">${esc(initials(req.studentName))}</span>
-          <div class="stack" style="gap:3px;min-width:0;flex:1 1 0">
+          <div class="stack" style="gap:2px;min-width:0;flex:1 1 0">
             <b style="font-size:15px">${esc(req.studentName)}</b>
-            <div class="small muted">${esc(req.exam)} · ${esc(req.subjectName)} · ${esc(req.dayLabel)} в <b class="num" style="color:var(--ink)">${esc(req.hour)}</b> · ${esc(req.format || "Онлайн")}</div>
+            <div class="small muted">${esc(req.exam)} · ${esc(req.subjectName)}</div>
           </div>
         </div>
         ${statusBadge}
       </div>
+
+      <div class="tc-req-slot-line">${icon("cal")}<span>${esc(req.dayLabel)} · <b class="num">${esc(req.hour)}</b> · ${esc(req.format || "Онлайн")}</span></div>
 
       <div class="stack tc-req-price-block" style="gap:6px">
         <div class="hh-price-row">${priceHeadlineHTML(mktRate, bidRate, false)}</div>
@@ -128,7 +130,7 @@
       ${(isPending || isCountered) ? `
         <div class="hh-price-stepper compact">
           <button type="button" class="hh-step-btn" data-a="tc-req-step" data-id="${esc(req.id)}" data-step="-50">−50 ₽</button>
-          <div class="hh-step-readout"><b class="num">${bidRate.toLocaleString("ru-RU")} ₽/ч</b><span class="small muted">ваша цена</span></div>
+          <div class="hh-step-readout"><b class="num">${bidRate.toLocaleString("ru-RU")} ₽/ч</b></div>
           <button type="button" class="hh-step-btn" data-a="tc-req-step" data-id="${esc(req.id)}" data-step="50">+50 ₽</button>
         </div>
         <div class="tc-req-actions">
@@ -199,13 +201,10 @@
     const reqFilter = ["pending", "accepted"].includes(st.filter) ? st.filter : "all";
     const firstPending = allReqs.find((r) => r.status === "pending");
     const firstPendingId = firstPending ? firstPending.id : "";
-    const qRaw = String(st.reqTblQuery || "").trim().toLowerCase();
     const filteredReqs = allReqs.filter((r) => {
       if (reqFilter === "pending" && r.status !== "pending") return false;
       if (reqFilter === "accepted" && r.status !== "accepted") return false;
-      if (!qRaw) return true;
-      const hay = [r.studentName, r.exam, r.subjectName, r.dayLabel, r.hour, r.format, r.note, String(r.offerPrice || ""), String(r.counterPrice || "")].join(" ").toLowerCase();
-      return hay.includes(qRaw);
+      return true;
     });
 
     const cardsHtml = filteredReqs.length
@@ -214,7 +213,7 @@
           <b>По выбранному фильтру заявок нет</b>
           <span>Сбросьте фильтр или обновите пример заявок.</span>
           <div class="row" style="gap:8px;flex-wrap:wrap;justify-content:center">
-            <button type="button" class="btn soft sm" data-a="tc-req-tbl-filter" data-v="all" data-clear-q="1">Показать все заявки</button>
+            <button type="button" class="btn soft sm" data-a="tc-req-tbl-filter" data-v="all">Показать все заявки</button>
             <button type="button" class="btn ghost sm" data-a="tc-reset-demo">Сбросить демо</button>
           </div>
         </div>`;
@@ -230,12 +229,6 @@
           <button type="button" data-a="tc-req-tbl-filter" data-v="all" aria-pressed="${reqFilter === "all"}">Все (${allReqs.length})</button>
           <button type="button" data-a="tc-req-tbl-filter" data-v="pending" aria-pressed="${reqFilter === "pending"}">Ждут (${pendingList.length})</button>
           <button type="button" data-a="tc-req-tbl-filter" data-v="accepted" aria-pressed="${reqFilter === "accepted"}">Принято (${acceptedList.length})</button>
-        </div>
-
-        <div class="tc-search-wrap">
-          <span class="tc-search-ico" aria-hidden="true">${icon("search")}</span>
-          <input class="input" id="tc-req-tbl-q" data-a="tc-req-tbl-q" type="search" value="${esc(st.reqTblQuery || "")}" placeholder="Поиск: ученик, предмет, слот, ставка…">
-          ${qRaw ? `<button type="button" class="btn ghost sm" data-a="tc-req-tbl-filter" data-v="${reqFilter}" data-clear-q="1" aria-label="Очистить поиск">${icon("x")}</button>` : ""}
         </div>
 
         ${cardsHtml}
@@ -522,24 +515,12 @@
     const TDATA = getTDATA();
     const st = tState();
     const p = st.profile;
-    const rtState = (EGE.realtime && typeof EGE.realtime.getState === "function") ? EGE.realtime.getState() : { mode: "local", unreadCount: 0 };
-    const rtPillHtml = (EGE.kit && typeof EGE.kit.realtimeStatusPillHTML === "function")
-      ? EGE.kit.realtimeStatusPillHTML({
-          mode: rtState.mode,
-          channelLabel: "tutor",
-          unreadCount: rtState.unreadCount,
-          action: "tc-rt-reconnect",
-          title: "Переподключить Live-поток заявок и расписания"
-        })
-      : "";
     const allReqs = syncedRequests();
     const pendingList = allReqs.filter((r) => r.status === "pending");
     const acceptedList = allReqs.filter((r) => r.status === "accepted");
     const baseSplit = TDATA && typeof TDATA.commissionSplit === "function" ? TDATA.commissionSplit(p.price) : { total: p.price, fee: Math.round(p.price * 0.05), payout: Math.round(p.price * 0.95), pct: 5 };
-    const comp = profileCompleteness(p, st.slots);
     const normalizedTab = st.tab === "calendar" ? "students" : st.tab;
     const activeTab = ["requests", "leads", "profile", "students"].includes(normalizedTab) ? normalizedTab : "requests";
-    const lastAutoLabel = formatTimestamp(st.lastAutoBumpAt || st.lastBumpAt);
 
     let bodyHTML = "";
     if (activeTab === "leads") bodyHTML = renderLeadsTab(st, TDATA);
@@ -547,22 +528,7 @@
     else if (activeTab === "students") bodyHTML = renderCalendarTab(st, TDATA, allReqs);
     else bodyHTML = renderRequestsTab(st, TDATA, allReqs, pendingList, acceptedList, baseSplit);
 
-    return `
-      <div class="head">
-        <div class="row between" style="gap:10px;flex-wrap:wrap;align-items:flex-end">
-          <div>
-            <div class="eyebrow">Саха сирэ · Личный кабинет преподавателя</div>
-            <h1 class="h1">${esc(p.name)}</h1>
-            <div class="small muted">${esc(p.headline || "Репетитор ЕГЭ / ОГЭ")} · Профиль заполнен на ${comp.pct}% · Авто-24ч: ${esc(lastAutoLabel)}</div>
-          </div>
-          <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
-            ${rtPillHtml}
-          </div>
-        </div>
-        <p class="lead">Управляйте заявками ±50 ₽, расписанием записанных учеников, выплатами и анкетой.</p>
-      </div>
-
-      ${bodyHTML}`;
+    return bodyHTML;
   }
 
 

@@ -2302,17 +2302,22 @@
     const tutorSideHtml = env5.elements.get("side-nav").innerHTML;
     const tutorTabHtml = env5.elements.get("tabbar").innerHTML;
     assert(
-      tutorMain1.includes("Личный кабинет преподавателя") &&
+      tutorMain1.includes("Входящие заявки учеников") &&
       tutorMain1.includes('id="tc-requests-table"') &&
       tutorMain1.includes("tc-req-card") &&
       tutorMain1.includes('id="tc-first-pending"') &&
       tutorMain1.includes("На руки 95%") &&
+      !tutorMain1.includes("Саха сирэ") &&
+      !tutorMain1.includes("Личный кабинет преподавателя") &&
+      !tutorMain1.includes("Live · SSE") &&
+      !tutorMain1.includes("ваша цена") &&
+      !tutorMain1.includes('id="tc-req-tbl-q"') &&
       !tutorMain1.includes("bb-data-table") &&
       !tutorMain1.includes("Быстрая правка") &&
       !tutorMain1.includes('data-a="tc-bump"') &&
       !tutorMain1.includes("3 колонки") &&
       !tutorMain1.includes("7 колонок"),
-      "expected clean card-based Teacher Requests without bb-data-table, duplicate quick profile, bump CTA, or 3/7 cols switch"
+      "expected clean card-based Teacher Requests without cabinet hero header, live pill, search input, ваша цена label, or bb-data-table"
     );
     assert(!tutorMain1.includes("tc-role-bar") && !tutorMain1.includes('role="tablist"') && !tutorMain1.includes("tc-mobile-tabs"), "expected tc-role-bar, desktop tablist, and extra tc-mobile-tabs removed on Заявки");
     assert(
@@ -2970,11 +2975,11 @@
       "expected student book-submit to publish market.bid.created via EGE.realtime and increment tutorCabinet pendingCount live"
     );
 
-    // Переключаемся в кабинет преподавателя и проверяем live-пилюлю + чистый календарь + импорт .ics / Занято в GCal
+    // Переключаемся в кабинет преподавателя и проверяем чистую шапку (без rt-status-pill) + чистый календарь + импорт .ics / Занято в GCal
     clickAction(env5, { a: "role-set", role: "tutor" });
     await flushMicrotasks(3);
     const tutorCabHtml = env5.elements.get("main").innerHTML;
-    assert(tutorCabHtml.includes("rt-status-pill"), "expected realtimeStatusPillHTML in tutor cabinet header");
+    assert(tutorCabHtml.includes("Входящие заявки учеников") && !tutorCabHtml.includes("rt-status-pill"), "expected clean tutor requests view without rt-status-pill in header");
     assert(env5.elements.get("side-nav").innerHTML.includes(`>${pendingBeforeBid + 1}<`), "expected updated Заявки badge count in tutor sidebar navigation");
     clickAction(env5, { a: "go", v: "tutor-calendar" });
     await flushMicrotasks(2);
@@ -3193,7 +3198,7 @@
     vmRun(readFileText("frontend/app.js"), "frontend/app.js");
     await flushMicrotasks(10);
     assert(
-      envSiteTut.elements.get("main").innerHTML.includes("Личный кабинет преподавателя") &&
+      envSiteTut.elements.get("main").innerHTML.includes("Входящие заявки учеников") &&
       envSiteTut.elements.get("side-foot").innerHTML.includes("side-site-links") &&
       envSiteTut.elements.get("side-foot").innerHTML.includes("side-tutor-bal") &&
       envSiteTut.elements.get("tutor-balance-dock").hidden === true,
