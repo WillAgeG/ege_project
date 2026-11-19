@@ -1101,6 +1101,18 @@
       ? t.customBadges.map(function (b) { return String(b || "").trim().slice(0, 36); }).filter(Boolean).slice(0, 2)
       : [];
     t.source = t.source || SOURCE_CHANNELS[(idx || 0) % SOURCE_CHANNELS.length];
+    t.isParsed = t.isParsed != null ? !!t.isParsed : !t.fromCabinet;
+    t.availableChannels = (t.availableChannels && typeof t.availableChannels === "object")
+      ? {
+          wa: !!t.availableChannels.wa,
+          tg: !!t.availableChannels.tg,
+          max: !!t.availableChannels.max
+        }
+      : {
+          wa: Boolean(t.whatsapp),
+          tg: Boolean(t.telegram && String(t.telegram).trim()),
+          max: Boolean(t.maxHandle && String(t.maxHandle).trim())
+        };
     t.marketPrice = t.marketPrice || Math.round((t.price * 1.28) / 50) * 50;
     t.belowRub = Math.max(0, t.marketPrice - t.price);
     t.aboveRub = Math.max(0, t.price - t.marketPrice);

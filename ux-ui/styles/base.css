@@ -1149,6 +1149,20 @@ body[data-auth="1"] .top-bal-slot { display: none !important; }
 :root[data-theme="dark"] .btn-msg.is-max:hover {
   color: #ffffff;
 }
+.btn-msg.is-disabled,
+:root[data-theme="dark"] .btn-msg.is-disabled {
+  background: var(--surface-2);
+  border-color: var(--line);
+  color: var(--muted);
+  opacity: .58;
+  cursor: not-allowed;
+  pointer-events: none;
+  box-shadow: none;
+  transform: none;
+}
+.btn-msg.is-disabled svg {
+  opacity: .65;
+}
 .auto-ch-bar {
   display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap;
 }

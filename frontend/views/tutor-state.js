@@ -107,6 +107,13 @@
       tutorPrice: 1200,
       marketPrice: 1450,
       note: "Регулярные занятия раз в неделю по тестовой части и изложению.",
+      schedulePlan: {
+        status: "sent_to_tutor",
+        dows: [3, 4],
+        hour: "16:00",
+        weekly: true,
+        botText: "в 16:00 в среду и четверг каждую неделю"
+      },
       status: "accepted",
       createdLabel: "Вчера"
     }
@@ -681,6 +688,9 @@
       exp: `${years} ${plural(years, "год", "года", "лет")} · ср. балл ${avg}`,
       tag: p.headline || customSkillsText || "Подготовка ФИПИ",
       source: "Кабинет",
+      fromCabinet: true,
+      whatsapp: p.whatsapp || "",
+      telegram: p.telegram || "",
       verified: true,
       bumpedToday: !!(st.bumpedToday || st.autoBump24h),
       bumpText: st.autoBump24h ? `Автоподнятие 24 ч (${st.autoBumpHour})` : (st.bumpedToday ? "Поднята сегодня" : "Ваша анкета"),
@@ -721,6 +731,7 @@
       tutorPrice: Number(bk.tutorPrice) || st.profile.price,
       marketPrice: Math.round((Number(bk.tutorPrice) || st.profile.price) * 1.28),
       note: bk.note || `Отклик со слотом ${bk.hour || "14:00"} — выберите ставку и подтвердите.`,
+      schedulePlan: bk.schedulePlan || null,
       status: bk.status || "pending",
       createdLabel: "С витрины /market"
     }));

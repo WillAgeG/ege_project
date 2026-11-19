@@ -868,8 +868,21 @@
         bk.reserved = bk.offerPrice;
         st.balance -= bk.reserved;
       }
+      if (!bk.schedulePlan) {
+        const tutor = TDATA && TDATA.LIST ? TDATA.LIST.find((x) => x.id === bk.tutorId) : null;
+        const mktMod = EGE.views && EGE.views.marketplace;
+        const defaultDows = mktMod && typeof mktMod.suggestTwoDows === "function"
+          ? mktMod.suggestTwoDows(bk, tutor)
+          : [3, 4];
+        bk.schedulePlan = {
+          status: "needs_pick",
+          dows: defaultDows,
+          hour: bk.hour || "16:00",
+          weekly: true
+        };
+      }
       saveMkt();
-      toast(`${bk.tutorName} подтвердил(а) занятие ${bk.hour} по ставке ${bk.offerPrice} ₽/ч · уведомили в Учёбе`);
+      toast(`${bk.tutorName} подтвердил(а) занятие — выберите 2 удобных дня и время`);
       scheduleRender();
     },
     "mkt-cancel-book": (el) => {

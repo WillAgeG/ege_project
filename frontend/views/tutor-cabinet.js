@@ -26,6 +26,98 @@
   const { renderCalendarTab, renderStudentsTab, renderLeadsTab, formatWaReminderText, studentWaHref, studentReminderUrl } = TC;
   const { renderPayoutStatsBlocks, renderPayoutWalletSection, renderPayoutHistorySection, getWalletSummary, sideBalanceWidgetHTML, desktopDockHTML, mobileTopWidgetHTML, payoutModalHTML, submitPayout, viewPayouts } = TC;
 
+  const TC_DAYS_UI = [
+    { dow: 1, short: "Пн", acc: "в понедельник" },
+    { dow: 2, short: "Вт", acc: "во вторник" },
+    { dow: 3, short: "Ср", acc: "в среду" },
+    { dow: 4, short: "Чт", acc: "в четверг" },
+    { dow: 5, short: "Пт", acc: "в пятницу" },
+    { dow: 6, short: "Сб", acc: "в субботу" },
+    { dow: 0, short: "Вс", acc: "в воскресенье" }
+  ];
+  const TC_HOURS_UI = ["10:00", "11:00", "12:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
+
+  function tcSortDows(dows) {
+    const order = { 1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 0: 6 };
+    const uniq = [];
+    (Array.isArray(dows) ? dows : []).forEach((x) => {
+      const n = Number(x);
+      if (Number.isInteger(n) && n >= 0 && n <= 6 && !uniq.includes(n)) uniq.push(n);
+    });
+    return uniq.sort((a, b) => (order[a] ?? 9) - (order[b] ?? 9));
+  }
+
+  function tcDaysShort(dows) {
+    return tcSortDows(dows).map((d) => {
+      const hit = TC_DAYS_UI.find((x) => x.dow === d);
+      return hit ? hit.short : "";
+    }).filter(Boolean).join(", ");
+  }
+
+  function tcBotPhrase(dows, hour, weekly) {
+    const sorted = tcSortDows(dows);
+    const h = String(hour || "16:00");
+    if (!sorted.length) return `в ${h}${weekly !== false ? " каждую неделю" : ""}`;
+    const first = TC_DAYS_UI.find((x) => x.dow === sorted[0]);
+    const dayPart = sorted.length === 1
+      ? (first ? first.acc : "")
+      : (() => {
+          const second = TC_DAYS_UI.find((x) => x.dow === sorted[1]);
+          const secondNoun = second ? second.acc.replace(/^во?\s+/i, "") : "";
+          return `${first ? first.acc : ""} и ${secondNoun}`;
+        })();
+    return `в ${h} ${dayPart}${weekly !== false ? " каждую неделю" : ""}`.trim();
+  }
+
+  function renderTutorScheduleBotHTML(req, st) {
+    const sp = req && req.schedulePlan;
+    if (!sp || sp.status === "needs_pick") return "";
+    const weekly = sp.weekly !== false;
+    const isAltOpen = st.schedAltId === req.id;
+    if (isAltOpen) {
+      const drafts = st.schedAltDrafts || (st.schedAltDrafts = {});
+      if (!drafts[req.id]) {
+        drafts[req.id] = {
+          dows: tcSortDows(sp.altDows && sp.altDows.length ? sp.altDows : [2, 5]).slice(0, 2),
+          hour: String(sp.altHour || (sp.hour === "18:00" ? "17:00" : "18:00"))
+        };
+      }
+      const dr = drafts[req.id];
+      const dows = tcSortDows(dr.dows).slice(0, 2);
+      const ready = dows.length === 2;
+      return `<div class="tc-sched-box is-editing" style="display:grid;gap:6px;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);width:100%">
+        <b class="small">Предложить ученику другие 2 дня:</b>
+        <div class="row" style="gap:4px;flex-wrap:wrap">
+          ${TC_DAYS_UI.map((d) => `<button type="button" class="chip-btn${dows.includes(d.dow) ? " on" : ""}" style="min-height:26px;padding:0 8px;font-size:11.5px" data-a="tc-sched-alt-day" data-id="${esc(req.id)}" data-dow="${d.dow}">${d.short}</button>`).join("")}
+        </div>
+        <div class="row" style="gap:4px;flex-wrap:wrap">
+          ${TC_HOURS_UI.map((h) => `<button type="button" class="chip-btn${dr.hour === h ? " on" : ""}" style="min-height:26px;padding:0 8px;font-size:11.5px" data-a="tc-sched-alt-hour" data-id="${esc(req.id)}" data-hour="${h}">${h}</button>`).join("")}
+        </div>
+        <div class="row" style="gap:6px;flex-wrap:wrap">
+          <button type="button" class="btn sm" data-a="tc-sched-alt-send" data-id="${esc(req.id)}"${ready ? "" : " disabled"}>Предложить ученику</button>
+          <button type="button" class="btn ghost sm" data-a="tc-sched-alt-cancel" data-id="${esc(req.id)}">Отмена</button>
+        </div>
+      </div>`;
+    }
+    if (sp.status === "sent_to_tutor") {
+      return `<div class="tc-sched-box" style="display:grid;gap:6px;padding:8px 10px;border-radius:10px;border:1px solid color-mix(in srgb,var(--accent) 28%,transparent);background:var(--accent-soft);width:100%">
+        <b class="small" style="color:var(--accent)">Бот Вектора: ученик хочет заниматься ${esc(sp.botText || tcBotPhrase(sp.dows, sp.hour, weekly))}</b>
+        <div class="row" style="gap:6px;flex-wrap:wrap">
+          <button type="button" class="btn confirm sm" data-a="tc-sched-accept" data-id="${esc(req.id)}">Подтвердить график</button>
+          <button type="button" class="btn soft sm" data-a="tc-sched-alt-open" data-id="${esc(req.id)}">Выбрать другие даты</button>
+        </div>
+      </div>`;
+    }
+    if (sp.status === "tutor_proposed") {
+      return `<div class="tc-sched-box" style="display:grid;gap:4px;padding:8px 10px;border-radius:10px;border:1px solid color-mix(in srgb,var(--notif) 32%,transparent);background:var(--notif-soft);width:100%">
+        <span class="small">Предложили ученику: <b>${esc(tcDaysShort(sp.altDows))} · ${esc(sp.altHour || "17:00")}</b> · ждём подтверждения</span>
+      </div>`;
+    }
+    return `<div class="tc-sched-box" style="display:grid;gap:4px;padding:8px 10px;border-radius:10px;border:1px solid color-mix(in srgb,var(--confirm) 30%,transparent);background:var(--confirm-soft);width:100%">
+      <span class="small" style="color:var(--confirm)"><b>✓ График закреплён:</b> ${esc(tcDaysShort(sp.dows))} · ${esc(sp.hour || req.hour)}${weekly ? " · каждую неделю" : ""}</span>
+    </div>`;
+  }
+
   function renderRequestCard(req, st, isFirstPending) {
     const TDATA = getTDATA();
     const bidRate = Number(req.counterPrice || req.offerPrice) || st.profile.price;
@@ -82,17 +174,20 @@
           ${bidRate !== req.offerPrice ? `<button type="button" class="btn soft sm" data-a="tc-req-counter" data-id="${esc(req.id)}">Отправить контр-ставку</button>` : ""}
           <button type="button" class="btn ghost sm" data-a="tc-req-decline" data-id="${esc(req.id)}">Отклонить</button>
         </div>` : isAccepted ? `
-        <div class="row between" style="gap:8px;flex-wrap:wrap">
-          <span class="small ink2">Выплата после урока: <b class="num">${sp.payout.toLocaleString("ru-RU")} ₽</b> <span class="muted">(сбор ${sp.fee} ₽)</span></span>
-          <div class="row" style="gap:8px;flex-wrap:wrap">
-            ${EGE.kit && typeof EGE.kit.messengerLinksHTML === "function"
-              ? EGE.kit.messengerLinksHTML({
-                  entity: { id: req.id, name: req.studentName, whatsapp: req.whatsapp || "79142100511" },
-                  message: `Здравствуйте, ${req.studentName}! Подтверждаю урок (${req.subjectName}, ${req.dayLabel} в ${req.hour}) через Вектор ЕГЭ.`,
-                  primaryLabel: "Написать ученику · WA",
-                  compact: true
-                })
-              : `<button type="button" class="btn confirm sm" data-a="tc-req-msg" data-id="${esc(req.id)}">${icon("msg")}<span>Написать ученику</span></button>`}
+        <div class="stack" style="gap:8px;width:100%">
+          ${renderTutorScheduleBotHTML(req, st)}
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <span class="small ink2">Выплата после урока: <b class="num">${sp.payout.toLocaleString("ru-RU")} ₽</b> <span class="muted">(сбор ${sp.fee} ₽)</span></span>
+            <div class="row" style="gap:8px;flex-wrap:wrap">
+              ${EGE.kit && typeof EGE.kit.messengerLinksHTML === "function"
+                ? EGE.kit.messengerLinksHTML({
+                    entity: { id: req.id, name: req.studentName, whatsapp: req.whatsapp || "79142100511" },
+                    message: `Здравствуйте, ${req.studentName}! Подтверждаю урок (${req.subjectName}, ${req.dayLabel} в ${req.hour}) через Вектор ЕГЭ.`,
+                    primaryLabel: "Написать ученику · WA",
+                    compact: true
+                  })
+                : `<button type="button" class="btn confirm sm" data-a="tc-req-msg" data-id="${esc(req.id)}">${icon("msg")}<span>Написать ученику</span></button>`}
+            </div>
           </div>
         </div>` : `
         <div class="row" style="gap:8px">
@@ -239,6 +334,7 @@
           if (isAccepted) {
             return `<div style="display:grid;gap:6px;justify-items:start;min-width:190px">
               ${statusChip}
+              ${renderTutorScheduleBotHTML(req, st)}
               <span class="small muted num">К выплате: <b>${sp.payout.toLocaleString("ru-RU")} ₽</b></span>
               ${EGE.kit && typeof EGE.kit.messengerLinksHTML === "function"
                 ? EGE.kit.messengerLinksHTML({
@@ -1101,6 +1197,111 @@
       if (typeof getCtx().notifySide === "function") {
         getCtx().notifySide("Чат с учеником", who ? `Открыт диалог с ${who.studentName} (${who.dayLabel}, ${who.hour})` : "Сообщение ученику подготовлено");
       }
+      return true;
+    }
+
+    if (act === "tc-sched-accept") {
+      const updated = updateReq(id, (req) => {
+        if (!req.schedulePlan) return;
+        req.schedulePlan.status = "confirmed";
+        req.schedulePlan.updatedAt = Date.now();
+        req.dows = tcSortDows(req.schedulePlan.dows);
+        req.hour = String(req.schedulePlan.hour || req.hour || "16:00");
+        req.dayLabel = tcDaysShort(req.dows);
+      });
+      if (!updated) return false;
+      const who = findReq(id);
+      const sp = who && who.schedulePlan;
+      st.schedAltId = "";
+      syncTutorCalendar(st);
+      saveState();
+      publishRtUpdate(
+        "schedule.confirmed",
+        "График подтверждён",
+        sp ? `${who.studentName} · ${tcDaysShort(sp.dows)} в ${sp.hour}` : "График подтверждён",
+        { requestId: id, schedulePlan: sp }
+      );
+      if (typeof getCtx().notifySide === "function") {
+        getCtx().notifySide("График подтверждён", sp ? `${tcDaysShort(sp.dows)} · ${sp.hour}` : "Расписание закреплено");
+      }
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-sched-alt-open") {
+      st.schedAltId = id;
+      const who = findReq(id);
+      const sp = who && who.schedulePlan;
+      const drafts = st.schedAltDrafts || (st.schedAltDrafts = {});
+      drafts[id] = {
+        dows: tcSortDows(sp && sp.altDows && sp.altDows.length ? sp.altDows : [2, 5]).slice(0, 2),
+        hour: String((sp && sp.altHour) || (sp && sp.hour === "18:00" ? "17:00" : "18:00"))
+      };
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-sched-alt-cancel") {
+      st.schedAltId = "";
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-sched-alt-day") {
+      const drafts = st.schedAltDrafts || (st.schedAltDrafts = {});
+      if (!drafts[id]) drafts[id] = { dows: [2, 5], hour: "18:00" };
+      const dow = Number(d.dow);
+      if (!Number.isInteger(dow) || dow < 0 || dow > 6) return false;
+      const cur = Array.isArray(drafts[id].dows) ? drafts[id].dows.slice() : [];
+      const idx = cur.indexOf(dow);
+      if (idx >= 0) cur.splice(idx, 1);
+      else {
+        if (cur.length >= 2) cur.shift();
+        cur.push(dow);
+      }
+      drafts[id].dows = tcSortDows(cur);
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-sched-alt-hour") {
+      const drafts = st.schedAltDrafts || (st.schedAltDrafts = {});
+      if (!drafts[id]) drafts[id] = { dows: [2, 5], hour: "18:00" };
+      if (d.hour) drafts[id].hour = String(d.hour);
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-sched-alt-send") {
+      const drafts = st.schedAltDrafts || {};
+      const dr = drafts[id];
+      const dows = tcSortDows(dr && dr.dows).slice(0, 2);
+      if (dows.length < 2) {
+        if (typeof getCtx().toast === "function") getCtx().toast("Выберите 2 дня для предложения ученику");
+        return true;
+      }
+      const hour = String((dr && dr.hour) || "18:00");
+      const updated = updateReq(id, (req) => {
+        if (!req.schedulePlan) req.schedulePlan = { dows: [3, 4], hour: req.hour || "16:00", weekly: true };
+        req.schedulePlan.status = "tutor_proposed";
+        req.schedulePlan.altDows = dows;
+        req.schedulePlan.altHour = hour;
+        req.schedulePlan.altBotText = tcBotPhrase(dows, hour, req.schedulePlan.weekly !== false);
+        req.schedulePlan.updatedAt = Date.now();
+      });
+      if (!updated) return false;
+      st.schedAltId = "";
+      saveState();
+      publishRtUpdate(
+        "schedule.counter",
+        "Предложены другие даты",
+        `Преподаватель предложил: ${tcDaysShort(dows)} · ${hour}`,
+        { requestId: id, altDows: dows, altHour: hour }
+      );
+      if (typeof getCtx().notifySide === "function") {
+        getCtx().notifySide("Другие даты отправлены ученику", `${tcDaysShort(dows)} · ${hour}`);
+      }
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
       return true;
     }
 

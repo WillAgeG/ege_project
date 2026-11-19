@@ -1500,7 +1500,62 @@
     clickAction(env5, { a: "mkt-sim-accept", id: acceptIdMatch[1] });
     await flushMicrotasks(4);
     const homeAcceptedHtml = env5.elements.get("main").innerHTML;
-    assert(homeAcceptedHtml.includes("Преподаватель ответил") && homeAcceptedHtml.includes("Написали вам в СМС"), "expected Главная to display Написали вам в СМС & messenger notice once accepted");
+    assert(
+      homeAcceptedHtml.includes("Преподаватель ответил") &&
+      homeAcceptedHtml.includes("Написали вам в СМС") &&
+      homeAcceptedHtml.includes(`data-sched-box="${acceptIdMatch[1]}"`) &&
+      homeAcceptedHtml.includes("btn-msg is-wa") &&
+      homeAcceptedHtml.includes("btn-msg is-tg is-disabled") &&
+      homeAcceptedHtml.includes("btn-msg is-max is-disabled"),
+      "expected Главная accepted card to open 2-day schedule picker and show active WhatsApp + greyed Telegram/MAX for parsed tutors"
+    );
+
+    const parsedCheck = globalThis.EGE.tutors.LIST.filter((t) => !t.fromCabinet);
+    assert(
+      parsedCheck.length > 0 &&
+      parsedCheck.every((t) => t.availableChannels && t.availableChannels.wa && !t.availableChannels.tg && !t.availableChannels.max),
+      "expected parsed catalog tutors to expose availableChannels={wa:true,tg:false,max:false}"
+    );
+
+    for (const targetDow of ["3", "4"]) {
+      const curHtml = env5.elements.get("main").innerHTML;
+      const isAlreadyOn = new RegExp(`data-a="bid-sched-day" data-id="${acceptIdMatch[1]}" data-dow="${targetDow}" aria-pressed="true"`).test(curHtml);
+      if (!isAlreadyOn) {
+        clickAction(env5, { a: "bid-sched-day", id: acceptIdMatch[1], dow: targetDow });
+        await flushMicrotasks(2);
+      }
+    }
+    const afterTwoDaysHtml = env5.elements.get("main").innerHTML;
+    const isOneOfTargetOff = !new RegExp(`data-a="bid-sched-day" data-id="${acceptIdMatch[1]}" data-dow="3" aria-pressed="true"`).test(afterTwoDaysHtml);
+    if (isOneOfTargetOff) {
+      clickAction(env5, { a: "bid-sched-day", id: acceptIdMatch[1], dow: "3" });
+      await flushMicrotasks(2);
+    }
+    clickAction(env5, { a: "bid-sched-hour", id: acceptIdMatch[1], hour: "16:00" });
+    await flushMicrotasks(2);
+    assert(
+      env5.elements.get("main").innerHTML.includes("в 16:00 в среду и четверг каждую неделю"),
+      "expected 2-day weekly schedule picker to format Bot phrase 'в 16:00 в среду и четверг каждую неделю'"
+    );
+    clickAction(env5, { a: "bid-sched-send", id: acceptIdMatch[1] });
+    await flushMicrotasks(2);
+    assert(
+      env5.elements.get("main").innerHTML.includes("Бот отправил график преподавателю"),
+      "expected bid-sched-send to move card to sent_to_tutor bot status"
+    );
+    clickAction(env5, { a: "bid-sched-alt-sim", id: acceptIdMatch[1] });
+    await flushMicrotasks(2);
+    assert(
+      env5.elements.get("main").innerHTML.includes("Преподаватель предложил другие даты"),
+      "expected bid-sched-alt-sim to show tutor counter-proposed dates"
+    );
+    clickAction(env5, { a: "bid-sched-accept-alt", id: acceptIdMatch[1] });
+    await flushMicrotasks(2);
+    assert(
+      env5.elements.get("main").innerHTML.includes("График закреплён"),
+      "expected bid-sched-accept-alt to confirm new weekly dates"
+    );
+
     clickAction(env5, { a: "go", v: "study" });
     await flushMicrotasks(3);
     const studyWithCardsHtml = env5.elements.get("main").innerHTML;
@@ -1514,11 +1569,16 @@
       studyWithCardsHtml.includes(">Расписание<") &&
       studyWithCardsHtml.includes(">Чаты<") &&
       !studyWithCardsHtml.includes("График (") &&
-      !studyWithCardsHtml.includes("Чаты ("),
-      "expected Photo 3 blocks and Телемост inside Учёба without blue Ваших записей card and with clean Расписание/Чаты tabs"
+      !studyWithCardsHtml.includes("Чаты (") &&
+      (studyWithCardsHtml.match(/data-label="День и час"/g) || []).length >= 2,
+      "expected Photo 3 blocks, both weekly schedule days in #study-schedule-table, and Телемост inside Учёба without blue Ваших записей card"
     );
     clickAction(env5, { a: "go", v: "market" });
     await flushMicrotasks(3);
+    assert(
+      env5.elements.get("main").innerHTML.includes("Отправим преподавателю в WhatsApp"),
+      "expected /market search cards for parsed tutors to say 'Отправим преподавателю в WhatsApp'"
+    );
 
     clickAction(env5, { a: "mkt-cancel-book", id: acceptIdMatch[1] });
     await flushMicrotasks(4);
@@ -2025,9 +2085,18 @@
       env5.elements.get("main").innerHTML.includes("https://wa.me/") &&
       env5.elements.get("main").innerHTML.includes("https://t.me/") &&
       env5.elements.get("main").innerHTML.includes("https://max.ru/") &&
-      env5.elements.get("toast").innerHTML.includes("Урок подтверждён"),
-      "expected tc-req-accept to confirm lesson with WhatsApp/Telegram/MAX links and side toast"
+      env5.elements.get("toast").innerHTML.includes("Урок подтверждён") &&
+      env5.elements.get("main").innerHTML.includes("tc-sched-box") &&
+      env5.elements.get("main").innerHTML.includes("Бот Вектора: ученик хочет заниматься в 16:00 в среду и четверг каждую неделю") &&
+      env5.elements.get("main").innerHTML.includes('data-a="tc-sched-accept" data-id="tc-req-3"'),
+      "expected tc-req-accept to confirm lesson and render Bot weekly schedule card on tc-req-3"
     );
+    clickAction(env5, { a: "tc-sched-alt-open", id: "tc-req-3" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("Предложить ученику другие 2 дня"), "expected tc-sched-alt-open to reveal tutor alternative 2-day picker");
+    clickAction(env5, { a: "tc-sched-alt-send", id: "tc-req-3" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("Предложили ученику"), "expected tc-sched-alt-send to notify student of tutor alternative dates");
 
     clickAction(env5, { a: "tc-slot-toggle", hour: "13:00" });
     await flushMicrotasks(2);

@@ -3058,7 +3058,7 @@
     if (act && act.indexOf("adm-") === 0 && EGE.views.admin && typeof EGE.views.admin.handleAction === "function") {
       if (EGE.views.admin.handleAction(act, el)) { if (!isExtLink) e.preventDefault(); return; }
     }
-    if (act && (act === "home-bid-filter" || act.indexOf("bid-telemost-") === 0 || act.indexOf("mkt-bk-") === 0 || act.indexOf("study-sched-") === 0 || act.indexOf("study-chats-") === 0) && EGE.views.marketplace && typeof EGE.views.marketplace.handleAction === "function") {
+    if (act && (act === "home-bid-filter" || act.indexOf("bid-telemost-") === 0 || act.indexOf("bid-sched-") === 0 || act.indexOf("mkt-bk-") === 0 || act.indexOf("study-sched-") === 0 || act.indexOf("study-chats-") === 0) && EGE.views.marketplace && typeof EGE.views.marketplace.handleAction === "function") {
       if (e.defaultPrevented) return;
       if (EGE.views.marketplace.handleAction(act, el)) { if (!isExtLink) e.preventDefault(); return; }
     }

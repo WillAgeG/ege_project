@@ -764,18 +764,30 @@
 
   function messengerLinksHTML(opts) {
     opts = opts || {};
-    const urls = resolveMessengerUrls(opts.entity || {}, opts.message || "");
+    const ent = opts.entity || {};
+    const urls = resolveMessengerUrls(ent, opts.message || "");
     const compact = !!opts.compact;
     const waLbl = opts.primaryLabel || "WhatsApp";
     const tgLbl = opts.tgLabel || "Telegram";
     const maxLbl = opts.maxLabel || "MAX";
+    const availSrc = (opts.available && typeof opts.available === "object")
+      ? opts.available
+      : (ent && ent.availableChannels && typeof ent.availableChannels === "object" ? ent.availableChannels : null);
+    const avail = {
+      wa: availSrc && availSrc.wa !== undefined ? !!availSrc.wa : true,
+      tg: availSrc && availSrc.tg !== undefined ? !!availSrc.tg : true,
+      max: availSrc && availSrc.max !== undefined ? !!availSrc.max : true
+    };
     const extraAttr = opts.dataAction
       ? (` data-a="${esc(opts.dataAction)}"` + (opts.dataId ? ` data-id="${esc(opts.dataId)}"` : ""))
       : "";
+    const item = (active, cls, href, svg, lbl, titleOn, titleOff) => active
+      ? `<a class="btn-msg ${cls}" href="${esc(href)}" target="_blank" rel="noopener"${extraAttr} title="${esc(titleOn)}">${svg}<span>${esc(lbl)}</span></a>`
+      : `<span class="btn-msg ${cls} is-disabled" aria-disabled="true" title="${esc(titleOff)}">${svg}<span>${esc(lbl)}</span></span>`;
     return `<div class="msg-channel-bar${compact ? " is-compact" : ""}" role="group" aria-label="Написать через мессенджер">
-      <a class="btn-msg is-wa" href="${esc(urls.whatsapp)}" target="_blank" rel="noopener"${extraAttr} title="Написать в WhatsApp">${MSG_SVGS.wa}<span>${esc(waLbl)}</span></a>
-      <a class="btn-msg is-tg" href="${esc(urls.telegram)}" target="_blank" rel="noopener"${extraAttr} title="Написать в Telegram">${MSG_SVGS.tg}<span>${esc(tgLbl)}</span></a>
-      <a class="btn-msg is-max" href="${esc(urls.max)}" target="_blank" rel="noopener"${extraAttr} title="Написать в MAX">${MSG_SVGS.max}<span>${esc(maxLbl)}</span></a>
+      ${item(avail.wa, "is-wa", urls.whatsapp, MSG_SVGS.wa, waLbl, "Написать в WhatsApp", "WhatsApp не указан")}
+      ${item(avail.tg, "is-tg", urls.telegram, MSG_SVGS.tg, tgLbl, "Написать в Telegram", "Контакт Telegram не указан (доступен WhatsApp)")}
+      ${item(avail.max, "is-max", urls.max, MSG_SVGS.max, maxLbl, "Написать в MAX", "Контакт MAX не указан (доступен WhatsApp)")}
     </div>`;
   }
 

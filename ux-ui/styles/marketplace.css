@@ -1154,7 +1154,30 @@ body:not([data-auth="1"]):not([data-fullbleed="1"]):not([data-brandbook="1"]) .l
 }
 
 /* строгая палитра тегов по брендбуку: Серый (база) + Синий hh (выгода) + Оранжевый (уведомление / ставка ниже анкеты) */
-.hh-diff-strip { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.hh-diff-strip { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; max-width: 100%; }
+.tutor-card .hh-diff-strip {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+.tutor-card .hh-diff-strip .diff-tag {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 3px 8px;
+  font-size: 11.5px;
+  line-height: 1.25;
+}
+.tutor-card .hh-diff-strip .diff-tag:last-child {
+  flex: 0 0 auto;
+}
 .diff-tag {
   display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px;
   border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid transparent; white-space: nowrap;
@@ -2257,6 +2280,138 @@ body:has(.land-page:not(#brandbook-page)) .main,
 .study-tabs-rail > * { flex: 0 0 auto; white-space: nowrap; }
 .study-tabs-rail::-webkit-scrollbar { display: none; }
 .bk-tbl-pending-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Умный выбор 2 дат и времени на платформе + бот-диалог с преподавателем */
+.bid-sched-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--line));
+  background: var(--surface);
+  min-width: 0;
+}
+.bid-sched-card.is-sent {
+  background: color-mix(in srgb, var(--accent-soft) 50%, var(--surface));
+}
+.bid-sched-card.is-proposed {
+  border-color: color-mix(in srgb, var(--notif) 36%, var(--line));
+  background: color-mix(in srgb, var(--notif-soft) 50%, var(--surface));
+}
+.bid-sched-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+.bid-sched-head b {
+  display: block;
+  font-size: 13.5px;
+  line-height: 1.3;
+  color: var(--ink);
+}
+.bid-sched-head .chip { flex: none; white-space: nowrap; }
+.bid-sched-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+}
+.bid-sched-day-btn {
+  min-height: 36px;
+  padding: 0 2px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color .14s ease, border-color .14s ease, color .14s ease;
+}
+.bid-sched-day-btn.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+.bid-sched-hours {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.bid-sched-hours::-webkit-scrollbar { display: none; }
+.bid-sched-hour-btn {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 0 11px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.bid-sched-hour-btn.on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+}
+.bid-sched-bot {
+  display: grid;
+  gap: 3px;
+  padding: 9px 11px;
+  border-radius: 11px;
+  border: 1px dashed var(--line-strong);
+  background: var(--surface-2);
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+.bid-sched-bot b { font-size: 12px; color: var(--ink); font-weight: 600; }
+.bid-sched-submit,
+.bid-sched-full-btn {
+  width: 100%;
+  justify-content: center;
+}
+.bid-sched-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+.bid-sched-actions .btn { width: 100%; justify-content: center; min-width: 0; }
+.bid-sched-confirmed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 13px;
+  border-radius: 13px;
+  border: 1px solid color-mix(in srgb, var(--confirm) 30%, transparent);
+  background: color-mix(in srgb, var(--confirm-soft) 55%, var(--surface));
+}
+.bid-sched-confirmed b { display: block; font-size: 13px; color: var(--confirm); font-weight: 700; }
+.tc-sched-box { font-size: 12.5px; line-height: 1.4; }
 
 .profile-setup-notif {
   padding: 14px 16px;
