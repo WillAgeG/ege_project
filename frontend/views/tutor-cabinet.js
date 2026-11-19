@@ -20,8 +20,9 @@
     GOAL_PRESETS, QUICK_TEMPLATES, DEFAULT_REQUESTS, DEFAULT_STUDENTS,
     SAMPLE_GCAL_ICS, MIN_PAYOUT_RUB, PAYOUT_BANKS,
     getCtx, configure, getTDATA, getTutorSlug, syncTutorCalendar, publishRtUpdate,
-    formatPhone, formatTelegram, formatCardMask, normalizeChannelList,
+    formatPhone, formatTelegram, formatCardMask, normalizeChannelList, normalizeLeadList,
     copyStr, formatTimestamp, defaultState, tState, saveState,
+    ensureTelemostUrl, resolveLessonContacts, getLessonNotifyConfig, renderLessonNotifyHTML,
     checkAutoBumpDue, formatCountdown, autoBumpRemainingMs, manualBumpRemainingMs,
     ensureCountdownTimer, ensureRealtimeConnected, clampStep, profileCompleteness,
     buildMarketTutorPayload, syncPublishedTutor, dayDowFromLabel, syncedRequests,
@@ -139,21 +140,34 @@
             ${bidRate !== req.offerPrice ? `<button type="button" class="btn soft sm" data-a="tc-req-counter" data-id="${esc(req.id)}">Отправить контр-ставку</button>` : ""}
             <button type="button" class="btn ghost sm" data-a="tc-req-decline" data-id="${esc(req.id)}">Отклонить</button>
           </div>
-        </div>` : isAccepted ? `
-        <div class="stack" style="gap:8px;width:100%">
+        </div>` : isAccepted ? (() => {
+        const tmUrl = typeof ensureTelemostUrl === "function" ? ensureTelemostUrl(st, req) : "";
+        const reqNameLower = String(req.studentName || "").trim().toLowerCase();
+        const stuMatch = (st.students || []).find((x) => x && ((req.studentId && x.id === req.studentId) || (reqNameLower && String(x.name || "").trim().toLowerCase() === reqNameLower))) || null;
+        const contacts = typeof resolveLessonContacts === "function"
+          ? resolveLessonContacts(st, req, stuMatch)
+          : { entity: { id: req.id, name: req.studentName, whatsapp: req.whatsapp || "", telegram: req.telegram || "", maxHandle: req.maxHandle || "" }, available: null };
+        return `<div class="stack" style="gap:8px;width:100%">
           ${renderTutorScheduleBotHTML(req, st)}
           <div class="row between" style="gap:8px;flex-wrap:wrap">
             <span class="small ink2">Выплата после урока: <b class="num">${sp.payout.toLocaleString("ru-RU")} ₽</b> <span class="muted">(сбор ${sp.fee} ₽)</span></span>
           </div>
+          ${tmUrl ? `<a class="btn soft sm bid-telemost-join" href="${esc(tmUrl)}" target="_blank" rel="noopener noreferrer">${icon("video")}<span>Подключиться к Яндекс Телемосту</span></a>` : ""}
           ${EGE.kit && typeof EGE.kit.messengerLinksHTML === "function"
             ? EGE.kit.messengerLinksHTML({
-                entity: { id: req.id, name: req.studentName, whatsapp: req.whatsapp || "79142100511", telegram: req.telegram || "", maxHandle: req.maxHandle || "" },
+                entity: contacts.entity,
+                available: contacts.available,
                 message: `Здравствуйте, ${req.studentName}! Подтверждаю урок (${req.subjectName}, ${req.dayLabel} в ${req.hour}) через Вектор ЕГЭ.`,
-                primaryLabel: "Написать ученику · WA",
+                primaryTitle: "Написать ученику · WhatsApp",
+                iconOnly: true,
+                allowHoldAdd: true,
                 compact: true
               })
             : `<button type="button" class="btn confirm sm" data-a="tc-req-msg" data-id="${esc(req.id)}">${icon("msg")}<span>Написать ученику</span></button>`}
-        </div>` : `
+          <div class="small muted tc-hold-hint">Удерживайте логотип, чтобы добавить или изменить контакт</div>
+          ${typeof renderLessonNotifyHTML === "function" ? renderLessonNotifyHTML(st, req, stuMatch) : ""}
+        </div>`;
+      })() : `
         <div class="row" style="gap:8px">
           <button type="button" class="btn soft sm" data-a="tc-req-restore" data-id="${esc(req.id)}">Вернуть в рассмотрение</button>
         </div>`}
@@ -671,8 +685,44 @@
     }
 
     if (act === "tc-wa-lead") {
-      if (!st.waSettings) st.waSettings = { enabled: true, lead: "2h", channels: ["wa", "tg", "max"], template: "" };
-      if (WA_LEAD_OPTIONS.some((o) => o.id === d.v)) st.waSettings.lead = d.v;
+      if (!st.waSettings) st.waSettings = { enabled: true, lead: "1h", leads: ["24h", "1h"], channels: ["wa", "tg", "max"], template: "" };
+      if (WA_LEAD_OPTIONS.some((o) => o.id === d.v)) {
+        const curLeads = normalizeLeadList(st.waSettings.leads);
+        const idx = curLeads.indexOf(d.v);
+        if (idx >= 0) curLeads.splice(idx, 1);
+        else curLeads.push(d.v);
+        st.waSettings.leads = normalizeLeadList(curLeads);
+        st.waSettings.lead = d.v;
+      }
+      saveState();
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-lesson-notify-toggle") {
+      if (!st.lessonAutoNotify || typeof st.lessonAutoNotify !== "object") st.lessonAutoNotify = {};
+      const stu = d.stuId ? (st.students || []).find((x) => x.id === d.stuId) : null;
+      const prev = getLessonNotifyConfig(st, id, stu);
+      const nextEnabled = !prev.enabled;
+      st.lessonAutoNotify[id] = { enabled: nextEnabled, leads: prev.leads.slice() };
+      if (stu) stu.autoNotify = nextEnabled;
+      saveState();
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-lesson-lead-toggle") {
+      if (!st.lessonAutoNotify || typeof st.lessonAutoNotify !== "object") st.lessonAutoNotify = {};
+      if (!WA_LEAD_OPTIONS.some((o) => o.id === d.v)) return false;
+      const stu = d.stuId ? (st.students || []).find((x) => x.id === d.stuId) : null;
+      const prev = getLessonNotifyConfig(st, id, stu);
+      const nextLeads = prev.leads.slice();
+      const idx = nextLeads.indexOf(d.v);
+      if (idx >= 0) nextLeads.splice(idx, 1);
+      else nextLeads.push(d.v);
+      const normalized = normalizeLeadList(nextLeads);
+      st.lessonAutoNotify[id] = { enabled: prev.enabled, leads: normalized };
+      if (stu) stu.autoLeads = normalized.slice();
       saveState();
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
       return true;
@@ -685,7 +735,7 @@
         saveState();
         if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
         if (typeof getCtx().notifySide === "function") {
-          const leadLabel = (WA_LEAD_OPTIONS.find((o) => o.id === ((st.waSettings && st.waSettings.lead) || "2h")) || WA_LEAD_OPTIONS[2]).label;
+          const leadLabel = (WA_LEAD_OPTIONS.find((o) => o.id === ((st.waSettings && st.waSettings.lead) || "1h")) || WA_LEAD_OPTIONS[1]).label;
           const chNames = normalizeChannelList(s.autoChannels).map((cid) => (AUTO_CHANNELS.find((c) => c.id === cid) || {}).name || cid).join(", ");
           getCtx().notifySide(
             s.autoNotify ? "Автоуведомление включено" : "Автоуведомление выключено",

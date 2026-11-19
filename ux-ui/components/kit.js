@@ -767,6 +767,7 @@
     const ent = opts.entity || {};
     const urls = resolveMessengerUrls(ent, opts.message || "");
     const compact = !!opts.compact;
+    const iconOnly = !!opts.iconOnly;
     const waLbl = opts.primaryLabel || "WhatsApp";
     const tgLbl = opts.tgLabel || "Telegram";
     const maxLbl = opts.maxLabel || "MAX";
@@ -785,15 +786,20 @@
     const holdAttrs = (chKey, lbl) => holdAdd
       ? ` data-hold-ch="${chKey}" data-tutor-id="${esc(ent.id || "")}" data-tutor-name="${esc(ent.name || "")}" data-hold-lbl="${esc(lbl)}"`
       : "";
-    const item = (chKey, active, cls, href, svg, lbl, titleOn, titleOff) => active
-      ? `<a class="btn-msg ${cls}${holdAdd ? " is-hold-add" : ""}" href="${esc(href)}" target="_blank" rel="noopener"${extraAttr}${holdAttrs(chKey, lbl)} title="${esc(holdAdd ? (titleOn + " · удерживайте, чтобы изменить") : titleOn)}">${svg}<span>${esc(lbl)}</span></a>`
-      : holdAdd
-        ? `<button type="button" class="btn-msg ${cls} is-disabled is-hold-add" aria-disabled="true" data-a="msg-hold-hint"${holdAttrs(chKey, lbl)} title="Удерживайте, чтобы указать ${esc(lbl)}">${svg}<span>${esc(lbl)}</span></button>`
-        : `<span class="btn-msg ${cls} is-disabled" aria-disabled="true" title="${esc(titleOff)}">${svg}<span>${esc(lbl)}</span></span>`;
-    return `<div class="msg-channel-bar${compact ? " is-compact" : ""}" role="group" aria-label="Написать через мессенджер">
-      ${item("wa", avail.wa, "is-wa", urls.whatsapp, MSG_SVGS.wa, waLbl, "Написать в WhatsApp", "WhatsApp не указан")}
-      ${item("tg", avail.tg, "is-tg", urls.telegram, MSG_SVGS.tg, tgLbl, "Написать в Telegram", "Контакт Telegram не указан (доступен WhatsApp)")}
-      ${item("max", avail.max, "is-max", urls.max, MSG_SVGS.max, maxLbl, "Написать в MAX", "Контакт MAX не указан (доступен WhatsApp)")}
+    const item = (chKey, active, cls, href, svg, lbl, titleOn, titleOff) => {
+      const inner = iconOnly ? svg : `${svg}<span>${esc(lbl)}</span>`;
+      const aria = iconOnly ? ` aria-label="${esc(active ? titleOn : titleOff)}"` : "";
+      if (active) {
+        return `<a class="btn-msg ${cls}${holdAdd ? " is-hold-add" : ""}" href="${esc(href)}" target="_blank" rel="noopener"${extraAttr}${holdAttrs(chKey, lbl)}${aria} title="${esc(holdAdd ? (titleOn + " · удерживайте, чтобы изменить") : titleOn)}">${inner}</a>`;
+      }
+      return holdAdd
+        ? `<button type="button" class="btn-msg ${cls} is-disabled is-hold-add" aria-disabled="true" data-a="msg-hold-hint"${holdAttrs(chKey, lbl)}${aria} title="Удерживайте, чтобы указать ${esc(lbl)}">${inner}</button>`
+        : `<span class="btn-msg ${cls} is-disabled" aria-disabled="true"${aria} title="${esc(titleOff)}">${inner}</span>`;
+    };
+    return `<div class="msg-channel-bar${compact ? " is-compact" : ""}${iconOnly ? " is-icon-only" : ""}" role="group" aria-label="Написать через мессенджер">
+      ${item("wa", avail.wa, "is-wa", urls.whatsapp, MSG_SVGS.wa, waLbl, opts.primaryTitle || "Написать в WhatsApp", "WhatsApp не указан")}
+      ${item("tg", avail.tg, "is-tg", urls.telegram, MSG_SVGS.tg, tgLbl, "Написать в Telegram", "Контакт Telegram не указан")}
+      ${item("max", avail.max, "is-max", urls.max, MSG_SVGS.max, maxLbl, "Написать в MAX", "Контакт MAX не указан")}
     </div>`;
   }
 

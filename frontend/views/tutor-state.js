@@ -28,11 +28,11 @@
     { id: "UTC+3", label: "Москва (UTC+3)" }
   ];
   const WA_LEAD_OPTIONS = [
-    { id: "30m", label: "За 30 мин" },
-    { id: "1h", label: "За 1 ч" },
-    { id: "2h", label: "За 2 ч" },
-    { id: "24h", label: "За 24 ч" }
+    { id: "24h", label: "За 24 часа" },
+    { id: "1h", label: "За 1 час" },
+    { id: "15m", label: "За 15 мин" }
   ];
+  const DEFAULT_WA_LEADS = ["24h", "1h"];
   const AUTO_CHANNELS = [
     { id: "wa", short: "WA", name: "WhatsApp" },
     { id: "tg", short: "TG", name: "Telegram" },
@@ -120,7 +120,7 @@
   ];
 
   const DEFAULT_STUDENTS = [
-    { id: "st-alina", name: "Алина С.", exam: "ЕГЭ · Биология", startScore: 58, curScore: 76, targetScore: 88, lessonsDone: 6, hw: "Линия №28 (сцепление генов) — сдать до Сб", lessonDay: "Воскресенье", lessonTime: "10:00", whatsapp: "+7 (914) 210-05-11", telegram: "@alina_bio", autoNotify: true, autoChannels: ["wa", "tg", "max"], lastRemindedAt: 0 },
+    { id: "st-alina", name: "Алина С.", exam: "ЕГЭ · Биология", startScore: 58, curScore: 76, targetScore: 88, lessonsDone: 6, hw: "Линия №28 (сцепление генов) — сдать до Сб", lessonDay: "Воскресенье", lessonTime: "10:00", whatsapp: "+7 (914) 210-05-11", telegram: "@alina_bio", maxHandle: "alina_bio", autoNotify: true, autoChannels: ["wa", "tg", "max"], autoLeads: ["24h", "1h"], lastRemindedAt: 0 },
     { id: "st-darya", name: "Дарья В.", exam: "ОГЭ · Русский", startScore: 22, curScore: 31, targetScore: 36, lessonsDone: 4, hw: "Синтаксис и сжатое изложение — вариант №4", lessonDay: "Понедельник", lessonTime: "18:00", whatsapp: "+7 (914) 210-05-12", telegram: "+7 (914) 210-05-12", autoNotify: false, autoChannels: ["wa", "tg", "max"], lastRemindedAt: 0 },
     { id: "st-timur", name: "Тимур К.", exam: "ЕГЭ · Химия", startScore: 64, curScore: 81, targetScore: 92, lessonsDone: 8, hw: "№34 на олеум и массовую долю — 5 задач", lessonDay: "Суббота", lessonTime: "16:00", whatsapp: "+7 (914) 210-05-13", telegram: "@timur_chem", autoNotify: true, autoChannels: ["wa", "tg", "max"], lastRemindedAt: 0 }
   ];
@@ -380,9 +380,12 @@
       tzMenuOpen: false,
       leadsSubj: "all",
       leadsMineOnly: false,
+      telemostUrl: "",
+      lessonAutoNotify: {},
       waSettings: {
         enabled: true,
-        lead: "2h",
+        lead: "1h",
+        leads: ["24h", "1h"],
         channels: ["wa", "tg", "max"],
         template: "Здравствуйте, {имя}! Напоминаю, что скоро будет урок ({предмет}) — {день} в {время}. Материалы и ссылку пришлю перед занятием."
       },
@@ -479,6 +482,9 @@
       }
       _cache.waSettings = Object.assign({}, def.waSettings, saved.waSettings || {});
       _cache.waSettings.channels = normalizeChannelList(_cache.waSettings.channels);
+      _cache.waSettings.leads = normalizeLeadList(saved.waSettings && saved.waSettings.leads);
+      if (!_cache.lessonAutoNotify || typeof _cache.lessonAutoNotify !== "object") _cache.lessonAutoNotify = {};
+      if (typeof _cache.telemostUrl !== "string") _cache.telemostUrl = "";
       _cache.profile.whatsapp = formatPhone(_cache.profile.whatsapp || def.profile.whatsapp);
       _cache.profile.telegram = formatTelegram(_cache.profile.telegram || def.profile.telegram);
       if (typeof _cache.profile.firstLessonGuarantee !== "boolean") {
@@ -731,6 +737,10 @@
       tutorPrice: Number(bk.tutorPrice) || st.profile.price,
       marketPrice: Math.round((Number(bk.tutorPrice) || st.profile.price) * 1.28),
       note: bk.note || `Отклик со слотом ${bk.hour || "14:00"} — выберите ставку и подтвердите.`,
+      telemostUrl: bk.telemostUrl || (mktState && mktState.telemostUrl) || "",
+      whatsapp: bk.whatsapp || "",
+      telegram: bk.telegram || "",
+      maxHandle: bk.maxHandle || "",
       schedulePlan: bk.schedulePlan || null,
       status: bk.status || "pending",
       createdLabel: "С витрины /market"
@@ -801,17 +811,110 @@
   }
 
 
+  function normalizeLeadList(arr) {
+    if (!Array.isArray(arr)) return DEFAULT_WA_LEADS.slice();
+    const valid = WA_LEAD_OPTIONS.map((o) => o.id);
+    const out = [];
+    valid.forEach((id) => {
+      if (arr.includes(id) && !out.includes(id)) out.push(id);
+    });
+    return out;
+  }
+
+  function ensureTelemostUrl(st, req) {
+    const mktState = typeof _ctx.mkt === "function" ? _ctx.mkt() : null;
+    const isTm = (u) => /^https:\/\/telemost\.yandex\.(ru|com)\//i.test(String(u || "").trim());
+    const reqUrl = String((req && req.telemostUrl) || "").trim();
+    if (isTm(reqUrl)) return reqUrl;
+    const mktUrl = String((mktState && mktState.telemostUrl) || "").trim();
+    if (isTm(mktUrl)) return mktUrl;
+    const stUrl = String((st && st.telemostUrl) || "").trim();
+    if (isTm(stUrl)) return stUrl;
+    const code = String(Math.floor(10000000000000 + Math.random() * 89999999999999)).slice(0, 14);
+    const gen = `https://telemost.yandex.ru/j/${code}`;
+    if (st) {
+      st.telemostUrl = gen;
+      saveState();
+    }
+    if (mktState) {
+      mktState.telemostUrl = gen;
+      if (typeof _ctx.saveMkt === "function") _ctx.saveMkt();
+    }
+    return gen;
+  }
+
+  function resolveLessonContacts(st, req, stu) {
+    const mktState = typeof _ctx.mkt === "function" ? _ctx.mkt() : null;
+    const map = (mktState && mktState.tutorContacts && typeof mktState.tutorContacts === "object") ? mktState.tutorContacts : {};
+    const ovReq = (req && req.id && map[req.id]) || {};
+    const ovStu = (stu && stu.id && map[stu.id]) || {};
+    const wa = String(ovReq.whatsapp || ovStu.whatsapp || (stu && stu.whatsapp) || (req && req.whatsapp) || "").trim();
+    const tg = String(ovReq.telegram || ovStu.telegram || (stu && stu.telegram) || (req && req.telegram) || "").trim();
+    const maxH = String(ovReq.maxHandle || ovStu.maxHandle || (stu && stu.maxHandle) || (req && req.maxHandle) || "").trim();
+    const waDigits = wa.replace(/\D+/g, "");
+    return {
+      entity: {
+        id: (stu && stu.id) || (req && req.id) || "",
+        name: (req && req.studentName) || (stu && stu.name) || "Ученик",
+        whatsapp: wa,
+        telegram: tg,
+        maxHandle: maxH
+      },
+      available: {
+        wa: waDigits.length >= 10,
+        tg: Boolean(tg),
+        max: Boolean(maxH)
+      }
+    };
+  }
+
+  function getLessonNotifyConfig(st, reqId, stu) {
+    const map = (st && st.lessonAutoNotify && typeof st.lessonAutoNotify === "object")
+      ? st.lessonAutoNotify
+      : {};
+    const cur = map[reqId];
+    if (cur && typeof cur === "object") {
+      return {
+        enabled: cur.enabled !== false,
+        leads: normalizeLeadList(cur.leads)
+      };
+    }
+    return {
+      enabled: stu ? (stu.autoNotify !== false) : true,
+      leads: normalizeLeadList(stu && stu.autoLeads)
+    };
+  }
+
+  function renderLessonNotifyHTML(st, req, stu) {
+    const reqId = (req && req.id) || "";
+    const stuId = (stu && stu.id) || "";
+    const cfg = getLessonNotifyConfig(st, reqId, stu);
+    return `<div class="tc-notify-box" role="group" aria-label="Автоуведомление перед уроком">
+      <div class="tc-notify-top">
+        <span class="tc-notify-title">${icon("bell")}<span>Автоуведомление</span></span>
+        <button type="button" class="tc-switch-pill${cfg.enabled ? " is-on" : ""}" data-a="tc-lesson-notify-toggle" data-id="${esc(reqId)}" data-stu-id="${esc(stuId)}" aria-pressed="${cfg.enabled}">${cfg.enabled ? "Вкл" : "Выкл"}</button>
+      </div>
+      <div class="tc-lead-pills${cfg.enabled ? "" : " is-dim"}" role="group" aria-label="Когда напомнить">
+        ${WA_LEAD_OPTIONS.map((o) => {
+          const on = cfg.leads.includes(o.id);
+          return `<button type="button" class="tc-lead-pill${on ? " is-on" : ""}" data-a="tc-lesson-lead-toggle" data-id="${esc(reqId)}" data-stu-id="${esc(stuId)}" data-v="${esc(o.id)}" aria-pressed="${on}">${esc(o.label)}</button>`;
+        }).join("")}
+      </div>
+    </div>`;
+  }
+
   function getCtx() { return _ctx; }
 
   EGE._tutorCab = Object.assign(EGE._tutorCab || {}, {
     TC_LS_KEY, DAY_MS, FOUR_HOURS_MS, DAY_LIST, EXAM_OPTIONS, FORMAT_OPTIONS,
-    CITY_OPTIONS, TZ_OPTIONS, WA_LEAD_OPTIONS, AUTO_CHANNELS, AUTO_BUMP_HOURS,
+    CITY_OPTIONS, TZ_OPTIONS, WA_LEAD_OPTIONS, DEFAULT_WA_LEADS, AUTO_CHANNELS, AUTO_BUMP_HOURS,
     GOAL_PRESETS, QUICK_TEMPLATES, DEFAULT_REQUESTS, DEFAULT_STUDENTS,
     SAMPLE_GCAL_ICS, MIN_PAYOUT_RUB, PAYOUT_BANKS,
     getCtx, configure, getTDATA, getTutorSlug, applyRtEventToCabinet,
     ensureRealtimeConnected, syncTutorCalendar, publishRtUpdate,
-    formatPhone, formatTelegram, formatCardMask, normalizeChannelList,
+    formatPhone, formatTelegram, formatCardMask, normalizeChannelList, normalizeLeadList,
     copyStr, formatTimestamp, defaultState, tState, saveState,
+    ensureTelemostUrl, resolveLessonContacts, getLessonNotifyConfig, renderLessonNotifyHTML,
     checkAutoBumpDue, formatCountdown, autoBumpRemainingMs, manualBumpRemainingMs,
     ensureCountdownTimer, clampStep, profileCompleteness, buildMarketTutorPayload,
     syncPublishedTutor, dayDowFromLabel, syncedRequests, findReq, updateReq,

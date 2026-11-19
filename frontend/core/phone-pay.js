@@ -548,24 +548,30 @@
     const st = getMkt();
     const map = st.tutorContacts && typeof st.tutorContacts === "object" ? st.tutorContacts : {};
     const ov = (tutorId && map[tutorId]) || {};
-    const tutorObj = TDATA && Array.isArray(TDATA.LIST) ? TDATA.LIST.find((x) => x.id === tutorId) : null;
-    const resolvedName = tutorName || (tutorObj && tutorObj.name) || "Преподаватель";
+    const isStudent = /^(tc-|mkt-|st-|rt-)/.test(String(tutorId || ""));
+    const tutorObj = !isStudent && TDATA && Array.isArray(TDATA.LIST) ? TDATA.LIST.find((x) => x.id === tutorId) : null;
+    const tc = isStudent && root.EGE && root.EGE._tutorCab && typeof root.EGE._tutorCab.tState === "function" ? root.EGE._tutorCab.tState() : null;
+    const stuObj = tc && Array.isArray(tc.students)
+      ? tc.students.find((s) => s && (s.id === tutorId || (tutorName && String(s.name || "").trim().toLowerCase() === String(tutorName).trim().toLowerCase())))
+      : null;
+    const resolvedName = tutorName || (tutorObj && tutorObj.name) || (stuObj && stuObj.name) || (isStudent ? "Ученик" : "Преподаватель");
     let curVal = "";
     let waCountry = "RU";
     if (channel === "wa") {
-      const rawWa = String(ov.whatsapp || (tutorObj && tutorObj.whatsapp) || "").trim();
+      const rawWa = String(ov.whatsapp || (tutorObj && tutorObj.whatsapp) || (stuObj && stuObj.whatsapp) || "").trim();
       waCountry = detectPhoneCountry(rawWa, "RU");
       const parsedWa = rawWa ? formatPhoneForCountry(rawWa, waCountry) : null;
       curVal = parsedWa && parsedWa.formatted ? parsedWa.formatted : ("+" + phoneCountryByCode(waCountry).dial + " ");
       getPhoneFieldState("tc-contact", waCountry, true);
     } else if (channel === "max") {
-      curVal = String(ov.maxHandle || (tutorObj && tutorObj.maxHandle) || "");
+      curVal = String(ov.maxHandle || (tutorObj && tutorObj.maxHandle) || (stuObj && stuObj.maxHandle) || "");
     } else {
-      curVal = String(ov.telegram || (tutorObj && tutorObj.telegram) || "");
+      curVal = String(ov.telegram || (tutorObj && tutorObj.telegram) || (stuObj && stuObj.telegram) || "");
     }
     ui.tutorContactModal = {
       tutorId: String(tutorId || ""),
       tutorName: resolvedName,
+      isStudent,
       channel,
       country: waCountry,
       value: curVal,
@@ -577,24 +583,26 @@
   }
 
   function tutorContactModalHTML() {
-    const m = getUi().tutorContactModal || { tutorId: "", tutorName: "Преподаватель", channel: "tg", country: "RU", value: "", hasExisting: false, error: "" };
+    const m = getUi().tutorContactModal || { tutorId: "", tutorName: "Преподаватель", isStudent: false, channel: "tg", country: "RU", value: "", hasExisting: false, error: "" };
     const isWa = m.channel === "wa";
     const isMax = m.channel === "max";
     const chName = isWa ? "WhatsApp" : (isMax ? "MAX" : "Telegram");
     const ph = isMax ? "@username или ссылка max.ru/..." : "@username или +7 (914) 000-00-00";
     const titlePrefix = m.hasExisting ? "Изменить" : "Указать";
+    const roleGen = m.isStudent ? "ученика" : "преподавателя";
+    const fallbackDefName = m.isStudent ? "Ученик" : "Преподаватель";
     const desc = isWa
-      ? `Укажите актуальный номер WhatsApp преподавателя ${esc(m.tutorName || "")} — кнопка перехода в чат обновится сразу.`
+      ? `Укажите актуальный номер WhatsApp ${roleGen} ${esc(m.tutorName || "")} — кнопка перехода в чат обновится сразу.`
       : (m.hasExisting
-          ? `Обновите контакт преподавателя ${esc(m.tutorName || "")} в ${chName} — кнопка перехода обновится сразу.`
-          : `${esc(m.tutorName || "Преподаватель")} пока подключён только через WhatsApp. Если вы узнали его контакт в ${chName}, сохраните его — кнопка сразу станет активной.`);
+          ? `Обновите контакт ${roleGen} ${esc(m.tutorName || "")} в ${chName} — кнопка перехода обновится сразу.`
+          : `${esc(m.tutorName || fallbackDefName)} пока без контакта в ${chName}. Если знаете его контакт в ${chName}, сохраните его — логотип станет цветным.`);
     return `<div class="modal-back is-sheet-back" role="dialog" aria-modal="true" aria-labelledby="tcm-modal-title">
       <div class="modal-card sheet-modal" data-sheet-kind="tutor-contact">
         <div class="sheet-grabber-zone" data-sheet-drag="1" role="button" tabindex="0" data-a="tutor-contact-close" aria-label="Свернуть окно">
           <span class="sheet-grabber"></span>
         </div>
         <div class="sheet-head is-booking-head">
-          <div class="row" style="gap:8px">${icon("msg")}<b id="tcm-modal-title">${titlePrefix} ${chName} преподавателя</b></div>
+          <div class="row" style="gap:8px">${icon("msg")}<b id="tcm-modal-title">${titlePrefix} ${chName} ${roleGen}</b></div>
         </div>
         <div class="sheet-body">
           <p class="small ink2" style="margin:0;line-height:1.45">${desc}</p>
@@ -800,7 +808,8 @@
       "msg-hold-hint": (el) => {
         const rawCh = el.dataset && el.dataset.holdCh;
         const ch = rawCh === "wa" ? "WhatsApp" : (rawCh === "max" ? "MAX" : "Telegram");
-        toast(`Удерживайте ${ch}, чтобы указать или изменить контакт преподавателя`);
+        const isStu = /^(tc-|mkt-|st-|rt-)/.test(String((el.dataset && el.dataset.tutorId) || ""));
+        toast(`Удерживайте ${ch}, чтобы указать или изменить контакт ${isStu ? "ученика" : "преподавателя"}`);
       },
       "cv-country-toggle": () => {
         const ui = getUi();
@@ -982,6 +991,19 @@
         : (ch === "max" ? { maxHandle: cleanVal } : { telegram: cleanVal });
       map[m.tutorId] = Object.assign({}, prev, patchObj);
       saveMkt();
+      if (m.isStudent && root.EGE && root.EGE._tutorCab && typeof root.EGE._tutorCab.tState === "function") {
+        const tcSt = root.EGE._tutorCab.tState();
+        const nameLower = String(m.tutorName || "").trim().toLowerCase();
+        (tcSt.students || []).forEach((s) => {
+          if (s && (s.id === m.tutorId || (nameLower && String(s.name || "").trim().toLowerCase() === nameLower))) {
+            Object.assign(s, patchObj);
+          }
+        });
+        (tcSt.requests || []).forEach((r) => {
+          if (r && r.id === m.tutorId) Object.assign(r, patchObj);
+        });
+        if (typeof root.EGE._tutorCab.saveState === "function") root.EGE._tutorCab.saveState();
+      }
       const store = getStore();
       if (store && store.backend && store.user && m.tutorId && EGE.api && EGE.api.contacts) {
         EGE.api.contacts.upsert(m.tutorId, patchObj).catch(() => {});
@@ -989,7 +1011,7 @@
       ui.tutorContactModal = null;
       renderModal();
       const label = ch === "wa" ? "WhatsApp" : (ch === "max" ? "MAX" : "Telegram");
-      notifySide(`Контакт ${label} сохранён`, `${m.tutorName || "Преподаватель"} · ${displayVal}`);
+      notifySide(`Контакт ${label} сохранён`, `${m.tutorName || (m.isStudent ? "Ученик" : "Преподаватель")} · ${displayVal}`);
       scheduleRender();
     };
   }

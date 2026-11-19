@@ -2370,17 +2370,40 @@
 
     clickAction(env5, { a: "tc-req-accept", id: "tc-req-1" });
     await flushMicrotasks(2);
+    const afterAcceptHtml = env5.elements.get("main").innerHTML;
     assert(
-      env5.elements.get("main").innerHTML.includes("Написать ученику") &&
-      env5.elements.get("main").innerHTML.includes("https://wa.me/") &&
-      env5.elements.get("main").innerHTML.includes("https://t.me/") &&
-      env5.elements.get("main").innerHTML.includes("https://max.ru/") &&
+      afterAcceptHtml.includes("is-icon-only") &&
+      afterAcceptHtml.includes("is-hold-add") &&
+      afterAcceptHtml.includes("Подключиться к Яндекс Телемосту") &&
+      afterAcceptHtml.includes("https://telemost.yandex.ru/j/") &&
+      afterAcceptHtml.includes("Автоуведомление") &&
+      afterAcceptHtml.includes('data-a="tc-lesson-lead-toggle" data-id="tc-req-1" data-stu-id="st-alina" data-v="24h" aria-pressed="true"') &&
+      afterAcceptHtml.includes('data-a="tc-lesson-lead-toggle" data-id="tc-req-1" data-stu-id="st-alina" data-v="1h" aria-pressed="true"') &&
+      afterAcceptHtml.includes('data-a="tc-lesson-lead-toggle" data-id="tc-req-1" data-stu-id="st-alina" data-v="15m" aria-pressed="false"') &&
+      afterAcceptHtml.includes("https://wa.me/") &&
+      afterAcceptHtml.includes("https://t.me/") &&
+      afterAcceptHtml.includes("https://max.ru/") &&
       env5.elements.get("toast").innerHTML.includes("Урок подтверждён") &&
-      env5.elements.get("main").innerHTML.includes("tc-sched-box") &&
-      env5.elements.get("main").innerHTML.includes("Бот Вектора: ученик хочет заниматься в 16:00 в среду и четверг каждую неделю") &&
-      env5.elements.get("main").innerHTML.includes('data-a="tc-sched-accept" data-id="tc-req-3"'),
-      "expected tc-req-accept to confirm lesson and render Bot weekly schedule card on tc-req-3"
+      afterAcceptHtml.includes("tc-sched-box") &&
+      afterAcceptHtml.includes("Бот Вектора: ученик хочет заниматься в 16:00 в среду и четверг каждую неделю") &&
+      afterAcceptHtml.includes('data-a="tc-sched-accept" data-id="tc-req-3"'),
+      "expected tc-req-accept to render icon-only hold-to-add logos, Telemost join CTA, default 24h+1h auto-notify toggles, and Bot schedule card"
     );
+    clickAction(env5, { a: "tc-lesson-lead-toggle", id: "tc-req-1", stuId: "st-alina", v: "15m" });
+    await flushMicrotasks(1);
+    const all3LeadsHtml = env5.elements.get("main").innerHTML;
+    assert(
+      all3LeadsHtml.includes('data-a="tc-lesson-lead-toggle" data-id="tc-req-1" data-stu-id="st-alina" data-v="24h" aria-pressed="true"') &&
+      all3LeadsHtml.includes('data-a="tc-lesson-lead-toggle" data-id="tc-req-1" data-stu-id="st-alina" data-v="1h" aria-pressed="true"') &&
+      all3LeadsHtml.includes('data-a="tc-lesson-lead-toggle" data-id="tc-req-1" data-stu-id="st-alina" data-v="15m" aria-pressed="true"'),
+      "expected selecting 15m timing to allow all 3 timings (24h, 1h, 15m) enabled simultaneously"
+    );
+    clickAction(env5, { a: "tc-lesson-notify-toggle", id: "tc-req-1", stuId: "st-alina" });
+    await flushMicrotasks(1);
+    assert(env5.elements.get("main").innerHTML.includes('data-a="tc-lesson-notify-toggle" data-id="tc-req-1" data-stu-id="st-alina" aria-pressed="false"'), "expected tc-lesson-notify-toggle to turn auto-notify off");
+    clickAction(env5, { a: "tc-lesson-notify-toggle", id: "tc-req-1", stuId: "st-alina" });
+    await flushMicrotasks(1);
+    assert(env5.elements.get("main").innerHTML.includes('data-a="tc-lesson-notify-toggle" data-id="tc-req-1" data-stu-id="st-alina" aria-pressed="true"'), "expected tc-lesson-notify-toggle to turn auto-notify back on");
     clickAction(env5, { a: "tc-sched-alt-open", id: "tc-req-3" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes("Предложить ученику другие дни"), "expected tc-sched-alt-open to reveal tutor alternative 1-7 day picker");
@@ -2467,14 +2490,19 @@
       !calOnlySlice.includes("cal-sync-card") &&
       calOnlySlice.includes('data-a="tc-cal-import-modal"') &&
       calOnlySlice.includes('data-a="tc-wa-panel-toggle"') &&
+      calOnlySlice.includes("Подключиться к Яндекс Телемосту") &&
+      calOnlySlice.includes("is-icon-only") &&
+      calOnlySlice.includes("Автоуведомление") &&
+      calOnlySlice.includes('data-a="tc-lesson-lead-toggle"') &&
       !calOnlySlice.includes('data-a="tc-bump"'),
-      "expected unified Ученики calendar strip matching student calendar with confirmed student cards, 7 day buttons, wa drawer toggle, and no crooked students table"
+      "expected unified Ученики calendar strip matching student calendar with confirmed student cards, Telemost button, icon-only logos, auto-notify pills, and 7 day buttons"
     );
     clickAction(env5, { a: "tc-cal-open-add", hour: "11:00" });
     await flushMicrotasks(2);
     env5.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "tc-cal-add" }, elements: { studentName: { value: "Максим Р." }, hour: { value: "11:00" }, offerPrice: { value: "1300" }, note: { value: "Генетика №28" } } }) }, preventDefault() {} });
     await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("Максим Р.") && env5.elements.get("main").innerHTML.includes("Генетика №28"), "expected manually booked student to appear in tutor calendar");
+    const calAddedHtml = env5.elements.get("main").innerHTML;
+    assert(calAddedHtml.includes("Максим Р.") && calAddedHtml.includes("Генетика №28") && calAddedHtml.includes("is-disabled is-hold-add"), "expected manually booked student to appear with grey hold-to-add messenger logos");
 
     // Вкладка преподавателя «Ученики ищут» (контр-цена ±50 ₽ tc-lead-step + tc-lead-offer, без tc-bump и без 3/7 колонок)
     clickAction(env5, { a: "go", v: "tutor-leads" });

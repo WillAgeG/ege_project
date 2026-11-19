@@ -14,8 +14,9 @@
     GOAL_PRESETS, QUICK_TEMPLATES, DEFAULT_REQUESTS, DEFAULT_STUDENTS,
     SAMPLE_GCAL_ICS, MIN_PAYOUT_RUB, PAYOUT_BANKS,
     getCtx, configure, getTDATA, getTutorSlug, syncTutorCalendar, publishRtUpdate,
-    formatPhone, formatTelegram, formatCardMask, normalizeChannelList,
+    formatPhone, formatTelegram, formatCardMask, normalizeChannelList, normalizeLeadList,
     copyStr, formatTimestamp, defaultState, tState, saveState,
+    ensureTelemostUrl, resolveLessonContacts, renderLessonNotifyHTML,
     checkAutoBumpDue, formatCountdown, autoBumpRemainingMs, manualBumpRemainingMs,
     ensureCountdownTimer, ensureRealtimeConnected, clampStep, profileCompleteness,
     buildMarketTutorPayload, syncPublishedTutor, dayDowFromLabel, syncedRequests,
@@ -77,8 +78,9 @@
     const unbookedGcal = busyForActiveDay.filter((b) => !activeLessons.some((l) => String((l.schedulePlan && l.schedulePlan.hour) || l.hour || "") === String(b.hour || "")));
 
     const students = Array.isArray(st.students) ? st.students : [];
-    const waCfg = st.waSettings || { enabled: true, lead: "2h", channels: ["wa", "tg", "max"], template: "Здравствуйте, {имя}! Скоро будет урок ({предмет}) — {день} в {время}." };
+    const waCfg = st.waSettings || { enabled: true, lead: "1h", leads: ["24h", "1h"], channels: ["wa", "tg", "max"], template: "Здравствуйте, {имя}! Скоро будет урок ({предмет}) — {день} в {время}." };
     const cfgChannels = normalizeChannelList(waCfg.channels);
+    const cfgLeads = normalizeLeadList(waCfg.leads);
     const sampleStudent = students[0] || { id: "st-alina", name: "Алина С.", exam: "ЕГЭ · Биология", lessonDay: "Воскресенье", lessonTime: "10:00", whatsapp: "+7 (914) 210-05-11", telegram: "@alina_bio" };
     const samplePreview = formatWaReminderText(st, sampleStudent);
     const sampleWaHref = studentWaHref(st, sampleStudent);
@@ -104,18 +106,23 @@
             const isWeekly = !!(sp && sp.weekly !== false);
             const rate = Number(lesson.counterPrice || lesson.offerPrice) || st.profile.price;
             const gcalBusy = busyForActiveDay.find((b) => b.hour === lessonHour);
-            const tmUrl = String(lesson.telemostUrl || "").trim();
+            const tmUrl = typeof ensureTelemostUrl === "function" ? ensureTelemostUrl(st, lesson) : String(lesson.telemostUrl || "").trim();
             const stu = findStudentForLesson(st, lesson);
             const stuGain = stu ? ((Number(stu.curScore) || 0) - (Number(stu.startScore) || 0)) : 0;
             const stuPct = stu ? Math.max(8, Math.min(100, Math.round(((Number(stu.curScore) || 0) / Math.max(1, Number(stu.targetScore) || 100)) * 100))) : 0;
             const stuChannels = stu ? normalizeChannelList(stu.autoChannels) : [];
             const stuChBadge = stuChannels.map((cid) => (AUTO_CHANNELS.find((c) => c.id === cid) || {}).short || cid.toUpperCase()).join(" · ");
-            const msgEntity = stu || { id: lesson.id, name: lesson.studentName, whatsapp: lesson.whatsapp || "79142100511", telegram: lesson.telegram || "", maxHandle: lesson.maxHandle || "" };
+            const contacts = typeof resolveLessonContacts === "function"
+              ? resolveLessonContacts(st, lesson, stu)
+              : { entity: stu || { id: lesson.id, name: lesson.studentName, whatsapp: lesson.whatsapp || "", telegram: lesson.telegram || "", maxHandle: lesson.maxHandle || "" }, available: null };
             const msgBar = (EGE.kit && typeof EGE.kit.messengerLinksHTML === "function")
               ? EGE.kit.messengerLinksHTML({
-                  entity: msgEntity,
+                  entity: contacts.entity,
+                  available: contacts.available,
                   message: `Здравствуйте, ${lesson.studentName}! Напоминаю про занятие (${lesson.subjectName}, ${activeDay.shortLabel} в ${lessonHour}) на платформе Вектор ЕГЭ.`,
-                  primaryLabel: "WhatsApp",
+                  primaryTitle: "Написать ученику · WhatsApp",
+                  iconOnly: true,
+                  allowHoldAdd: true,
                   compact: true
                 })
               : `<button type="button" class="btn soft sm" data-a="tc-req-msg" data-id="${esc(lesson.id)}">${icon("msg")}<span>Написать ученику</span></button>`;
@@ -192,8 +199,10 @@
               </div>
               ${lesson.note ? `<div class="tc-req-quote">${esc(lesson.note)}</div>` : ""}
               ${stuProgressHTML}
-              ${tmUrl ? `<a class="btn soft sm bid-telemost-join" href="${esc(tmUrl)}" target="_blank" rel="noopener noreferrer">${icon("video")}<span>Зайти в Яндекс Телемост</span></a>` : ""}
+              ${tmUrl ? `<a class="btn soft sm bid-telemost-join" href="${esc(tmUrl)}" target="_blank" rel="noopener noreferrer">${icon("video")}<span>Подключиться к Яндекс Телемосту</span></a>` : ""}
               ${msgBar}
+              <div class="small muted tc-hold-hint">Удерживайте логотип, чтобы добавить или изменить контакт</div>
+              ${typeof renderLessonNotifyHTML === "function" ? renderLessonNotifyHTML(st, lesson, stu) : ""}
               ${stuFoldHTML}
               <button type="button" class="btn ghost sm study-cancel-btn" data-a="tc-req-decline" data-id="${esc(lesson.id)}">Снять с расписания</button>
             </article>`;
@@ -238,7 +247,7 @@
       <div class="stack" style="gap:6px">
         <span class="small muted">Когда автоматически писать ученику:</span>
         <div class="chip-rail">
-          ${WA_LEAD_OPTIONS.map((o) => `<button type="button" class="chip-btn${waCfg.lead === o.id ? " on" : ""}" data-a="tc-wa-lead" data-v="${esc(o.id)}">${esc(o.label)}</button>`).join("")}
+          ${WA_LEAD_OPTIONS.map((o) => `<button type="button" class="chip-btn${cfgLeads.includes(o.id) ? " on" : ""}" data-a="tc-wa-lead" data-v="${esc(o.id)}">${esc(o.label)}</button>`).join("")}
         </div>
       </div>
       <div class="field">
@@ -390,8 +399,9 @@
   function renderStudentsTab(st) {
     const p = st.profile;
     const students = Array.isArray(st.students) ? st.students : [];
-    const waCfg = st.waSettings || { enabled: true, lead: "2h", channels: ["wa", "tg", "max"], template: "Здравствуйте, {имя}! Скоро будет урок ({предмет}) — {день} в {время}." };
+    const waCfg = st.waSettings || { enabled: true, lead: "1h", leads: ["24h", "1h"], channels: ["wa", "tg", "max"], template: "Здравствуйте, {имя}! Скоро будет урок ({предмет}) — {день} в {время}." };
     const cfgChannels = normalizeChannelList(waCfg.channels);
+    const cfgLeads = normalizeLeadList(waCfg.leads);
     const sampleStudent = students[0] || { id: "st-alina", name: "Алина С.", exam: "ЕГЭ · Биология", lessonDay: "Воскресенье", lessonTime: "10:00", whatsapp: "+7 (914) 210-05-11", telegram: "@alina_bio" };
     const samplePreview = formatWaReminderText(st, sampleStudent);
     const sampleWaHref = studentWaHref(st, sampleStudent);
