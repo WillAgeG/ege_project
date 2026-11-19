@@ -194,6 +194,11 @@ def validate_telemost_url(raw: str | None) -> str:
     return val
 
 
+def generate_telemost_url() -> str:
+    digits = "".join(str(secrets.randbelow(10)) for _ in range(14))
+    return f"https://telemost.yandex.ru/j/{digits}"
+
+
 def sort_dows(raw_dows: Any) -> list[int]:
     uniq: list[int] = []
     if isinstance(raw_dows, list):

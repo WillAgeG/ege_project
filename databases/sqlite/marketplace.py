@@ -16,6 +16,7 @@ from .common import (
     _normalize_tz,
     calc_fee_split,
     format_days_short,
+    generate_telemost_url,
     mask_payout_destination,
     normalize_city_tz,
     sort_dows,
@@ -710,6 +711,25 @@ class SqliteMarketplaceMixin:
                 tariff_id = "trial5k"
             dow = _normalize_dow(payload.get("dow"), raw_date)
 
+            raw_tm = str(payload.get("telemostUrl") or "").strip()
+            if raw_tm:
+                telemost_url = validate_telemost_url(raw_tm)
+            else:
+                existing_tm = self._conn.execute(
+                    """
+                    SELECT telemost_url FROM admin_lesson_requests
+                    WHERE student_user_id = ? AND telemost_url <> ''
+                    ORDER BY updated_at DESC, id DESC
+                    LIMIT 1
+                    """,
+                    (uid,),
+                ).fetchone()
+                telemost_url = (
+                    str(existing_tm["telemost_url"])
+                    if existing_tm and str(existing_tm["telemost_url"] or "").strip()
+                    else generate_telemost_url()
+                )
+
             reserved = offer_price if offer_price > 0 else 0
             if reserved > 0:
                 new_bal = cur_bal - reserved
@@ -747,7 +767,7 @@ class SqliteMarketplaceMixin:
                     status, escrow_status, messenger_channel, created_at, updated_at,
                     exam, format, note, telemost_url, schedule_plan_json, dows_json,
                     day_label, tutor_price_rub, first_lesson_guarantee, reserved_rub
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 'pending', ?, 'whatsapp', ?, ?, ?, ?, ?, '', NULL, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 'pending', ?, 'whatsapp', ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)
                 """,
                 (
                     bid,
@@ -768,6 +788,7 @@ class SqliteMarketplaceMixin:
                     exam,
                     fmt,
                     note,
+                    telemost_url,
                     json.dumps([dow]),
                     day_label,
                     tutor_price,
@@ -1096,10 +1117,17 @@ class SqliteMarketplaceMixin:
                 booking_id, actor_user_id=actor_user_id, actor_role=actor_role
             )
             bid = str(row["id"])
-            self._conn.execute(
-                "UPDATE admin_lesson_requests SET telemost_url = ?, updated_at = ? WHERE id = ?",
-                (clean_url, now_iso, bid),
-            )
+            stu_id = row["student_user_id"]
+            if clean_url and stu_id is not None:
+                self._conn.execute(
+                    "UPDATE admin_lesson_requests SET telemost_url = ?, updated_at = ? WHERE student_user_id = ? OR id = ?",
+                    (clean_url, now_iso, int(stu_id), bid),
+                )
+            else:
+                self._conn.execute(
+                    "UPDATE admin_lesson_requests SET telemost_url = ?, updated_at = ? WHERE id = ?",
+                    (clean_url, now_iso, bid),
+                )
             self._conn.commit()
             updated = self._conn.execute("SELECT * FROM admin_lesson_requests WHERE id = ?", (bid,)).fetchone()
             return self._booking_row_to_dict(updated)

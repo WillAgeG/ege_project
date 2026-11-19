@@ -582,6 +582,11 @@
     return `<section class="card pad-lg stack reqs-strip" style="gap:10px" aria-label="Мои заявки">${tableHtml}</section>`;
   }
 
+  function generateTelemostUrl() {
+    const code = String(Date.now()).slice(-8) + String(Math.floor(100000 + Math.random() * 900000));
+    return `https://telemost.yandex.ru/j/${code}`;
+  }
+
   function normalizeTelemostUrl(raw) {
     let val = String(raw == null ? "" : raw).trim();
     if (!val) return { ok: true, url: "" };
@@ -589,10 +594,69 @@
       return { ok: false, error: "Укажите корректную https-ссылку, например https://telemost.yandex.ru/j/..." };
     }
     if (/^telemost\.yandex\.[a-z]{2,}/i.test(val)) val = "https://" + val;
-    if (!/^https?:\/\/[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:[\/:?#][^\s]*)?$/.test(val) || /\s/.test(val)) {
-      return { ok: false, error: "Укажите корректную ссылку, например https://telemost.yandex.ru/j/..." };
+    if (!/^https:\/\/telemost\.yandex\.(ru|com)\/[A-Za-z0-9_/?=&.\-%#]+$/i.test(val) || /\s/.test(val) || val.length > 512) {
+      return { ok: false, error: "Укажите корректную ссылку Яндекс Телемост, например https://telemost.yandex.ru/j/..." };
     }
     return { ok: true, url: val };
+  }
+
+  /** Возвращает единую постоянную ссылку Телемост ученика, автоматически создавая и синхронизируя её при необходимости. */
+  function ensureUnifiedTelemostUrl(st) {
+    if (!st) return "";
+    let changed = false;
+    let url = "";
+    const topParsed = st.telemostUrl ? normalizeTelemostUrl(st.telemostUrl) : { ok: false, url: "" };
+    if (topParsed.ok && topParsed.url) {
+      url = topParsed.url;
+    } else if (Array.isArray(st.bookings)) {
+      for (let i = 0; i < st.bookings.length; i++) {
+        const b = st.bookings[i];
+        const parsed = b && b.telemostUrl ? normalizeTelemostUrl(b.telemostUrl) : { ok: false, url: "" };
+        if (parsed.ok && parsed.url) {
+          url = parsed.url;
+          break;
+        }
+      }
+    }
+    if (!url) {
+      url = generateTelemostUrl();
+      changed = true;
+    }
+    if (st.telemostUrl !== url) {
+      st.telemostUrl = url;
+      changed = true;
+    }
+    if (Array.isArray(st.bookings)) {
+      st.bookings.forEach((b) => {
+        if (b && !String(b.telemostUrl || "").trim()) {
+          b.telemostUrl = url;
+          changed = true;
+        }
+      });
+    }
+    if (changed && typeof _ctx.saveMkt === "function") _ctx.saveMkt();
+    return url;
+  }
+
+  function telemostBlockHTML(bk, telemostUrl, isEditingTm, ui, joinLabel) {
+    if (isEditingTm) {
+      return `<form class="bid-telemost-form" data-f="bid-telemost" data-id="${esc(bk.id)}">
+        <label class="small muted" for="tm-inp-${esc(bk.id)}">Единая ссылка Яндекс Телемост (для всех уроков)</label>
+        <input class="input bid-telemost-inp" id="tm-inp-${esc(bk.id)}" name="url" type="url" placeholder="https://telemost.yandex.ru/j/..." value="${esc(telemostUrl)}">
+        <span class="small muted">Передаётся преподавателю сама через WhatsApp или Telegram-бот.</span>
+        ${ui.telemostError ? `<div class="small" style="color:var(--bad);font-weight:600">${esc(ui.telemostError)}</div>` : ""}
+        <div class="bid-telemost-form-actions">
+          <button type="submit" class="btn sm">Сохранить</button>
+          <button type="button" class="btn soft sm" data-a="bid-telemost-gen" data-id="${esc(bk.id)}">Создать новую</button>
+          <button type="button" class="btn ghost sm" data-a="bid-telemost-cancel">Отмена</button>
+        </div>
+      </form>`;
+    }
+    return `<div class="bid-telemost-saved">
+      <a class="btn soft sm bid-telemost-join" href="${esc(telemostUrl)}" target="_blank" rel="noopener noreferrer">${icon("video")}<span>${esc(joinLabel || "Яндекс Телемост · Подключиться")}</span></a>
+      <div class="bid-telemost-auto-note">Единая постоянная ссылка · будет передана преподавателю сама (WhatsApp или Telegram-бот)</div>
+      <button type="button" class="btn ghost sm bid-telemost-edit" data-a="bid-telemost-edit" data-id="${esc(bk.id)}">Изменить ссылку</button>
+    </div>`;
   }
 
   function saveTelemostForBooking(bookingId, rawUrl) {
@@ -601,12 +665,13 @@
     const bk = (st.bookings || []).find((x) => x.id === bookingId);
     if (!bk) return { ok: false, error: "Заявка не найдена." };
     const parsed = normalizeTelemostUrl(rawUrl);
-    if (!parsed.ok) {
-      ui.telemostError = parsed.error;
+    if (!parsed.ok || !parsed.url) {
+      ui.telemostError = parsed.error || "Укажите ссылку Яндекс Телемост (https://telemost.yandex.ru/j/...) или нажмите «Создать новую».";
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
-      return parsed;
+      return { ok: false, error: ui.telemostError };
     }
-    bk.telemostUrl = parsed.url;
+    st.telemostUrl = parsed.url;
+    (st.bookings || []).forEach((b) => { if (b) b.telemostUrl = parsed.url; });
     ui.telemostEditId = "";
     ui.telemostError = "";
     if (typeof _ctx.saveMkt === "function") _ctx.saveMkt();
@@ -616,7 +681,7 @@
     if (typeof _ctx.notifySide === "function") {
       _ctx.notifySide(
         "Яндекс Телемост",
-        parsed.url ? `Ссылка на видеоурок сохранена для ${bk.tutorName}` : `Ссылка на видеоурок удалена`
+        "Единая ссылка обновлена — будет передана преподавателю сама (WhatsApp или Telegram-бот)"
       );
     }
     if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
@@ -640,7 +705,7 @@
           <button type="button" class="btn soft sm" data-a="go" data-v="market">Поиск</button>
         </div>
         <div class="card pad-lg stack" style="gap:12px">
-          <p class="small ink2" style="margin:0">Откликов пока нет. Найдите преподавателя в разделе «Поиск» и предложите свою цену — здесь появится карточка преподавателя со статусом ответа (СМС / мессенджер) и ссылкой на Яндекс Телемост.</p>
+          <p class="small ink2" style="margin:0">Откликов пока нет. Найдите преподавателя в разделе «Поиск» и предложите свою цену — здесь появится карточка преподавателя, единая постоянная ссылка на Яндекс Телемост (передаётся сама по WhatsApp или через Telegram-бот) и статус ответа.</p>
           <div class="row" style="gap:8px;flex-wrap:wrap">
             <button type="button" class="btn sm" data-a="go" data-v="market">Найти преподавателя</button>
             <button type="button" class="btn soft sm" data-a="go-student-lead">Оставить заявку</button>
@@ -648,6 +713,7 @@
         </div>
       </section>`;
     }
+    const unifiedTelemost = ensureUnifiedTelemostUrl(st);
     const pendingCnt = all.filter((b) => b.status !== "accepted").length;
     const acceptedCnt = all.length - pendingCnt;
     const flt = ["all", "pending", "accepted"].includes(ui.homeBidFilter) ? ui.homeBidFilter : "all";
@@ -682,25 +748,9 @@
           const priceBlockHTML = isTrial
             ? `<div class="tutor-rate num">${trialRub === 0 ? "Пробный · 0 ₽" : `Пробный · ${trialRub.toLocaleString("ru-RU")} ₽`}</div>`
             : `${tutor.marketPrice && offerNum < tutor.marketPrice ? `<s class="hh-price-old num">${tutor.marketPrice.toLocaleString("ru-RU")} ₽</s>` : ""}<div class="tutor-rate num">${offerNum.toLocaleString("ru-RU")} ₽/ч</div>`;
-          const telemostUrl = String(bk.telemostUrl || "").trim();
+          const telemostUrl = String(bk.telemostUrl || unifiedTelemost || "").trim();
           const isEditingTm = ui.telemostEditId === bk.id;
-          const tmHTML = isEditingTm
-            ? `<form class="bid-telemost-form" data-f="bid-telemost" data-id="${esc(bk.id)}">
-                <label class="small muted" for="tm-inp-${esc(bk.id)}">Ссылка на видеоурок (Яндекс Телемост)</label>
-                <input class="input bid-telemost-inp" id="tm-inp-${esc(bk.id)}" name="url" type="url" placeholder="https://telemost.yandex.ru/j/..." value="${esc(telemostUrl)}">
-                ${ui.telemostError ? `<div class="small" style="color:var(--bad);font-weight:600">${esc(ui.telemostError)}</div>` : ""}
-                <div class="bid-telemost-form-actions">
-                  <button type="submit" class="btn sm">Сохранить</button>
-                  <button type="button" class="btn soft sm" data-a="bid-telemost-gen" data-id="${esc(bk.id)}">Создать ссылку</button>
-                  <button type="button" class="btn ghost sm" data-a="bid-telemost-cancel">Отмена</button>
-                </div>
-              </form>`
-            : telemostUrl
-              ? `<div class="bid-telemost-saved">
-                  <a class="btn soft sm bid-telemost-join" href="${esc(telemostUrl)}" target="_blank" rel="noopener noreferrer">${icon("video")}<span>Яндекс Телемост · Подключиться</span></a>
-                  <button type="button" class="btn ghost sm bid-telemost-edit" data-a="bid-telemost-edit" data-id="${esc(bk.id)}">Изменить ссылку</button>
-                </div>`
-              : `<button type="button" class="btn ghost sm bid-telemost-add" data-a="bid-telemost-edit" data-id="${esc(bk.id)}">${icon("video")}<span>Добавить ссылку на Яндекс Телемост</span></button>`;
+          const tmHTML = telemostBlockHTML(bk, telemostUrl, isEditingTm, ui, "Яндекс Телемост · Подключиться");
           const resolvedTutor = resolveTutorWithContacts(tutor);
           const msgTxt = `Здравствуйте, ${bk.tutorName}! Напоминаю про занятие (${bk.subjectName}, ${bk.dayLabel} в ${bk.hour}, ${isTrial ? "пробный урок" : "ставка " + bk.offerPrice + " ₽/ч"}).${telemostUrl ? " Ссылка на Яндекс Телемост: " + telemostUrl : ""}`;
           const waHref = TDATA.whatsappUrl(resolvedTutor, msgTxt);
@@ -1503,7 +1553,7 @@
             label: "Мессенджеры",
             isActions: true,
             render: (row) => {
-              const tm = row.booking && row.booking.telemostUrl ? String(row.booking.telemostUrl) : "";
+              const tm = String((row.booking && row.booking.telemostUrl) || ensureUnifiedTelemostUrl(st) || "");
               const resolvedTutor = resolveTutorWithContacts(row.tutor);
               const waHref = TDATA.whatsappUrl(resolvedTutor, row.msgTxt);
               const linksHtml = (EGE.kit && typeof EGE.kit.messengerLinksHTML === "function")
@@ -1612,25 +1662,9 @@
                 const bk = row.booking;
                 const accepted = bk.status === "accepted";
                 const ch = tutorChannels(row.tutor);
-                const telemostUrl = String(bk.telemostUrl || "").trim();
+                const telemostUrl = String(bk.telemostUrl || ensureUnifiedTelemostUrl(st) || "").trim();
                 const isEditingTm = ui.telemostEditId === bk.id;
-                const tmBlock = isEditingTm
-                  ? `<form class="bid-telemost-form" data-f="bid-telemost" data-id="${esc(bk.id)}">
-                      <label class="small muted" for="tm-inp-${esc(bk.id)}">Ссылка на видеоурок (Яндекс Телемост)</label>
-                      <input class="input bid-telemost-inp" id="tm-inp-${esc(bk.id)}" name="url" type="url" placeholder="https://telemost.yandex.ru/j/..." value="${esc(telemostUrl)}">
-                      ${ui.telemostError ? `<div class="small" style="color:var(--bad);font-weight:600">${esc(ui.telemostError)}</div>` : ""}
-                      <div class="bid-telemost-form-actions">
-                        <button type="submit" class="btn sm">Сохранить</button>
-                        <button type="button" class="btn soft sm" data-a="bid-telemost-gen" data-id="${esc(bk.id)}">Создать ссылку</button>
-                        <button type="button" class="btn ghost sm" data-a="bid-telemost-cancel">Отмена</button>
-                      </div>
-                    </form>`
-                  : telemostUrl
-                    ? `<div class="bid-telemost-saved">
-                        <a class="btn soft sm bid-telemost-join" href="${esc(telemostUrl)}" target="_blank" rel="noopener noreferrer">${icon("video")}<span>Зайти в Яндекс Телемост</span></a>
-                        <button type="button" class="btn ghost sm bid-telemost-edit" data-a="bid-telemost-edit" data-id="${esc(bk.id)}">Изменить ссылку</button>
-                      </div>`
-                    : `<button type="button" class="btn soft sm bid-telemost-add" data-a="bid-telemost-edit" data-id="${esc(bk.id)}">${icon("video")}<span>Яндекс Телемост · добавить</span></button>`;
+                const tmBlock = telemostBlockHTML(bk, telemostUrl, isEditingTm, ui, "Зайти в Яндекс Телемост");
                 const msgTxt = `Здравствуйте, ${row.tutorName}! Пишу по уроку ${row.dayShort} в ${row.hour} (${row.subjectName}).${telemostUrl ? " Ссылка на Яндекс Телемост: " + telemostUrl : ""}`;
                 const waHref = TDATA.whatsappUrl(row.tutor, msgTxt);
                 const msgBar = (EGE.kit && typeof EGE.kit.messengerLinksHTML === "function")
@@ -1737,15 +1771,16 @@
       const st = getMkt();
       const bk = (st.bookings || []).find((x) => x.id === d.id);
       if (!bk) return false;
-      const roomCode = String(Date.now()).slice(-8) + String(Math.floor(100000 + Math.random() * 900000));
-      bk.telemostUrl = `https://telemost.yandex.ru/j/${roomCode}`;
+      const nextUrl = generateTelemostUrl();
+      st.telemostUrl = nextUrl;
+      (st.bookings || []).forEach((b) => { if (b) b.telemostUrl = nextUrl; });
       ui.telemostEditId = "";
       ui.telemostError = "";
       if (typeof _ctx.saveMkt === "function") _ctx.saveMkt();
       if (_ctx.store && _ctx.store.backend && _ctx.store.user && EGE.api && EGE.api.bookings && bk.serverSynced) {
-        EGE.api.bookings.updateTelemost(bk.id, bk.telemostUrl).catch(() => {});
+        EGE.api.bookings.updateTelemost(bk.id, nextUrl).catch(() => {});
       }
-      if (typeof _ctx.notifySide === "function") _ctx.notifySide("Яндекс Телемост", "Ссылка на видеоурок добавлена к отклику");
+      if (typeof _ctx.notifySide === "function") _ctx.notifySide("Яндекс Телемост", "Создана новая единая ссылка — будет передана преподавателю сама (WhatsApp или Telegram-бот)");
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       return true;
     }
@@ -2002,6 +2037,8 @@
     studentHomeBidsHTML,
     computeStudyWeekBilling,
     studyBillingNoticeHTML,
+    generateTelemostUrl,
+    ensureUnifiedTelemostUrl,
     saveTelemostForBooking,
     marketSectionHTML,
     viewMarket,

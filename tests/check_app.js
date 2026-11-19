@@ -1484,10 +1484,14 @@
       homePendingHtml.includes("Ожидаем ответ преподавателя") &&
       homePendingHtml.includes(">Подтвердить<") &&
       homePendingHtml.includes(">Отменить<") &&
+      homePendingHtml.includes("https://telemost.yandex.ru/j/") &&
+      homePendingHtml.includes("Яндекс Телемост · Подключиться") &&
+      homePendingHtml.includes("будет передана преподавателю сама (WhatsApp или Telegram-бот)") &&
       homePendingHtml.includes('data-a="bid-telemost-edit"') &&
+      !homePendingHtml.includes("Добавить ссылку на Яндекс Телемост") &&
       !homePendingHtml.includes("Главный срок") &&
       !homePendingHtml.includes("Быстрый переход"),
-      "expected book-submit to land straight on Главная with 3 440 ₽ balance, 1-line filter seg, tutor card, and Telemost CTA"
+      "expected book-submit to land straight on Главная with 3 440 ₽ balance, auto-generated unified Telemost link & auto-send note, 1-line filter seg, tutor card"
     );
     clickAction(env5, { a: "go", v: "market" });
     await flushMicrotasks(2);
@@ -1510,6 +1514,9 @@
     clickAction(env5, { a: "bid-telemost-edit", id: acceptIdMatch[1] });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes('data-f="bid-telemost"'), "expected inline Yandex Telemost form to open");
+    env5.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "bid-telemost", id: acceptIdMatch[1] }, elements: { url: { value: "" } } }) }, preventDefault() {} });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("Укажите ссылку Яндекс Телемост"), "expected empty Telemost submit to show validation error without clearing unified room");
     env5.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "bid-telemost", id: acceptIdMatch[1] }, elements: { url: { value: "https://telemost.yandex.ru/j/12345678901234" } } }) }, preventDefault() {} });
     await flushMicrotasks(3);
     assert(
@@ -1521,7 +1528,9 @@
     );
     clickAction(env5, { a: "bid-telemost-gen", id: acceptIdMatch[1] });
     await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("https://telemost.yandex.ru/j/"), "expected 1-click Yandex Telemost link generator to persist room URL");
+    const regeneratedHtml = env5.elements.get("main").innerHTML;
+    const tmHrefMatch = /href="(https:\/\/telemost\.yandex\.ru\/j\/[^"]+)"/.exec(regeneratedHtml);
+    assert(tmHrefMatch && tmHrefMatch[1] !== "https://telemost.yandex.ru/j/12345678901234", "expected 1-click Yandex Telemost link generator to update unified room URL");
 
     clickAction(env5, { a: "mkt-sim-accept", id: acceptIdMatch[1] });
     await flushMicrotasks(4);
@@ -1609,6 +1618,9 @@
       studyWithCardsHtml.includes('class="study-lesson-card"') &&
       studyWithCardsHtml.includes('class="study-lesson-pills"') &&
       studyWithCardsHtml.includes("Яндекс Телемост") &&
+      studyWithCardsHtml.includes(tmHrefMatch[1]) &&
+      studyWithCardsHtml.includes("будет передана преподавателю сама (WhatsApp или Telegram-бот)") &&
+      !studyWithCardsHtml.includes("Яндекс Телемост · добавить") &&
       studyWithCardsHtml.includes("Отменить занятие") &&
       studyWithCardsHtml.includes("is-hold-add") &&
       studyWithCardsHtml.includes('data-hold-ch="wa"') &&

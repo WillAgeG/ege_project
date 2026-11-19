@@ -447,6 +447,17 @@
         (st.bookings || []).forEach((bk) => { if (bk && bk.id && !merged.has(String(bk.id)) && !bk.serverSynced) merged.set(String(bk.id), bk); });
         st.bookings = Array.from(merged.values());
       }
+      if (data.telemostUrl) {
+        st.telemostUrl = String(data.telemostUrl);
+      } else if (!st.telemostUrl && Array.isArray(st.bookings)) {
+        const firstTm = st.bookings.find((bk) => bk && bk.telemostUrl);
+        if (firstTm) st.telemostUrl = String(firstTm.telemostUrl);
+      }
+      if (st.telemostUrl && Array.isArray(st.bookings)) {
+        st.bookings.forEach((bk) => {
+          if (bk && !String(bk.telemostUrl || "").trim()) bk.telemostUrl = st.telemostUrl;
+        });
+      }
       if (data.contacts && typeof data.contacts === "object") {
         st.tutorContacts = Object.assign({}, st.tutorContacts || {}, data.contacts);
       }
@@ -945,7 +956,8 @@
       day: "all",
       hour: "all",
       favs: [],
-      bookings: []
+      bookings: [],
+      telemostUrl: ""
     };
   }
   function mkt() {

@@ -51,6 +51,7 @@ class BookingCreatePayload(BaseModel):
     tutorPrice: int | None = Field(default=None, ge=0, le=99_999)
     firstLessonGuarantee: bool = Field(default=True)
     note: str = Field(default="", max_length=500)
+    telemostUrl: str = Field(default="", max_length=512)
 
 
 class BookingAcceptPayload(BaseModel):
@@ -169,12 +170,14 @@ def create_marketplace_router(settings: Settings) -> APIRouter:
         wallet = db.get_wallet(user.id)
         bookings = db.list_bookings(user.id, scope="student", limit=100)
         contacts = db.list_tutor_contacts(user.id)
+        unified_telemost = next((str(b.get("telemostUrl") or "") for b in bookings if b.get("telemostUrl")), "")
         return {
             "ok": True,
             "authenticated": True,
             "wallet": wallet,
             "bookings": bookings,
             "contacts": contacts,
+            "telemostUrl": unified_telemost,
             "tutors": tutors,
             "leads": leads,
         }

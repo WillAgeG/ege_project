@@ -409,7 +409,11 @@ class DualWriteDatabase:
         res = self.sqlite.create_booking(user_id, payload, booking_id=booking_id)
         pg_uid = self._resolve_pg_user_id(user_id, emit_outbox=False)
         if pg_uid is not None:
-            self.pg.create_booking(pg_uid, payload, booking_id=res["booking"]["id"])
+            pg_payload = dict(payload)
+            tm_url = str((res.get("booking") or {}).get("telemostUrl") or "").strip()
+            if tm_url:
+                pg_payload["telemostUrl"] = tm_url
+            self.pg.create_booking(pg_uid, pg_payload, booking_id=res["booking"]["id"])
         return res
 
     def transition_booking(

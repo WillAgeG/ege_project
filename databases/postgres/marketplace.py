@@ -17,6 +17,7 @@ from databases.sqlite.common import (
     _normalize_tz,
     calc_fee_split,
     format_days_short,
+    generate_telemost_url,
     mask_payout_destination,
     normalize_city_tz,
     sort_dows,
@@ -706,6 +707,25 @@ class PgMarketplaceMixin:
                     tariff_id = "trial5k"
                 dow = _normalize_dow(payload.get("dow"), raw_date)
 
+                raw_tm = str(payload.get("telemostUrl") or "").strip()
+                if raw_tm:
+                    telemost_url = validate_telemost_url(raw_tm)
+                else:
+                    existing_tm = conn.execute(
+                        """
+                        SELECT telemost_url FROM oltp.lesson_requests
+                        WHERE student_user_id = %s AND telemost_url <> ''
+                        ORDER BY updated_at DESC, id DESC
+                        LIMIT 1
+                        """,
+                        (uid,),
+                    ).fetchone()
+                    telemost_url = (
+                        str(existing_tm["telemost_url"])
+                        if existing_tm and str(existing_tm.get("telemost_url") or "").strip()
+                        else generate_telemost_url()
+                    )
+
                 reserved = offer_price if offer_price > 0 else 0
                 if reserved > 0:
                     new_bal = cur_bal - reserved
@@ -729,7 +749,7 @@ class PgMarketplaceMixin:
                         slot_date, hour_slot, tariff_id, offer_price_rub, status, messenger_channel,
                         exam, format, note, telemost_url, dows, day_label, tutor_price_rub,
                         first_lesson_guarantee, reserved_rub
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'offered', 'whatsapp', %s, %s, %s, '', %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'offered', 'whatsapp', %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         bid,
@@ -746,6 +766,7 @@ class PgMarketplaceMixin:
                         exam,
                         fmt,
                         note,
+                        telemost_url,
                         Jsonb([dow]),
                         day_label,
                         tutor_price,
@@ -1147,10 +1168,17 @@ class PgMarketplaceMixin:
                     conn, booking_id, actor_user_id=actor_user_id, actor_role=actor_role
                 )
                 bid = str(row["id"])
-                conn.execute(
-                    "UPDATE oltp.lesson_requests SET telemost_url = %s, updated_at = NOW() WHERE id = %s",
-                    (clean_url, bid),
-                )
+                stu_id = row.get("student_user_id")
+                if clean_url and stu_id is not None:
+                    conn.execute(
+                        "UPDATE oltp.lesson_requests SET telemost_url = %s, updated_at = NOW() WHERE student_user_id = %s OR id = %s",
+                        (clean_url, int(stu_id), bid),
+                    )
+                else:
+                    conn.execute(
+                        "UPDATE oltp.lesson_requests SET telemost_url = %s, updated_at = NOW() WHERE id = %s",
+                        (clean_url, bid),
+                    )
                 updated = conn.execute(
                     """
                     SELECT lr.*, COALESCE(t.full_name, '') AS tutor_name, COALESCE(eh.status, 'none') AS escrow_status

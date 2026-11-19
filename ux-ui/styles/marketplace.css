@@ -2110,6 +2110,9 @@ body:has(.land-page:not(#brandbook-page)) .main,
 .bid-telemost-saved { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; width: 100%; }
 .bid-telemost-join,
 .bid-telemost-edit { width: 100%; justify-content: center; }
+.bid-telemost-auto-note {
+  font-size: 11.5px; line-height: 1.35; color: var(--muted); text-align: center; padding: 0 4px;
+}
 .bid-telemost-form {
   display: grid; gap: 8px; padding: 10px 12px; border-radius: 12px;
   border: 1px solid var(--line); background: var(--surface-2);

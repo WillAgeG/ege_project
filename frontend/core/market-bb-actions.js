@@ -794,6 +794,9 @@
         reserved = offerPrice;
         st.balance -= reserved;
       }
+      const unifiedTm = (mktViews && typeof mktViews.ensureUnifiedTelemostUrl === "function")
+        ? mktViews.ensureUnifiedTelemostUrl(st)
+        : (st.telemostUrl || "");
       const newBooking = {
         id: "bk-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
         tutorId: tutor.id,
@@ -812,6 +815,7 @@
         payout: feeSplit.payout,
         tutorPrice: tutor.price,
         note: noteText,
+        telemostUrl: unifiedTm,
         reserved,
         status: "pending",
         createdAt: Date.now()
@@ -845,12 +849,17 @@
           offerPrice: newBooking.offerPrice,
           tutorPrice: newBooking.tutorPrice,
           firstLessonGuarantee: newBooking.firstLessonGuarantee,
-          note: newBooking.note
+          note: newBooking.note,
+          telemostUrl: newBooking.telemostUrl
         }).then((res) => {
           if (res && res.booking && res.booking.id) {
             const oldId = newBooking.id;
             newBooking.id = res.booking.id;
             newBooking.serverSynced = true;
+            if (res.booking.telemostUrl) {
+              newBooking.telemostUrl = String(res.booking.telemostUrl);
+              st.telemostUrl = newBooking.telemostUrl;
+            }
             if (ui.telemostEditId === oldId) ui.telemostEditId = res.booking.id;
             if (ui.schedEditId === oldId) ui.schedEditId = res.booking.id;
             if (ui.schedDrafts && ui.schedDrafts[oldId]) {

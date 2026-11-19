@@ -170,6 +170,7 @@ def test_booking_escrow_schedule_telemost_and_double_cancel_guard(tmp_path: Path
         assert client.post("/api/wallet/topup", json={"amount": 2000, "method": "sbp"}).status_code == 200
 
         # Проверка граничной суммы 130 ₽ (5% half-away-from-zero: 6.5 -> 7, payout=123)
+        # + автоматическое создание единой постоянной ссылки Яндекс Телемост
         r_edge = client.post(
             "/api/bookings",
             json={"tutorId": "t-egor", "tutorName": "Егор Макаров", "subjectName": "Python", "offerPrice": 130, "hour": "22:00", "dayIso": "2026-11-20"},
@@ -178,8 +179,19 @@ def test_booking_escrow_schedule_telemost_and_double_cancel_guard(tmp_path: Path
         edge_bk = r_edge.json()["booking"]
         assert edge_bk["fee"] == 7
         assert edge_bk["payout"] == 123
+        assert edge_bk["telemostUrl"].startswith("https://telemost.yandex.ru/j/")
         assert r_edge.json()["wallet"]["balanceRub"] == 1870
         assert r_edge.json()["wallet"]["frozenRub"] == 130
+
+        # Вторая заявка ученика автоматически получает ту же самую единую ссылку Телемост
+        r_second = client.post(
+            "/api/bookings",
+            json={"tutorId": "t-dm", "tutorName": "Дмитрий Волков", "subjectName": "Физика", "offerPrice": 200, "hour": "18:00", "dayIso": "2026-11-21"},
+        )
+        assert r_second.status_code == 200
+        second_bk = r_second.json()["booking"]
+        assert second_bk["telemostUrl"] == edge_bk["telemostUrl"]
+        assert client.get("/api/market/state").json()["telemostUrl"] == edge_bk["telemostUrl"]
 
         # Расписание: невалидный час 09:00 и пустые дни -> 400; валидное 1..7 дней и 23:00 -> 200
         assert client.patch(
@@ -200,7 +212,7 @@ def test_booking_escrow_schedule_telemost_and_double_cancel_guard(tmp_path: Path
         assert sched_bk["dows"] == [3, 5, 0]
         assert sched_bk["schedulePlan"]["status"] == "confirmed"
 
-        # Телемост: чужой домен -> 400, telemost.yandex.ru -> 200, очистка "" -> 200
+        # Телемост: чужой домен -> 400; смена ссылки синхронизирует все заявки ученика; очистка "" -> 200
         assert client.patch(
             f"/api/bookings/{edge_bk['id']}/telemost",
             json={"url": "https://evil.example.com/meet"},
@@ -211,7 +223,10 @@ def test_booking_escrow_schedule_telemost_and_double_cancel_guard(tmp_path: Path
         )
         assert r_tm.status_code == 200
         assert r_tm.json()["booking"]["telemostUrl"] == "https://telemost.yandex.ru/j/99887766"
+        all_stu_bks = {b["id"]: b for b in client.get("/api/bookings?scope=student").json()["bookings"]}
+        assert all_stu_bks[second_bk["id"]]["telemostUrl"] == "https://telemost.yandex.ru/j/99887766"
         assert client.patch(f"/api/bookings/{edge_bk['id']}/telemost", json={"url": ""}).json()["booking"]["telemostUrl"] == ""
+        assert client.post(f"/api/bookings/{second_bk['id']}/cancel").status_code == 200
 
         # Отмена возвращает 130 ₽ ровно один раз; повторная отмена -> 409 invalid_transition
         r_cancel = client.post(f"/api/bookings/{edge_bk['id']}/cancel")
@@ -407,7 +422,17 @@ def test_dualwrite_pg17_marketplace_full_flow(tmp_path: Path) -> None:
                 json={"tutorId": tid, "offerPrice": 1130, "hour": "23:00", "dayIso": "2026-11-20"},
             )
             assert r_bk.status_code == 200
-            booking_id = r_bk.json()["booking"]["id"]
+            booking_obj = r_bk.json()["booking"]
+            booking_id = booking_obj["id"]
+            auto_tm = booking_obj["telemostUrl"]
+            assert auto_tm.startswith("https://telemost.yandex.ru/j/")
+
+            with psycopg.connect(PG_DSN, row_factory=dict_row) as pg_pre:
+                pg_init_lr = pg_pre.execute(
+                    "SELECT telemost_url FROM oltp.lesson_requests WHERE id = %s",
+                    (booking_id,),
+                ).fetchone()
+                assert pg_init_lr is not None and pg_init_lr["telemost_url"] == auto_tm
 
             assert c_stu.patch(
                 f"/api/bookings/{booking_id}/schedule",
