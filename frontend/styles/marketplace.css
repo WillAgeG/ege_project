@@ -722,13 +722,6 @@ body:not([data-auth="1"]):not([data-fullbleed="1"]):not([data-brandbook="1"]) .l
   width: 100%; max-width: 100%; min-height: 50px; border-radius: 14px;
   font-size: 15.5px; font-weight: 600; justify-content: center;
 }
-#bid-signal { margin-top: 2px; }
-#bid-signal .chip {
-  display: block; width: 100%; height: auto;
-  border-radius: 12px; padding: 9px 12px;
-  font-size: 13px; line-height: 1.4;
-  text-align: left; white-space: normal;
-}
 .bal-flat-sec {
   display: grid; gap: 6px; padding-bottom: 14px;
   border-bottom: 1px solid var(--line);
@@ -2067,11 +2060,12 @@ body:has(.land-page:not(#brandbook-page)) .main,
 }
 .modal-card .hh-step-readout { min-width: 0; padding: 2px 4px; justify-content: center; }
 .modal-card .bid-input { width: 5.2ch; min-width: 0; max-width: 100%; }
-#bid-signal { min-width: 0; max-width: 100%; }
+#bid-signal { min-width: 0; max-width: 100%; margin-top: 2px; }
 #bid-signal .chip {
   display: block; width: 100%; max-width: 100%;
-  white-space: normal; height: auto; padding: 6px 10px;
-  line-height: 1.35; box-sizing: border-box; text-align: left;
+  white-space: normal; height: auto; border-radius: 12px;
+  padding: 9px 12px; font-size: 13px; line-height: 1.4;
+  box-sizing: border-box; text-align: left;
 }
 
 /* ---------- Бесконечный скролл каталога и минимальный 4-ссылочный футер ---------- */
