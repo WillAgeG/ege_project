@@ -363,14 +363,14 @@
     const setupNotifHTML = showSetupNotif
       ? `<section class="card profile-setup-notif${ui.prepSetupOpen ? " is-open" : ""}" id="profile-setup-notif" aria-label="Настройка подготовки">
           <div class="profile-setup-bar">
-            <div class="row" style="gap:10px;align-items:center;min-width:0">
-              <span class="chip notif num">+1</span>
-              <div class="stack" style="gap:2px;min-width:0">
+            <div class="profile-setup-copy">
+              <div class="profile-setup-title-row">
+                <span class="chip notif num">+1</span>
                 <b>Давай настроим подготовку</b>
-                <span class="small muted">Укажите целевые баллы — план и отсчёты подстроятся под вас</span>
               </div>
+              <span class="small muted">Укажите целевые баллы — план и отсчёты подстроятся под вас</span>
             </div>
-            <button type="button" class="btn soft sm" data-a="prep-setup-toggle" aria-expanded="${ui.prepSetupOpen ? "true" : "false"}">${ui.prepSetupOpen ? "Свернуть" : "Настроить"}</button>
+            <button type="button" class="btn soft sm profile-setup-btn" data-a="prep-setup-toggle" aria-expanded="${ui.prepSetupOpen ? "true" : "false"}">${ui.prepSetupOpen ? "Свернуть" : "Настроить"}</button>
           </div>
           ${ui.prepSetupOpen && EGE.views.trainer && typeof EGE.views.trainer.onboardingCard === "function"
             ? `<div class="profile-setup-body">${EGE.views.trainer.onboardingCard()}</div>`
@@ -393,33 +393,46 @@
       : isTutor
         ? `<span class="chip gold">Преподаватель</span>`
         : `<span class="chip accent">${isDemo ? "Демо-ученик" : "Ученик"}</span>`;
+    const heroSubParts = [curGrade, curCity].filter(Boolean);
+    const heroSub = heroSubParts.length
+      ? heroSubParts.join(" · ")
+      : ((vc && vc.value) ? `Контакт: ${vc.value}` : "Добавьте фото и данные для преподавателей");
+    const heroCardHTML = `<section class="card stu-hero-card" aria-label="Карточка профиля">
+      <div class="stu-hero-top">
+        <label class="stu-avatar-trigger" for="pf-photo-file" title="${prof.photo ? "Изменить фото" : "Добавить фото"}">
+          ${avatarEl}
+          <span class="stu-avatar-cam" aria-hidden="true">${icon("upload")}</span>
+        </label>
+        <div class="stu-hero-meta">
+          <h2 class="stu-hero-name">${esc(displayName)}</h2>
+          <div class="stu-hero-sub small muted">${esc(heroSub)}</div>
+          <div class="stu-profile-head-chips">
+            ${roleChip}
+            ${vc && vc.value ? `<span class="chip good">Телефон подтверждён ✓</span>` : ""}
+          </div>
+        </div>
+      </div>
+      <div class="stu-hero-foot">
+        <label class="btn soft sm stu-photo-btn" for="pf-photo-file" style="cursor:pointer">${icon("upload")}<span>${prof.photo ? "Изменить фото" : "Добавить фото"}</span></label>
+        <input type="file" id="pf-photo-file" accept="image/*" hidden>
+        ${prof.photo ? `<button type="button" class="btn ghost sm" data-a="pf-photo-clear">Удалить фото</button>` : ""}
+      </div>
+    </section>`;
     const topActionBtn = authed
       ? `<button type="button" class="btn ghost sm" data-a="auth-logout">${icon("logout")}<span>Выйти</span></button>`
       : (store.backend ? `<button type="button" class="btn soft sm" data-a="auth-modal-open">Войти в аккаунт</button>` : "");
-    return `<div class="head row between" style="align-items:flex-end;gap:10px;flex-wrap:wrap">
+    return `<div class="head stu-page-head">
         <div><div class="eyebrow">Профиль</div><h1 class="h1">Личный профиль</h1></div>
         ${topActionBtn}
       </div>
+      ${heroCardHTML}
       ${setupNotifHTML}
       ${store.backend && store.user ? accountCard() : ""}
       <form class="card pad-lg form stu-profile-form" data-f="profile">
-        <div class="stu-photo-row">
-          ${avatarEl}
-          <div class="stu-profile-ident">
-            <div class="stu-profile-head-chips">
-              <b style="font-size:16px">${esc(displayName)}</b>
-              ${roleChip}
-              ${vc && vc.value ? `<span class="chip good">Телефон подтверждён ✓</span>` : ""}
-            </div>
-            <span class="small muted">${prof.photo ? "Фото сохранено в профиле и отображается в кабинете" : "Добавьте своё фото — оно появится в вашем профиле"}</span>
-            <div class="stu-profile-actions">
-              <label class="btn soft sm" for="pf-photo-file" style="cursor:pointer">${icon("upload")}<span>${prof.photo ? "Изменить фото" : "Добавить фото"}</span></label>
-              <input type="file" id="pf-photo-file" accept="image/*" hidden>
-              ${prof.photo ? `<button type="button" class="btn ghost sm" data-a="pf-photo-clear">Удалить фото</button>` : ""}
-            </div>
-          </div>
+        <div class="stu-sec-head">
+          <div class="eyebrow">Анкета ученика</div>
+          <h2 class="h2">Личные данные</h2>
         </div>
-        <h2 class="h2">Личные данные</h2>
         <div class="field">
           <label for="pf-name">Имя и фамилия</label>
           <input class="input" id="pf-name" name="name" data-d="pf.name" value="${esc(draft("pf.name", prof.name || defaultName()))}" maxlength="40" placeholder="Как к тебе обращаться">
@@ -446,19 +459,20 @@
           <label for="pf-goal">О себе и цели подготовки</label>
           <textarea class="textarea" id="pf-goal" name="goal" rows="2" maxlength="200" data-d="pf.goal" placeholder="Например: ЕГЭ по профилю и физике на 85+, удобны занятия вечером">${esc(curGoal)}</textarea>
         </div>
+        <hr class="stu-form-divider" aria-hidden="true">
         <div class="label">Целевые баллы</div>
         <div class="fields">${SUBJECT_META.map((s) => `<div class="field"><label for="pf-t-${s.id}">${esc(s.name)}</label><input class="input num" type="number" min="0" max="100" inputmode="numeric" id="pf-t-${s.id}" data-d="pf.t.${s.id}" value="${esc(draft("pf.t." + s.id, prof.targets[s.id]))}"></div>`).join("")}</div>
         <div class="label">Даты экзаменов</div>
         <div class="fields">${SUBJECT_META.map((s) => `<div class="field"><label for="pf-e-${s.id}">${esc(s.name)}</label><input class="input" type="date" id="pf-e-${s.id}" data-d="pf.e.${s.id}" value="${esc(draft("pf.e." + s.id, prof.exams[s.id]))}"></div>`).join("")}</div>
         <p class="hint">Сейчас стоят даты из проекта расписания ЕГЭ-2027. Когда расписание утвердят, поправь их здесь — план и отсчёты обновятся.</p>
-        <div><button class="btn" type="submit">Сохранить профиль</button></div>
+        <div><button class="btn stu-save-btn" type="submit">Сохранить профиль</button></div>
       </form>
-      <section class="card pad-lg row between" style="gap:10px;flex-wrap:wrap">
+      <section class="card pad-lg stu-stats-card">
         <div class="stack" style="gap:2px">
           <b>Статистика и показатели</b>
           <span class="small muted">Графики активности, точность и повторяемость тем</span>
         </div>
-        <button type="button" class="btn soft sm" data-a="go" data-v="stats">${icon("chart")}<span>Открыть показатели</span></button>
+        <button type="button" class="btn soft sm stu-stats-btn" data-a="go" data-v="stats">${icon("chart")}<span>Открыть показатели</span></button>
       </section>
       ${dataCard()}`;
   }

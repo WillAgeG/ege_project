@@ -953,13 +953,32 @@
     }
   }
 
+  function activeBookedTutorIds(st) {
+    const ids = new Set();
+    ((st && st.bookings) || []).forEach((bk) => {
+      if (!bk || !bk.tutorId) return;
+      const s = String(bk.status || "").toLowerCase();
+      if (s === "cancelled" || s === "declined" || s === "refunded") return;
+      ids.add(String(bk.tutorId));
+    });
+    return ids;
+  }
+
+  function filterAvailableTutors(st, days, TDATA) {
+    if (!TDATA || typeof TDATA.filterTutors !== "function") return [];
+    const raw = TDATA.filterTutors(st, days);
+    const bookedIds = activeBookedTutorIds(st);
+    if (!bookedIds.size) return raw;
+    return raw.filter((t) => t && !bookedIds.has(String(t.id)));
+  }
+
   function filterModalHTML() {
     const ui = getUi();
     const TDATA = getTDATA();
     if (!ui.filterModal || !TDATA) return "";
     const st = getMkt();
     const days = TDATA.buildCalendarDays(7);
-    const list = TDATA.filterTutors(st, days);
+    const list = filterAvailableTutors(st, days, TDATA);
     const totalWord = plural(list.length, "репетитора", "репетиторов", "репетиторов");
     const visibleSubjects = typeof TDATA.subjectsForExam === "function" ? TDATA.subjectsForExam(st.exam) : TDATA.SUBJECTS;
     const pricePresets = [
@@ -1058,7 +1077,10 @@
     const ui = getUi();
     const st = getMkt();
     const days = TDATA.buildCalendarDays(7);
-    const list = TDATA.filterTutors(st, days);
+    const rawList = TDATA.filterTutors(st, days);
+    const bookedIds = activeBookedTutorIds(st);
+    const list = bookedIds.size ? rawList.filter((t) => t && !bookedIds.has(String(t.id))) : rawList;
+    const allMatchedBooked = !list.length && rawList.length > 0;
     const fCount = activeFilterCount(st);
     const pageSize = 8;
     const visibleLimit = isLanding ? Math.max(pageSize, Number(ui.mktVisibleCount) || pageSize) : list.length;
@@ -1086,11 +1108,20 @@
       : "";
     const cardsHTML = list.length
       ? `<div class="tutor-grid" id="mkt-tutor-grid">${visibleList.map((t) => tutorCardHTML(t)).join("")}</div>${feedTailHTML}`
-      : `<div class="empty">
-          <b>По выбранным фильтрам пока никого нет.</b>
-          <span>Попробуй расширить бюджет или сбросить фильтры.</span>
-          <button type="button" class="btn soft sm" data-a="mkt-reset">Сбросить фильтры</button>
-        </div>`;
+      : allMatchedBooked
+        ? `<div class="empty">
+            <b>Всем подходящим преподавателям вы уже отправили предложение</b>
+            <span>Следите за статусами откликов на «Главной» или расширьте параметры поиска.</span>
+            <div class="row" style="gap:8px;flex-wrap:wrap;justify-content:center">
+              <button type="button" class="btn sm" data-a="go" data-v="home">Открыть «Главную»</button>
+              <button type="button" class="btn soft sm" data-a="mkt-reset">Сбросить фильтры</button>
+            </div>
+          </div>`
+        : `<div class="empty">
+            <b>По выбранным фильтрам пока никого нет.</b>
+            <span>Попробуй расширить бюджет или сбросить фильтры.</span>
+            <button type="button" class="btn soft sm" data-a="mkt-reset">Сбросить фильтры</button>
+          </div>`;
     const bottomBalanceBar = (!st.bookings.length && Number(st.balance) > 0)
       ? `<div class="row between small muted mkt-foot-bal" style="padding:10px 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface)">
           <span>Доступно на балансе СБП: <b class="num" style="color:var(--ink)">${Number(st.balance).toLocaleString("ru-RU")} ₽</b></span>
@@ -2030,6 +2061,7 @@
     cardDiffTagsHTML,
     bookingModalHTML,
     activeFilterCount,
+    filterAvailableTutors,
     filterModalHTML,
     plansSectionHTML,
     tutorCardHTML,

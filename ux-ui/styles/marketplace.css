@@ -2469,17 +2469,126 @@ body:has(.land-page:not(#brandbook-page)) .main,
   color: var(--muted);
 }
 
+.stu-page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.stu-hero-card {
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.stu-hero-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+.stu-avatar-trigger {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  cursor: pointer;
+}
+.stu-profile-avatar {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  flex: none;
+  object-fit: cover;
+  border: 2px solid var(--line-strong);
+  background: var(--surface-2);
+}
+.stu-profile-avatar.is-fallback {
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 22px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent), #3b82f6);
+  border-color: transparent;
+}
+.stu-avatar-cam {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .14);
+}
+.stu-avatar-cam svg { width: 12px; height: 12px; }
+.stu-hero-meta {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+.stu-hero-name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--ink);
+  word-break: break-word;
+}
+.stu-hero-sub {
+  line-height: 1.35;
+}
+.stu-hero-foot {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.stu-profile-head-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
 .profile-setup-notif {
   padding: 14px 16px;
   border-color: color-mix(in srgb, var(--notif) 42%, var(--line));
   background: color-mix(in srgb, var(--notif-soft) 55%, var(--surface));
-  display: grid; gap: 12px;
+  display: grid;
+  gap: 12px;
 }
 .profile-setup-bar {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.profile-setup-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 220px;
+}
+.profile-setup-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 .profile-setup-body {
-  padding-top: 12px; border-top: 1px solid var(--line);
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
 }
 .profile-setup-body .card.pad-lg { padding: 0; border: 0; background: transparent; box-shadow: none; }
 
@@ -2490,51 +2599,27 @@ body:has(.land-page:not(#brandbook-page)) .main,
   min-width: 0;
 }
 .stu-profile-form > * { min-width: 0; max-width: 100%; }
-.stu-photo-row {
+.stu-sec-head {
+  display: grid;
+  gap: 2px;
+}
+.stu-form-divider {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 4px 0 0;
+}
+.stu-stats-card {
   display: flex;
   align-items: center;
-  gap: 14px;
+  justify-content: space-between;
+  gap: 12px;
   flex-wrap: wrap;
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  min-width: 0;
 }
-.stu-profile-avatar {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  flex: none;
-  object-fit: cover;
-  border: 2px solid var(--line-strong);
-  background: var(--surface);
-}
-.stu-profile-avatar.is-fallback {
-  display: grid;
-  place-items: center;
-  font-weight: 700;
-  font-size: 20px;
-  color: #fff;
-  background: linear-gradient(135deg, var(--accent), #3b82f6);
-  border-color: transparent;
-}
-.stu-profile-ident {
-  flex: 1;
-  min-width: 170px;
-  display: grid;
-  gap: 6px;
-}
-.stu-profile-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.stu-profile-head-chips {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
+@media (max-width: 520px) {
+  .stu-hero-foot .btn { flex: 1 1 auto; justify-content: center; }
+  .profile-setup-btn { width: 100%; justify-content: center; }
+  .stu-save-btn { width: 100%; justify-content: center; }
+  .stu-stats-btn { width: 100%; justify-content: center; }
 }
 
 .study-bill-banner {

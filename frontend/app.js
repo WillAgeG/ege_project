@@ -2882,7 +2882,9 @@
       if (ro && mktMod && typeof mktMod.priceFilterLabel === "function") ro.textContent = mktMod.priceFilterLabel(st);
       const subBtn = typeof document.getElementById === "function" ? document.getElementById("filter-submit-btn") : null;
       if (subBtn && TDATA) {
-        const list = TDATA.filterTutors(st, TDATA.buildCalendarDays(7));
+        const list = (mktMod && typeof mktMod.filterAvailableTutors === "function")
+          ? mktMod.filterAvailableTutors(st, TDATA.buildCalendarDays(7), TDATA)
+          : TDATA.filterTutors(st, TDATA.buildCalendarDays(7));
         subBtn.textContent = `Показать ${list.length} ${plural(list.length, "репетитора", "репетиторов", "репетиторов")}`;
       }
       scheduleRender();

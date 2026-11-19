@@ -1523,7 +1523,12 @@
     );
     clickAction(env5, { a: "go", v: "market" });
     await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("На рассмотрении · уведомим"), "expected /market bookings strip to show pending status");
+    const marketAfterBidHtml = env5.elements.get("main").innerHTML;
+    assert(marketAfterBidHtml.includes("На рассмотрении · уведомим"), "expected /market bookings strip to show pending status");
+    const gridStart = marketAfterBidHtml.indexOf('id="mkt-tutor-grid"');
+    const gridEnd = marketAfterBidHtml.indexOf('class="card pad-lg stack reqs-strip"');
+    const gridSlice = gridStart >= 0 ? marketAfterBidHtml.slice(gridStart, gridEnd > gridStart ? gridEnd : undefined) : "";
+    assert(!gridSlice.includes("Предложено "), "expected tutors with existing active offers not to appear inside Поиск #mkt-tutor-grid");
     clickAction(env5, { a: "go", v: "home" });
     await flushMicrotasks(2);
     clickAction(env5, { a: "home-bid-filter", v: "accepted" });
@@ -2220,6 +2225,10 @@
       !demoProfHtml.includes("Режим кабинета") &&
       !demoProfHtml.includes("Оформление") &&
       demoProfHtml.includes("Личный профиль") &&
+      demoProfHtml.includes("stu-hero-card") &&
+      demoProfHtml.includes("stu-hero-top") &&
+      demoProfHtml.includes("stu-hero-foot") &&
+      demoProfHtml.includes("profile-setup-title-row") &&
       demoProfHtml.includes('id="pf-photo-file"') &&
       demoProfHtml.includes("Добавить фото") &&
       demoProfHtml.includes('id="pf-grade"') &&
