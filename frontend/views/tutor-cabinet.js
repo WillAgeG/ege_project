@@ -118,13 +118,24 @@
 
       <div class="tc-req-slot-line">${icon("cal")}<span>${esc(req.dayLabel)} · <b class="num">${esc(req.hour)}</b> · ${esc(req.format || "Онлайн")}</span></div>
 
-      <div class="stack tc-req-price-block" style="gap:6px">
-        <div class="hh-price-row">${priceHeadlineHTML(mktRate, bidRate, false)}</div>
-        <div class="hh-diff-strip">
-          ${priceDiffTagsHTML({ tutorPrice: tutorRate, marketPrice: mktRate, offerPrice: bidRate, qualBadge: "Повышенная ставка · Профи" })}
-          <span class="diff-tag rate num">На руки 95%: ${sp.payout.toLocaleString("ru-RU")} ₽</span>
-        </div>
-      </div>
+      ${(() => {
+        const reqPriceHTML = bidRate !== tutorRate
+          ? `<s class="hh-price-old num">${tutorRate.toLocaleString("ru-RU")} ₽</s><b class="hh-price-now num">${bidRate.toLocaleString("ru-RU")} ₽/ч</b>`
+          : `<b class="hh-price-now num">${bidRate.toLocaleString("ru-RU")} ₽/ч</b>`;
+        const rawDiffHtml = priceDiffTagsHTML({ tutorPrice: tutorRate, marketPrice: mktRate, offerPrice: bidRate, qualBadge: "Повышенная ставка · Профи" });
+        const diffTags = rawDiffHtml.match(/<span\b[^>]*>[\s\S]*?<\/span>/g) || [];
+        const splitAt = diffTags.length > 2 ? Math.ceil(diffTags.length / 2) : diffTags.length;
+        const diffRow1 = diffTags.slice(0, splitAt).join("");
+        const diffRow2 = diffTags.slice(splitAt).join("");
+        return `<div class="stack tc-req-price-block" style="gap:6px">
+          <div class="hh-price-row">${reqPriceHTML}</div>
+          <div class="hh-diff-strip is-2rows">
+            <div class="tc-diff-row">${diffRow1}</div>
+            ${diffRow2 ? `<div class="tc-diff-row">${diffRow2}</div>` : ""}
+          </div>
+          <div class="small ink2">Выплата после урока: <b class="num">${sp.payout.toLocaleString("ru-RU")} ₽</b> <span class="muted">(сбор ${sp.fee} ₽)</span></div>
+        </div>`;
+      })()}
 
       ${req.note ? `<div class="tc-req-quote">${esc(req.note)}</div>` : ""}
 
@@ -146,12 +157,9 @@
         const stuMatch = (st.students || []).find((x) => x && ((req.studentId && x.id === req.studentId) || (reqNameLower && String(x.name || "").trim().toLowerCase() === reqNameLower))) || null;
         const contacts = typeof resolveLessonContacts === "function"
           ? resolveLessonContacts(st, req, stuMatch)
-          : { entity: { id: req.id, name: req.studentName, whatsapp: req.whatsapp || "", telegram: req.telegram || "", maxHandle: req.maxHandle || "" }, available: null };
+          : { entity: { id: req.id, name: req.studentName, whatsapp: req.whatsapp || "79142100511", telegram: req.telegram || "", maxHandle: req.maxHandle || "" }, available: null };
         return `<div class="stack" style="gap:8px;width:100%">
           ${renderTutorScheduleBotHTML(req, st)}
-          <div class="row between" style="gap:8px;flex-wrap:wrap">
-            <span class="small ink2">Выплата после урока: <b class="num">${sp.payout.toLocaleString("ru-RU")} ₽</b> <span class="muted">(сбор ${sp.fee} ₽)</span></span>
-          </div>
           ${tmUrl ? `<a class="btn soft sm bid-telemost-join" href="${esc(tmUrl)}" target="_blank" rel="noopener noreferrer">${icon("video")}<span>Подключиться к Яндекс Телемосту</span></a>` : ""}
           ${EGE.kit && typeof EGE.kit.messengerLinksHTML === "function"
             ? EGE.kit.messengerLinksHTML({
@@ -164,7 +172,7 @@
                 compact: true
               })
             : `<button type="button" class="btn confirm sm" data-a="tc-req-msg" data-id="${esc(req.id)}">${icon("msg")}<span>Написать ученику</span></button>`}
-          <div class="small muted tc-hold-hint">Удерживайте логотип, чтобы добавить или изменить контакт</div>
+          <div class="small muted tc-hold-hint">Удерживайте иконку, чтобы изменить контакт</div>
           ${typeof renderLessonNotifyHTML === "function" ? renderLessonNotifyHTML(st, req, stuMatch) : ""}
         </div>`;
       })() : `
@@ -721,8 +729,12 @@
       if (idx >= 0) nextLeads.splice(idx, 1);
       else nextLeads.push(d.v);
       const normalized = normalizeLeadList(nextLeads);
-      st.lessonAutoNotify[id] = { enabled: prev.enabled, leads: normalized };
-      if (stu) stu.autoLeads = normalized.slice();
+      const nextEnabled = normalized.length > 0;
+      st.lessonAutoNotify[id] = { enabled: nextEnabled, leads: normalized };
+      if (stu) {
+        stu.autoLeads = normalized.slice();
+        stu.autoNotify = nextEnabled;
+      }
       saveState();
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
       return true;

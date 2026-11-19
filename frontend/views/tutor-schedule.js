@@ -201,7 +201,7 @@
               ${stuProgressHTML}
               ${tmUrl ? `<a class="btn soft sm bid-telemost-join" href="${esc(tmUrl)}" target="_blank" rel="noopener noreferrer">${icon("video")}<span>Подключиться к Яндекс Телемосту</span></a>` : ""}
               ${msgBar}
-              <div class="small muted tc-hold-hint">Удерживайте логотип, чтобы добавить или изменить контакт</div>
+              <div class="small muted tc-hold-hint">Удерживайте иконку, чтобы изменить контакт</div>
               ${typeof renderLessonNotifyHTML === "function" ? renderLessonNotifyHTML(st, lesson, stu) : ""}
               ${stuFoldHTML}
               <button type="button" class="btn ghost sm study-cancel-btn" data-a="tc-req-decline" data-id="${esc(lesson.id)}">Снять с расписания</button>

@@ -848,10 +848,9 @@
     const map = (mktState && mktState.tutorContacts && typeof mktState.tutorContacts === "object") ? mktState.tutorContacts : {};
     const ovReq = (req && req.id && map[req.id]) || {};
     const ovStu = (stu && stu.id && map[stu.id]) || {};
-    const wa = String(ovReq.whatsapp || ovStu.whatsapp || (stu && stu.whatsapp) || (req && req.whatsapp) || "").trim();
+    const wa = String(ovReq.whatsapp || ovStu.whatsapp || (stu && stu.whatsapp) || (req && req.whatsapp) || "79142100511").trim();
     const tg = String(ovReq.telegram || ovStu.telegram || (stu && stu.telegram) || (req && req.telegram) || "").trim();
     const maxH = String(ovReq.maxHandle || ovStu.maxHandle || (stu && stu.maxHandle) || (req && req.maxHandle) || "").trim();
-    const waDigits = wa.replace(/\D+/g, "");
     return {
       entity: {
         id: (stu && stu.id) || (req && req.id) || "",
@@ -861,7 +860,7 @@
         maxHandle: maxH
       },
       available: {
-        wa: waDigits.length >= 10,
+        wa: true,
         tg: Boolean(tg),
         max: Boolean(maxH)
       }
@@ -892,9 +891,8 @@
     return `<div class="tc-notify-box" role="group" aria-label="Автоуведомление перед уроком">
       <div class="tc-notify-top">
         <span class="tc-notify-title">${icon("bell")}<span>Автоуведомление</span></span>
-        <button type="button" class="tc-switch-pill${cfg.enabled ? " is-on" : ""}" data-a="tc-lesson-notify-toggle" data-id="${esc(reqId)}" data-stu-id="${esc(stuId)}" aria-pressed="${cfg.enabled}">${cfg.enabled ? "Вкл" : "Выкл"}</button>
       </div>
-      <div class="tc-lead-pills${cfg.enabled ? "" : " is-dim"}" role="group" aria-label="Когда напомнить">
+      <div class="tc-lead-pills" role="group" aria-label="Когда напомнить">
         ${WA_LEAD_OPTIONS.map((o) => {
           const on = cfg.leads.includes(o.id);
           return `<button type="button" class="tc-lead-pill${on ? " is-on" : ""}" data-a="tc-lesson-lead-toggle" data-id="${esc(reqId)}" data-stu-id="${esc(stuId)}" data-v="${esc(o.id)}" aria-pressed="${on}">${esc(o.label)}</button>`;

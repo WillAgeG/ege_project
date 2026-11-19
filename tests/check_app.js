@@ -2306,7 +2306,10 @@
       tutorMain1.includes('id="tc-requests-table"') &&
       tutorMain1.includes("tc-req-card") &&
       tutorMain1.includes('id="tc-first-pending"') &&
-      tutorMain1.includes("На руки 95%") &&
+      tutorMain1.includes("Выплата после урока:") &&
+      !tutorMain1.includes("На руки 95%") &&
+      tutorMain1.includes("is-2rows") &&
+      tutorMain1.includes("tc-diff-row") &&
       !tutorMain1.includes("Саха сирэ") &&
       !tutorMain1.includes("Личный кабинет преподавателя") &&
       !tutorMain1.includes("Live · SSE") &&
@@ -2317,7 +2320,7 @@
       !tutorMain1.includes('data-a="tc-bump"') &&
       !tutorMain1.includes("3 колонки") &&
       !tutorMain1.includes("7 колонок"),
-      "expected clean card-based Teacher Requests without cabinet hero header, live pill, search input, ваша цена label, or bb-data-table"
+      "expected clean card-based Teacher Requests with Выплата после урока, 2-row diff tags, and without На руки 95% badge or header clutter"
     );
     assert(!tutorMain1.includes("tc-role-bar") && !tutorMain1.includes('role="tablist"') && !tutorMain1.includes("tc-mobile-tabs"), "expected tc-role-bar, desktop tablist, and extra tc-mobile-tabs removed on Заявки");
     assert(
@@ -2377,6 +2380,8 @@
       afterAcceptHtml.includes("Подключиться к Яндекс Телемосту") &&
       afterAcceptHtml.includes("https://telemost.yandex.ru/j/") &&
       afterAcceptHtml.includes("Автоуведомление") &&
+      !afterAcceptHtml.includes("tc-lesson-notify-toggle") &&
+      !afterAcceptHtml.includes("tc-switch-pill") &&
       afterAcceptHtml.includes('data-a="tc-lesson-lead-toggle" data-id="tc-req-1" data-stu-id="st-alina" data-v="24h" aria-pressed="true"') &&
       afterAcceptHtml.includes('data-a="tc-lesson-lead-toggle" data-id="tc-req-1" data-stu-id="st-alina" data-v="1h" aria-pressed="true"') &&
       afterAcceptHtml.includes('data-a="tc-lesson-lead-toggle" data-id="tc-req-1" data-stu-id="st-alina" data-v="15m" aria-pressed="false"') &&
@@ -2387,7 +2392,7 @@
       afterAcceptHtml.includes("tc-sched-box") &&
       afterAcceptHtml.includes("Бот Вектора: ученик хочет заниматься в 16:00 в среду и четверг каждую неделю") &&
       afterAcceptHtml.includes('data-a="tc-sched-accept" data-id="tc-req-3"'),
-      "expected tc-req-accept to render icon-only hold-to-add logos, Telemost join CTA, default 24h+1h auto-notify toggles, and Bot schedule card"
+      "expected tc-req-accept to render icon-only hold-to-add logos, Telemost join CTA, default 24h+1h auto-notify blue pills without on/off switch, and Bot schedule card"
     );
     clickAction(env5, { a: "tc-lesson-lead-toggle", id: "tc-req-1", stuId: "st-alina", v: "15m" });
     await flushMicrotasks(1);
@@ -2398,12 +2403,9 @@
       all3LeadsHtml.includes('data-a="tc-lesson-lead-toggle" data-id="tc-req-1" data-stu-id="st-alina" data-v="15m" aria-pressed="true"'),
       "expected selecting 15m timing to allow all 3 timings (24h, 1h, 15m) enabled simultaneously"
     );
-    clickAction(env5, { a: "tc-lesson-notify-toggle", id: "tc-req-1", stuId: "st-alina" });
+    clickAction(env5, { a: "tc-lesson-lead-toggle", id: "tc-req-1", stuId: "st-alina", v: "15m" });
     await flushMicrotasks(1);
-    assert(env5.elements.get("main").innerHTML.includes('data-a="tc-lesson-notify-toggle" data-id="tc-req-1" data-stu-id="st-alina" aria-pressed="false"'), "expected tc-lesson-notify-toggle to turn auto-notify off");
-    clickAction(env5, { a: "tc-lesson-notify-toggle", id: "tc-req-1", stuId: "st-alina" });
-    await flushMicrotasks(1);
-    assert(env5.elements.get("main").innerHTML.includes('data-a="tc-lesson-notify-toggle" data-id="tc-req-1" data-stu-id="st-alina" aria-pressed="true"'), "expected tc-lesson-notify-toggle to turn auto-notify back on");
+    assert(env5.elements.get("main").innerHTML.includes('data-a="tc-lesson-lead-toggle" data-id="tc-req-1" data-stu-id="st-alina" data-v="15m" aria-pressed="false"'), "expected tapping active lead pill to toggle it off");
     clickAction(env5, { a: "tc-sched-alt-open", id: "tc-req-3" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes("Предложить ученику другие дни"), "expected tc-sched-alt-open to reveal tutor alternative 1-7 day picker");
@@ -2502,7 +2504,14 @@
     env5.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "tc-cal-add" }, elements: { studentName: { value: "Максим Р." }, hour: { value: "11:00" }, offerPrice: { value: "1300" }, note: { value: "Генетика №28" } } }) }, preventDefault() {} });
     await flushMicrotasks(2);
     const calAddedHtml = env5.elements.get("main").innerHTML;
-    assert(calAddedHtml.includes("Максим Р.") && calAddedHtml.includes("Генетика №28") && calAddedHtml.includes("is-disabled is-hold-add"), "expected manually booked student to appear with grey hold-to-add messenger logos");
+    assert(
+      calAddedHtml.includes("Максим Р.") &&
+      calAddedHtml.includes("Генетика №28") &&
+      calAddedHtml.includes('class="btn-msg is-wa is-hold-add"') &&
+      calAddedHtml.includes('class="btn-msg is-tg is-disabled is-hold-add"') &&
+      calAddedHtml.includes('class="btn-msg is-max is-disabled is-hold-add"'),
+      "expected manually booked student to have green WhatsApp by default and grey Telegram/MAX hold-to-add logos"
+    );
 
     // Вкладка преподавателя «Ученики ищут» (контр-цена ±50 ₽ tc-lead-step + tc-lead-offer, без tc-bump и без 3/7 колонок)
     clickAction(env5, { a: "go", v: "tutor-leads" });
