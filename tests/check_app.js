@@ -1582,7 +1582,8 @@
       (studyWithCardsHtml.match(/class="study-week-day-btn/g) || []).length === 7 &&
       studyWithCardsHtml.includes('class="swd-cnt num"') &&
       studyWithCardsHtml.includes('class="study-lesson-card"') &&
-      studyWithCardsHtml.includes("Зайти в Яндекс Телемост") &&
+      studyWithCardsHtml.includes('class="study-lesson-pills"') &&
+      studyWithCardsHtml.includes("Яндекс Телемост") &&
       studyWithCardsHtml.includes("Отменить занятие") &&
       studyWithCardsHtml.includes("is-hold-add") &&
       studyWithCardsHtml.includes('data-hold-ch="tg"') &&
@@ -1590,13 +1591,11 @@
       studyWithCardsHtml.includes("Быстрый переход") &&
       studyWithCardsHtml.includes("Телемост") &&
       !studyWithCardsHtml.includes("Ваших записей к преподавателям") &&
-      studyWithCardsHtml.includes("study-tabs-rail") &&
-      studyWithCardsHtml.includes(">Расписание<") &&
-      studyWithCardsHtml.includes(">Чаты<") &&
-      !studyWithCardsHtml.includes("График (") &&
-      !studyWithCardsHtml.includes("Чаты (") &&
+      !studyWithCardsHtml.includes("study-tabs-rail") &&
+      !studyWithCardsHtml.includes("Подобрать ещё") &&
+      !studyWithCardsHtml.includes('data-a="study-subj"') &&
       (studyWithCardsHtml.match(/data-label="День и час"/g) || []).length >= 2,
-      "expected 7-day strip with counts, daily Telemost/cancel/messenger card, both schedule days, and clean Расписание/Чаты tabs"
+      "expected 7-day strip without filters/sub-tabs/Подобрать ещё, daily card with single-line swipe pills, Telemost & cancel"
     );
 
     const otherDayMatch = /data-a="study-day-pick" data-iso="([^"]+)" aria-pressed="false"/.exec(studyWithCardsHtml);

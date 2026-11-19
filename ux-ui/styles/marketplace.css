@@ -2418,8 +2418,17 @@ body:has(.land-page:not(#brandbook-page)) .main,
 /* Учёба -> Расписание: 7-дневный календарь с цифрами уроков + карточки дня с Телемостом и мессенджерами */
 .study-cal-card {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.study-cal-card > * {
+  min-width: 0;
+  max-width: 100%;
 }
 .study-week-days {
   display: grid;
@@ -2492,36 +2501,93 @@ body:has(.land-page:not(#brandbook-page)) .main,
 }
 .study-day-panel {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
-  padding-top: 4px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding-top: 8px;
   border-top: 1px solid var(--line);
 }
 .study-day-cards {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 .study-lesson-card {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
   padding: 13px 14px;
   border-radius: 14px;
   border: 1px solid var(--line);
   background: var(--surface-2);
+}
+.study-lesson-card > * {
   min-width: 0;
+  max-width: 100%;
+}
+.study-lesson-card .tutor-name-line,
+.study-lesson-card .tutor-person-meta {
+  min-width: 0;
+  max-width: 100%;
+}
+.study-lesson-card .btn {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  justify-content: center;
+}
+.study-lesson-time-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.study-lesson-pills {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.study-lesson-pills::-webkit-scrollbar {
+  display: none;
+}
+.study-lesson-pills > * {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 .study-lesson-card .msg-channel-bar {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
   width: 100%;
+  min-width: 0;
 }
 .study-lesson-card .msg-channel-bar .btn-msg {
   width: 100%;
   min-width: 0;
   justify-content: center;
-  padding: 0 8px;
+  padding: 0 6px;
   min-height: 36px;
-  font-size: 12.5px;
+  font-size: 12px;
   border-radius: 12px;
 }
 .study-cancel-btn {

@@ -1293,32 +1293,19 @@
     });
 
     const header = `<div class="head">
-        <div class="row between" style="flex-wrap:wrap;gap:10px">
-          <div><div class="eyebrow">Учёба</div><h1 class="h1">Мои преподаватели и расписание</h1></div>
-          <div class="row" style="gap:8px;flex-wrap:wrap">
-            <button type="button" class="btn soft sm" data-a="go" data-v="market">Подобрать ещё</button>
-            ${!hasMinBalance(st) ? `<button type="button" class="btn ghost sm" data-a="bal-open">${icon("wallet")}<span>Пополнить</span></button>` : ""}
-          </div>
-        </div>
-      </div>
-      <div class="chip-rail swipe study-tabs-rail" role="tablist" aria-label="Подразделы учёбы">
-        <button type="button" class="chip-btn${tab === "week" ? " on" : ""}" data-a="study-tab" data-tab="week">Расписание</button>
-        <button type="button" class="chip-btn${tab === "chats" ? " on" : ""}" data-a="study-tab" data-tab="chats">Чаты</button>
-        <button type="button" class="chip-btn${tab === "tests" ? " on" : ""}" data-a="study-tab" data-tab="tests">Тесты ЕГЭ</button>
-        <button type="button" class="chip-btn${tab === "plan" ? " on" : ""}" data-a="study-tab" data-tab="plan">План ЕГЭ</button>
-        <button type="button" class="chip-btn${tab === "stats" ? " on" : ""}" data-a="study-tab" data-tab="stats">Показатели</button>
+        <div><div class="eyebrow">Учёба</div><h1 class="h1">Мои преподаватели и расписание</h1></div>
       </div>`;
 
     if (tab === "tests") {
-      return `${header}${typeof _ctx.viewTests === "function" ? _ctx.viewTests({ embedded: true }) : ""}`;
+      return `${header}<div class="row" style="margin-bottom:8px"><button type="button" class="btn ghost sm" data-a="study-tab" data-tab="week">← Расписание</button></div>${typeof _ctx.viewTests === "function" ? _ctx.viewTests({ embedded: true }) : ""}`;
     }
 
     if (tab === "plan") {
-      return `${header}${typeof _ctx.viewPlan === "function" ? _ctx.viewPlan() : ""}`;
+      return `${header}<div class="row" style="margin-bottom:8px"><button type="button" class="btn ghost sm" data-a="study-tab" data-tab="week">← Расписание</button></div>${typeof _ctx.viewPlan === "function" ? _ctx.viewPlan() : ""}`;
     }
 
     if (tab === "stats") {
-      return `${header}${typeof _ctx.viewStats === "function" ? _ctx.viewStats({ embedded: true }) : ""}`;
+      return `${header}<div class="row" style="margin-bottom:8px"><button type="button" class="btn ghost sm" data-a="study-tab" data-tab="week">← Расписание</button></div>${typeof _ctx.viewStats === "function" ? _ctx.viewStats({ embedded: true }) : ""}`;
     }
 
     if (tab === "chats") {
@@ -1452,24 +1439,15 @@
           <button type="button" class="btn sm" data-a="go" data-v="market">Выбрать преподавателя</button>
         </div>`
       : (() => {
-          const filteredBookings = st.bookings.filter((bk) => {
-            if (subjFilter === "all") return true;
-            const tutor = TDATA.LIST.find((t) => t.id === bk.tutorId);
-            if (!tutor) return true;
-            return tutor.subject === subjFilter || (Array.isArray(tutor.subjects) && tutor.subjects.includes(subjFilter));
-          });
+          const allBookings = st.bookings;
           const weekPicker = `<div class="hh-seg" role="group" aria-label="Выбор недели">
             <button type="button" data-a="study-week" data-w="0" aria-pressed="${weekOffset === 0}">Эта неделя</button>
             <button type="button" data-a="study-week" data-w="1" aria-pressed="${weekOffset === 1}">Следующая неделя</button>
           </div>`;
-          const subjStrip = `<div class="chip-rail swipe" role="group" aria-label="Фильтр по предмету">
-            <button type="button" class="chip-btn${subjFilter === "all" ? " on" : ""}" data-a="study-subj" data-v="all">Все предметы</button>
-            ${TDATA.SUBJECTS.map((sb) => `<button type="button" class="chip-btn${subjFilter === sb.id ? " on" : ""}" data-a="study-subj" data-v="${sb.id}">${esc(sb.short)}</button>`).join("")}
-          </div>`;
           const dayGroups = [];
           const weekRows = [];
           weekDays.forEach((d) => {
-            const dayBookings = filteredBookings.filter((bk) => {
+            const dayBookings = allBookings.filter((bk) => {
               const sp = bk.schedulePlan;
               if (sp && (sp.status === "confirmed" || sp.status === "sent_to_tutor") && Array.isArray(sp.dows) && sp.dows.length) {
                 return sp.dows.map(Number).includes(Number(d.dow));
@@ -1544,10 +1522,10 @@
                     </form>`
                   : telemostUrl
                     ? `<div class="bid-telemost-saved">
-                        <a class="btn soft sm bid-telemost-join" href="${esc(telemostUrl)}" target="_blank" rel="noopener noreferrer">${icon("video")}<span>Зайти в Яндекс Телемост · ${esc(row.hour)}</span></a>
+                        <a class="btn soft sm bid-telemost-join" href="${esc(telemostUrl)}" target="_blank" rel="noopener noreferrer">${icon("video")}<span>Зайти в Яндекс Телемост</span></a>
                         <button type="button" class="btn ghost sm bid-telemost-edit" data-a="bid-telemost-edit" data-id="${esc(bk.id)}">Изменить ссылку</button>
                       </div>`
-                    : `<button type="button" class="btn soft sm bid-telemost-add" data-a="bid-telemost-edit" data-id="${esc(bk.id)}">${icon("video")}<span>Зайти в Яндекс Телемост · добавить ссылку</span></button>`;
+                    : `<button type="button" class="btn soft sm bid-telemost-add" data-a="bid-telemost-edit" data-id="${esc(bk.id)}">${icon("video")}<span>Яндекс Телемост · добавить</span></button>`;
                 const msgTxt = `Здравствуйте, ${row.tutorName}! Пишу по уроку ${row.dayShort} в ${row.hour} (${row.subjectName}).${telemostUrl ? " Ссылка на Яндекс Телемост: " + telemostUrl : ""}`;
                 const waHref = TDATA.whatsappUrl(row.tutor, msgTxt);
                 const msgBar = (EGE.kit && typeof EGE.kit.messengerLinksHTML === "function")
@@ -1555,12 +1533,12 @@
                   : `<a class="btn confirm sm" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>WhatsApp</span></a>`;
                 const isWeekly = bk.schedulePlan && bk.schedulePlan.weekly !== false;
                 return `<article class="study-lesson-card" data-booking-id="${esc(bk.id)}">
-                  <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
-                    <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center">
-                      <b class="num" style="font-size:15px">Урок в ${esc(row.hour)}</b>
-                      <span class="small muted">${esc(row.dayShort)} · ${esc(row.format)}</span>
-                      ${isWeekly ? `<span class="chip accent">Каждую неделю</span>` : ""}
-                    </div>
+                  <div class="study-lesson-time-row">
+                    <b class="num" style="font-size:15px">Урок в ${esc(row.hour)}</b>
+                    <span class="small muted">${esc(row.dayShort)} · ${esc(row.format)}</span>
+                  </div>
+                  <div class="study-lesson-pills">
+                    ${isWeekly ? `<span class="chip accent">Каждую неделю</span>` : ""}
                     <span class="bb-tbl-st ${accepted ? "is-confirmed" : "is-pending"}">${accepted ? "Подтверждён" : "На рассмотрении"}</span>
                   </div>
                   <div class="tutor-name-line">
@@ -1575,7 +1553,7 @@
                   </div>
                   <div class="bid-telemost-box">${tmBlock}</div>
                   ${msgBar}
-                  ${(!ch.tg || !ch.max) ? `<span class="study-hold-hint">Удерживайте серый Telegram или MAX, чтобы указать контакт преподавателя</span>` : ""}
+                  ${(!ch.tg || !ch.max) ? `<span class="study-hold-hint">Удерживайте серый Telegram или MAX, чтобы указать контакт</span>` : ""}
                   <button type="button" class="btn ghost sm study-cancel-btn" data-a="mkt-cancel-book" data-id="${esc(bk.id)}">Отменить занятие</button>
                 </article>`;
               }).join("")}</div>`
@@ -1671,7 +1649,7 @@
                 searchFields: (row) => [row.dayLabel, row.hour, row.format, row.tutorName, row.subjectName, row.status].join(" "),
                 emptyText: "По поисковому запросу уроков не найдено."
               })}</div>`
-            : `<div class="empty"><b>По выбранному предмету записей пока нет</b><span>Переключите фильтр на «Все предметы» или добавьте занятие.</span></div>`;
+            : `<div class="empty"><b>Записей пока нет</b><span>Выберите преподавателя в разделе «Поиск» и отправьте заявку.</span></div>`;
 
           return `<section class="card pad stack study-cal-card" id="study-week-strip">
             <div class="row between" style="gap:8px;flex-wrap:wrap">
@@ -1679,7 +1657,6 @@
             </div>
             ${weekPicker}
             ${daysStripHTML}
-            ${subjStrip}
             <div class="study-day-panel">
               <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
                 <b>${esc(selectedGroup ? selectedGroup.day.fullLabel : "")}</b>
