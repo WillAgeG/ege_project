@@ -3020,8 +3020,12 @@
       payoutSbpHtml.includes("#C72C54") &&
       payoutSbpHtml.includes("ygo-mir-svg") &&
       payoutSbpHtml.includes("bal-amount-box") &&
-      payoutSbpHtml.includes("bal-submit-btn"),
-      "expected redesigned flat Yandex Go + exact SBP & MIR SVG payout modal"
+      payoutSbpHtml.includes("bal-submit-btn") &&
+      payoutSbpHtml.includes("Чек самозанятого") &&
+      payoutSbpHtml.includes('data-a="tc-payout-npd">В разработке</button>') &&
+      payoutSbpHtml.includes('name="npdReceipt"') &&
+      payoutSbpHtml.includes("disabled"),
+      "expected redesigned flat Yandex Go + exact SBP & MIR SVG payout modal and disabled Чек самозанятого with В разработке button"
     );
     clickAction(env5, { a: "tc-payout-method", v: "card" });
     await flushMicrotasks(1);
@@ -3035,6 +3039,7 @@
     );
     clickAction(env5, { a: "tc-payout-method", v: "sbp" });
     clickAction(env5, { a: "tc-payout-npd" });
+    assert(env5.elements.get("toast").innerHTML.includes("в разработке"), "expected clicking В разработке button on Чек самозанятого to show in-development message");
     clickAction(env5, { a: "tc-payout-chip", v: "5000" });
     await flushMicrotasks(1);
     env5.emitDoc("submit", { target: { closest: () => ({ dataset: { f: "tc-payout" } }) }, preventDefault() {} });

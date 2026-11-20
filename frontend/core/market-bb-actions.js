@@ -479,9 +479,10 @@
     },
     "tc-payout-npd": () => {
       if (!ui.payoutModal) return;
-      ui.payoutModal.npdReceipt = !ui.payoutModal.npdReceipt;
-      ui.payoutModal.error = "";
-      renderModal();
+      ui.payoutModal.npdReceipt = false;
+      if (typeof notifySide === "function") {
+        notifySide("Чек самозанятого", "Автопередача в «Мой налог» находится в разработке");
+      }
     },
     "filter-open": () => { ui.filterModal = true; renderModal(); },
     "filter-close": () => { ui.filterModal = false; renderModal(); },

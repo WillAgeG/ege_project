@@ -342,13 +342,16 @@
               </div>
             </div>
 
-            <label class="tc-payout-npd">
-              <div class="stack" style="gap:2px;min-width:0">
-                <b class="small">Чек самозанятого (НПД · 4–6%)</b>
+            <div class="tc-payout-npd is-wip" role="group" aria-label="Чек самозанятого — в разработке">
+              <div class="stack" style="gap:4px;min-width:0;flex:1 1 0">
+                <div class="tc-payout-npd-head">
+                  <b class="small">Чек самозанятого (НПД · 4–6%)</b>
+                  <button type="button" class="chip tc-wip-btn" data-a="tc-payout-npd">В разработке</button>
+                </div>
                 <span class="small muted">Автоматическая передача в «Мой налог» после зачисления</span>
               </div>
-              <input type="checkbox" name="npdReceipt" data-a="tc-payout-npd" data-tc-payout="npdReceipt"${npdReceipt ? " checked" : ""}>
-            </label>
+              <input type="checkbox" name="npdReceipt" data-tc-payout="npdReceipt" disabled aria-disabled="true">
+            </div>
 
             ${errorMsg ? `<div class="tc-payout-err" role="alert">${esc(errorMsg)}</div>` : ""}
             ${!canSubmit && !errorMsg ? `<div class="small muted">Минимальный доступный остаток для вывода — ${summary.minPayout.toLocaleString("ru-RU")} ₽.</div>` : ""}
@@ -368,7 +371,7 @@
     const bank = String(src.bank || (summary.settings && summary.settings.bank) || PAYOUT_BANKS[4]).trim() || PAYOUT_BANKS[4];
     const phoneFormatted = formatPhone(src.phone || "");
     const cardFormatted = formatCardMask(src.card || "");
-    const npdReceipt = src.npdReceipt !== undefined ? !!src.npdReceipt : true;
+    const npdReceipt = false;
 
     const fallbackAmount = summary.availableRub >= summary.minPayout
       ? Math.min(summary.availableRub, 3000)
@@ -500,7 +503,7 @@
     return `<section class="card stack tc-wallet-card" aria-label="Баланс и вывод средств">
       <div class="tc-wallet-top">
         <div class="eyebrow">Кошелёк преподавателя</div>
-        <span class="chip${s.npdReceipt ? " confirm" : ""}">${s.npdReceipt ? "Чек НПД ✓" : "Без НПД"}</span>
+        <span class="chip tc-wip-chip">Чек НПД · в разработке</span>
       </div>
       <div class="tc-wallet-hero">
         <span class="small muted">Доступно к выводу</span>
