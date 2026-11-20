@@ -1646,6 +1646,7 @@
     assert(
       studyWithCardsHtml.includes('id="study-overview-cards"') &&
       studyWithCardsHtml.includes('id="study-week-strip"') &&
+      !studyWithCardsHtml.includes('class="card pad stack study-cal-card" id="study-week-strip"') &&
       (studyWithCardsHtml.match(/class="study-week-day-btn/g) || []).length === 7 &&
       studyWithCardsHtml.includes('class="swd-cnt num"') &&
       studyWithCardsHtml.includes('class="study-lesson-card"') &&
@@ -2577,9 +2578,18 @@
       calOnlySlice.includes('data-a="tc-cal-week-step" data-delta="-1"') &&
       calOnlySlice.includes('data-a="tc-cal-week-step" data-delta="1"') &&
       calOnlySlice.includes('data-week-swipe="tc"') &&
+      !tcCalHtml.includes('class="card pad stack study-cal-card" id="tc-week-strip"') &&
       !calOnlySlice.includes('data-a="tc-bump"'),
-      "expected unified Ученики calendar strip matching student calendar with week step arrows, swipe attribute, confirmed student cards, Telemost button, icon-only logos, automatic payment badge + notify button, auto-notify pills, and 7 day buttons"
+      "expected unified unboxed Ученики calendar strip matching student calendar with week step arrows, swipe attribute, confirmed student cards, Telemost button, icon-only logos, automatic payment badge + notify button, auto-notify pills, and 7 day buttons"
     );
+    if (new Date().getDay() !== 1) {
+      assert(calOnlySlice.includes("study-week-day-btn") && calOnlySlice.includes("is-past"), "expected past weekdays before today on current week to carry is-past grey class");
+      clickAction(env5, { a: "tc-day", dow: "1" });
+      await flushMicrotasks(2);
+      assert(env5.elements.get("main").innerHTML.includes("Прошедший день") && env5.elements.get("main").innerHTML.includes("study-day-panel is-past-week"), "expected selecting Monday before today on current week to show Прошедший день grey view");
+      clickAction(env5, { a: "tc-day", dow: "6" });
+      await flushMicrotasks(2);
+    }
     clickAction(env5, { a: "tc-cal-week-step", delta: "-1" });
     await flushMicrotasks(2);
     const tcPastCalHtml = env5.elements.get("main").innerHTML;

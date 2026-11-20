@@ -56,6 +56,8 @@
       : DAY_LIST.map((d, i) => ({ dow: Number(d.dow), wd: d.wd, wdLong: d.full.toLowerCase(), num: 14 + i, month: "нояб.", shortLabel: `${d.wd}, ${14 + i} нояб.`, fullLabel: `${d.full.toLowerCase()}, ${14 + i} нояб.`, iso: "" }));
     const firstDay = weekDays[0] || {};
     const lastDay = weekDays[weekDays.length - 1] || firstDay;
+    const nowLocal = new Date();
+    const todayIso = `${nowLocal.getFullYear()}-${String(nowLocal.getMonth() + 1).padStart(2, "0")}-${String(nowLocal.getDate()).padStart(2, "0")}`;
     const weekRangeLabel = `${firstDay.num || ""} ${firstDay.month || ""} – ${lastDay.num || ""} ${lastDay.month || ""}`.trim();
     const weekTitle = weekOffset === 0
       ? "Эта неделя"
@@ -65,6 +67,7 @@
           ? "Прошлая неделя"
           : (weekOffset < -1 ? `${Math.abs(weekOffset)} нед. назад` : `Через ${weekOffset} нед.`)));
     const activeDay = weekDays.find((d) => String(d.dow) === String(st.activeDow)) || weekDays[5] || weekDays[0];
+    const isActivePast = isPastWeek || Boolean(activeDay && activeDay.iso && activeDay.iso < todayIso);
     const dowStr = String(activeDay.dow);
     const dayKeyByDow = { "1": "mon", "2": "tue", "3": "wed", "4": "thu", "5": "fri", "6": "sat", "0": "sun" };
     const activeDayKey = dayKeyByDow[dowStr] || "sat";
@@ -103,7 +106,8 @@
         const k = String(d.dow);
         const bookedCnt = confirmedReqs.filter((r) => lessonMatchesDow(r, k)).length;
         const isOn = k === dowStr;
-        return `<button type="button" class="study-week-day-btn${isOn ? " on" : ""}${bookedCnt > 0 ? " has-lessons" : ""}${isPastWeek ? " is-past" : ""}" data-a="tc-day" data-dow="${k}" aria-pressed="${isOn}">
+        const isPastDay = isPastWeek || Boolean(d.iso && d.iso < todayIso);
+        return `<button type="button" class="study-week-day-btn${isOn ? " on" : ""}${bookedCnt > 0 ? " has-lessons" : ""}${isPastDay ? " is-past" : ""}" data-a="tc-day" data-dow="${k}" aria-pressed="${isOn}">
           <span class="swd-wd">${esc(d.wd)}</span>
           <span class="swd-num num">${esc(d.num)}</span>
           ${bookedCnt > 0 ? `<span class="swd-cnt num">${bookedCnt}</span>` : `<span class="swd-dot" aria-hidden="true"></span>`}
@@ -111,8 +115,17 @@
       }).join("")}
     </div>`;
 
-    const dayLessonsHTML = isPastWeek
-      ? (activeLessons.length
+    const unbookedGcalHTML = !isPastWeek ? unbookedGcal.map((gcalBusy) => `<div class="tc-cal-slot is-gcal-busy">
+      <div class="row" style="gap:10px;min-width:0;flex:1 1 220px;flex-wrap:wrap;align-items:center">
+        <span class="tc-cal-time">${esc(gcalBusy.hour)}</span>
+        <span class="badge">Занято в GCal</span>
+        <span class="small">${esc(gcalBusy.summary || "Событие Google Calendar")}</span>
+      </div>
+      <span class="small muted">Пересчитано в ${esc(st.profile.timezone || "UTC+9")}</span>
+    </div>`).join("") : "";
+
+    const dayLessonsHTML = isActivePast
+      ? ((activeLessons.length || unbookedGcalHTML)
         ? `<div class="study-day-cards">
             ${activeLessons.map((lesson) => {
               const sp = lesson.schedulePlan;
@@ -146,6 +159,7 @@
                 <div class="tc-past-pay-line">${pay.paid ? `✓ Оплачено · ${rate.toLocaleString("ru-RU")} ₽` : `Не оплачено · ${rate.toLocaleString("ru-RU")} ₽`}</div>
               </article>`;
             }).join("")}
+            ${unbookedGcalHTML}
           </div>`
         : `<div class="empty is-past">
             <b>На ${esc(activeDay.fullLabel)} проведённых уроков не было</b>
@@ -265,14 +279,7 @@
               <button type="button" class="btn ghost sm study-cancel-btn" data-a="tc-req-decline" data-id="${esc(lesson.id)}">Снять с расписания</button>
             </article>`;
           }).join("")}
-          ${unbookedGcal.map((gcalBusy) => `<div class="tc-cal-slot is-gcal-busy">
-            <div class="row" style="gap:10px;min-width:0;flex:1 1 220px;flex-wrap:wrap;align-items:center">
-              <span class="tc-cal-time">${esc(gcalBusy.hour)}</span>
-              <span class="badge">Занято в GCal</span>
-              <span class="small">${esc(gcalBusy.summary || "Событие Google Calendar")}</span>
-            </div>
-            <span class="small muted">Пересчитано в ${esc(st.profile.timezone || "UTC+9")}</span>
-          </div>`).join("")}
+          ${unbookedGcalHTML}
         </div>`
       : `<div class="empty">
           <b>На ${esc(activeDay.fullLabel)} записанных учеников нет</b>
@@ -341,7 +348,7 @@
       </details>
     </div>` : "";
 
-    return `<section class="card pad stack study-cal-card" id="tc-week-strip">
+    return `<section class="stack study-cal-card" id="tc-week-strip">
       <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
         <div>
           <div class="eyebrow">Живое расписание · 10:00–20:00</div>
@@ -422,11 +429,11 @@
         </div>
       </form>` : ""}
 
-      <div class="study-day-panel${isPastWeek ? " is-past-week" : ""}">
+      <div class="study-day-panel${isActivePast ? " is-past-week" : ""}">
         <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
           <b>${esc(activeDay.fullLabel)}</b>
           <div class="row" style="gap:6px;align-items:center">
-            ${isPastWeek ? `<span class="chip tc-past-chip">Прошедшая неделя</span>` : ""}
+            ${isActivePast ? `<span class="chip tc-past-chip">${isPastWeek ? "Прошедшая неделя" : "Прошедший день"}</span>` : ""}
             <span class="chip num">${activeLessons.length} ${plural(activeLessons.length, "урок", "урока", "уроков")}</span>
           </div>
         </div>

@@ -1680,6 +1680,7 @@
           const selectedGroup =
             (ui.studySelectedIso && dayGroups.find((g) => g.day.iso === ui.studySelectedIso)) ||
             dayGroups.find((g) => g.day.iso === todayIso && g.lessons.length > 0) ||
+            dayGroups.find((g) => g.day.iso >= todayIso && g.lessons.length > 0) ||
             dayGroups.find((g) => g.lessons.length > 0) ||
             dayGroups.find((g) => g.day.iso === todayIso) ||
             dayGroups[0];
@@ -1690,7 +1691,8 @@
             ${dayGroups.map((g) => {
               const cnt = g.lessons.length;
               const isOn = g.day.iso === selectedIso;
-              return `<button type="button" class="study-week-day-btn${isOn ? " on" : ""}${cnt > 0 ? " has-lessons" : ""}${isPastWeek ? " is-past" : ""}" data-a="study-day-pick" data-iso="${esc(g.day.iso)}" aria-pressed="${isOn}">
+              const isPastDay = isPastWeek || Boolean(g.day.iso && g.day.iso < todayIso);
+              return `<button type="button" class="study-week-day-btn${isOn ? " on" : ""}${cnt > 0 ? " has-lessons" : ""}${isPastDay ? " is-past" : ""}" data-a="study-day-pick" data-iso="${esc(g.day.iso)}" aria-pressed="${isOn}">
                 <span class="swd-wd">${esc(g.day.wd)}</span>
                 <span class="swd-num num">${g.day.num}</span>
                 ${cnt > 0 ? `<span class="swd-cnt num">${cnt}</span>` : `<span class="swd-dot" aria-hidden="true"></span>`}
@@ -1769,7 +1771,7 @@
           const billingBannerHTML = isPastWeek ? "" : studyBillingNoticeHTML(billing, ui, weekOffset);
 
           return `${billingBannerHTML}
-          <section class="card pad stack study-cal-card" id="study-week-strip">
+          <section class="stack study-cal-card" id="study-week-strip">
             <div class="row between" style="gap:8px;flex-wrap:wrap">
               <h2 class="h2">Календарь ваших уроков: ${esc(weekRange)}</h2>
             </div>

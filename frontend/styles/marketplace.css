@@ -2541,7 +2541,11 @@ body:has(.land-page:not(#brandbook-page)) .main,
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  overflow: hidden;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  box-shadow: none;
+  overflow: visible;
 }
 .study-cal-card > * {
   min-width: 0;
@@ -2607,26 +2611,31 @@ body:has(.land-page:not(#brandbook-page)) .main,
   touch-action: pan-y;
   user-select: none;
 }
-.study-week-days.is-past-week .study-week-day-btn {
+.study-week-days.is-past-week .study-week-day-btn,
+.study-week-day-btn.is-past {
   background: color-mix(in srgb, var(--line) 35%, var(--surface-2));
   border-color: var(--line);
   color: var(--muted);
 }
-.study-week-days.is-past-week .study-week-day-btn.has-lessons {
+.study-week-days.is-past-week .study-week-day-btn.has-lessons,
+.study-week-day-btn.is-past.has-lessons {
   background: color-mix(in srgb, var(--line) 24%, var(--surface));
   border-color: var(--line-strong);
   color: var(--ink-2);
 }
-.study-week-days.is-past-week .study-week-day-btn .swd-cnt {
+.study-week-days.is-past-week .study-week-day-btn .swd-cnt,
+.study-week-day-btn.is-past .swd-cnt {
   background: var(--line-strong);
   color: var(--ink-2);
 }
-.study-week-days.is-past-week .study-week-day-btn.on {
+.study-week-days.is-past-week .study-week-day-btn.on,
+.study-week-day-btn.is-past.on {
   background: var(--muted);
   border-color: var(--muted);
   color: #ffffff;
 }
-.study-week-days.is-past-week .study-week-day-btn.on .swd-cnt {
+.study-week-days.is-past-week .study-week-day-btn.on .swd-cnt,
+.study-week-day-btn.is-past.on .swd-cnt {
   background: rgba(255, 255, 255, .24);
   color: #ffffff;
 }
@@ -2745,9 +2754,9 @@ body:has(.land-page:not(#brandbook-page)) .main,
   box-sizing: border-box;
   overflow: hidden;
   padding: 13px 14px;
-  border-radius: 14px;
+  border-radius: 16px;
   border: 1px solid var(--line);
-  background: var(--surface-2);
+  background: var(--surface);
 }
 .study-lesson-card > * {
   min-width: 0;
