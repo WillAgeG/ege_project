@@ -2691,6 +2691,9 @@
       !tcPayoutsHtml.includes("bid-fee-row") &&
       !tcPayoutsHtml.includes('id="tc-payout-history"') &&
       tcPayoutsHtml.includes("Статистика преподавателя") &&
+      tcPayoutsHtml.includes("tc-bar-chart is-lollipop") &&
+      tcPayoutsHtml.includes("--bar-count:7") &&
+      !tcPayoutsHtml.includes('data-a="tc-chart-style"') &&
       tcPayoutsHtml.includes("Цель дохода на месяц") &&
       !tcPayoutsHtml.includes('data-a="tc-bump"') &&
       !tcPayoutsHtml.includes("3 колонки") &&
@@ -2719,12 +2722,15 @@
     assert(env5.elements.get("main").innerHTML.includes("bid-fee-row") && env5.elements.get("main").innerHTML.includes('id="tc-payout-history"'), "expected Подробнее toggles to expand fee breakdown and payout history");
     clickAction(env5, { a: "tc-stats-period", v: "30d" });
     await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("прогноз за месяц") && env5.elements.get("main").innerHTML.includes("tc-bar-chart is-sticks"), "expected 30d period switch and default stick chart in Выплаты stats");
-    clickAction(env5, { a: "tc-chart-style", v: "lollipop" });
-    await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("tc-bar-chart is-lollipop"), "expected tc-chart-style=lollipop in Выплаты stats");
-    clickAction(env5, { a: "tc-chart-style", v: "sticks" });
-    await flushMicrotasks(1);
+    const tcStats30Html = env5.elements.get("main").innerHTML;
+    assert(
+      tcStats30Html.includes("прогноз за месяц") &&
+      tcStats30Html.includes("tc-bar-chart is-lollipop is-scroll") &&
+      tcStats30Html.includes("--bar-count:30") &&
+      tcStats30Html.includes("Листайте влево и вправо") &&
+      (tcStats30Html.match(/class="tc-bar-col"/g) || []).length === 30,
+      "expected 30d period switch to render 30-day horizontally scrollable lollipop chart with 30 bars"
+    );
 
     // Каталог /market фильтр городов: строго Якутск и Москва + Без фото (без дубля UTC+...)
     clickAction(env5, { a: "go", v: "market" });

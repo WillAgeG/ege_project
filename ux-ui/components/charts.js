@@ -223,7 +223,9 @@
     bars = Array.isArray(bars) ? bars : [];
     const action = opts.action || "bb-chart-bar";
     const modCls = styleId && styleId !== "classic" ? ` is-${styleId}` : "";
-    const denseCls = bars.length > 10 ? " is-dense" : "";
+    const isScrollable = Boolean(opts.scrollable);
+    const denseCls = !isScrollable && bars.length > 10 ? " is-dense" : "";
+    const scrollCls = isScrollable ? " is-scroll" : "";
     const label = esc(ariaLabel || "Диаграмма с палочками");
 
     if (styleId === "combo") {
@@ -235,13 +237,17 @@
     const n = bars.length;
     const clampPct = (v) => Math.max(10, Math.min(96, Math.round(Number(v) || 0)));
     const tickStep = n > 10 ? Math.ceil(n / 8) : 1;
-    const showTick = (idx) =>
-      n <= 10 ||
-      idx === 0 ||
-      idx === n - 1 ||
-      (idx % tickStep === 0 && n - 1 - idx >= Math.max(1, Math.ceil(tickStep * 0.5)));
+    const showTick = (idx) => {
+      if (isScrollable) return true;
+      return (
+        n <= 10 ||
+        idx === 0 ||
+        idx === n - 1 ||
+        (idx % tickStep === 0 && n - 1 - idx >= Math.max(1, Math.ceil(tickStep * 0.5)))
+      );
+    };
 
-    return `<div class="tc-bar-chart${modCls}${denseCls}" style="--bar-count:${n}" role="img" aria-label="${label}">
+    return `<div class="tc-bar-chart${modCls}${denseCls}${scrollCls}" style="--bar-count:${n}" role="img" aria-label="${label}">
       ${bars.map((b, idx) => {
         const isAct = interactive && activeIdx === idx;
         const pct = clampPct(b.pct);

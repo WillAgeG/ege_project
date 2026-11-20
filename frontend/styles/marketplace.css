@@ -1902,6 +1902,18 @@ html.reduced-motion .hero-float-drift,
   align-items: center; height: 167px; padding: 8px 8px;
   border-radius: 14px; background: var(--surface-2); border: 1px solid var(--line);
 }
+.tc-bar-chart.is-scroll {
+  grid-template-columns: repeat(var(--bar-count, 30), 48px);
+  justify-content: start;
+  gap: 6px;
+  padding: 8px 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+.tc-bar-chart.is-scroll .tc-bar-lbl { font-size: 11px; white-space: nowrap; }
 .tc-bar-chart.is-dense { gap: 2px; padding: 8px 6px; }
 .tc-bar-chart.is-dense .tc-bar-col { padding: 4px 1px; }
 .tc-bar-chart.is-dense .tc-bar-val { font-size: 10px; }
@@ -2156,6 +2168,7 @@ html.reduced-motion .hero-float-drift,
 @media (max-width: 680px) {
   .tc-two-col { grid-template-columns: minmax(0, 1fr); }
   .tc-bar-chart { gap: 2px; padding: 8px 6px; }
+  .tc-bar-chart.is-scroll { gap: 6px; padding: 8px 10px; }
   .tc-bar-chart.is-range { padding: 10px 6px; }
   .tc-bar-chart.is-combo { padding: 6px 6px; min-height: 150px; }
   .tc-bar-val { font-size: 10px; }

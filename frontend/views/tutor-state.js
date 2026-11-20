@@ -365,7 +365,7 @@
         lastSyncAt: 0
       },
       statsPeriod: "7d",
-      chartStyle: "sticks",
+      chartStyle: "lollipop",
       monthlyGoal: 60000,
       payoutScope: "all",
       payoutRateOpen: false,

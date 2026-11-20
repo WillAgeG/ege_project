@@ -34,13 +34,35 @@
     const clicks = Math.round(views * 0.24);
     const reqCnt = (allReqs.length + 5) * mult;
     const conv = Math.min(89, Math.round(((acceptedList.length + 3) * mult / Math.max(1, reqCnt)) * 100));
-    const dayBars = DAY_LIST.map((d, i) => {
-      const slotCnt = Array.isArray(st.slots[d.dow]) ? st.slots[d.dow].length : 0;
-      const dayReqs = allReqs.filter((r) => r.status === "accepted" && String(r.dow || dayDowFromLabel(r.dayLabel)) === d.dow).length;
-      const lessons = Math.max(1, dayReqs + (i >= 4 ? 2 : 1));
-      const rev = lessons * sp.payout * (is30 ? 4 : 1);
-      return { wd: d.wd, rev, lessons, isGold: st.bumpedToday || slotCnt >= 3 || d.dow === "6" };
-    });
+    const dayBars = (() => {
+      if (!is30) {
+        return DAY_LIST.map((d, i) => {
+          const slotCnt = Array.isArray(st.slots[d.dow]) ? st.slots[d.dow].length : 0;
+          const dayReqs = allReqs.filter((r) => r.status === "accepted" && String(r.dow || dayDowFromLabel(r.dayLabel)) === d.dow).length;
+          const lessons = Math.max(1, dayReqs + (i >= 4 ? 2 : 1));
+          const rev = lessons * sp.payout;
+          return { wd: d.wd, rev, lessons, isGold: st.bumpedToday || slotCnt >= 3 || d.dow === "6" };
+        });
+      }
+      const nowDt = new Date();
+      const wave = [1, 2, 1, 0, 2, 3, 2, 1, 2, 3, 1, 2, 4, 2, 1, 2, 3, 2, 1, 3, 2, 4, 3, 1, 2, 3, 2, 4, 3, 3];
+      const out = [];
+      for (let off = 29; off >= 0; off--) {
+        const dt = new Date(nowDt.getFullYear(), nowDt.getMonth(), nowDt.getDate() - off);
+        const dd = String(dt.getDate()).padStart(2, "0");
+        const mm = String(dt.getMonth() + 1).padStart(2, "0");
+        const dowStr = String(dt.getDay());
+        const slotCnt = Array.isArray(st.slots[dowStr]) ? st.slots[dowStr].length : 0;
+        const dayReqs = allReqs.filter((r) => r.status === "accepted" && String(r.dow || dayDowFromLabel(r.dayLabel)) === dowStr).length;
+        const idx = 29 - off;
+        const baseLessons = wave[idx % wave.length];
+        const lessons = Math.max(0, baseLessons + (dayReqs > 0 ? 1 : 0));
+        const rev = lessons * sp.payout;
+        const isGold = st.bumpedToday || slotCnt >= 3 || lessons >= 3;
+        out.push({ wd: `${dd}.${mm}`, rev, lessons, isGold });
+      }
+      return out;
+    })();
     const maxRev = Math.max(1, ...dayBars.map((b) => b.rev));
     const goal = Math.max(10000, Number(st.monthlyGoal) || 60000);
     const lessonsNeededMonth = Math.ceil(goal / Math.max(500, sp.payout));
@@ -70,29 +92,23 @@
 
         <div class="stack" style="gap:6px">
           <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
-            <b class="small">Доход по дням недели (золотым — пики после поднятия)</b>
-            <div class="hh-seg tc-chart-seg" role="group" aria-label="Вид графика с палочками">
-              ${[
-                ["sticks", "Палочки"],
-                ["lollipop", "Леденцы"],
-                ["capsule", "Капсулы"],
-                ["combo", "Тренд"],
-                ["classic", "Столбики"]
-              ].map(([cid, clbl]) => `<button type="button" data-a="tc-chart-style" data-v="${cid}" aria-pressed="${(st.chartStyle || "sticks") === cid}">${clbl}</button>`).join("")}
-            </div>
+            ${is30
+              ? '<b class="small">Доход за последние 30 дней</b><span class="small muted">Листайте влево и вправо</span>'
+              : '<b class="small">Доход по дням недели (золотым — пики после поднятия)</b>'}
           </div>
           ${(EGE.kit && typeof EGE.kit.stickChartHTML === "function")
             ? EGE.kit.stickChartHTML(
-                st.chartStyle || "sticks",
+                "lollipop",
                 dayBars.map((b) => ({
                   wd: b.wd,
-                  val: Math.round(b.rev / 1000) + "к ₽",
-                  pct: Math.max(18, Math.round((b.rev / maxRev) * 100)),
+                  val: b.rev >= 1000 ? `${Math.round(b.rev / 1000)}к ₽` : (b.rev > 0 ? `${b.rev} ₽` : "0 ₽"),
+                  pct: b.rev > 0 ? Math.max(18, Math.round((b.rev / maxRev) * 100)) : 10,
                   gold: !!b.isGold
                 })),
                 -1,
                 false,
-                "Диаграмма дохода по дням недели"
+                is30 ? "Диаграмма дохода за последние 30 дней по дням" : "Диаграмма дохода по дням недели",
+                { scrollable: is30 }
               )
             : ""}
         </div>
