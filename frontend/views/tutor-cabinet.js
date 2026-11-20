@@ -1112,40 +1112,6 @@
       return true;
     }
 
-    if (act === "tc-pay-toggle") {
-      const who = findReq(id);
-      if (!st.lessonPayments || typeof st.lessonPayments !== "object") st.lessonPayments = {};
-      const prev = typeof getLessonPaymentState === "function" ? getLessonPaymentState(st, who || { id }) : { paid: false, paidAt: 0, remindedAt: 0, remindCount: 0 };
-      const nextPaid = !prev.paid;
-      const now = Date.now();
-      st.lessonPayments[id] = {
-        paid: nextPaid,
-        paidAt: nextPaid ? now : 0,
-        remindedAt: prev.remindedAt,
-        remindCount: prev.remindCount
-      };
-      updateReq(id, (r) => {
-        r.paid = nextPaid;
-        r.paidAt = nextPaid ? now : 0;
-      });
-      saveState();
-      const amount = Number(who && (who.counterPrice || who.offerPrice)) || st.profile.price || 1200;
-      publishRtUpdate(
-        "payment.updated",
-        nextPaid ? "Оплата подтверждена" : "Статус оплаты снят",
-        who ? `${who.studentName} · ${nextPaid ? "Оплачено" : "Не оплачено"}` : "",
-        { requestId: id, paid: nextPaid }
-      );
-      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
-      if (typeof getCtx().notifySide === "function") {
-        getCtx().notifySide(
-          nextPaid ? "Оплата отмечена" : "Статус: не оплачено",
-          who ? `${who.studentName} · ${amount.toLocaleString("ru-RU")} ₽` : ""
-        );
-      }
-      return true;
-    }
-
     if (act === "tc-sched-accept") {
       const updated = updateReq(id, (req) => {
         if (!req.schedulePlan) return;

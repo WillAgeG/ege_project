@@ -971,7 +971,7 @@
     const rate = Number(req && (req.counterPrice || req.offerPrice)) || (st && st.profile ? st.profile.price : 1200) || 1200;
     const pay = getLessonPaymentState(st, req);
     const subText = pay.paid
-      ? (pay.paidAt ? `Подтверждено · ${esc(formatTimestamp(pay.paidAt))}` : "Оплата подтверждена")
+      ? (pay.paidAt ? `Подтверждено · ${esc(formatTimestamp(pay.paidAt))}` : "Оплата подтверждена автоматически")
       : (pay.remindedAt ? `Напоминание отправлено · ${esc(formatTimestamp(pay.remindedAt))}` : "Ожидается оплата перед уроком");
     return `<div class="tc-pay-box${pay.paid ? " is-paid" : " is-unpaid"}" role="group" aria-label="Статус оплаты урока">
       <div class="tc-pay-top">
@@ -979,7 +979,6 @@
           <span class="tc-pay-title"><i class="tc-pay-dot" aria-hidden="true"></i><b>${pay.paid ? `Оплачено · ${rate.toLocaleString("ru-RU")} ₽` : `Не оплачено · ${rate.toLocaleString("ru-RU")} ₽`}</b></span>
           <span class="tc-pay-sub">${subText}</span>
         </div>
-        <button type="button" class="tc-pay-mark-btn${pay.paid ? " is-paid" : ""}" data-a="tc-pay-toggle" data-id="${esc(reqId)}" aria-pressed="${pay.paid}">${pay.paid ? "✓ Оплачено" : "Отметить оплату"}</button>
       </div>
       ${pay.paid ? "" : `<button type="button" class="btn soft sm tc-pay-notify-btn${pay.remindedAt ? " is-sent" : ""}" data-a="tc-pay-remind" data-id="${esc(reqId)}" data-stu-id="${esc(stuId)}">${icon("bell")}<span>${pay.remindedAt ? "Напомнить об оплате ещё раз" : "Уведомить об оплате"}</span></button>`}
     </div>`;
