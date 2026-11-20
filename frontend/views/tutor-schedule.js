@@ -17,7 +17,7 @@
     formatPhone, formatTelegram, formatCardMask, normalizeChannelList, normalizeLeadList,
     copyStr, formatTimestamp, defaultState, tState, saveState,
     consumeSwitchAnimClass,
-    ensureTelemostUrl, resolveLessonContacts, getLessonPaymentState, calcLessonSplit, renderLessonNotifyHTML, renderLessonPaymentHTML,
+    ensureTelemostUrl, resolveLessonContacts, calcLessonSplit, renderLessonNotifyHTML, renderLessonPaymentHTML,
     checkAutoBumpDue, formatCountdown, autoBumpRemainingMs, manualBumpRemainingMs,
     ensureCountdownTimer, ensureRealtimeConnected, clampStep, profileCompleteness,
     buildMarketTutorPayload, syncPublishedTutor, dayDowFromLabel, syncedRequests,
@@ -182,8 +182,6 @@
               </div>
             </details>` : "";
 
-            const pay = typeof getLessonPaymentState === "function" ? getLessonPaymentState(st, lesson) : { paid: false };
-
             return `<article class="study-lesson-card" data-req-id="${esc(lesson.id)}">
               <div class="study-lesson-time-row">
                 <b class="num" style="font-size:15px">Урок в ${esc(lessonHour)}</b>
@@ -193,7 +191,6 @@
                 ${lSplit.isManual ? `<span class="chip confirm">Свой ученик · 1%</span>` : ""}
                 ${isWeekly ? `<span class="chip accent">Каждую неделю</span>` : ""}
                 <span class="bb-tbl-st is-confirmed">✓ Подтверждён</span>
-                ${pay.paid ? `<span class="chip confirm tc-pay-chip is-paid">✓ Оплачено</span>` : `<span class="chip notif tc-pay-chip is-unpaid">Не оплачено</span>`}
                 ${gcalBusy ? `<span class="chip bad">Конфликт GCal</span>` : ""}
               </div>
               <div class="tutor-name-line">

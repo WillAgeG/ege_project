@@ -2553,7 +2553,8 @@
       calOnlySlice.includes("is-icon-only") &&
       calOnlySlice.includes("Автоуведомление") &&
       calOnlySlice.includes('data-a="tc-lesson-lead-toggle"') &&
-      calOnlySlice.includes("tc-pay-chip is-unpaid") &&
+      !calOnlySlice.includes("tc-pay-chip") &&
+      calOnlySlice.includes("tc-pay-box is-unpaid") &&
       calOnlySlice.includes("Не оплачено") &&
       calOnlySlice.includes('data-a="tc-pay-remind"') &&
       !calOnlySlice.includes("Отметить оплату") &&
