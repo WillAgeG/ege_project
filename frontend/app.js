@@ -913,6 +913,8 @@
     studyWeekOffset: 0,
     studySubj: "all",
     bug: null,
+    notifModal: false,
+    notifications: [],
     booking: null,
     balanceModal: null,
     payoutModal: null,
@@ -1398,6 +1400,39 @@
       </div>
     </div>`;
   }
+  function notifModalHTML() {
+    const list = Array.isArray(ui.notifications) ? ui.notifications : [];
+    const itemsHTML = list.length
+      ? `<div class="notif-inbox-list">${list.map((n) => `<div class="notif-inbox-item" data-notif-id="${esc(n.id)}">
+          <span class="notif-item-dot" aria-hidden="true"></span>
+          <div class="notif-item-copy">
+            <div class="notif-item-head">
+              <b>${esc(n.title)}</b>
+              <span class="notif-item-time num">${esc(n.timeLabel || "")}</span>
+            </div>
+            ${n.message ? `<div class="notif-item-msg">${esc(n.message)}</div>` : ""}
+          </div>
+          <button type="button" class="icon-btn sm notif-item-close" data-a="notif-remove" data-id="${esc(n.id)}" aria-label="Удалить уведомление">${icon("x")}</button>
+        </div>`).join("")}</div>`
+      : `<div class="empty"><b>Уведомлений пока нет</b><span>Новые события появятся здесь, а колокольчик сверху покажет их количество.</span></div>`;
+    return `<div class="modal-back is-sheet-back" role="dialog" aria-modal="true" aria-labelledby="notif-modal-title">
+      <div class="modal-card sheet-modal" data-sheet-kind="notif">
+        <div class="sheet-grabber-zone" data-sheet-drag="1" role="button" tabindex="0" data-a="notif-close" aria-label="Свернуть уведомления">
+          <span class="sheet-grabber"></span>
+        </div>
+        <div class="sheet-head is-booking-head notif-sheet-head">
+          <div class="row" style="gap:8px;min-width:0">${icon("bell")}<b id="notif-modal-title">Уведомления${list.length ? ` (${list.length})` : ""}</b></div>
+          <div class="notif-sheet-actions">
+            ${list.length ? `<button type="button" class="btn ghost sm" data-a="notif-clear">Очистить все</button>` : ""}
+            <button type="button" class="icon-btn sm" data-a="notif-close" aria-label="Закрыть уведомления">${icon("x")}</button>
+          </div>
+        </div>
+        <div class="sheet-body">
+          ${itemsHTML}
+        </div>
+      </div>
+    </div>`;
+  }
   function renderModal() {
     const root = $("#modal-root");
     if (!root) return;
@@ -1412,6 +1447,7 @@
       if (nb && savedBackTop) nb.scrollTop = savedBackTop;
       if (nc && savedCardTop) nc.scrollTop = savedCardTop;
     };
+    if (ui.notifModal) { root.innerHTML = notifModalHTML(); restoreModalScroll(); return; }
     if (ui.tutorContactModal) { root.innerHTML = tutorContactModalHTML(); restoreModalScroll(); return; }
     if (ui.contactVerifyModal) { root.innerHTML = contactVerifyModalHTML(); restoreModalScroll(); return; }
     if (ui.cardBindModal) { root.innerHTML = cardBindModalHTML(); restoreModalScroll(); return; }
@@ -1579,11 +1615,13 @@
         <button type="button" data-a="role-set" data-role="tutor" aria-pressed="${isTutor}">Преподаватель</button>
       </div>
       ${isAdmin ? `<button type="button" class="side-admin-pill is-on" data-a="role-set" data-role="student" aria-pressed="true">${icon("shield")}<span>Админ-панель</span></button>` : ""}`;
+    const notifCnt = Array.isArray(ui.notifications) ? ui.notifications.length : 0;
     $("#side-foot").innerHTML = `<div id="side-balance-slot" class="side-bal-slot"${isAdmin ? " hidden" : ""}>${sideBalHTML}</div>
       ${roleSwitcherHTML}
       <div class="side-user">
         <div class="me">${avatarHTML(avUrl, nm, false)}<div style="min-width:0"><div class="me-name">${esc(nm)}</div><span class="sync" hidden><i></i><span></span></span></div></div>
         <div class="row" style="gap:6px">
+          <button type="button" class="icon-btn sm top-notif-btn${notifCnt > 0 ? " has-unread" : ""}" data-a="notif-open" id="side-notifs" aria-label="Уведомления" title="Уведомления">${icon("bell")}<span class="top-notif-badge num" id="side-notifs-cnt"${notifCnt > 0 ? "" : " hidden"}>${notifCnt > 99 ? "99+" : notifCnt}</span></button>
           <button type="button" class="icon-btn sm" data-a="bug-site" aria-label="Сообщить о баге" title="Сообщить о баге на willagegg@gmail.com">${icon("bug")}</button>
           <button type="button" class="icon-btn sm" data-a="go" data-v="profile"${ui.view === "profile" ? ' aria-current="page"' : ""} aria-label="Настройки" title="Настройки">${icon("gear")}</button>
         </div>
@@ -1623,6 +1661,7 @@
     }
     const topLogout = $("#top-logout");
     if (topLogout) topLogout.hidden = !(store.backend && store.user);
+    syncNotifBell(false);
     const topBalSlot = $("#top-balance-slot");
     if (topBalSlot) {
       if (isAdmin) {
@@ -1940,8 +1979,82 @@
   function copyTextSafe(txt) { return EGE.marketBb.copyTextSafe(txt); }
   function patchMaskTrainerDOM() { return EGE.marketBb.patchMaskTrainerDOM(); }
   function applyBrandbookViewport(rawW) { return EGE.marketBb.applyBrandbookViewport(rawW); }
-  // ---------- тосты и подсказки ----------
+  // ---------- тосты, уведомления и подсказки ----------
   let toastTimer = null;
+  let notifAnimPhase = 0;
+  let notifAnimTimer = null;
+  let notifSeq = 0;
+  function formatNotifTime(ts) {
+    const d = new Date(Number(ts) || Date.now());
+    return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  }
+  function syncNotifBell(animate, popOnly) {
+    const count = Array.isArray(ui.notifications) ? ui.notifications.length : 0;
+    const text = count > 99 ? "99+" : String(count);
+    const label = count ? `Уведомления (${count})` : "Уведомления";
+    const shouldAnim = !!(animate || popOnly);
+    if (shouldAnim) {
+      notifAnimPhase = notifAnimPhase ? 0 : 1;
+      clearTimeout(notifAnimTimer);
+    }
+    const ringCls = notifAnimPhase ? "is-ring-a" : "is-ring-b";
+    const popCls = notifAnimPhase ? "is-pop-a" : "is-pop-b";
+    [["top-notifs", "top-notifs-cnt"], ["side-notifs", "side-notifs-cnt"]].forEach(([btnId, cntId]) => {
+      const btn = $("#" + btnId);
+      const cnt = $("#" + cntId);
+      if (cnt) {
+        cnt.textContent = text;
+        cnt.hidden = count === 0;
+        if (cnt.classList && shouldAnim) {
+          cnt.classList.remove("is-pop-a", "is-pop-b");
+          cnt.classList.add(popCls);
+        }
+      }
+      if (btn) {
+        if (btn.classList) {
+          btn.classList.toggle("has-unread", count > 0);
+          if (animate && !popOnly) {
+            btn.classList.remove("is-ring-a", "is-ring-b");
+            btn.classList.add(ringCls);
+          }
+        }
+        if (typeof btn.setAttribute === "function") btn.setAttribute("aria-label", label);
+      }
+    });
+    if (shouldAnim) {
+      notifAnimTimer = setTimeout(() => {
+        ["top-notifs", "side-notifs"].forEach((id) => {
+          const btn = $("#" + id);
+          if (btn && btn.classList) btn.classList.remove("is-ring-a", "is-ring-b");
+        });
+        ["top-notifs-cnt", "side-notifs-cnt"].forEach((id) => {
+          const cnt = $("#" + id);
+          if (cnt && cnt.classList) cnt.classList.remove("is-pop-a", "is-pop-b");
+        });
+      }, 750);
+    }
+  }
+  function pushNotification(title, msg) {
+    const t = String(title || "Уведомление").trim();
+    const m = String(msg || "").trim();
+    if (!t && !m) return;
+    if (!Array.isArray(ui.notifications)) ui.notifications = [];
+    const now = Date.now();
+    const first = ui.notifications[0];
+    if (first && first.title === t && first.message === m && (now - first.createdAt) < 400) {
+      return;
+    }
+    ui.notifications.unshift({
+      id: "n-" + (++notifSeq),
+      title: t,
+      message: m,
+      createdAt: now,
+      timeLabel: formatNotifTime(now)
+    });
+    if (ui.notifications.length > 50) ui.notifications.length = 50;
+    syncNotifBell(true, false);
+    if (ui.notifModal) renderModal();
+  }
   function dismissSideToast(targetEl) {
     const el = targetEl || $("#toast");
     if (!el) return;
@@ -1979,6 +2092,7 @@
       el.hidden = true;
       el.className = "toast";
     }, opts.duration || 2600);
+    pushNotification(opts.side ? (opts.title || "Уведомление") : "Уведомление", msg);
   }
   function notifySide(title, msg) {
     toast(msg, { side: true, title: title || "Предложение передано", duration: 3600 });
@@ -2061,6 +2175,19 @@
       go("market");
     },
     "toast-close": () => { dismissSideToast(); },
+    "notif-open": () => { ui.notifModal = true; renderModal(); },
+    "notif-close": () => { ui.notifModal = false; renderModal(); },
+    "notif-remove": (el) => {
+      const nid = String((el && el.dataset && el.dataset.id) || "");
+      ui.notifications = (Array.isArray(ui.notifications) ? ui.notifications : []).filter((n) => n.id !== nid);
+      syncNotifBell(false, ui.notifications.length > 0);
+      renderModal();
+    },
+    "notif-clear": () => {
+      ui.notifications = [];
+      syncNotifBell(false, false);
+      renderModal();
+    },
     "auth-tab": (el) => {
       ui.auth.tab = el.dataset.tab === "register" ? "register" : "login";
       ui.auth.error = "";
@@ -2703,7 +2830,7 @@
       renderModal();
       return true;
     }
-    ui.bug = null; ui.booking = null; ui.authModal = false; ui.authPrompt = ""; ui.pendingBookingAfterAuth = null; ui.filterModal = false; ui.bbModal = false; ui.tutorApplyModal = false; ui.coopModal = false; ui.balanceModal = null; ui.payoutModal = null; ui.tutorContactModal = null;
+    ui.bug = null; ui.notifModal = false; ui.booking = null; ui.authModal = false; ui.authPrompt = ""; ui.pendingBookingAfterAuth = null; ui.filterModal = false; ui.bbModal = false; ui.tutorApplyModal = false; ui.coopModal = false; ui.balanceModal = null; ui.payoutModal = null; ui.tutorContactModal = null;
     renderModal();
     return true;
   }
@@ -3144,12 +3271,12 @@
     if (e.key === "Escape" && closeSelectMenus(null)) {
       scheduleRender();
     }
-    if (e.key === "Escape" && (ui.bug || ui.booking || ui.authModal || ui.contactVerifyModal || ui.cardBindModal || ui.filterModal || ui.bbModal || ui.tutorApplyModal || ui.coopModal || ui.balanceModal || ui.payoutModal)) {
+    if (e.key === "Escape" && (ui.bug || ui.notifModal || ui.booking || ui.authModal || ui.contactVerifyModal || ui.cardBindModal || ui.filterModal || ui.bbModal || ui.tutorApplyModal || ui.coopModal || ui.balanceModal || ui.payoutModal)) {
       e.preventDefault();
       dismissActiveModal();
       return;
     }
-    if (ui.bug || ui.booking || ui.authModal || ui.contactVerifyModal || ui.cardBindModal || ui.filterModal || ui.bbModal || ui.tutorApplyModal || ui.coopModal || ui.balanceModal || ui.payoutModal || ui.tutorContactModal) return;
+    if (ui.bug || ui.notifModal || ui.booking || ui.authModal || ui.contactVerifyModal || ui.cardBindModal || ui.filterModal || ui.bbModal || ui.tutorApplyModal || ui.coopModal || ui.balanceModal || ui.payoutModal || ui.tutorContactModal) return;
     if (e.target && e.target.id === "chat-input" && e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(ui.chat.draft); return; }
     if (ui.view !== "quiz" || !ui.quiz || ui.quiz.done || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.target && e.target.id === "self-text") return; // в поле развёрнутого ответа Enter — перенос строки

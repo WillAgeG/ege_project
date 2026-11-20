@@ -68,7 +68,7 @@
       };
     }
 
-    for (const id of ["main", "side-nav", "side-subjects-wrap", "side-subjects", "side-foot", "top-balance-slot", "tutor-balance-dock", "tabbar", "toast", "tip", "modal-root", "bug-mailto"]) {
+    for (const id of ["main", "side-nav", "side-subjects-wrap", "side-subjects", "side-foot", "top-balance-slot", "top-notifs", "top-notifs-cnt", "side-notifs", "side-notifs-cnt", "tutor-balance-dock", "tabbar", "toast", "tip", "modal-root", "bug-mailto"]) {
       elements.set(id, makeEl(id));
     }
 
@@ -3111,6 +3111,49 @@
       hasNum(env5.elements.get("top-balance-slot").innerHTML, wAfterLabel),
       `expected teacher balance to deduct 5 000 ₽ immediately in sidebar and topbar (${wBeforeLabel} -> ${wAfterLabel})`
     );
+    const topNotifsEl = env5.elements.get("top-notifs");
+    const topNotifsCntEl = env5.elements.get("top-notifs-cnt");
+    const countBeforeRemove = Number(topNotifsCntEl.textContent) || 0;
+    assert(
+      topNotifsCntEl.hidden === false &&
+      countBeforeRemove >= 2 &&
+      (topNotifsEl.classList.contains("is-ring-a") || topNotifsEl.classList.contains("is-ring-b")) &&
+      (topNotifsCntEl.classList.contains("is-pop-a") || topNotifsCntEl.classList.contains("is-pop-b")),
+      "expected simultaneous payout notifications to keep badge >= 2 and trigger ringing bell + popping counter animations"
+    );
+    clickAction(env5, { a: "notif-open" });
+    await flushMicrotasks(1);
+    const notifSheetHtml = env5.elements.get("modal-root").innerHTML;
+    assert(
+      notifSheetHtml.includes('id="notif-modal-title"') &&
+      notifSheetHtml.includes("Заявка на вывод оформлена") &&
+      notifSheetHtml.includes("Выведено 5") &&
+      notifSheetHtml.includes("notif-inbox-item") &&
+      notifSheetHtml.includes('data-a="notif-remove"') &&
+      notifSheetHtml.includes('data-a="notif-clear"') &&
+      notifSheetHtml.includes('data-a="notif-close"'),
+      "expected clicking top bell button to open notifications sheet with both simultaneous items and close/remove controls"
+    );
+    const firstNotifMatch = /data-a="notif-remove" data-id="([^"]+)"/.exec(notifSheetHtml);
+    assert(firstNotifMatch, "expected notif-remove button with notification id");
+    clickAction(env5, { a: "notif-remove", id: firstNotifMatch[1] });
+    await flushMicrotasks(1);
+    assert(
+      Number(env5.elements.get("top-notifs-cnt").textContent) === countBeforeRemove - 1 &&
+      !env5.elements.get("modal-root").innerHTML.includes(`data-notif-id="${firstNotifMatch[1]}"`),
+      "expected notif-remove to delete individual notification and decrement bell counter"
+    );
+    clickAction(env5, { a: "notif-clear" });
+    await flushMicrotasks(1);
+    assert(
+      env5.elements.get("modal-root").innerHTML.includes("Уведомлений пока нет") &&
+      env5.elements.get("top-notifs-cnt").hidden === true &&
+      env5.elements.get("side-notifs-cnt").hidden === true,
+      "expected notif-clear to empty notifications inbox and hide unread bell badges"
+    );
+    clickAction(env5, { a: "notif-close" });
+    await flushMicrotasks(1);
+    assert(!env5.elements.get("modal-root").innerHTML.trim(), "expected notif-close to dismiss notifications modal");
     clickAction(env5, { a: "go", v: "fees" });
     await flushMicrotasks(3);
     const tutorFeesHtml = env5.elements.get("main").innerHTML;
