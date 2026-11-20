@@ -2550,6 +2550,8 @@
       tcProfHtml.includes('data-a="tc-autobump-toggle"') &&
       tcProfHtml.includes("tc-switch-pill is-on") &&
       tcProfHtml.includes("tc-prof-compact-card") &&
+      !tcProfHtml.includes('class="card stack tc-profile-form"') &&
+      tcProfHtml.includes('class="stack tc-profile-form"') &&
       tcProfHtml.includes("Заполненность профиля") &&
       tcProfHtml.includes("tc-hh-meter") &&
       tcProfHtml.includes("hh-multi-x") &&

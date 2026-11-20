@@ -327,7 +327,7 @@
 
       ${previewCard ? `<div class="stack" style="gap:8px"><div class="eyebrow">Живой вид вашей карточки для учеников</div>${previewCard}</div>` : ""}
 
-      <form class="card stack tc-profile-form" style="gap:14px" data-f="tc-profile">
+      <form class="stack tc-profile-form" style="gap:14px" data-f="tc-profile">
         <div class="row between" style="gap:8px;flex-wrap:wrap">
           <h3 class="h2">1. Основная визитка и фото</h3>
           <span class="chip${p.price >= 1400 ? " pro" : " accent"}">${p.price >= 1400 ? "Эксперт выше рынка" : "Доступная ставка"}</span>
