@@ -2425,9 +2425,61 @@
     const payRemindedHtml = env5.elements.get("main").innerHTML;
     assert(
       payRemindedHtml.includes("Напоминание отправлено") &&
-      payRemindedHtml.includes("Напомнить об оплате ещё раз") &&
+      payRemindedHtml.includes("tc-pay-notify-btn is-sent is-cooldown is-just-sent") &&
+      payRemindedHtml.includes("tc-pay-check") &&
+      payRemindedHtml.includes("disabled") &&
       env5.elements.get("toast").innerHTML.includes("Уведомление об оплате отправлено"),
-      "expected tc-pay-remind to mark reminder sent and trigger side notification"
+      "expected tc-pay-remind to show animated checkmark confirmation, disable repeat button, and trigger side notification"
+    );
+    clickAction(env5, { a: "tc-pay-remind", id: "tc-req-1", stuId: "st-alina" });
+    await flushMicrotasks(1);
+    const tcCabSt = globalThis.EGE._tutorCab.tState();
+    assert(
+      tcCabSt.lessonPayments &&
+      tcCabSt.lessonPayments["tc-req-1"] &&
+      tcCabSt.lessonPayments["tc-req-1"].remindCount === 1,
+      "expected immediate repeat click on tc-pay-remind to be blocked during 10-minute cooldown"
+    );
+    const midCooldownHtml = globalThis.EGE._tutorCab.renderLessonPaymentHTML(
+      tcCabSt,
+      { id: "tc-req-1-cd", payRemindedAt: Date.now() - 3 * 60 * 1000, offerPrice: 1200 },
+      null
+    );
+    assert(
+      midCooldownHtml.includes("is-cooldown") &&
+      midCooldownHtml.includes("disabled") &&
+      midCooldownHtml.includes("Повторно через") &&
+      midCooldownHtml.includes('data-tc-pay-remind-cd="tc-req-1-cd"') &&
+      /0(?:6:59|7:00)/.test(midCooldownHtml),
+      "expected active 10-minute cooldown after toast animation to display live MM:SS countdown"
+    );
+    const expiredCooldownHtml = globalThis.EGE._tutorCab.renderLessonPaymentHTML(
+      tcCabSt,
+      { id: "tc-req-1-expired", payRemindedAt: Date.now() - 11 * 60 * 1000, offerPrice: 1200 },
+      null
+    );
+    assert(
+      expiredCooldownHtml.includes("Напомнить об оплате ещё раз") &&
+      !expiredCooldownHtml.includes("is-cooldown") &&
+      !expiredCooldownHtml.includes("disabled"),
+      "expected tc-pay-remind button to re-enable cleanly after 10 minutes"
+    );
+    tcCabSt.lessonPayments["tc-req-1"].remindedAt = Date.now() - 11 * 60 * 1000;
+    const req1Pay = globalThis.EGE._tutorCab.findReq("tc-req-1");
+    if (req1Pay) req1Pay.payRemindedAt = Date.now() - 11 * 60 * 1000;
+    globalThis.EGE._tutorCab.saveState();
+    clickAction(env5, { a: "tc-pay-remind", id: "tc-req-1", stuId: "st-alina" });
+    await flushMicrotasks(1);
+    assert(
+      tcCabSt.lessonPayments["tc-req-1"].remindCount === 2,
+      "expected tc-pay-remind after 10-minute cooldown to allow resending and increment remindCount"
+    );
+    const payRemindCssText = readFileText("frontend/styles/marketplace.css");
+    assert(
+      payRemindCssText.includes(".tc-pay-notify-btn.is-just-sent") &&
+      payRemindCssText.includes(".tc-pay-notify-btn.is-cooldown") &&
+      payRemindCssText.includes("@keyframes tc-pay-mark-draw"),
+      "expected animated checkmark and cooldown CSS rules in marketplace.css"
     );
     clickAction(env5, { a: "tc-lesson-lead-toggle", id: "tc-req-1", stuId: "st-alina", v: "15m" });
     await flushMicrotasks(1);

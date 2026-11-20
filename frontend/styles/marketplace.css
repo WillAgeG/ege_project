@@ -1565,7 +1565,11 @@ html.reduced-motion .hero-float-drift,
   .tc-switch-pill.is-anim-on *::after,
   .tc-switch-pill.is-anim-off *::after,
   .top-notif-btn svg,
-  .top-notif-badge { animation-duration: .01ms !important; }
+  .top-notif-badge,
+  .tc-pay-notify-btn.is-just-sent,
+  .tc-pay-notify-btn.is-just-sent .tc-pay-check,
+  .tc-pay-notify-btn.is-just-sent .tc-pay-check-ring,
+  .tc-pay-notify-btn.is-just-sent .tc-pay-check-mark { animation-duration: .01ms !important; }
   .notif-inbox-item { transition-duration: .01ms !important; }
 }
 
@@ -1751,9 +1755,65 @@ html.reduced-motion .hero-float-drift,
 .tc-pay-notify-btn {
   width: 100%; justify-content: center;
   border-color: color-mix(in srgb, var(--notif) 40%, var(--line)); color: var(--notif); background: var(--surface);
+  transition: background-color .22s ease, border-color .22s ease, color .22s ease, opacity .2s ease, transform .18s ease;
 }
 .tc-pay-notify-btn svg { width: 15px; height: 15px; }
 .tc-pay-notify-btn.is-sent { border-color: var(--line-strong); color: var(--ink-2); }
+.tc-pay-notify-btn.is-cooldown,
+.tc-pay-notify-btn.is-cooldown:disabled {
+  cursor: not-allowed;
+  opacity: .88;
+  border-color: color-mix(in srgb, var(--confirm) 28%, var(--line));
+  background: color-mix(in srgb, var(--confirm-soft) 24%, var(--surface));
+  color: var(--ink-2);
+}
+.tc-pay-notify-btn.is-just-sent,
+.tc-pay-notify-btn.is-just-sent:disabled {
+  opacity: 1;
+  border-color: color-mix(in srgb, var(--confirm) 48%, var(--line));
+  background: color-mix(in srgb, var(--confirm-soft) 62%, var(--surface));
+  color: var(--confirm);
+  animation: tc-pay-btn-pop .38s cubic-bezier(.22, 1, .36, 1);
+}
+.tc-pay-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  flex: none;
+  color: var(--confirm);
+}
+.tc-pay-check svg { width: 17px; height: 17px; }
+.tc-pay-notify-btn.is-just-sent .tc-pay-check {
+  animation: tc-pay-check-pop .42s cubic-bezier(.22, 1, .36, 1);
+}
+.tc-pay-notify-btn.is-just-sent .tc-pay-check-ring {
+  stroke-dasharray: 54;
+  stroke-dashoffset: 54;
+  animation: tc-pay-ring-draw .36s cubic-bezier(.22, 1, .36, 1) forwards;
+}
+.tc-pay-notify-btn.is-just-sent .tc-pay-check-mark {
+  stroke-dasharray: 22;
+  stroke-dashoffset: 22;
+  animation: tc-pay-mark-draw .3s .14s cubic-bezier(.22, 1, .36, 1) forwards;
+}
+@keyframes tc-pay-btn-pop {
+  0% { transform: scale(.96); }
+  55% { transform: scale(1.015); }
+  100% { transform: scale(1); }
+}
+@keyframes tc-pay-check-pop {
+  0% { transform: scale(.6); opacity: 0; }
+  60% { transform: scale(1.16); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes tc-pay-ring-draw {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes tc-pay-mark-draw {
+  to { stroke-dashoffset: 0; }
+}
 .tc-notify-box {
   display: grid; gap: 8px; padding: 10px 12px; border-radius: 12px;
   background: var(--surface-2); border: 1px solid var(--line); min-width: 0;

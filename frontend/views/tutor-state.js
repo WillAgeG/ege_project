@@ -11,6 +11,8 @@
   const TC_LS_KEY = "vektor-ege:tutor-cabinet";
   const DAY_MS = 24 * 60 * 60 * 1000;
   const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
+  const PAY_REMIND_COOLDOWN_MS = 10 * 60 * 1000;
+  const PAY_REMIND_ANIM_MS = 2200;
   const DAY_LIST = [
     { dow: "1", wd: "Пн", full: "Понедельник" },
     { dow: "2", wd: "Вт", full: "Вторник" },
@@ -129,6 +131,7 @@
   let _cache = null;
   let _countdownTimer = null;
   let _rtUnsub = null;
+  const _payRemindAnim = Object.create(null);
 
   const SAMPLE_GCAL_ICS = [
     "BEGIN:VCALENDAR",
@@ -602,6 +605,34 @@
     return Math.max(0, (last + FOUR_HOURS_MS) - Date.now());
   }
 
+  function formatShortCountdown(ms) {
+    if (!(ms > 0)) return "00:00";
+    const sec = Math.max(1, Math.ceil(Number(ms) / 1000));
+    const mm = String(Math.floor(sec / 60)).padStart(2, "0");
+    const ss = String(sec % 60).padStart(2, "0");
+    return `${mm}:${ss}`;
+  }
+
+  function payRemindRemainingMs(pay) {
+    const last = Number(pay && pay.remindedAt) || 0;
+    if (!last) return 0;
+    return Math.max(0, (last + PAY_REMIND_COOLDOWN_MS) - Date.now());
+  }
+
+  function markPayRemindAnim(reqId) {
+    const id = String(reqId || "");
+    if (!id) return;
+    _payRemindAnim[id] = Date.now();
+  }
+
+  function isPayRemindAnimActive(reqId) {
+    const id = String(reqId || "");
+    if (!id || !_payRemindAnim[id]) return false;
+    if ((Date.now() - _payRemindAnim[id]) < PAY_REMIND_ANIM_MS) return true;
+    delete _payRemindAnim[id];
+    return false;
+  }
+
   function ensureCountdownTimer() {
     if (typeof document === "undefined" || typeof setInterval !== "function" || _countdownTimer) return;
     _countdownTimer = setInterval(() => {
@@ -622,6 +653,27 @@
       document.querySelectorAll("[data-tc-manual-countdown]").forEach((node) => {
         node.textContent = mRem > 0 ? formatCountdown(mRem) : "00:00:00";
       });
+      const nowMs = Date.now();
+      let needsRender = false;
+      Object.keys(_payRemindAnim).forEach((k) => {
+        if ((nowMs - _payRemindAnim[k]) >= PAY_REMIND_ANIM_MS) {
+          delete _payRemindAnim[k];
+          needsRender = true;
+        }
+      });
+      document.querySelectorAll("[data-tc-pay-remind-id]").forEach((node) => {
+        const rid = (node.dataset && node.dataset.tcPayRemindId) || (typeof node.getAttribute === "function" ? node.getAttribute("data-tc-pay-remind-id") : "") || "";
+        if (!rid) return;
+        const pay = getLessonPaymentState(st, findReq(rid) || { id: rid });
+        const remMs = payRemindRemainingMs(pay);
+        if (remMs <= 0) {
+          if (node.disabled || (node.classList && node.classList.contains("is-cooldown"))) needsRender = true;
+          return;
+        }
+        const cdNode = typeof node.querySelector === "function" ? node.querySelector("[data-tc-pay-remind-cd]") : null;
+        if (cdNode) cdNode.textContent = formatShortCountdown(remMs);
+      });
+      if (needsRender && typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
     }, 1000);
   }
 
@@ -970,9 +1022,18 @@
     const stuId = (stu && stu.id) || "";
     const rate = Number(req && (req.counterPrice || req.offerPrice)) || (st && st.profile ? st.profile.price : 1200) || 1200;
     const pay = getLessonPaymentState(st, req);
+    const remMs = payRemindRemainingMs(pay);
+    const isCooldown = !pay.paid && remMs > 0;
+    const isJustSent = isCooldown && isPayRemindAnimActive(reqId);
+    const checkIconHTML = `<span class="tc-pay-check" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><circle class="tc-pay-check-ring" cx="10" cy="10" r="8.2" stroke="currentColor" stroke-width="1.6"/><path class="tc-pay-check-mark" d="M6.1 10.3l2.6 2.6 5.2-5.6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>`;
     const subText = pay.paid
       ? (pay.paidAt ? `Подтверждено · ${esc(formatTimestamp(pay.paidAt))}` : "Оплата подтверждена автоматически")
       : (pay.remindedAt ? `Напоминание отправлено · ${esc(formatTimestamp(pay.remindedAt))}` : "Ожидается оплата перед уроком");
+    const btnHTML = pay.paid
+      ? ""
+      : (isCooldown
+        ? `<button type="button" class="btn soft sm tc-pay-notify-btn is-sent is-cooldown${isJustSent ? " is-just-sent" : ""}" data-a="tc-pay-remind" data-id="${esc(reqId)}" data-stu-id="${esc(stuId)}" data-tc-pay-remind-id="${esc(reqId)}" disabled aria-disabled="true" title="Повторно можно отправить через 10 мин">${checkIconHTML}${isJustSent ? `<span class="tc-pay-btn-label">Напоминание отправлено</span>` : `<span class="tc-pay-btn-label">Повторно через <b class="num" data-tc-pay-remind-cd="${esc(reqId)}">${esc(formatShortCountdown(remMs))}</b></span>`}</button>`
+        : `<button type="button" class="btn soft sm tc-pay-notify-btn${pay.remindedAt ? " is-sent" : ""}" data-a="tc-pay-remind" data-id="${esc(reqId)}" data-stu-id="${esc(stuId)}">${icon("bell")}<span>${pay.remindedAt ? "Напомнить об оплате ещё раз" : "Уведомить об оплате"}</span></button>`);
     return `<div class="tc-pay-box${pay.paid ? " is-paid" : " is-unpaid"}" role="group" aria-label="Статус оплаты урока">
       <div class="tc-pay-top">
         <div class="tc-pay-info">
@@ -980,14 +1041,14 @@
           <span class="tc-pay-sub">${subText}</span>
         </div>
       </div>
-      ${pay.paid ? "" : `<button type="button" class="btn soft sm tc-pay-notify-btn${pay.remindedAt ? " is-sent" : ""}" data-a="tc-pay-remind" data-id="${esc(reqId)}" data-stu-id="${esc(stuId)}">${icon("bell")}<span>${pay.remindedAt ? "Напомнить об оплате ещё раз" : "Уведомить об оплате"}</span></button>`}
+      ${btnHTML}
     </div>`;
   }
 
   function getCtx() { return _ctx; }
 
   EGE._tutorCab = Object.assign(EGE._tutorCab || {}, {
-    TC_LS_KEY, DAY_MS, FOUR_HOURS_MS, DAY_LIST, EXAM_OPTIONS, FORMAT_OPTIONS,
+    TC_LS_KEY, DAY_MS, FOUR_HOURS_MS, PAY_REMIND_COOLDOWN_MS, DAY_LIST, EXAM_OPTIONS, FORMAT_OPTIONS,
     CITY_OPTIONS, TZ_OPTIONS, WA_LEAD_OPTIONS, DEFAULT_WA_LEADS, AUTO_CHANNELS, AUTO_BUMP_HOURS,
     GOAL_PRESETS, QUICK_TEMPLATES, DEFAULT_REQUESTS, DEFAULT_STUDENTS,
     SAMPLE_GCAL_ICS, MIN_PAYOUT_RUB, PAYOUT_BANKS,
@@ -997,7 +1058,7 @@
     copyStr, formatTimestamp, defaultState, tState, saveState,
     markSwitchAnim, consumeSwitchAnimClass,
     ensureTelemostUrl, resolveLessonContacts, getLessonNotifyConfig, getLessonPaymentState, calcLessonSplit, renderLessonNotifyHTML, renderLessonPaymentHTML,
-    checkAutoBumpDue, formatCountdown, autoBumpRemainingMs, manualBumpRemainingMs,
+    checkAutoBumpDue, formatCountdown, formatShortCountdown, autoBumpRemainingMs, manualBumpRemainingMs, payRemindRemainingMs, markPayRemindAnim,
     ensureCountdownTimer, clampStep, profileCompleteness, buildMarketTutorPayload,
     syncPublishedTutor, dayDowFromLabel, syncedRequests, findReq, updateReq,
     pendingCount, renderDataTable, getTab, setTab, toggleArrayVal

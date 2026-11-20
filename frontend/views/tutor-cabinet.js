@@ -25,6 +25,7 @@
     markSwitchAnim, consumeSwitchAnimClass,
     ensureTelemostUrl, resolveLessonContacts, getLessonNotifyConfig, getLessonPaymentState, renderLessonNotifyHTML, renderLessonPaymentHTML,
     checkAutoBumpDue, formatCountdown, autoBumpRemainingMs, manualBumpRemainingMs,
+    payRemindRemainingMs, markPayRemindAnim,
     ensureCountdownTimer, ensureRealtimeConnected, clampStep, profileCompleteness,
     buildMarketTutorPayload, syncPublishedTutor, dayDowFromLabel, syncedRequests,
     findReq, updateReq, pendingCount, calcLessonSplit, renderDataTable, getTab, setTab, toggleArrayVal
@@ -1078,6 +1079,10 @@
       const who = findReq(id);
       if (!st.lessonPayments || typeof st.lessonPayments !== "object") st.lessonPayments = {};
       const prev = typeof getLessonPaymentState === "function" ? getLessonPaymentState(st, who || { id }) : { paid: false, paidAt: 0, remindedAt: 0, remindCount: 0 };
+      if (prev.paid || (typeof payRemindRemainingMs === "function" && payRemindRemainingMs(prev) > 0)) {
+        if (typeof ensureCountdownTimer === "function") ensureCountdownTimer();
+        return true;
+      }
       const now = Date.now();
       st.lessonPayments[id] = {
         paid: prev.paid,
@@ -1090,6 +1095,8 @@
         r.payRemindCount = (Number(r.payRemindCount) || 0) + 1;
       });
       saveState();
+      if (typeof markPayRemindAnim === "function") markPayRemindAnim(id);
+      if (typeof ensureCountdownTimer === "function") ensureCountdownTimer();
       const amount = Number(who && (who.counterPrice || who.offerPrice)) || st.profile.price || 1200;
       publishRtUpdate(
         "payment.reminder",
