@@ -222,9 +222,7 @@
     const summary = getWalletSummary();
     const s = summary.settings || defaultState().payoutSettings;
     const raw = modalUi && typeof modalUi === "object" ? modalUi : {};
-    const defaultAmount = summary.availableRub >= summary.minPayout
-      ? Math.min(summary.availableRub, 3000)
-      : summary.availableRub;
+    const defaultAmount = summary.availableRub;
     const hasCustomAmount = raw.amount !== undefined && raw.amount !== null && raw.amount !== "";
     const amountNum = hasCustomAmount
       ? Math.max(0, Math.round(Number(raw.amount) || 0))
@@ -234,16 +232,9 @@
     const bank = String(raw.bank || s.bank || PAYOUT_BANKS[4]);
     const phone = formatPhone(raw.phone !== undefined ? raw.phone : s.phone) || String(raw.phone !== undefined ? raw.phone : (s.phone || ""));
     const card = formatCardMask(raw.card !== undefined ? raw.card : s.card) || String(raw.card !== undefined ? raw.card : (s.card || ""));
-    const npdReceipt = raw.npdReceipt !== undefined ? !!raw.npdReceipt : !!s.npdReceipt;
     const errorMsg = raw.error ? String(raw.error) : "";
     const canSubmit = summary.availableRub >= summary.minPayout;
     const bankList = PAYOUT_BANKS.includes(bank) ? PAYOUT_BANKS : [bank].concat(PAYOUT_BANKS);
-    const chips = [
-      { val: 1000, label: "1 000 ₽" },
-      { val: 3000, label: "3 000 ₽" },
-      { val: 5000, label: "5 000 ₽" },
-      { val: summary.availableRub, label: `Всё · ${summary.availableRub.toLocaleString("ru-RU")} ₽` }
-    ];
     const sbpMark = (EGE.ui && typeof EGE.ui.sbpLogoSVG === "function")
       ? EGE.ui.sbpLogoSVG(28)
       : '<svg class="ygo-sbp-svg" width="23" height="28" viewBox="0 0 266 325" fill="none" role="img" aria-label="СБП"><title>СБП</title><polygon points="114,0 152,70 152,116 114,140" fill="#F1BA46"/><polygon points="114,0 266,93 188,93 152,70" fill="#E07C3E"/><polygon points="0,255 40,183 152,116 152,163" fill="#8E4D91"/><polygon points="152,116 188,93 266,93 152,163" fill="#C72C54"/><polygon points="0,70 40,142 40,183 0,255" fill="#5D579F"/><polygon points="114,186 152,209 152,255 114,325" fill="#76AF46"/><polygon points="114,325 152,255 188,232 266,232" fill="#377D3F"/><polygon points="0,70 266,232 188,232 40,142" fill="#4286C5"/></svg>';
@@ -333,9 +324,6 @@
                 <label class="label" for="tc-payout-amount">Сумма вывода</label>
                 <span class="small muted num">Минимум ${summary.minPayout.toLocaleString("ru-RU")} ₽</span>
               </div>
-              <div class="chip-rail" role="group" aria-label="Быстрый выбор суммы">
-                ${chips.map((c) => `<button type="button" class="chip-btn${Number(amountNum) === c.val ? " is-on" : ""}" data-a="tc-payout-chip" data-v="${c.val}">${esc(c.label)}</button>`).join("")}
-              </div>
               <div class="bal-amount-box">
                 <input class="bal-amount-inp num" id="tc-payout-amount" name="amount" type="number" min="${summary.minPayout}" max="${Math.max(summary.minPayout, summary.availableRub)}" step="100" value="${esc(inputVal)}" data-tc-payout="amount">
                 <span class="bal-amount-cur">₽</span>
@@ -373,9 +361,7 @@
     const cardFormatted = formatCardMask(src.card || "");
     const npdReceipt = false;
 
-    const fallbackAmount = summary.availableRub >= summary.minPayout
-      ? Math.min(summary.availableRub, 3000)
-      : summary.availableRub;
+    const fallbackAmount = summary.availableRub;
     const rawAmount = src.amount === undefined
       ? fallbackAmount
       : (src.amount === "" || src.amount === null ? 0 : Number(src.amount));

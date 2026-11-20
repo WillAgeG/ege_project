@@ -439,16 +439,14 @@
       const tcMod = EGE.views.tutorCabinet;
       const summary = tcMod && typeof tcMod.getWalletSummary === "function" ? tcMod.getWalletSummary() : null;
       const sets = (summary && summary.settings) || {};
-      const defAmt = summary && summary.availableRub >= (summary.minPayout || 500)
-        ? Math.min(summary.availableRub, 3000)
-        : (summary ? summary.availableRub : 0);
+      const defAmt = summary ? summary.availableRub : 0;
       ui.payoutModal = {
         method: sets.method === "card" ? "card" : "sbp",
         bank: sets.bank || "АЭБ (Алмазэргиэнбанк)",
         phone: sets.phone || "+7 (914) 210-01-99",
         card: sets.card || "2200 7004 8210 4419",
         amount: defAmt,
-        npdReceipt: sets.npdReceipt !== undefined ? !!sets.npdReceipt : true,
+        npdReceipt: false,
         error: ""
       };
       renderModal();
@@ -466,16 +464,6 @@
           try { targetTile.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" }); } catch (e) {}
         }
       }
-    },
-    "tc-payout-chip": (el) => {
-      if (!ui.payoutModal) return;
-      const tcMod = EGE.views.tutorCabinet;
-      const summary = tcMod && typeof tcMod.getWalletSummary === "function" ? tcMod.getWalletSummary() : null;
-      const maxAmt = summary ? summary.availableRub : 50000;
-      const v = Math.max(0, Math.round(Number(el.dataset && el.dataset.v) || 0));
-      ui.payoutModal.amount = maxAmt ? Math.min(maxAmt, v) : v;
-      ui.payoutModal.error = "";
-      renderModal();
     },
     "tc-payout-npd": () => {
       if (!ui.payoutModal) return;
