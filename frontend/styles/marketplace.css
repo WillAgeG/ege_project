@@ -1687,6 +1687,10 @@ html.reduced-motion .hero-float-drift,
 }
 
 /* ---------- Личный кабинет преподавателя (в едином брендбуке hh + Саха) ---------- */
+.tc-req-section {
+  display: grid; gap: 12px; min-width: 0;
+  background: transparent; border: 0; padding: 0; box-shadow: none;
+}
 .tc-req-list { display: grid; gap: 12px; min-width: 0; }
 .tc-req-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; flex-wrap: wrap; min-width: 0; }
 .tc-req-who { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 200px; }
@@ -1841,31 +1845,49 @@ html.reduced-motion .hero-float-drift,
 .tc-lead-pill[aria-pressed="true"] {
   background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 700;
 }
+.tc-prof-compact-card {
+  display: grid; gap: 7px; padding: 11px 13px; border-radius: 14px; min-width: 0;
+}
+.tc-prof-compact-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+}
+.tc-prof-compact-meta {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; flex: 1 1 180px;
+}
+.tc-compact-title { font-size: 14.5px; font-weight: 700; line-height: 1.25; color: var(--ink); }
+.tc-compact-chip { font-size: 11px; padding: 2px 7px; min-height: 20px; }
+.tc-prof-preview-btn { min-height: 30px; padding: 0 10px; font-size: 12px; white-space: nowrap; flex: none; }
+.tc-compact-note { font-size: 12px; color: var(--muted); line-height: 1.3; }
 .tc-autobump-card {
-  display: grid; gap: 12px; padding: 14px 16px; border-radius: 16px;
+  display: grid; gap: 9px; padding: 11px 13px; border-radius: 14px;
   border: 1px solid color-mix(in srgb, var(--gold) 48%, var(--line));
   background: linear-gradient(135deg, color-mix(in srgb, var(--gold-soft) 72%, var(--surface)) 0%, color-mix(in srgb, var(--gold) 18%, var(--surface)) 100%);
   min-width: 0;
 }
 .tc-autobump-panel {
-  padding: 12px 14px; border-radius: 12px;
+  padding: 10px 12px; border-radius: 12px;
   background: color-mix(in srgb, var(--surface) 90%, transparent);
   border: 1px solid color-mix(in srgb, var(--gold) 28%, var(--line)); min-width: 0;
 }
-.tc-bump-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.tc-bump-title-wrap { min-width: 0; display: grid; gap: 3px; }
-.tc-bump-sub { font-size: 13px; color: var(--muted); line-height: 1.35; }
-.tc-bump-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.tc-bump-actions > .btn:first-child { flex: 1 1 190px; justify-content: center; }
-.tc-bump-more-btn { flex: 0 0 auto; min-height: 40px; padding: 0 14px; }
-.tc-bump-meta-list { gap: 4px; font-size: 13px; color: var(--muted); }
+.tc-bump-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.tc-bump-title-wrap { min-width: 0; display: grid; gap: 2px; }
+.tc-bump-title { margin: 0; font-size: 14.5px; font-weight: 700; line-height: 1.25; color: var(--ink); }
+.tc-bump-sub { font-size: 12px; color: var(--muted); line-height: 1.3; }
+.tc-bump-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.tc-bump-manual-btn {
+  flex: 1 1 185px; min-height: 34px; padding: 0 11px; font-size: 12.5px; justify-content: center;
+  background: var(--surface); border-color: color-mix(in srgb, var(--gold) 36%, var(--line)); color: var(--ink);
+}
+.tc-bump-manual-btn.is-confirmed { border-color: color-mix(in srgb, var(--confirm) 45%, var(--line)); color: var(--confirm); }
+.tc-bump-more-btn { flex: 0 0 auto; min-height: 34px; padding: 0 11px; font-size: 12.5px; }
+.tc-bump-meta-list { gap: 4px; font-size: 12.5px; color: var(--muted); }
 .tc-bump-chip { white-space: normal; line-height: 1.3; }
 .tc-bump-hours-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .tc-bump-hours-grid .chip-btn { justify-content: center; width: 100%; padding-inline: 6px; font-size: 12px; white-space: nowrap; }
 .tc-metrics-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; min-width: 0; }
 .tc-profile-form .hh-seg.equal button { white-space: normal; line-height: 1.25; padding: 8px 10px; text-align: center; }
 .tc-hh-meter {
-  height: 9px; border-radius: 999px; background: var(--surface-2);
+  height: 6px; border-radius: 999px; background: var(--surface-2);
   border: 1px solid var(--line); overflow: hidden;
 }
 .tc-hh-meter > i {
@@ -2175,10 +2197,8 @@ html.reduced-motion .hero-float-drift,
   .tc-payout-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .tc-payout-kpis > :first-child { grid-column: 1 / -1; }
   .tc-wallet-cta, .tc-wallet-cta .btn { width: 100%; }
-  .tc-bump-more-btn { flex: 1 0 auto; justify-content: center; }
+  .tc-bump-more-btn { flex: 0 0 auto; justify-content: center; }
   .tc-bump-hours-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .tc-prof-head-actions { width: 100%; }
-  .tc-prof-head-actions .btn { width: 100%; justify-content: center; }
   .tc-photo-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
   .tc-photo-actions .btn { width: 100%; justify-content: center; }
   .tc-profile-submit-row .btn { width: 100%; justify-content: center; }

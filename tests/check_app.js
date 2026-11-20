@@ -2320,6 +2320,7 @@
     assert(
       tutorMain1.includes("Входящие заявки учеников") &&
       tutorMain1.includes('id="tc-requests-table"') &&
+      !tutorMain1.includes('class="card stack tc-req-section" id="tc-requests-table"') &&
       tutorMain1.includes("tc-req-card") &&
       tutorMain1.includes('id="tc-first-pending"') &&
       tutorMain1.includes("Выплата после урока:") &&
@@ -2487,13 +2488,16 @@
       !tcProfHtml.includes("hh-multi-chips") &&
       !tcProfHtml.includes("tc-skill-toggle") &&
       !tcProfHtml.includes('data-a="tc-autobump-hour"') &&
+      !tcProfHtml.includes("sakha-pattern") &&
       tcProfHtml.includes('data-a="tc-bump"') &&
       tcProfHtml.includes("Поднять анкету (раз в 4 ч)") &&
+      tcProfHtml.includes("tc-bump-title") &&
       tcProfHtml.includes("Автоподнятие 24 ч активно") &&
       tcProfHtml.includes('data-a="tc-bump-details-toggle"') &&
       tcProfHtml.includes("Подробнее") &&
       tcProfHtml.includes('data-a="tc-autobump-toggle"') &&
       tcProfHtml.includes("tc-switch-pill is-on") &&
+      tcProfHtml.includes("tc-prof-compact-card") &&
       tcProfHtml.includes("Заполненность профиля") &&
       tcProfHtml.includes("tc-hh-meter") &&
       tcProfHtml.includes("hh-multi-x") &&

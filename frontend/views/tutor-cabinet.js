@@ -245,7 +245,7 @@
         </div>`;
 
     return `<div class="stack" style="gap:16px">
-      <section class="card stack tc-req-section" id="tc-requests-table" aria-label="Входящие заявки учеников">
+      <section class="stack tc-req-section" id="tc-requests-table" aria-label="Входящие заявки учеников">
         <div class="stack" style="gap:2px">
           <div class="eyebrow">Торг в реальном времени</div>
           <h2 class="h2">Входящие заявки учеников</h2>
@@ -279,38 +279,33 @@
     const lastAutoLabel = formatTimestamp(st.lastAutoBumpAt || st.lastBumpAt);
     const lastManualLabel = formatTimestamp(st.lastManualBumpAt);
 
-    return `<div class="stack" style="gap:16px">
-      <div class="card stack" style="gap:10px">
-        <div class="row between" style="gap:10px;flex-wrap:wrap;align-items:flex-start">
-          <div class="stack" style="gap:2px;min-width:0;flex:1 1 200px">
-            <div class="eyebrow">Профиль преподавателя</div>
-            <h2 class="h2">Заполненность профиля: <span class="num savings-gold-txt">${comp.pct}%</span></h2>
+    return `<div class="stack" style="gap:12px">
+      <div class="card tc-prof-compact-card">
+        <div class="tc-prof-compact-head">
+          <div class="tc-prof-compact-meta">
+            <b class="tc-compact-title">Заполненность профиля: <span class="num savings-gold-txt">${comp.pct}%</span></b>
+            ${st.published ? `<span class="chip confirm tc-compact-chip">✓ Опубликована для учеников</span>` : `<span class="chip notif tc-compact-chip">Черновик</span>`}
           </div>
-          <div class="row tc-prof-head-actions" style="gap:8px;flex-wrap:wrap">
-            ${st.published ? `<span class="chip confirm">✓ Опубликована для учеников</span>` : `<span class="chip notif">Черновик кабинета</span>`}
-            <button type="button" class="btn soft sm" data-a="tc-preview-toggle">${st.profilePreview ? "Скрыть предпросмотр" : "Как видит ученик"}</button>
-          </div>
+          <button type="button" class="btn soft sm tc-prof-preview-btn" data-a="tc-preview-toggle">${st.profilePreview ? "Скрыть" : "Как видит ученик"}</button>
         </div>
         <div class="tc-hh-meter" aria-label="Прогресс заполнения профиля"><i style="width:${comp.pct}%"></i></div>
-        <div class="small muted">${comp.missing.length ? "До 100% рейтинга: " + esc(comp.missing.slice(0, 2).join(", ")) + "." : "Отлично! Профиль заполнен на 100% и получает приоритет в поиске."}</div>
+        <div class="tc-compact-note">${comp.missing.length ? "Осталось: " + esc(comp.missing.slice(0, 2).join(", ")) + "." : "Профиль на 100% — приоритет в поиске."}</div>
       </div>
 
       <div class="tc-autobump-card" aria-label="Продвижение анкеты в выдаче">
         <div class="tc-bump-head">
           <div class="tc-bump-title-wrap">
-            <h2 class="h2">${st.autoBump24h ? "Автоподнятие 24 ч активно" : "Автоподнятие на паузе"}</h2>
+            <h2 class="tc-bump-title">${st.autoBump24h ? "Автоподнятие 24 ч активно" : "Автоподнятие на паузе"}</h2>
             <div class="tc-bump-sub">${st.autoBump24h ? `Через <b class="num savings-gold-txt" data-tc-countdown>${formatCountdown(remMs)}</b> · 0 ₽` : "Бесплатно каждые 24 ч · 0 ₽"}</div>
           </div>
           <button type="button" class="tc-switch-pill${st.autoBump24h ? " is-on" : ""}${consumeSwitchAnimClass("autobump")}" data-a="tc-autobump-toggle" aria-pressed="${!!st.autoBump24h}"><i class="tc-switch-track" aria-hidden="true"></i><span>${st.autoBump24h ? "Вкл" : "Выкл"}</span></button>
         </div>
 
         <div class="tc-bump-actions">
-          <button type="button" class="btn sakha-pattern tc-bump-manual-btn${mRem > 0 ? " is-confirmed" : ""}" data-a="tc-bump"${mRem > 0 ? " disabled" : ""}>
-            ${sakhaPatternSVG("rhombus", 18)}
+          <button type="button" class="btn soft sm tc-bump-manual-btn${mRem > 0 ? " is-confirmed" : ""}" data-a="tc-bump"${mRem > 0 ? " disabled" : ""}>
             <span>${mRem > 0 ? `✓ Поднята · через <b class="num" data-tc-manual-countdown>${formatCountdown(mRem)}</b>` : "Поднять анкету (раз в 4 ч)"}</span>
-            ${sakhaPatternSVG("lattice", 18)}
           </button>
-          <button type="button" class="btn soft sm tc-bump-more-btn" data-a="tc-bump-details-toggle" aria-expanded="${!!st.bumpDetailsOpen}">${st.bumpDetailsOpen ? "Скрыть" : "Подробнее"}</button>
+          <button type="button" class="btn ghost sm tc-bump-more-btn" data-a="tc-bump-details-toggle" aria-expanded="${!!st.bumpDetailsOpen}">${st.bumpDetailsOpen ? "Скрыть" : "Подробнее"}</button>
         </div>
 
         ${st.bumpDetailsOpen ? `<div class="tc-autobump-panel stack" style="gap:10px">
