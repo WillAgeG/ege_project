@@ -1222,7 +1222,17 @@
     }
 
     if (act === "tc-cal-week") {
-      st.calWeek = d.w === "1" ? 1 : 0;
+      const w = Number(d.w);
+      st.calWeek = Number.isFinite(w) ? Math.max(-12, Math.min(12, Math.trunc(w))) : 0;
+      saveState();
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-cal-week-step") {
+      const delta = Number(d.delta) < 0 ? -1 : 1;
+      const cur = Number.isFinite(Number(st.calWeek)) ? Math.trunc(Number(st.calWeek)) : 0;
+      st.calWeek = Math.max(-12, Math.min(12, cur + delta));
       saveState();
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
       return true;

@@ -1720,6 +1720,21 @@
       await flushMicrotasks(2);
     }
 
+    clickAction(env5, { a: "study-week-step", delta: "-1" });
+    await flushMicrotasks(2);
+    const studyPastHtml = env5.elements.get("main").innerHTML;
+    assert(
+      studyPastHtml.includes("Прошлая неделя") &&
+      studyPastHtml.includes("study-week-days is-past-week") &&
+      studyPastHtml.includes("Прошедшая неделя") &&
+      studyPastHtml.includes("✓ Проведён") &&
+      !studyPastHtml.includes('id="study-billing-notice"'),
+      "expected stepping study calendar backward to show greyed Прошлая неделя with past lessons and no billing notice"
+    );
+    clickAction(env5, { a: "study-week-step", delta: "1" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("Эта неделя") && env5.elements.get("main").innerHTML.includes('id="study-billing-notice"'), "expected stepping forward from past week to return to Эта неделя");
+
     const holdMatch = /data-hold-ch="tg" data-tutor-id="([^"]*)" data-tutor-name="([^"]*)"/.exec(studyWithCardsHtml);
     assert(holdMatch, "expected data-hold-ch='tg' button metadata on greyed Telegram pill");
     clickAction(env5, { a: "tutor-contact-open", tutorId: holdMatch[1], tutorName: holdMatch[2], holdCh: "tg" });
@@ -2559,9 +2574,27 @@
       calOnlySlice.includes('data-a="tc-pay-remind"') &&
       !calOnlySlice.includes("Отметить оплату") &&
       !calOnlySlice.includes('data-a="tc-pay-toggle"') &&
+      calOnlySlice.includes('data-a="tc-cal-week-step" data-delta="-1"') &&
+      calOnlySlice.includes('data-a="tc-cal-week-step" data-delta="1"') &&
+      calOnlySlice.includes('data-week-swipe="tc"') &&
       !calOnlySlice.includes('data-a="tc-bump"'),
-      "expected unified Ученики calendar strip matching student calendar with confirmed student cards, Telemost button, icon-only logos, automatic payment badge + notify button, auto-notify pills, and 7 day buttons"
+      "expected unified Ученики calendar strip matching student calendar with week step arrows, swipe attribute, confirmed student cards, Telemost button, icon-only logos, automatic payment badge + notify button, auto-notify pills, and 7 day buttons"
     );
+    clickAction(env5, { a: "tc-cal-week-step", delta: "-1" });
+    await flushMicrotasks(2);
+    const tcPastCalHtml = env5.elements.get("main").innerHTML;
+    assert(
+      tcPastCalHtml.includes("Прошлая неделя") &&
+      tcPastCalHtml.includes("study-week-days is-past-week") &&
+      tcPastCalHtml.includes("study-lesson-card is-past") &&
+      tcPastCalHtml.includes("✓ Проведён") &&
+      !tcPastCalHtml.includes("Подключиться к Яндекс Телемосту") &&
+      !tcPastCalHtml.includes("Снять с расписания"),
+      "expected stepping tutor calendar backward to render greyed Прошлая неделя with past lesson history and without live Telemost/cancel controls"
+    );
+    clickAction(env5, { a: "tc-cal-week-step", delta: "1" });
+    await flushMicrotasks(2);
+    assert(env5.elements.get("main").innerHTML.includes("Эта неделя") && !env5.elements.get("main").innerHTML.includes("study-week-days is-past-week"), "expected stepping forward to restore current week");
     clickAction(env5, { a: "tc-cal-open-add", hour: "11:00" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes("всего 1%") && env5.elements.get("main").innerHTML.includes('id="tc-add-fee-note"'), "expected manual booking form to advertise 1% commission and live 99% payout note");

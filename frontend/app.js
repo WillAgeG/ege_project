@@ -2742,6 +2742,44 @@
       }
     }
   });
+  let _weekSwipeStart = null;
+  function finishWeekSwipe(endX, endY) {
+    const start = _weekSwipeStart;
+    _weekSwipeStart = null;
+    if (!start) return;
+    const dx = Number(endX) - start.x;
+    const dy = Number(endY) - start.y;
+    if (Math.abs(dx) < 45 || Math.abs(dx) <= Math.abs(dy) * 1.4 || Date.now() - start.ts > 900) return;
+    const delta = dx > 0 ? -1 : 1;
+    if (start.mode === "tc" && EGE.views.tutorCabinet && typeof EGE.views.tutorCabinet.handleAction === "function") {
+      EGE.views.tutorCabinet.handleAction("tc-cal-week-step", { dataset: { delta: String(delta) } });
+    } else if (start.mode === "study") {
+      const cur = Number.isFinite(Number(ui.studyWeekOffset)) ? Math.trunc(Number(ui.studyWeekOffset)) : 0;
+      ui.studyWeekOffset = Math.max(-12, Math.min(12, cur + delta));
+      ui.studySelectedIso = "";
+      scheduleRender();
+    }
+  }
+  document.addEventListener("touchstart", (e) => {
+    const t = e && e.touches && e.touches[0];
+    const strip = e && e.target && e.target.closest ? e.target.closest("[data-week-swipe]") : null;
+    _weekSwipeStart = (t && strip) ? { mode: strip.dataset.weekSwipe, x: t.clientX, y: t.clientY, ts: Date.now(), kind: "touch" } : null;
+  }, { passive: true });
+  document.addEventListener("touchend", (e) => {
+    if (!_weekSwipeStart || _weekSwipeStart.kind !== "touch") return;
+    const t = e && e.changedTouches && e.changedTouches[0];
+    if (t) finishWeekSwipe(t.clientX, t.clientY);
+    else _weekSwipeStart = null;
+  }, { passive: true });
+  document.addEventListener("pointerdown", (e) => {
+    if (!e || e.pointerType === "touch") return;
+    const strip = e.target && e.target.closest ? e.target.closest("[data-week-swipe]") : null;
+    if (strip) _weekSwipeStart = { mode: strip.dataset.weekSwipe, x: e.clientX, y: e.clientY, ts: Date.now(), kind: "pointer" };
+  });
+  document.addEventListener("pointerup", (e) => {
+    if (!e || e.pointerType === "touch" || !_weekSwipeStart || _weekSwipeStart.kind !== "pointer") return;
+    finishWeekSwipe(e.clientX, e.clientY);
+  });
   document.addEventListener("submit", (e) => {
     const f = e.target.closest("form[data-f]");
     if (!f) return;

@@ -475,7 +475,19 @@
     "filter-open": () => { ui.filterModal = true; renderModal(); },
     "filter-close": () => { ui.filterModal = false; renderModal(); },
     "study-tab": (el) => { ui.studyTab = el.dataset.tab || "week"; scheduleRender(true); },
-    "study-week": (el) => { ui.studyWeekOffset = el.dataset.w === "1" ? 1 : 0; ui.studySelectedIso = ""; scheduleRender(); },
+    "study-week": (el) => {
+      const w = Number(el.dataset && el.dataset.w);
+      ui.studyWeekOffset = Number.isFinite(w) ? Math.max(-12, Math.min(12, Math.trunc(w))) : 0;
+      ui.studySelectedIso = "";
+      scheduleRender();
+    },
+    "study-week-step": (el) => {
+      const delta = Number(el.dataset && el.dataset.delta) < 0 ? -1 : 1;
+      const cur = Number.isFinite(Number(ui.studyWeekOffset)) ? Math.trunc(Number(ui.studyWeekOffset)) : 0;
+      ui.studyWeekOffset = Math.max(-12, Math.min(12, cur + delta));
+      ui.studySelectedIso = "";
+      scheduleRender();
+    },
     "study-subj": (el) => { ui.studySubj = el.dataset.v || "all"; scheduleRender(); },
     "tests-guide-chip": (el) => { ui.guideSid = "all"; ui.guideQ = el.dataset.q || ""; go("tutor"); },
     "mkt-fav": (el) => {

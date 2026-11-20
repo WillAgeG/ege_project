@@ -17,7 +17,7 @@
     formatPhone, formatTelegram, formatCardMask, normalizeChannelList, normalizeLeadList,
     copyStr, formatTimestamp, defaultState, tState, saveState,
     consumeSwitchAnimClass,
-    ensureTelemostUrl, resolveLessonContacts, calcLessonSplit, renderLessonNotifyHTML, renderLessonPaymentHTML,
+    ensureTelemostUrl, resolveLessonContacts, getLessonPaymentState, calcLessonSplit, renderLessonNotifyHTML, renderLessonPaymentHTML,
     checkAutoBumpDue, formatCountdown, autoBumpRemainingMs, manualBumpRemainingMs,
     ensureCountdownTimer, ensureRealtimeConnected, clampStep, profileCompleteness,
     buildMarketTutorPayload, syncPublishedTutor, dayDowFromLabel, syncedRequests,
@@ -48,10 +48,22 @@
 
   function renderCalendarTab(st, TDATA, allReqs) {
     const hours = (TDATA && TDATA.HOURS) ? TDATA.HOURS : ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
-    const weekOffset = st.calWeek ? 1 : 0;
+    const rawWeek = Number(st.calWeek);
+    const weekOffset = Number.isFinite(rawWeek) ? Math.max(-12, Math.min(12, Math.trunc(rawWeek))) : 0;
+    const isPastWeek = weekOffset < 0;
     const weekDays = (TDATA && typeof TDATA.buildWeekDays === "function")
       ? TDATA.buildWeekDays(weekOffset)
       : DAY_LIST.map((d, i) => ({ dow: Number(d.dow), wd: d.wd, wdLong: d.full.toLowerCase(), num: 14 + i, month: "нояб.", shortLabel: `${d.wd}, ${14 + i} нояб.`, fullLabel: `${d.full.toLowerCase()}, ${14 + i} нояб.`, iso: "" }));
+    const firstDay = weekDays[0] || {};
+    const lastDay = weekDays[weekDays.length - 1] || firstDay;
+    const weekRangeLabel = `${firstDay.num || ""} ${firstDay.month || ""} – ${lastDay.num || ""} ${lastDay.month || ""}`.trim();
+    const weekTitle = weekOffset === 0
+      ? "Эта неделя"
+      : (weekOffset === 1
+        ? "Следующая неделя"
+        : (weekOffset === -1
+          ? "Прошлая неделя"
+          : (weekOffset < -1 ? `${Math.abs(weekOffset)} нед. назад` : `Через ${weekOffset} нед.`)));
     const activeDay = weekDays.find((d) => String(d.dow) === String(st.activeDow)) || weekDays[5] || weekDays[0];
     const dowStr = String(activeDay.dow);
     const dayKeyByDow = { "1": "mon", "2": "tue", "3": "wed", "4": "thu", "5": "fri", "6": "sat", "0": "sun" };
@@ -86,12 +98,12 @@
     const samplePreview = formatWaReminderText(st, sampleStudent);
     const sampleWaHref = studentWaHref(st, sampleStudent);
 
-    const daysStripHTML = `<div class="study-week-days" role="group" aria-label="Дни недели и записанные ученики">
+    const daysStripHTML = `<div class="study-week-days${isPastWeek ? " is-past-week" : ""}" data-week-swipe="tc" role="group" aria-label="Дни недели и записанные ученики">
       ${weekDays.map((d) => {
         const k = String(d.dow);
         const bookedCnt = confirmedReqs.filter((r) => lessonMatchesDow(r, k)).length;
         const isOn = k === dowStr;
-        return `<button type="button" class="study-week-day-btn${isOn ? " on" : ""}${bookedCnt > 0 ? " has-lessons" : ""}" data-a="tc-day" data-dow="${k}" aria-pressed="${isOn}">
+        return `<button type="button" class="study-week-day-btn${isOn ? " on" : ""}${bookedCnt > 0 ? " has-lessons" : ""}${isPastWeek ? " is-past" : ""}" data-a="tc-day" data-dow="${k}" aria-pressed="${isOn}">
           <span class="swd-wd">${esc(d.wd)}</span>
           <span class="swd-num num">${esc(d.num)}</span>
           ${bookedCnt > 0 ? `<span class="swd-cnt num">${bookedCnt}</span>` : `<span class="swd-dot" aria-hidden="true"></span>`}
@@ -99,7 +111,47 @@
       }).join("")}
     </div>`;
 
-    const dayLessonsHTML = (activeLessons.length || unbookedGcal.length)
+    const dayLessonsHTML = isPastWeek
+      ? (activeLessons.length
+        ? `<div class="study-day-cards">
+            ${activeLessons.map((lesson) => {
+              const sp = lesson.schedulePlan;
+              const lessonHour = String((sp && sp.hour) || lesson.hour || "14:00");
+              const isWeekly = !!(sp && sp.weekly !== false);
+              const rate = Number(lesson.counterPrice || lesson.offerPrice) || st.profile.price;
+              const lSplit = typeof calcLessonSplit === "function"
+                ? calcLessonSplit(rate, lesson, TDATA)
+                : { total: rate, fee: Math.round(rate * 0.05), payout: rate - Math.round(rate * 0.05), pct: 5, isManual: false };
+              const pay = typeof getLessonPaymentState === "function" ? getLessonPaymentState(st, lesson) : { paid: false };
+              return `<article class="study-lesson-card is-past" data-req-id="${esc(lesson.id)}">
+                <div class="study-lesson-time-row">
+                  <b class="num" style="font-size:15px">Урок в ${esc(lessonHour)}</b>
+                  <span class="small muted">${esc(activeDay.shortLabel)} · ${esc(lesson.format || "Онлайн")}</span>
+                </div>
+                <div class="study-lesson-pills">
+                  <span class="chip tc-past-chip">✓ Проведён</span>
+                  ${lSplit.isManual ? `<span class="chip tc-past-chip">Свой ученик · 1%</span>` : ""}
+                  ${isWeekly ? `<span class="chip tc-past-chip">Каждую неделю</span>` : ""}
+                </div>
+                <div class="tutor-name-line">
+                  <span class="tutor-avatar" aria-hidden="true">${esc(initials(lesson.studentName))}</span>
+                  <div class="tutor-person-meta">
+                    <div class="tutor-title-inline">
+                      <b class="tutor-person-name">${esc(lesson.studentName)}</b>
+                    </div>
+                    <span class="small muted">${esc(lesson.exam || "ЕГЭ")} · ${esc(lesson.subjectName || "")} · ${rate.toLocaleString("ru-RU")} ₽/ч</span>
+                  </div>
+                </div>
+                ${lesson.note ? `<div class="tc-req-quote">${esc(lesson.note)}</div>` : ""}
+                <div class="tc-past-pay-line">${pay.paid ? `✓ Оплачено · ${rate.toLocaleString("ru-RU")} ₽` : `Не оплачено · ${rate.toLocaleString("ru-RU")} ₽`}</div>
+              </article>`;
+            }).join("")}
+          </div>`
+        : `<div class="empty is-past">
+            <b>На ${esc(activeDay.fullLabel)} проведённых уроков не было</b>
+            <span>Листайте дни или недели влево и вправо, чтобы посмотреть историю.</span>
+          </div>`)
+      : ((activeLessons.length || unbookedGcal.length)
       ? `<div class="study-day-cards">
           ${activeLessons.map((lesson) => {
             const sp = lesson.schedulePlan;
@@ -226,7 +278,7 @@
           <b>На ${esc(activeDay.fullLabel)} записанных учеников нет</b>
           <span>Выберите день с цифрой выше или запишите ученика вручную.</span>
           <button type="button" class="btn soft sm" data-a="tc-cal-open-add" data-hour="${hours[0]}">+ Записать ученика</button>
-        </div>`;
+        </div>`);
 
     const waDrawerHTML = st.waPanelOpen ? `<div class="tc-wa-inline-panel stack" aria-label="Настройка автоуведомлений">
       <div class="tc-drawer-head">
@@ -329,9 +381,10 @@
         </div>
       </form>` : ""}
 
-      <div class="hh-seg equal" role="group" aria-label="Неделя календаря">
-        <button type="button" data-a="tc-cal-week" data-w="0" aria-pressed="${weekOffset === 0}"><span>Эта неделя</span></button>
-        <button type="button" data-a="tc-cal-week" data-w="1" aria-pressed="${weekOffset === 1}"><span>Следующая неделя</span></button>
+      <div class="tc-week-nav${isPastWeek ? " is-past-week" : ""}" role="group" aria-label="Неделя календаря">
+        <button type="button" class="tc-week-arrow" data-a="tc-cal-week-step" data-delta="-1" aria-label="Предыдущая неделя" title="Прошлая неделя">‹</button>
+        <button type="button" class="tc-week-title-btn" data-a="tc-cal-week" data-w="0" title="Вернуться на эту неделю"><b>${esc(weekTitle)}</b><span class="small muted">${esc(weekRangeLabel)}</span></button>
+        <button type="button" class="tc-week-arrow" data-a="tc-cal-week-step" data-delta="1" aria-label="Следующая неделя" title="Следующая неделя">›</button>
       </div>
 
       ${daysStripHTML}
@@ -369,10 +422,13 @@
         </div>
       </form>` : ""}
 
-      <div class="study-day-panel">
+      <div class="study-day-panel${isPastWeek ? " is-past-week" : ""}">
         <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
           <b>${esc(activeDay.fullLabel)}</b>
-          <span class="chip num">${activeLessons.length} ${plural(activeLessons.length, "урок", "урока", "уроков")}</span>
+          <div class="row" style="gap:6px;align-items:center">
+            ${isPastWeek ? `<span class="chip tc-past-chip">Прошедшая неделя</span>` : ""}
+            <span class="chip num">${activeLessons.length} ${plural(activeLessons.length, "урок", "урока", "уроков")}</span>
+          </div>
         </div>
         ${dayLessonsHTML}
       </div>

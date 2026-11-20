@@ -2547,12 +2547,113 @@ body:has(.land-page:not(#brandbook-page)) .main,
   min-width: 0;
   max-width: 100%;
 }
+.tc-week-nav {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 38px;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+.tc-week-nav.is-past-week {
+  background: color-mix(in srgb, var(--line) 42%, var(--surface-2));
+  border-color: var(--line);
+}
+.tc-week-arrow {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 20px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background-color .14s ease, border-color .14s ease;
+}
+.tc-week-arrow:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+}
+.tc-week-title-btn {
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  min-width: 0;
+}
+.tc-week-title-btn b {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+}
 .study-week-days {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 5px;
   width: 100%;
   min-width: 0;
+}
+.study-week-days[data-week-swipe] {
+  touch-action: pan-y;
+  user-select: none;
+}
+.study-week-days.is-past-week .study-week-day-btn {
+  background: color-mix(in srgb, var(--line) 35%, var(--surface-2));
+  border-color: var(--line);
+  color: var(--muted);
+}
+.study-week-days.is-past-week .study-week-day-btn.has-lessons {
+  background: color-mix(in srgb, var(--line) 24%, var(--surface));
+  border-color: var(--line-strong);
+  color: var(--ink-2);
+}
+.study-week-days.is-past-week .study-week-day-btn .swd-cnt {
+  background: var(--line-strong);
+  color: var(--ink-2);
+}
+.study-week-days.is-past-week .study-week-day-btn.on {
+  background: var(--muted);
+  border-color: var(--muted);
+  color: #ffffff;
+}
+.study-week-days.is-past-week .study-week-day-btn.on .swd-cnt {
+  background: rgba(255, 255, 255, .24);
+  color: #ffffff;
+}
+.study-lesson-card.is-past {
+  background: var(--surface-2);
+  border-color: var(--line);
+  color: var(--muted);
+}
+.study-lesson-card.is-past .tutor-avatar {
+  filter: grayscale(1);
+  opacity: .72;
+}
+.study-lesson-card.is-past .tutor-person-name,
+.study-lesson-card.is-past b {
+  color: var(--ink-2);
+}
+.tc-past-chip {
+  background: color-mix(in srgb, var(--line) 55%, var(--surface));
+  border-color: var(--line-strong);
+  color: var(--muted);
+}
+.tc-past-pay-line {
+  font-size: 12.5px;
+  color: var(--muted);
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--line) 30%, var(--surface));
 }
 .study-week-day-btn {
   display: grid;

@@ -1452,7 +1452,9 @@
     const ui = getUi();
     const st = getMkt();
     const tab = ui.studyTab || "week";
-    const weekOffset = ui.studyWeekOffset ? 1 : 0;
+    const rawWeek = Number(ui.studyWeekOffset);
+    const weekOffset = Number.isFinite(rawWeek) ? Math.max(-12, Math.min(12, Math.trunc(rawWeek))) : 0;
+    const isPastWeek = weekOffset < 0;
     const weekDays = TDATA.buildWeekDays(weekOffset);
     const subjFilter = ui.studySubj || "all";
 
@@ -1627,9 +1629,17 @@
         </div>`
       : (() => {
           const allBookings = activeStudyBookings;
-          const weekPicker = `<div class="hh-seg" role="group" aria-label="Выбор недели">
-            <button type="button" data-a="study-week" data-w="0" aria-pressed="${weekOffset === 0}">Эта неделя</button>
-            <button type="button" data-a="study-week" data-w="1" aria-pressed="${weekOffset === 1}">Следующая неделя</button>
+          const weekTitle = weekOffset === 0
+            ? "Эта неделя"
+            : (weekOffset === 1
+              ? "Следующая неделя"
+              : (weekOffset === -1
+                ? "Прошлая неделя"
+                : (weekOffset < -1 ? `${Math.abs(weekOffset)} нед. назад` : `Через ${weekOffset} нед.`)));
+          const weekPicker = `<div class="tc-week-nav${isPastWeek ? " is-past-week" : ""}" role="group" aria-label="Выбор недели">
+            <button type="button" class="tc-week-arrow" data-a="study-week-step" data-delta="-1" aria-label="Предыдущая неделя" title="Прошлая неделя">‹</button>
+            <button type="button" class="tc-week-title-btn" data-a="study-week" data-w="0" title="Вернуться на эту неделю"><b>${esc(weekTitle)}</b><span class="small muted">${esc(weekRange)}</span></button>
+            <button type="button" class="tc-week-arrow" data-a="study-week-step" data-delta="1" aria-label="Следующая неделя" title="Следующая неделя">›</button>
           </div>`;
           const dayGroups = [];
           const weekRows = [];
@@ -1676,11 +1686,11 @@
           const selectedIso = selectedGroup ? selectedGroup.day.iso : (weekDays[0] && weekDays[0].iso) || "";
           const activeLessons = selectedGroup ? selectedGroup.lessons : [];
 
-          const daysStripHTML = `<div class="study-week-days" role="group" aria-label="Дни недели и количество уроков">
+          const daysStripHTML = `<div class="study-week-days${isPastWeek ? " is-past-week" : ""}" data-week-swipe="study" role="group" aria-label="Дни недели и количество уроков">
             ${dayGroups.map((g) => {
               const cnt = g.lessons.length;
               const isOn = g.day.iso === selectedIso;
-              return `<button type="button" class="study-week-day-btn${isOn ? " on" : ""}${cnt > 0 ? " has-lessons" : ""}" data-a="study-day-pick" data-iso="${esc(g.day.iso)}" aria-pressed="${isOn}">
+              return `<button type="button" class="study-week-day-btn${isOn ? " on" : ""}${cnt > 0 ? " has-lessons" : ""}${isPastWeek ? " is-past" : ""}" data-a="study-day-pick" data-iso="${esc(g.day.iso)}" aria-pressed="${isOn}">
                 <span class="swd-wd">${esc(g.day.wd)}</span>
                 <span class="swd-num num">${g.day.num}</span>
                 ${cnt > 0 ? `<span class="swd-cnt num">${cnt}</span>` : `<span class="swd-dot" aria-hidden="true"></span>`}
@@ -1688,7 +1698,33 @@
             }).join("")}
           </div>`;
 
-          const dayLessonsHTML = activeLessons.length
+          const dayLessonsHTML = isPastWeek
+            ? (activeLessons.length
+              ? `<div class="study-day-cards">${activeLessons.map((row) => {
+                  const bk = row.booking;
+                  const isWeekly = bk.schedulePlan && bk.schedulePlan.weekly !== false;
+                  return `<article class="study-lesson-card is-past" data-booking-id="${esc(bk.id)}">
+                    <div class="study-lesson-time-row">
+                      <b class="num" style="font-size:15px">Урок в ${esc(row.hour)}</b>
+                      <span class="small muted">${esc(row.dayShort)} · ${esc(row.format)}</span>
+                    </div>
+                    <div class="study-lesson-pills">
+                      <span class="chip tc-past-chip">✓ Проведён</span>
+                      ${isWeekly ? `<span class="chip tc-past-chip">Каждую неделю</span>` : ""}
+                    </div>
+                    <div class="tutor-name-line">
+                      ${tutorAvatarHTML(row.tutor)}
+                      <div class="tutor-person-meta">
+                        <div class="tutor-title-inline">
+                          <b class="tutor-person-name">${esc(row.tutorName)}</b>
+                        </div>
+                        <span class="small muted">${esc(bk.exam || "ЕГЭ")} · ${esc(row.subjectName)} · ${row.isTrial ? `Пробный ${row.offerPrice.toLocaleString("ru-RU")} ₽` : `${row.offerPrice.toLocaleString("ru-RU")} ₽/ч`}</span>
+                      </div>
+                    </div>
+                  </article>`;
+                }).join("")}</div>`
+              : `<div class="empty is-past"><b>На ${esc(selectedGroup ? selectedGroup.day.fullLabel : "этот день")} прошедших занятий нет</b><span>Листайте дни или недели влево и вправо, чтобы посмотреть историю.</span></div>`)
+            : (activeLessons.length
             ? `<div class="study-day-cards">${activeLessons.map((row) => {
                 const bk = row.booking;
                 const accepted = bk.status === "accepted";
@@ -1727,10 +1763,10 @@
                   <button type="button" class="btn ghost sm study-cancel-btn" data-a="mkt-cancel-book" data-id="${esc(bk.id)}">Отменить занятие</button>
                 </article>`;
               }).join("")}</div>`
-            : `<div class="empty"><b>На ${esc(selectedGroup ? selectedGroup.day.fullLabel : "этот день")} занятий нет</b><span>Выберите другой день с цифрой выше или подберите преподавателя в «Поиске».</span></div>`;
+            : `<div class="empty"><b>На ${esc(selectedGroup ? selectedGroup.day.fullLabel : "этот день")} занятий нет</b><span>Выберите другой день с цифрой выше или подберите преподавателя в «Поиске».</span></div>`);
 
           const billing = computeStudyWeekBilling(st, weekRows, weekOffset);
-          const billingBannerHTML = studyBillingNoticeHTML(billing, ui, weekOffset);
+          const billingBannerHTML = isPastWeek ? "" : studyBillingNoticeHTML(billing, ui, weekOffset);
 
           return `${billingBannerHTML}
           <section class="card pad stack study-cal-card" id="study-week-strip">
@@ -1739,10 +1775,13 @@
             </div>
             ${weekPicker}
             ${daysStripHTML}
-            <div class="study-day-panel">
+            <div class="study-day-panel${isPastWeek ? " is-past-week" : ""}">
               <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
                 <b>${esc(selectedGroup ? selectedGroup.day.fullLabel : "")}</b>
-                <span class="chip num">${activeLessons.length} ${plural(activeLessons.length, "урок", "урока", "уроков")}</span>
+                <div class="row" style="gap:6px;align-items:center">
+                  ${isPastWeek ? `<span class="chip tc-past-chip">Прошедшая неделя</span>` : ""}
+                  <span class="chip num">${activeLessons.length} ${plural(activeLessons.length, "урок", "урока", "уроков")}</span>
+                </div>
               </div>
               ${dayLessonsHTML}
             </div>
