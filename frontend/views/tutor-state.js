@@ -388,6 +388,7 @@
       leadsMineOnly: false,
       telemostUrl: "",
       lessonAutoNotify: {},
+      lessonPayments: {},
       waSettings: {
         enabled: true,
         lead: "1h",
@@ -748,6 +749,10 @@
       telegram: bk.telegram || "",
       maxHandle: bk.maxHandle || "",
       schedulePlan: bk.schedulePlan || null,
+      paid: Boolean(bk.paid),
+      paidAt: Number(bk.paidAt) || 0,
+      payRemindedAt: Number(bk.payRemindedAt) || 0,
+      payRemindCount: Number(bk.payRemindCount) || 0,
       status: bk.status || "pending",
       createdLabel: "С витрины /market"
     }));
@@ -949,6 +954,37 @@
     </div>`;
   }
 
+  function getLessonPaymentState(st, req) {
+    const id = (req && req.id) || "";
+    const map = (st && st.lessonPayments && typeof st.lessonPayments === "object") ? st.lessonPayments : {};
+    const rec = id && map[id] && typeof map[id] === "object" ? map[id] : null;
+    const paid = rec ? Boolean(rec.paid) : Boolean(req && req.paid);
+    const paidAt = rec ? (Number(rec.paidAt) || 0) : (Number(req && req.paidAt) || 0);
+    const remindedAt = rec ? (Number(rec.remindedAt) || 0) : (Number(req && req.payRemindedAt) || 0);
+    const remindCount = rec ? (Number(rec.remindCount) || 0) : (Number(req && req.payRemindCount) || 0);
+    return { paid, paidAt, remindedAt, remindCount };
+  }
+
+  function renderLessonPaymentHTML(st, req, stu) {
+    const reqId = (req && req.id) || "";
+    const stuId = (stu && stu.id) || "";
+    const rate = Number(req && (req.counterPrice || req.offerPrice)) || (st && st.profile ? st.profile.price : 1200) || 1200;
+    const pay = getLessonPaymentState(st, req);
+    const subText = pay.paid
+      ? (pay.paidAt ? `Подтверждено · ${esc(formatTimestamp(pay.paidAt))}` : "Оплата подтверждена")
+      : (pay.remindedAt ? `Напоминание отправлено · ${esc(formatTimestamp(pay.remindedAt))}` : "Ожидается оплата перед уроком");
+    return `<div class="tc-pay-box${pay.paid ? " is-paid" : " is-unpaid"}" role="group" aria-label="Статус оплаты урока">
+      <div class="tc-pay-top">
+        <div class="tc-pay-info">
+          <span class="tc-pay-title"><i class="tc-pay-dot" aria-hidden="true"></i><b>${pay.paid ? `Оплачено · ${rate.toLocaleString("ru-RU")} ₽` : `Не оплачено · ${rate.toLocaleString("ru-RU")} ₽`}</b></span>
+          <span class="tc-pay-sub">${subText}</span>
+        </div>
+        <button type="button" class="tc-pay-mark-btn${pay.paid ? " is-paid" : ""}" data-a="tc-pay-toggle" data-id="${esc(reqId)}" aria-pressed="${pay.paid}">${pay.paid ? "✓ Оплачено" : "Отметить оплату"}</button>
+      </div>
+      ${pay.paid ? "" : `<button type="button" class="btn soft sm tc-pay-notify-btn${pay.remindedAt ? " is-sent" : ""}" data-a="tc-pay-remind" data-id="${esc(reqId)}" data-stu-id="${esc(stuId)}">${icon("bell")}<span>${pay.remindedAt ? "Напомнить об оплате ещё раз" : "Уведомить об оплате"}</span></button>`}
+    </div>`;
+  }
+
   function getCtx() { return _ctx; }
 
   EGE._tutorCab = Object.assign(EGE._tutorCab || {}, {
@@ -961,7 +997,7 @@
     formatPhone, formatTelegram, formatCardMask, normalizeChannelList, normalizeLeadList,
     copyStr, formatTimestamp, defaultState, tState, saveState,
     markSwitchAnim, consumeSwitchAnimClass,
-    ensureTelemostUrl, resolveLessonContacts, getLessonNotifyConfig, calcLessonSplit, renderLessonNotifyHTML,
+    ensureTelemostUrl, resolveLessonContacts, getLessonNotifyConfig, getLessonPaymentState, calcLessonSplit, renderLessonNotifyHTML, renderLessonPaymentHTML,
     checkAutoBumpDue, formatCountdown, autoBumpRemainingMs, manualBumpRemainingMs,
     ensureCountdownTimer, clampStep, profileCompleteness, buildMarketTutorPayload,
     syncPublishedTutor, dayDowFromLabel, syncedRequests, findReq, updateReq,

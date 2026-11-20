@@ -2394,6 +2394,40 @@
       afterAcceptHtml.includes('data-a="tc-sched-accept" data-id="tc-req-3"'),
       "expected tc-req-accept to render icon-only hold-to-add logos, Telemost join CTA, synced Вкл + default 24h+1h blue pills, and Bot schedule card"
     );
+    assert(
+      afterAcceptHtml.includes("tc-pay-box is-unpaid") &&
+      afterAcceptHtml.includes("Не оплачено") &&
+      afterAcceptHtml.includes('data-a="tc-pay-remind" data-id="tc-req-1"') &&
+      afterAcceptHtml.includes("Уведомить об оплате") &&
+      afterAcceptHtml.includes('data-a="tc-pay-toggle" data-id="tc-req-1"'),
+      "expected accepted card to display unpaid status and Уведомить об оплате button"
+    );
+    clickAction(env5, { a: "tc-pay-remind", id: "tc-req-1", stuId: "st-alina" });
+    await flushMicrotasks(1);
+    const payRemindedHtml = env5.elements.get("main").innerHTML;
+    assert(
+      payRemindedHtml.includes("Напоминание отправлено") &&
+      payRemindedHtml.includes("Напомнить об оплате ещё раз") &&
+      env5.elements.get("toast").innerHTML.includes("Уведомление об оплате отправлено"),
+      "expected tc-pay-remind to mark reminder sent and trigger side notification"
+    );
+    clickAction(env5, { a: "tc-pay-toggle", id: "tc-req-1" });
+    await flushMicrotasks(1);
+    const payPaidHtml = env5.elements.get("main").innerHTML;
+    assert(
+      payPaidHtml.includes('data-a="tc-pay-toggle" data-id="tc-req-1" aria-pressed="true"') &&
+      payPaidHtml.includes("tc-pay-box is-paid") &&
+      payPaidHtml.includes("Оплачено") &&
+      !payPaidHtml.includes('data-a="tc-pay-remind" data-id="tc-req-1"') &&
+      env5.elements.get("toast").innerHTML.includes("Оплата отмечена"),
+      "expected tc-pay-toggle to mark lesson as paid and hide remind button"
+    );
+    clickAction(env5, { a: "tc-pay-toggle", id: "tc-req-1" });
+    await flushMicrotasks(1);
+    assert(
+      env5.elements.get("main").innerHTML.includes('data-a="tc-pay-remind" data-id="tc-req-1"'),
+      "expected second tc-pay-toggle to restore unpaid state"
+    );
     clickAction(env5, { a: "tc-lesson-lead-toggle", id: "tc-req-1", stuId: "st-alina", v: "15m" });
     await flushMicrotasks(1);
     const all3LeadsHtml = env5.elements.get("main").innerHTML;
@@ -2535,9 +2569,22 @@
       calOnlySlice.includes("is-icon-only") &&
       calOnlySlice.includes("Автоуведомление") &&
       calOnlySlice.includes('data-a="tc-lesson-lead-toggle"') &&
+      calOnlySlice.includes("tc-pay-chip is-unpaid") &&
+      calOnlySlice.includes("Не оплачено") &&
+      calOnlySlice.includes('data-a="tc-pay-remind"') &&
+      calOnlySlice.includes("tc-pay-toggle") &&
       !calOnlySlice.includes('data-a="tc-bump"'),
-      "expected unified Ученики calendar strip matching student calendar with confirmed student cards, Telemost button, icon-only logos, auto-notify pills, and 7 day buttons"
+      "expected unified Ученики calendar strip matching student calendar with confirmed student cards, Telemost button, icon-only logos, payment badge + notify button, auto-notify pills, and 7 day buttons"
     );
+    clickAction(env5, { a: "tc-pay-toggle", id: "tc-req-1" });
+    await flushMicrotasks(2);
+    assert(
+      env5.elements.get("main").innerHTML.includes("tc-pay-chip is-paid") &&
+      env5.elements.get("main").innerHTML.includes("✓ Оплачено"),
+      "expected toggling payment in Ученики calendar to flip top chip to Оплачено"
+    );
+    clickAction(env5, { a: "tc-pay-toggle", id: "tc-req-1" });
+    await flushMicrotasks(2);
     clickAction(env5, { a: "tc-cal-open-add", hour: "11:00" });
     await flushMicrotasks(2);
     assert(env5.elements.get("main").innerHTML.includes("всего 1%") && env5.elements.get("main").innerHTML.includes('id="tc-add-fee-note"'), "expected manual booking form to advertise 1% commission and live 99% payout note");

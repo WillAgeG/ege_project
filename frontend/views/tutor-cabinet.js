@@ -23,7 +23,7 @@
     formatPhone, formatTelegram, formatCardMask, normalizeChannelList, normalizeLeadList,
     copyStr, formatTimestamp, defaultState, tState, saveState,
     markSwitchAnim, consumeSwitchAnimClass,
-    ensureTelemostUrl, resolveLessonContacts, getLessonNotifyConfig, renderLessonNotifyHTML,
+    ensureTelemostUrl, resolveLessonContacts, getLessonNotifyConfig, getLessonPaymentState, renderLessonNotifyHTML, renderLessonPaymentHTML,
     checkAutoBumpDue, formatCountdown, autoBumpRemainingMs, manualBumpRemainingMs,
     ensureCountdownTimer, ensureRealtimeConnected, clampStep, profileCompleteness,
     buildMarketTutorPayload, syncPublishedTutor, dayDowFromLabel, syncedRequests,
@@ -163,6 +163,7 @@
           : { entity: { id: req.id, name: req.studentName, whatsapp: req.whatsapp || "79142100511", telegram: req.telegram || "", maxHandle: req.maxHandle || "" }, available: null };
         return `<div class="stack" style="gap:8px;width:100%">
           ${renderTutorScheduleBotHTML(req, st)}
+          ${typeof renderLessonPaymentHTML === "function" ? renderLessonPaymentHTML(st, req, stuMatch) : ""}
           ${tmUrl ? `<a class="btn soft sm bid-telemost-join" href="${esc(tmUrl)}" target="_blank" rel="noopener noreferrer">${icon("video")}<span>Подключиться к Яндекс Телемосту</span></a>` : ""}
           ${EGE.kit && typeof EGE.kit.messengerLinksHTML === "function"
             ? EGE.kit.messengerLinksHTML({
@@ -1074,6 +1075,73 @@
       const who = findReq(id);
       if (typeof getCtx().notifySide === "function") {
         getCtx().notifySide("Чат с учеником", who ? `Открыт диалог с ${who.studentName} (${who.dayLabel}, ${who.hour})` : "Сообщение ученику подготовлено");
+      }
+      return true;
+    }
+
+    if (act === "tc-pay-remind") {
+      const who = findReq(id);
+      if (!st.lessonPayments || typeof st.lessonPayments !== "object") st.lessonPayments = {};
+      const prev = typeof getLessonPaymentState === "function" ? getLessonPaymentState(st, who || { id }) : { paid: false, paidAt: 0, remindedAt: 0, remindCount: 0 };
+      const now = Date.now();
+      st.lessonPayments[id] = {
+        paid: prev.paid,
+        paidAt: prev.paidAt,
+        remindedAt: now,
+        remindCount: (prev.remindCount || 0) + 1
+      };
+      updateReq(id, (r) => {
+        r.payRemindedAt = now;
+        r.payRemindCount = (Number(r.payRemindCount) || 0) + 1;
+      });
+      saveState();
+      const amount = Number(who && (who.counterPrice || who.offerPrice)) || st.profile.price || 1200;
+      publishRtUpdate(
+        "payment.reminder",
+        "Уведомление об оплате",
+        who ? `${who.studentName} · ${amount.toLocaleString("ru-RU")} ₽` : "Напоминание об оплате",
+        { requestId: id, remindedAt: now }
+      );
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      if (typeof getCtx().notifySide === "function") {
+        getCtx().notifySide(
+          "Уведомление об оплате отправлено",
+          who ? `${who.studentName} получит напоминание оплатить ${amount.toLocaleString("ru-RU")} ₽ (${who.dayLabel} в ${who.hour})` : "Напоминание отправлено ученику"
+        );
+      }
+      return true;
+    }
+
+    if (act === "tc-pay-toggle") {
+      const who = findReq(id);
+      if (!st.lessonPayments || typeof st.lessonPayments !== "object") st.lessonPayments = {};
+      const prev = typeof getLessonPaymentState === "function" ? getLessonPaymentState(st, who || { id }) : { paid: false, paidAt: 0, remindedAt: 0, remindCount: 0 };
+      const nextPaid = !prev.paid;
+      const now = Date.now();
+      st.lessonPayments[id] = {
+        paid: nextPaid,
+        paidAt: nextPaid ? now : 0,
+        remindedAt: prev.remindedAt,
+        remindCount: prev.remindCount
+      };
+      updateReq(id, (r) => {
+        r.paid = nextPaid;
+        r.paidAt = nextPaid ? now : 0;
+      });
+      saveState();
+      const amount = Number(who && (who.counterPrice || who.offerPrice)) || st.profile.price || 1200;
+      publishRtUpdate(
+        "payment.updated",
+        nextPaid ? "Оплата подтверждена" : "Статус оплаты снят",
+        who ? `${who.studentName} · ${nextPaid ? "Оплачено" : "Не оплачено"}` : "",
+        { requestId: id, paid: nextPaid }
+      );
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      if (typeof getCtx().notifySide === "function") {
+        getCtx().notifySide(
+          nextPaid ? "Оплата отмечена" : "Статус: не оплачено",
+          who ? `${who.studentName} · ${amount.toLocaleString("ru-RU")} ₽` : ""
+        );
       }
       return true;
     }
