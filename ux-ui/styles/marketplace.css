@@ -1941,13 +1941,63 @@ html.reduced-motion .hero-float-drift,
   flex: 1 1 185px; min-height: 34px; padding: 0 11px; font-size: 12.5px; justify-content: center;
   background: var(--surface); border-color: color-mix(in srgb, var(--gold) 36%, var(--line)); color: var(--ink);
 }
-.tc-bump-manual-btn.is-confirmed { border-color: color-mix(in srgb, var(--confirm) 45%, var(--line)); color: var(--confirm); }
+.btn.tc-bump-manual-btn.is-confirmed,
+.btn.tc-bump-manual-btn.is-confirmed:disabled {
+  background: var(--confirm-soft);
+  border-color: color-mix(in srgb, var(--confirm) 52%, var(--line));
+  color: var(--confirm-hover);
+  -webkit-text-fill-color: var(--confirm-hover);
+  opacity: 1;
+  box-shadow: none;
+  cursor: default;
+}
+.btn.tc-bump-manual-btn.is-confirmed b {
+  color: var(--confirm-hover);
+  -webkit-text-fill-color: var(--confirm-hover);
+}
 .tc-bump-more-btn { flex: 0 0 auto; min-height: 34px; padding: 0 11px; font-size: 12.5px; }
 .tc-bump-meta-list { gap: 4px; font-size: 12.5px; color: var(--muted); }
 .tc-bump-chip { white-space: normal; line-height: 1.3; }
 .tc-bump-hours-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .tc-bump-hours-grid .chip-btn { justify-content: center; width: 100%; padding-inline: 6px; font-size: 12px; white-space: nowrap; }
 .tc-metrics-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; min-width: 0; }
+.tc-exp-edu-grid { display: grid; grid-template-columns: minmax(105px, 130px) minmax(0, 1fr); gap: 10px; min-width: 0; }
+.tc-messengers-box {
+  display: grid; gap: 10px; padding: 12px; border-radius: 14px;
+  background: var(--surface-2); border: 1px solid var(--line); min-width: 0;
+}
+.tc-messengers-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.tc-messengers-title { font-size: 13.5px; font-weight: 700; color: var(--ink); }
+.tc-messengers-count {
+  font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--line); color: var(--muted);
+}
+.tc-messengers-note { margin: 0; font-size: 12.5px; line-height: 1.4; color: var(--ink-2); }
+.tc-messengers-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; min-width: 0; }
+.tc-msgr-card {
+  display: grid; gap: 8px; padding: 10px; border-radius: 12px;
+  background: var(--surface); border: 1px solid var(--line); min-width: 0;
+}
+.tc-msgr-card.is-linked { border-color: color-mix(in srgb, var(--confirm) 38%, var(--line)); }
+.tc-msgr-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0; }
+.tc-msgr-brand { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: var(--ink); min-width: 0; }
+.tc-msgr-ico {
+  width: 24px; height: 24px; border-radius: 8px;
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+}
+.tc-msgr-ico svg { width: 14px; height: 14px; }
+.tc-msgr-ico.is-tg { background: color-mix(in srgb, #229ed9 14%, transparent); color: #229ed9; }
+.tc-msgr-ico.is-wa { background: var(--confirm-soft); color: var(--confirm); }
+.tc-msgr-ico.is-max { background: color-mix(in srgb, #6c47ff 14%, transparent); color: #6c47ff; }
+.tc-msgr-ico.is-vk { background: color-mix(in srgb, #0077ff 14%, transparent); color: #0077ff; }
+.tc-msgr-status {
+  font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 999px;
+  background: var(--surface-2); color: var(--muted); white-space: nowrap;
+}
+.tc-msgr-status.is-linked { background: var(--confirm-soft); color: var(--confirm-hover); }
+.tc-msgr-row { display: grid; gap: 6px; min-width: 0; }
+.tc-msgr-row .field { margin: 0; gap: 0; }
+.tc-msgr-act { width: 100%; justify-content: center; min-height: 32px; font-size: 12px; }
 .tc-profile-form .hh-seg.equal button { white-space: normal; line-height: 1.25; padding: 8px 10px; text-align: center; }
 .tc-hh-meter {
   height: 6px; border-radius: 999px; background: var(--surface-2);
@@ -2251,7 +2301,9 @@ html.reduced-motion .hero-float-drift,
   font-weight: 600;
 }
 @media (max-width: 680px) {
-  .tc-two-col { grid-template-columns: minmax(0, 1fr); }
+  .tc-two-col,
+  .tc-exp-edu-grid,
+  .tc-messengers-grid { grid-template-columns: minmax(0, 1fr); }
   .tc-bar-chart { gap: 2px; padding: 8px 6px; }
   .tc-bar-chart.is-scroll { gap: 6px; padding: 8px 10px; }
   .tc-bar-chart.is-range { padding: 10px 6px; }

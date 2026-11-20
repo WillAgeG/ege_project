@@ -412,6 +412,8 @@
         timezone: "UTC+9",
         whatsapp: "+7 (914) 210-01-99",
         telegram: "@anna_sokolova_ege",
+        maxHandle: "",
+        vk: "",
         education: "СВФУ им. М.К. Аммосова · Педагог-исследователь",
         expYears: 6,
         avgScore: 86,
@@ -495,8 +497,15 @@
       _cache.waSettings.leads = normalizeLeadList(saved.waSettings && saved.waSettings.leads);
       if (!_cache.lessonAutoNotify || typeof _cache.lessonAutoNotify !== "object") _cache.lessonAutoNotify = {};
       if (typeof _cache.telemostUrl !== "string") _cache.telemostUrl = "";
-      _cache.profile.whatsapp = formatPhone(_cache.profile.whatsapp || def.profile.whatsapp);
-      _cache.profile.telegram = formatTelegram(_cache.profile.telegram || def.profile.telegram);
+      const savedProf = saved.profile && typeof saved.profile === "object" ? saved.profile : null;
+      _cache.profile.whatsapp = savedProf && Object.prototype.hasOwnProperty.call(savedProf, "whatsapp")
+        ? (savedProf.whatsapp ? formatPhone(savedProf.whatsapp) : "")
+        : formatPhone(def.profile.whatsapp);
+      _cache.profile.telegram = savedProf && Object.prototype.hasOwnProperty.call(savedProf, "telegram")
+        ? (savedProf.telegram ? formatTelegram(savedProf.telegram) : "")
+        : formatTelegram(def.profile.telegram);
+      if (typeof _cache.profile.maxHandle !== "string") _cache.profile.maxHandle = "";
+      if (typeof _cache.profile.vk !== "string") _cache.profile.vk = "";
       if (typeof _cache.profile.firstLessonGuarantee !== "boolean") {
         _cache.profile.firstLessonGuarantee = !!(
           (saved.profile && (saved.profile.trialMode === "free" || saved.profile.trialFree === true)) ||
@@ -685,14 +694,19 @@
 
   function profileCompleteness(p, slots) {
     const totalSlots = Object.keys(slots || {}).reduce((s, k) => s + (Array.isArray(slots[k]) ? slots[k].length : 0), 0);
+    const hasMessenger =
+      String(p.whatsapp || "").replace(/\D+/g, "").length >= 10 ||
+      String(p.telegram || "").trim().length >= 3 ||
+      String(p.maxHandle || "").trim().length >= 2 ||
+      String(p.vk || "").trim().length >= 2;
     const checks = [
       { ok: String(p.name || "").trim().length >= 3, tip: "укажите имя и фамилию" },
       { ok: String(p.headline || "").trim().length >= 8, tip: "добавьте заголовок специализации" },
       { ok: String(p.education || "").trim().length >= 6, tip: "укажите вуз или квалификацию" },
-      { ok: Number(p.avgScore) >= 60, tip: "заполните средний балл учеников" },
+      { ok: Number(p.expYears) >= 1, tip: "укажите стаж преподавания (лет)" },
       { ok: String(p.customSkills || "").trim().length >= 8, tip: "впишите ключевые навыки подготовки" },
       { ok: String(p.bio || "").trim().length >= 30, tip: "опишите подход к подготовке (30+ симв.)" },
-      { ok: String(p.whatsapp || "").replace(/\D+/g, "").length >= 10, tip: "добавьте WhatsApp / контакт" },
+      { ok: hasMessenger, tip: "привяжите мессенджер (Telegram, WhatsApp, MAX или ВК) для уведомлений" },
       { ok: totalSlots >= 4, tip: "откройте минимум 4 окна 10:00–20:00" }
     ];
     const done = checks.filter((c) => c.ok).length;
@@ -718,7 +732,6 @@
       if (Array.isArray(st.slots[k]) && st.slots[k].length) cleanSlots[Number(k)] = st.slots[k].slice();
     });
     const years = Math.max(1, Number(p.expYears) || 1);
-    const avg = Math.max(50, Math.min(100, Number(p.avgScore) || 84));
     const isPro = p.price >= 1400;
     const customBadges = Array.isArray(p.customBadges)
       ? p.customBadges.map((b) => String(b || "").trim().slice(0, 36)).filter(Boolean).slice(0, 2)
@@ -737,8 +750,6 @@
       formats: Array.isArray(p.formats) && p.formats.length ? p.formats.slice() : ["Онлайн"],
       city: p.city || "Якутск",
       timezone: p.timezone || "UTC+9",
-      whatsapp: String(p.whatsapp || "79142100199").replace(/\D+/g, "") || "79142100199",
-      telegram: p.telegram || "",
       price: p.price != null ? Number(p.price) : 1200,
       minFair: Math.min(p.price != null ? Number(p.price) : 1200, p.minFair != null ? Number(p.minFair) : 900),
       firstLessonGuarantee: p.firstLessonGuarantee !== false,
@@ -750,12 +761,14 @@
       qualBadge: isPro ? "Профиль · Эксперт" : "Проверенная анкета",
       rating: 4.9,
       reviews: 18 + Math.min(20, Number(p.highScorers) || 0),
-      exp: `${years} ${plural(years, "год", "года", "лет")} · ср. балл ${avg}`,
+      exp: `Стаж ${years} ${plural(years, "год", "года", "лет")}`,
       tag: p.headline || customSkillsText || "Подготовка ФИПИ",
       source: "Кабинет",
       fromCabinet: true,
       whatsapp: p.whatsapp || "",
       telegram: p.telegram || "",
+      maxHandle: p.maxHandle || "",
+      vk: p.vk || "",
       verified: true,
       bumpedToday: !!(st.bumpedToday || st.autoBump24h),
       bumpText: st.autoBump24h ? `Автоподнятие 24 ч (${st.autoBumpHour})` : (st.bumpedToday ? "Поднята сегодня" : "Ваша анкета"),

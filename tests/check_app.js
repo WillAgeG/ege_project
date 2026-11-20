@@ -2556,8 +2556,40 @@
       tcProfHtml.includes("Без фото") &&
       tcProfHtml.includes("Якутск") &&
       tcProfHtml.includes("Москва") &&
-      tcProfHtml.includes("UTC+9"),
-      "expected unified Profile builder with compact tc-autobump card, Подробнее toggle, animated switch pill, multi-select + internal ×, photo/no-photo, and Якутск/Москва + UTC"
+      tcProfHtml.includes("UTC+9") &&
+      tcProfHtml.includes('id="tc-hh-exp"') &&
+      tcProfHtml.includes("Стаж, лет") &&
+      tcProfHtml.includes("required") &&
+      !tcProfHtml.includes("Ср. балл ЕГЭ") &&
+      !tcProfHtml.includes('id="tc-hh-avg"') &&
+      !tcProfHtml.includes("На 85+ / 100") &&
+      !tcProfHtml.includes('id="tc-hh-high"') &&
+      tcProfHtml.includes("tc-messengers-box") &&
+      tcProfHtml.includes("сможем настроить уведомления для вас") &&
+      tcProfHtml.includes('id="tc-hh-tg"') &&
+      tcProfHtml.includes('id="tc-hh-wa"') &&
+      tcProfHtml.includes('id="tc-hh-max"') &&
+      tcProfHtml.includes('id="tc-hh-vk"') &&
+      tcProfHtml.includes("ВКонтакте") &&
+      tcProfHtml.includes("MAX") &&
+      tcProfHtml.includes("WhatsApp") &&
+      tcProfHtml.includes("Telegram"),
+      "expected unified Profile builder with required expYears, removed avg/high scores, 4 messenger bindings (TG/WA/MAX/VK), and notification setup hint"
+    );
+    EGE.views.tutorCabinet.handleInput({ dataset: { tc: "vk" }, value: "vk.com/anna_ege" });
+    clickAction(env5, { a: "tc-messenger-link", ch: "vk" });
+    await flushMicrotasks(1);
+    assert(
+      globalThis.EGE._tutorCab.tState().profile.vk === "vk.com/anna_ege" &&
+      env5.elements.get("toast").innerHTML.includes("ВКонтакте") &&
+      env5.elements.get("toast").innerHTML.includes("сможем настроить уведомления"),
+      "expected linking ВКонтакте in tutor profile to persist handle and confirm notifications setup"
+    );
+    clickAction(env5, { a: "tc-messenger-unlink", ch: "vk" });
+    await flushMicrotasks(1);
+    assert(
+      globalThis.EGE._tutorCab.tState().profile.vk === "",
+      "expected unlinking ВКонтакте to clear handle in profile"
     );
     clickAction(env5, { a: "tc-bump-details-toggle" });
     await flushMicrotasks(2);
@@ -2568,7 +2600,18 @@
     assert(!env5.elements.get("main").innerHTML.includes('data-a="tc-autobump-hour"') && env5.elements.get("main").innerHTML.includes("Подробнее"), "expected second tc-bump-details-toggle click to collapse details");
     clickAction(env5, { a: "tc-bump" });
     await flushMicrotasks(2);
-    assert(env5.elements.get("main").innerHTML.includes("✓ Поднята · через") && env5.elements.get("main").innerHTML.includes("data-tc-manual-countdown") && env5.elements.get("toast").innerHTML.includes("Анкета поднята в топ"), "expected tc-bump on profile tab to enter 4h cooldown state with side toast");
+    const bumpedProfHtml = env5.elements.get("main").innerHTML;
+    const bumpCssText = readFileText("frontend/styles/marketplace.css");
+    assert(
+      bumpedProfHtml.includes("✓ Поднята · через") &&
+      bumpedProfHtml.includes("data-tc-manual-countdown") &&
+      !bumpedProfHtml.includes("btn soft sm tc-bump-manual-btn is-confirmed") &&
+      bumpCssText.includes(".btn.tc-bump-manual-btn.is-confirmed:disabled") &&
+      bumpCssText.includes("-webkit-text-fill-color") &&
+      bumpCssText.includes("opacity: 1") &&
+      env5.elements.get("toast").innerHTML.includes("Анкета поднята в топ"),
+      "expected tc-bump on profile tab to enter legible high-contrast 4h cooldown state without .btn.soft override"
+    );
     clickAction(env5, { a: "tc-bump" });
     await flushMicrotasks(2);
     assert(env5.elements.get("toast").innerHTML.includes("Повторить можно через"), "expected immediate second manual bump within 4h to show cooldown message");

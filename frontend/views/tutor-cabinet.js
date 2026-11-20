@@ -303,7 +303,7 @@
         </div>
 
         <div class="tc-bump-actions">
-          <button type="button" class="btn soft sm tc-bump-manual-btn${mRem > 0 ? " is-confirmed" : ""}" data-a="tc-bump"${mRem > 0 ? " disabled" : ""}>
+          <button type="button" class="btn ${mRem > 0 ? "" : "soft "}sm tc-bump-manual-btn${mRem > 0 ? " is-confirmed" : ""}" data-a="tc-bump"${mRem > 0 ? " disabled" : ""}>
             <span>${mRem > 0 ? `✓ Поднята · через <b class="num" data-tc-manual-countdown>${formatCountdown(mRem)}</b>` : "Поднять анкету (раз в 4 ч)"}</span>
           </button>
           <button type="button" class="btn ghost sm tc-bump-more-btn" data-a="tc-bump-details-toggle" aria-expanded="${!!st.bumpDetailsOpen}">${st.bumpDetailsOpen ? "Скрыть" : "Подробнее"}</button>
@@ -430,38 +430,57 @@
           </div>
         </div>
 
-        <div class="eyebrow" style="margin-top:4px">2. Опыт, результаты и образование</div>
-        <div class="tc-metrics-grid">
+        <div class="eyebrow" style="margin-top:4px">2. Опыт, образование и мессенджеры</div>
+        <div class="tc-exp-edu-grid">
           <div class="field">
-            <label for="tc-hh-exp">Стаж, лет</label>
-            <input class="input num" id="tc-hh-exp" name="expYears" data-tc="expYears" type="number" min="1" max="50" value="${esc(p.expYears || 6)}">
+            <label for="tc-hh-exp">Стаж, лет <span style="color:var(--bad)" aria-hidden="true">*</span></label>
+            <input class="input num" id="tc-hh-exp" name="expYears" data-tc="expYears" type="number" min="1" max="50" required value="${esc(p.expYears || 6)}">
           </div>
-          <div class="field">
-            <label for="tc-hh-avg">Ср. балл ЕГЭ</label>
-            <input class="input num" id="tc-hh-avg" name="avgScore" data-tc="avgScore" type="number" min="40" max="100" value="${esc(p.avgScore || 86)}">
-          </div>
-          <div class="field">
-            <label for="tc-hh-high">На 85+ / 100</label>
-            <input class="input num" id="tc-hh-high" name="highScorers" data-tc="highScorers" type="number" min="0" max="500" value="${esc(p.highScorers || 14)}">
-          </div>
-        </div>
-
-        <div class="tc-two-col">
           <div class="field">
             <label for="tc-hh-edu">Образование и квалификация</label>
             <input class="input" id="tc-hh-edu" name="education" data-tc="education" value="${esc(p.education || "")}" maxlength="90" placeholder="ВУЗ, эксперт ЕГЭ, олимпиадная подготовка">
           </div>
-          ${(EGE.phoneField && typeof EGE.phoneField.phoneFieldHTML === "function")
-            ? EGE.phoneField.phoneFieldHTML({ scope: "tc-hh-wa", id: "tc-hh-wa", name: "whatsapp", label: "Телефон (WhatsApp / MAX)", value: p.whatsapp || "", country: p.whatsappCountry || "RU", extraAttrs: 'data-tc="whatsapp"', compact: true })
-            : `<div class="field">
-                <label for="tc-hh-wa">Телефон (WhatsApp / MAX)</label>
-                <input class="input num" id="tc-hh-wa" name="whatsapp" data-tc="whatsapp" value="${esc(formatPhone(p.whatsapp || ""))}" maxlength="22" placeholder="+7 (914) 000-00-00">
-              </div>`}
         </div>
-        <div class="field">
-          <label for="tc-hh-tg">Telegram (@логин или номер телефона)</label>
-          <input class="input" id="tc-hh-tg" name="telegram" data-tc="telegram" value="${esc(formatTelegram(p.telegram || ""))}" maxlength="36" placeholder="@username или +7 (914) 000-00-00">
-        </div>
+
+        ${(() => {
+          const tgLinked = String(p.telegram || "").trim().length >= 3;
+          const waLinked = String(p.whatsapp || "").replace(/\D+/g, "").length >= 10;
+          const maxLinked = String(p.maxHandle || "").trim().length >= 2;
+          const vkLinked = String(p.vk || "").trim().length >= 2;
+          const linkedCount = [tgLinked, waLinked, maxLinked, vkLinked].filter(Boolean).length;
+          const tgSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 4L3.6 10.9c-.8.3-.8 1.5.1 1.7l4.5 1.4 1.7 5.2c.2.7 1.1.9 1.6.3l2.6-2.8 4.4 3.2c.6.4 1.4.1 1.6-.6L22 5.2c.2-.8-.4-1.4-1-1.2z"/><path d="M8.2 14l9.6-6.2"/></svg>`;
+          const waSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.5 8.5 0 0 1-12.6 7.4L4 20l1.2-4.2A8.5 8.5 0 1 1 21 11.5z"/><path d="M9.5 9.2c.3 2 2 3.8 4 4.3l1.2-.9c.3-.2.7-.2 1 0l1 .6"/></svg>`;
+          const maxSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="14" rx="5"/><path d="M8 14.5v-5l4 3.5 4-3.5v5"/></svg>`;
+          const vkSvg = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.78 17.5c-5.47 0-8.59-3.75-8.72-10h2.74c.09 4.58 2.11 6.52 3.71 6.92V7.5h2.58v3.95c1.58-.17 3.24-1.97 3.8-3.95h2.58c-.43 2.44-2.23 4.24-3.51 4.98 1.28.6 3.33 2.17 4.11 5.02h-2.84c-.61-1.9-2.13-3.37-4.14-3.57v3.57h-.31z"/></svg>`;
+          const waInp = (EGE.phoneField && typeof EGE.phoneField.phoneFieldHTML === "function")
+            ? EGE.phoneField.phoneFieldHTML({ scope: "tc-hh-wa", id: "tc-hh-wa", name: "whatsapp", label: "", value: p.whatsapp || "", country: p.whatsappCountry || "RU", extraAttrs: 'data-tc="whatsapp" aria-label="Номер телефона WhatsApp"', compact: true })
+            : `<div class="field"><input class="input num" id="tc-hh-wa" name="whatsapp" data-tc="whatsapp" aria-label="Номер телефона WhatsApp" value="${esc(formatPhone(p.whatsapp || ""))}" maxlength="22" placeholder="+7 (914) 000-00-00"></div>`;
+          const msgrCard = (ch, cls, svg, title, linked, fieldHtml) => `<div class="tc-msgr-card${linked ? " is-linked" : ""}">
+            <div class="tc-msgr-top">
+              <span class="tc-msgr-brand"><span class="tc-msgr-ico ${cls}">${svg}</span><span>${title}</span></span>
+              <span class="tc-msgr-status${linked ? " is-linked" : ""}">${linked ? "✓ Привязан" : "Не привязан"}</span>
+            </div>
+            <div class="tc-msgr-row">
+              ${fieldHtml}
+              ${linked
+                ? `<button type="button" class="btn ghost sm tc-msgr-act" data-a="tc-messenger-unlink" data-ch="${ch}">Отвязать</button>`
+                : `<button type="button" class="btn soft sm tc-msgr-act" data-a="tc-messenger-link" data-ch="${ch}">Привязать</button>`}
+            </div>
+          </div>`;
+          return `<div class="tc-messengers-box" role="group" aria-label="Привязка мессенджеров и соцсетей для уведомлений">
+            <div class="tc-messengers-head">
+              <span class="tc-messengers-title">Привязать аккаунты</span>
+              <span class="tc-messengers-count num">${linkedCount} из 4</span>
+            </div>
+            <p class="tc-messengers-note">Привяжите Telegram, WhatsApp, MAX или ВКонтакте — так мы сможем настроить уведомления для вас (новые заявки, напоминания об уроках и оплаты).</p>
+            <div class="tc-messengers-grid">
+              ${msgrCard("telegram", "is-tg", tgSvg, "Telegram", tgLinked, `<div class="field"><input class="input" id="tc-hh-tg" name="telegram" data-tc="telegram" aria-label="Telegram логин или телефон" value="${esc(formatTelegram(p.telegram || ""))}" maxlength="36" placeholder="@username или +7..."></div>`)}
+              ${msgrCard("whatsapp", "is-wa", waSvg, "WhatsApp", waLinked, waInp)}
+              ${msgrCard("maxHandle", "is-max", maxSvg, "MAX", maxLinked, `<div class="field"><input class="input" id="tc-hh-max" name="maxHandle" data-tc="maxHandle" aria-label="MAX логин или ссылка" value="${esc(p.maxHandle || "")}" maxlength="48" placeholder="@username или max.ru/..."></div>`)}
+              ${msgrCard("vk", "is-vk", vkSvg, "ВКонтакте", vkLinked, `<div class="field"><input class="input" id="tc-hh-vk" name="vk" data-tc="vk" aria-label="ВКонтакте ссылка или ID" value="${esc(p.vk || "")}" maxlength="64" placeholder="vk.com/username или @id"></div>`)}
+            </div>
+          </div>`;
+        })()}
 
         <div class="field">
           <label for="tc-hh-skills">Ключевые навыки и акценты подготовки (заполните сами)</label>
@@ -631,6 +650,67 @@
           st.autoBump24h ? "Автопродвижение 24 ч включено" : "Автопродвижение на паузе",
           st.autoBump24h ? `Анкета будет автоматически подниматься каждые 24 часа (к ${st.autoBumpHour} Якт).` : "Поднятие доступно вручную кнопкой раз в 4 ч."
         );
+      }
+      return true;
+    }
+
+    if (act === "tc-messenger-link" || act === "tc-messenger-unlink") {
+      const ch = String((el && el.dataset && el.dataset.ch) || "");
+      const metaMap = {
+        telegram: { label: "Telegram", inputId: "tc-hh-tg" },
+        whatsapp: { label: "WhatsApp", inputId: "tc-hh-wa" },
+        maxHandle: { label: "MAX", inputId: "tc-hh-max" },
+        vk: { label: "ВКонтакте", inputId: "tc-hh-vk" }
+      };
+      const meta = metaMap[ch];
+      if (!meta) return false;
+      if (act === "tc-messenger-unlink") {
+        st.profile[ch] = "";
+        syncPublishedTutor(st);
+        saveState();
+        if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+        if (typeof getCtx().notifySide === "function") {
+          getCtx().notifySide(`Аккаунт ${meta.label} отвязан`, "Вы можете привязать его снова в профиле.");
+        }
+        return true;
+      }
+      const domInp = (typeof document !== "undefined" && typeof document.getElementById === "function")
+        ? document.getElementById(meta.inputId)
+        : null;
+      if (domInp && typeof domInp.value === "string" && domInp.value.trim()) {
+        if (ch === "telegram") st.profile.telegram = formatTelegram(domInp.value);
+        else if (ch === "whatsapp") {
+          const pf = EGE.phoneField;
+          if (pf && typeof pf.formatPhoneForCountry === "function") {
+            const stPf = typeof pf.getPhoneFieldState === "function" ? pf.getPhoneFieldState("tc-hh-wa", st.profile.whatsappCountry || "RU") : null;
+            const parsed = pf.formatPhoneForCountry(domInp.value, (stPf && stPf.country) || st.profile.whatsappCountry || "RU");
+            st.profile.whatsapp = parsed.formatted;
+            st.profile.whatsappCountry = parsed.country.code;
+          } else {
+            st.profile.whatsapp = formatPhone(domInp.value);
+          }
+        } else if (ch === "maxHandle") {
+          st.profile.maxHandle = domInp.value.trim().slice(0, 48);
+        } else if (ch === "vk") {
+          st.profile.vk = domInp.value.trim().slice(0, 64);
+        }
+      }
+      const curVal = String(st.profile[ch] || "").trim();
+      const ok = ch === "whatsapp"
+        ? curVal.replace(/\D+/g, "").length >= 10
+        : (ch === "telegram" ? curVal.length >= 3 : curVal.length >= 2);
+      if (!ok) {
+        if (domInp && typeof domInp.focus === "function") domInp.focus();
+        if (typeof getCtx().toast === "function") {
+          getCtx().toast(`Укажите логин, ссылку или номер, чтобы привязать ${meta.label}`);
+        }
+        return true;
+      }
+      syncPublishedTutor(st);
+      saveState();
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      if (typeof getCtx().notifySide === "function") {
+        getCtx().notifySide(`Аккаунт ${meta.label} привязан`, `Мы сможем настроить уведомления для вас в ${meta.label}.`);
       }
       return true;
     }
@@ -1670,10 +1750,12 @@
       const tgFormatted = formatTelegram(el.value);
       if (el.value !== tgFormatted) el.value = tgFormatted;
       p.telegram = tgFormatted;
+    } else if (key === "maxHandle") {
+      p.maxHandle = String(el.value || "").trim().slice(0, 48);
+    } else if (key === "vk") {
+      p.vk = String(el.value || "").trim().slice(0, 64);
     }
     else if (key === "expYears") p.expYears = Math.max(1, Math.min(50, Number(el.value) || 1));
-    else if (key === "avgScore") p.avgScore = Math.max(40, Math.min(100, Number(el.value) || 80));
-    else if (key === "highScorers") p.highScorers = Math.max(0, Math.min(500, Number(el.value) || 0));
     else if (key === "firstLessonGuarantee" || key === "trialFree") {
       p.firstLessonGuarantee = !!el.checked;
       p.trialFree = p.firstLessonGuarantee;
@@ -1888,11 +1970,14 @@
     if (els.headline) p.headline = String(els.headline.value || "").trim().slice(0, 72);
     if (els.city) p.city = String(els.city.value || "").trim().slice(0, 48);
     if (els.education) p.education = String(els.education.value || "").trim().slice(0, 90);
-    if (els.whatsapp) p.whatsapp = formatPhone(String(els.whatsapp.value || "").trim()) || p.whatsapp;
+    if (els.whatsapp) {
+      const ph = formatPhone(String(els.whatsapp.value || "").trim());
+      p.whatsapp = ph && ph.replace(/\D+/g, "").length >= 10 ? ph : "";
+    }
     if (els.telegram) p.telegram = formatTelegram(String(els.telegram.value || "").trim());
+    if (els.maxHandle) p.maxHandle = String(els.maxHandle.value || "").trim().slice(0, 48);
+    if (els.vk) p.vk = String(els.vk.value || "").trim().slice(0, 64);
     if (els.expYears) p.expYears = Math.max(1, Math.min(50, Number(els.expYears.value) || p.expYears));
-    if (els.avgScore) p.avgScore = Math.max(40, Math.min(100, Number(els.avgScore.value) || p.avgScore));
-    if (els.highScorers) p.highScorers = Math.max(0, Math.min(500, Number(els.highScorers.value) || 0));
     if (els.firstLessonGuarantee || els.trialFree) {
       const g = !!(els.firstLessonGuarantee ? els.firstLessonGuarantee.checked : els.trialFree.checked);
       p.firstLessonGuarantee = g;
@@ -1930,6 +2015,8 @@
         timezone: tp.timezone,
         whatsapp: p.whatsapp || "",
         telegram: p.telegram || "",
+        maxHandle: p.maxHandle || "",
+        vk: p.vk || "",
         education: p.education || "",
         expYears: Number(p.expYears) || 3,
         avgScore: Number(p.avgScore) || 85,
