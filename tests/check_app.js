@@ -3129,10 +3129,57 @@
       notifSheetHtml.includes("Заявка на вывод оформлена") &&
       notifSheetHtml.includes("Выведено 5") &&
       notifSheetHtml.includes("notif-inbox-item") &&
+      notifSheetHtml.includes('data-notif-id="') &&
       notifSheetHtml.includes('data-a="notif-remove"') &&
       notifSheetHtml.includes('data-a="notif-clear"') &&
       notifSheetHtml.includes('data-a="notif-close"'),
       "expected clicking top bell button to open notifications sheet with both simultaneous items and close/remove controls"
+    );
+    const makeSwipeCard = (nid) => {
+      const cls = new Set(["notif-inbox-item"]);
+      return {
+        dataset: { notifId: nid },
+        offsetWidth: 320,
+        style: { transform: "", opacity: "", transitionDelay: "" },
+        classList: {
+          add(c) { cls.add(c); },
+          remove(c) { cls.delete(c); },
+          contains(c) { return cls.has(c); }
+        },
+        closest(sel) { return sel && sel.includes(".notif-inbox-item") ? this : null; }
+      };
+    };
+    const snapCard = makeSwipeCard("swipe-snap-noop");
+    env5.emitDoc("touchstart", { target: snapCard, touches: [{ clientX: 180, clientY: 100 }] });
+    env5.emitDoc("touchmove", { touches: [{ clientX: 205, clientY: 102 }], cancelable: true, preventDefault() {} });
+    env5.emitDoc("touchend", {});
+    assert(
+      !snapCard.classList.contains("is-dismiss-left") &&
+      !snapCard.classList.contains("is-dismiss-right") &&
+      !snapCard.classList.contains("is-swiping") &&
+      snapCard.style.transform === "",
+      "expected short horizontal drag on notification card to snap back without dismissing"
+    );
+    const leftCard = makeSwipeCard("swipe-left-noop");
+    env5.emitDoc("touchstart", { target: leftCard, touches: [{ clientX: 200, clientY: 100 }] });
+    env5.emitDoc("touchmove", { touches: [{ clientX: 80, clientY: 103 }], cancelable: true, preventDefault() {} });
+    assert(leftCard.classList.contains("is-swiping") && leftCard.style.transform === "translateX(-120px)", "expected horizontal touch swipe drag to track notification card");
+    env5.emitDoc("touchend", {});
+    assert(leftCard.classList.contains("is-dismiss-left") && !leftCard.classList.contains("is-swiping"), "expected left swipe release past threshold to add is-dismiss-left");
+    const rightCard = makeSwipeCard("swipe-right-noop");
+    env5.emitDoc("pointerdown", { target: rightCard, pointerType: "mouse", button: 0, pointerId: 7, clientX: 120, clientY: 100 });
+    env5.emitDoc("pointermove", { pointerType: "mouse", pointerId: 7, clientX: 245, clientY: 104, cancelable: true, preventDefault() {} });
+    env5.emitDoc("pointerup", { pointerType: "mouse", pointerId: 7, clientX: 245, clientY: 104 });
+    assert(rightCard.classList.contains("is-dismiss-right") && !rightCard.classList.contains("is-swiping"), "expected right pointer swipe release past threshold to add is-dismiss-right");
+    const mktCssText = readFileText("frontend/styles/marketplace.css");
+    const appJsText = readFileText("frontend/app.js");
+    assert(
+      mktCssText.includes(".notif-inbox-item.is-dismiss-left") &&
+      mktCssText.includes(".notif-inbox-item.is-dismiss-right") &&
+      mktCssText.includes("touch-action: pan-y") &&
+      appJsText.includes("clearAllNotifsAnimated") &&
+      appJsText.includes("transitionDelay"),
+      "expected swipe-dismiss CSS classes and staggered cascade clear animation hooks"
     );
     const firstNotifMatch = /data-a="notif-remove" data-id="([^"]+)"/.exec(notifSheetHtml);
     assert(firstNotifMatch, "expected notif-remove button with notification id");

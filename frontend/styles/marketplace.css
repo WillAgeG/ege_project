@@ -1566,6 +1566,7 @@ html.reduced-motion .hero-float-drift,
   .tc-switch-pill.is-anim-off *::after,
   .top-notif-btn svg,
   .top-notif-badge { animation-duration: .01ms !important; }
+  .notif-inbox-item { transition-duration: .01ms !important; }
 }
 
 .hero-banner-top {
@@ -3231,9 +3232,13 @@ body:has(.land-page:not(#brandbook-page)) .main,
   align-items: center;
   gap: 6px;
 }
+[data-sheet-kind="notif"] .sheet-body {
+  overflow-x: hidden;
+}
 .notif-inbox-list {
   display: grid;
   gap: 8px;
+  overflow-x: hidden;
 }
 .notif-inbox-item {
   display: flex;
@@ -3243,6 +3248,23 @@ body:has(.land-page:not(#brandbook-page)) .main,
   border-radius: 14px;
   background: var(--surface-2);
   border: 1px solid var(--line);
+  touch-action: pan-y;
+  user-select: none;
+  will-change: transform, opacity;
+  transition: transform .24s cubic-bezier(.22, 1, .36, 1), opacity .22s ease;
+}
+.notif-inbox-item.is-swiping {
+  transition: none !important;
+}
+.notif-inbox-item.is-dismiss-left {
+  transform: translateX(-115%) rotate(-1.5deg) !important;
+  opacity: 0 !important;
+  pointer-events: none;
+}
+.notif-inbox-item.is-dismiss-right {
+  transform: translateX(115%) rotate(1.5deg) !important;
+  opacity: 0 !important;
+  pointer-events: none;
 }
 .notif-item-dot {
   width: 8px;

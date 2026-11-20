@@ -2055,6 +2055,79 @@
     syncNotifBell(true, false);
     if (ui.notifModal) renderModal();
   }
+  let notifClearing = false;
+  let notifSwipe = null;
+  let notifSuppressClickUntil = 0;
+  function finishRemoveNotif(nid) {
+    const list = Array.isArray(ui.notifications) ? ui.notifications : [];
+    if (!list.some((n) => n.id === nid)) return;
+    ui.notifications = list.filter((n) => n.id !== nid);
+    syncNotifBell(false, ui.notifications.length > 0);
+    if (ui.notifModal) renderModal();
+  }
+  function dismissNotifById(nid, dir, itemEl) {
+    const targetId = String(nid || "");
+    if (!targetId || notifClearing) return;
+    const cardEl = itemEl || (typeof document !== "undefined" && typeof document.querySelector === "function"
+      ? document.querySelector(`.notif-inbox-item[data-notif-id="${targetId}"]`)
+      : null);
+    if (!cardEl || !cardEl.classList) {
+      finishRemoveNotif(targetId);
+      return;
+    }
+    if (cardEl.classList.contains("is-dismiss-left") || cardEl.classList.contains("is-dismiss-right")) return;
+    const sideClass = dir === "right" ? "is-dismiss-right" : "is-dismiss-left";
+    cardEl.classList.remove("is-swiping");
+    cardEl.classList.add(sideClass);
+    if (cardEl.style) {
+      cardEl.style.transform = "";
+      cardEl.style.opacity = "";
+    }
+    setTimeout(() => finishRemoveNotif(targetId), 230);
+  }
+  function clearAllNotifsAnimated() {
+    const list = Array.isArray(ui.notifications) ? ui.notifications : [];
+    if (!list.length) {
+      ui.notifications = [];
+      notifClearing = false;
+      syncNotifBell(false, false);
+      if (ui.notifModal) renderModal();
+      return;
+    }
+    if (notifClearing) return;
+    const items = (typeof document !== "undefined" && typeof document.querySelectorAll === "function")
+      ? Array.from(document.querySelectorAll('[data-sheet-kind="notif"] .notif-inbox-item') || [])
+      : [];
+    if (!items.length) {
+      ui.notifications = [];
+      notifClearing = false;
+      syncNotifBell(false, false);
+      if (ui.notifModal) renderModal();
+      return;
+    }
+    notifClearing = true;
+    const clearingIds = new Set(list.map((n) => n.id));
+    let maxDelay = 0;
+    items.forEach((el, idx) => {
+      const delay = Math.min(idx * 45, 270);
+      if (delay > maxDelay) maxDelay = delay;
+      if (el.style) {
+        el.style.transitionDelay = `${delay}ms`;
+        el.style.transform = "";
+        el.style.opacity = "";
+      }
+      if (el.classList) {
+        el.classList.remove("is-swiping", "is-dismiss-right");
+        el.classList.add("is-dismiss-left");
+      }
+    });
+    setTimeout(() => {
+      ui.notifications = (Array.isArray(ui.notifications) ? ui.notifications : []).filter((n) => !clearingIds.has(n.id));
+      notifClearing = false;
+      syncNotifBell(false, ui.notifications.length > 0);
+      if (ui.notifModal) renderModal();
+    }, 240 + maxDelay);
+  }
   function dismissSideToast(targetEl) {
     const el = targetEl || $("#toast");
     if (!el) return;
@@ -2179,14 +2252,11 @@
     "notif-close": () => { ui.notifModal = false; renderModal(); },
     "notif-remove": (el) => {
       const nid = String((el && el.dataset && el.dataset.id) || "");
-      ui.notifications = (Array.isArray(ui.notifications) ? ui.notifications : []).filter((n) => n.id !== nid);
-      syncNotifBell(false, ui.notifications.length > 0);
-      renderModal();
+      const itemEl = el && typeof el.closest === "function" ? el.closest(".notif-inbox-item") : null;
+      dismissNotifById(nid, "left", itemEl);
     },
     "notif-clear": () => {
-      ui.notifications = [];
-      syncNotifBell(false, false);
-      renderModal();
+      clearAllNotifsAnimated();
     },
     "auth-tab": (el) => {
       ui.auth.tab = el.dataset.tab === "register" ? "register" : "login";
@@ -2836,6 +2906,16 @@
   }
 
   document.addEventListener("click", (e) => {
+    if (Date.now() < notifSuppressClickUntil) {
+      notifSuppressClickUntil = 0;
+      const t = e && e.target;
+      const actEl = t && typeof t.closest === "function" ? t.closest("[data-a]") : (t && t.dataset && t.dataset.a ? t : null);
+      const actName = (actEl && actEl.dataset && actEl.dataset.a) || "";
+      if (actName !== "notif-remove" && actName !== "notif-clear" && actName !== "notif-close") {
+        if (e && typeof e.preventDefault === "function") e.preventDefault();
+        return;
+      }
+    }
     if (EGE.gestures && typeof EGE.gestures.consumeSuppressedClick === "function" && EGE.gestures.consumeSuppressedClick()) {
       if (typeof e.preventDefault === "function") e.preventDefault();
       return;
@@ -2906,6 +2986,96 @@
   document.addEventListener("pointerup", (e) => {
     if (!e || e.pointerType === "touch" || !_weekSwipeStart || _weekSwipeStart.kind !== "pointer") return;
     finishWeekSwipe(e.clientX, e.clientY);
+  });
+  function startNotifSwipe(target, x, y, kind, pointerId) {
+    if (notifClearing || !target || typeof target.closest !== "function") return null;
+    if (target.closest('[data-a="notif-remove"], button, a, input, textarea, select')) return null;
+    const item = target.closest('.notif-inbox-item[data-notif-id]');
+    if (!item || (item.classList && (item.classList.contains("is-dismiss-left") || item.classList.contains("is-dismiss-right")))) return null;
+    return {
+      el: item,
+      id: String((item.dataset && item.dataset.notifId) || ""),
+      x0: Number(x) || 0,
+      y0: Number(y) || 0,
+      dx: 0,
+      locked: null,
+      kind,
+      pointerId
+    };
+  }
+  function moveNotifSwipe(x, y, e) {
+    if (!notifSwipe) return;
+    const dx = Number(x) - notifSwipe.x0;
+    const dy = Number(y) - notifSwipe.y0;
+    if (!notifSwipe.locked) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      if (Math.abs(dx) > Math.abs(dy) * 1.15) {
+        notifSwipe.locked = "h";
+        if (notifSwipe.el.classList) notifSwipe.el.classList.add("is-swiping");
+      } else {
+        notifSwipe = null;
+        return;
+      }
+    }
+    if (notifSwipe.locked === "h") {
+      if (e && e.cancelable && typeof e.preventDefault === "function") e.preventDefault();
+      notifSwipe.dx = dx;
+      if (notifSwipe.el.style) {
+        notifSwipe.el.style.transform = `translateX(${dx}px)`;
+        notifSwipe.el.style.opacity = String(Math.max(0.18, 1 - Math.abs(dx) / 180));
+      }
+    }
+  }
+  function endNotifSwipe(cancelled) {
+    const cur = notifSwipe;
+    notifSwipe = null;
+    if (!cur || !cur.el) return;
+    const el = cur.el;
+    if (el.classList) el.classList.remove("is-swiping");
+    if (cur.locked === "h") notifSuppressClickUntil = Date.now() + 260;
+    const width = el.offsetWidth || 280;
+    const threshold = Math.max(72, Math.min(115, width * 0.28));
+    if (!cancelled && cur.locked === "h" && Math.abs(cur.dx) >= threshold) {
+      dismissNotifById(cur.id, cur.dx > 0 ? "right" : "left", el);
+      return;
+    }
+    if (el.style) {
+      el.style.transform = "";
+      el.style.opacity = "";
+    }
+  }
+  document.addEventListener("touchstart", (e) => {
+    const t = e && e.touches && e.touches[0];
+    notifSwipe = t ? startNotifSwipe(e.target, t.clientX, t.clientY, "touch", 0) : null;
+  }, { passive: true });
+  document.addEventListener("touchmove", (e) => {
+    if (!notifSwipe || notifSwipe.kind !== "touch") return;
+    const t = e && e.touches && e.touches[0];
+    if (t) moveNotifSwipe(t.clientX, t.clientY, e);
+  }, { passive: false });
+  document.addEventListener("touchend", () => {
+    if (notifSwipe && notifSwipe.kind === "touch") endNotifSwipe(false);
+  }, { passive: true });
+  document.addEventListener("touchcancel", () => {
+    if (notifSwipe && notifSwipe.kind === "touch") endNotifSwipe(true);
+  }, { passive: true });
+  document.addEventListener("pointerdown", (e) => {
+    if (!e || e.pointerType === "touch") return;
+    if (typeof e.button === "number" && e.button !== 0) return;
+    notifSwipe = startNotifSwipe(e.target, e.clientX, e.clientY, "pointer", e.pointerId);
+  });
+  document.addEventListener("pointermove", (e) => {
+    if (!notifSwipe || notifSwipe.kind !== "pointer" || !e || e.pointerType === "touch") return;
+    if (notifSwipe.pointerId && e.pointerId && e.pointerId !== notifSwipe.pointerId) return;
+    moveNotifSwipe(e.clientX, e.clientY, e);
+  });
+  document.addEventListener("pointerup", (e) => {
+    if (!notifSwipe || notifSwipe.kind !== "pointer" || !e || e.pointerType === "touch") return;
+    endNotifSwipe(false);
+  });
+  document.addEventListener("pointercancel", (e) => {
+    if (!notifSwipe || notifSwipe.kind !== "pointer" || !e || e.pointerType === "touch") return;
+    endNotifSwipe(true);
   });
   document.addEventListener("submit", (e) => {
     const f = e.target.closest("form[data-f]");
