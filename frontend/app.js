@@ -64,7 +64,7 @@
   function codeLabel(t) { return (SUBJ[t.sid].codeName || "Тема") + " " + t.code; }
 
   // ---------- хранилище ----------
-  const DOC_NAME_RE = /^(profile|plan|mocks|essays|market|tutor-cabinet|calendar-sync|prog-[a-z]+|log-\d{4}-\d{2})$/;
+  const DOC_NAME_RE = /^(profile|plan|mocks|essays|market|tutor-cabinet|calendar-sync|courses|prog-[a-z]+|log-\d{4}-\d{2})$/;
   const store = {
     mode: "loading", // loading | cloud | local
     backend: !!(window.EGE_HOST && window.EGE_HOST.backend),
@@ -1265,6 +1265,7 @@
     studyWeekOffset: 0,
     studySubj: "all",
     learnTab: "subjects",
+    course: { courseId: "", lessonId: "", stepIdx: 0, attempts: {} },
     lastMainView: "home",
     commTab: "chats",
     messenger: { open: false, activeThreadId: "", query: "", draft: "", busy: false, loading: false, error: "", serverThreads: [], messagesByThread: {}, loadedOnce: false },
@@ -5096,6 +5097,14 @@
     }
     if (el.id === "subj-q") { ui.subjQ = el.value; scheduleRender(); return; }
     if (el.id === "guide-q") { ui.guideQ = el.value; scheduleRender(); return; }
+    if (el.id === "crs-input" || el.id === "crs-self-text" || el.id === "crs-code-editor" || (el.dataset && el.dataset.crsInput)) {
+      if (EGE.views.courses && typeof EGE.views.courses.onInput === "function") EGE.views.courses.onInput(el.value, el.id, el.dataset);
+      return;
+    }
+    if (el.id === "crs-topic-q") {
+      if (EGE.views.courses && typeof EGE.views.courses.onTopicSearch === "function") EGE.views.courses.onTopicSearch(el.value);
+      return;
+    }
     if (el.id === "mkt-q" || el.id === "mkt-q-modal") {
       if (typeof document !== "undefined" && document.body && document.body.classList && document.body.classList.contains("is-land-white")) {
         ui.landWhiteStage = true;
@@ -5647,6 +5656,10 @@
   }
   EGE.views.trainer.configure(appCtx);
   EGE.views.trainer.registerActions(ACTIONS);
+  if (EGE.views.courses) {
+    EGE.views.courses.configure(appCtx);
+    EGE.views.courses.registerActions(ACTIONS);
+  }
   EGE.views.essayGuide.configure(appCtx);
   EGE.views.essayGuide.registerActions(ACTIONS);
   EGE.views.progress.configure(appCtx);

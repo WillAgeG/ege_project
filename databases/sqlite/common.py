@@ -16,7 +16,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 DOC_NAME_RE = re.compile(
-    r"^(profile|plan|mocks|essays|market|tutor-cabinet|calendar-sync|prog-[a-z]+|log-\d{4}-\d{2})$"
+    r"^(profile|plan|mocks|essays|market|tutor-cabinet|calendar-sync|courses|prog-[a-z]+|log-\d{4}-\d{2})$"
 )
 USERNAME_RE = re.compile(r"^[0-9A-Za-zА-Яа-яЁё_.\-]{2,32}$")
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")

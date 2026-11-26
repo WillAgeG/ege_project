@@ -43,7 +43,11 @@
       if (store.mode === "local" && !store.backend) parts.push(localNotice());
       parts.push(staleNotice());
       if (activeLearnTab === "courses") {
-        parts.push(`<section class="card pad-lg empty learn-courses-empty" id="learn-courses-empty" aria-label="Курсы"><b>Курсы</b><span>Раздел курсов пока пуст — скоро здесь появятся программы подготовки.</span></section>`);
+        if (EGE.views.courses && typeof EGE.views.courses.viewCourses === "function") {
+          parts.push(EGE.views.courses.viewCourses());
+        } else {
+          parts.push(`<section class="card pad-lg empty learn-courses-empty" id="learn-courses-empty" aria-label="Курсы"><b>Курсы</b><span>Раздел курсов загружается.</span></section>`);
+        }
         return parts.join("");
       }
       if (activeLearnTab === "guide" && EGE.views.essayGuide && typeof EGE.views.essayGuide.viewTutor === "function") {

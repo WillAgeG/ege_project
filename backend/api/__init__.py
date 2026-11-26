@@ -30,6 +30,7 @@ from databases.sqlite.store import StorageError
 from .admin import create_admin_router
 from .auth_docs import PhoneOtpStore, RateLimiter, create_auth_docs_router, is_trusted_proxy_peer
 from .chat import create_chat_router
+from .courses import create_courses_router
 from .feedback import create_feedback_router
 from .marketplace import create_marketplace_router
 from .media import create_media_router
@@ -301,6 +302,7 @@ def create_api_router(settings: Settings) -> APIRouter:
     router.include_router(create_feedback_router(settings))
     router.include_router(create_telegram_router(settings))
     router.include_router(create_chat_router(settings))
+    router.include_router(create_courses_router(settings))
     return router
 
 

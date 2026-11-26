@@ -287,6 +287,15 @@ def test_docs_crud_deep_merge_isolation_and_size_limit(tmp_path: Path) -> None:
         assert c1.put("/api/docs/mocks", json={"list": []}).status_code == 200
         assert c1.get("/api/docs").json()["docs"]["mocks"] == {"list": []}
 
+        # Документ курсов (прогресс Stepik-курса) сохраняется и сливается
+        assert c1.patch(
+            "/api/docs/courses",
+            json={"lessons": {"rus-udareniya": {"done": {"s1": True}, "lastStep": 1}}},
+        ).status_code == 200
+        assert c1.get("/api/docs").json()["docs"]["courses"] == {
+            "lessons": {"rus-udareniya": {"done": {"s1": True}, "lastStep": 1}}
+        }
+
         # Превышение лимита размера документа -> 413
         big = {"note": "x" * 400}
         r_big = c1.put("/api/docs/plan", json=big)
@@ -1473,4 +1482,70 @@ def test_security_headers_and_seo_routes(tmp_path: Path) -> None:
         assert "application/xml" in r_map.headers["content-type"]
         for page in ("/", "/landing", "/market", "/terms", "/refunds", "/privacy"):
             assert f"<loc>https://vektor-ege.example.com{page}</loc>" in r_map.text
+
+
+def test_courses_run_python_sandbox(tmp_path: Path) -> None:
+    app = create_app(_make_settings(tmp_path / "py_sandbox"))
+    tests = [
+        {"stdin": "5\n1 2 3 4 6\n", "expected": "12", "hidden": False},
+        {"stdin": "4\n1 3 5 7\n", "expected": "0", "hidden": False},
+        {"stdin": "6\n-2 5 8 10 1 -4\n", "expected": "12", "hidden": True},
+    ]
+    with TestClient(app) as client:
+        # 1. Рабочее решение с разрешённым stdlib (math)
+        r_ok = client.post(
+            "/api/courses/run-python",
+            json={
+                "code": "import math\nn = int(input())\nnums = list(map(int, input().split()))\nprint(sum(x for x in nums if x % 2 == 0))",
+                "tests": tests,
+            },
+        )
+        assert r_ok.status_code == 200
+        d_ok = r_ok.json()
+        assert d_ok["ok"] is True
+        assert d_ok["passed"] == 3 and d_ok["total"] == 3
+        assert d_ok["results"][2]["hidden"] is True
+        assert d_ok["results"][2]["stdin"] is None and d_ok["results"][2]["expected"] is None
+
+        # 2. Неверный вывод
+        r_wrong = client.post(
+            "/api/courses/run-python",
+            json={"code": "print(999)", "tests": tests[:1]},
+        )
+        assert r_wrong.status_code == 200
+        assert r_wrong.json()["ok"] is False
+        assert r_wrong.json()["results"][0]["actual"] == "999"
+
+        # 3. Синтаксическая ошибка
+        r_syn = client.post(
+            "/api/courses/run-python",
+            json={"code": "if True print(1)", "tests": tests[:1]},
+        )
+        assert r_syn.status_code == 200
+        assert r_syn.json()["ok"] is False
+        assert "Синтаксическая ошибка" in (r_syn.json()["error"] or "")
+
+        # 4. AST-блокировка опасного импорта / builtins / dunder
+        for bad_code in (
+            "import os\nprint(os.getcwd())",
+            "print(open('/etc/passwd').read())",
+            "print(''.__class__.__mro__)",
+        ):
+            r_bad = client.post(
+                "/api/courses/run-python",
+                json={"code": bad_code, "tests": tests[:1]},
+            )
+            assert r_bad.status_code == 200
+            assert r_bad.json()["ok"] is False
+            assert "запрещ" in (r_bad.json()["error"] or "").lower()
+
+        # 5. Таймаут бесконечного цикла
+        r_tle = client.post(
+            "/api/courses/run-python",
+            json={"code": "while True:\n    pass", "tests": tests[:1]},
+        )
+        assert r_tle.status_code == 200
+        assert r_tle.json()["ok"] is False
+        assert "лимит времени" in (r_tle.json()["results"][0]["error"] or "").lower()
+
 
