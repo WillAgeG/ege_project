@@ -43,6 +43,13 @@
     saveMkt();
     scheduleRender();
   }
+  function shouldRollbackMutationError(err) {
+    if (!err) return false;
+    const status = Number(err.status || 0);
+    const code = String(err.code || "");
+    if (status === 404 && code === "http_404" && String(err.message || "") === "not found") return false;
+    return status >= 400 || status === 0;
+  }
 
   function buildBookingDraft(tutor, el, TDATA_ref, mkt_ref, ui_ref) {
     const st = mkt_ref();
@@ -315,6 +322,9 @@
         return;
       }
       EGEPayments.createTopupIntent({ amount: targetBal, planId: plan.id });
+      const prevBalance = Number(st.balance) || 0;
+      const prevInitialPaid = Boolean(st.initialPaid);
+      const prevPlanId = st.planId;
       st.planId = plan.id;
       const reserved = st.bookings.reduce((sum, bk) => sum + (bk.reserved || 0), 0);
       st.balance = Math.max(0, targetBal - reserved);
@@ -323,7 +333,15 @@
       if (isBackendAuthed() && EGE.api.wallet) {
         EGE.api.wallet.topup({ amount: targetBal, method: "sbp", planId: plan.id }).then((res) => {
           if (res && res.wallet) applyServerWallet(res.wallet);
-        }).catch(() => {});
+        }).catch((err) => {
+          if (!shouldRollbackMutationError(err)) return;
+          st.balance = prevBalance;
+          st.initialPaid = prevInitialPaid;
+          st.planId = prevPlanId;
+          saveMkt();
+          toast((err && err.message) || "Не удалось пополнить баланс на сервере.");
+          scheduleRender();
+        });
       }
       const pending = ui.balanceModal && ui.balanceModal.pendingBooking;
       if (ui.balanceModal) { ui.balanceModal = null; }
@@ -467,6 +485,9 @@
         return;
       }
       EGEPayments.createTopupIntent({ amount: amt, planId: presetPlan || st.planId || "trial5k" });
+      const prevBalance = Number(st.balance) || 0;
+      const prevInitialPaid = Boolean(st.initialPaid);
+      const prevPlanId = st.planId;
       st.balance = (Number(st.balance) || 0) + amt;
       if (st.balance >= trialRub) st.initialPaid = true;
       if (presetPlan) st.planId = presetPlan;
@@ -476,7 +497,15 @@
       if (isBackendAuthed() && EGE.api.wallet) {
         EGE.api.wallet.topup({ amount: amt, method: "sbp", planId: presetPlan || st.planId || "trial5k" }).then((res) => {
           if (res && res.wallet) applyServerWallet(res.wallet);
-        }).catch(() => {});
+        }).catch((err) => {
+          if (!shouldRollbackMutationError(err)) return;
+          st.balance = prevBalance;
+          st.initialPaid = prevInitialPaid;
+          st.planId = prevPlanId;
+          saveMkt();
+          toast((err && err.message) || "Не удалось пополнить баланс на сервере.");
+          scheduleRender();
+        });
       }
       const pending = ui.balanceModal && ui.balanceModal.pendingBooking;
       ui.balanceModal = null;
@@ -1086,6 +1115,9 @@
             if (ui.telemostEditId === oldId) ui.telemostEditId = res.booking.id;
             if (ui.schedEditId === oldId) ui.schedEditId = res.booking.id;
             if (ui.lastSentBookingId === oldId) ui.lastSentBookingId = res.booking.id;
+            if (ui.messenger && ui.messenger.activeThreadId === ("booking:" + oldId)) {
+              ui.messenger.activeThreadId = "booking:" + res.booking.id;
+            }
             if (ui.schedDrafts && ui.schedDrafts[oldId]) {
               ui.schedDrafts[res.booking.id] = ui.schedDrafts[oldId];
               delete ui.schedDrafts[oldId];
@@ -1093,7 +1125,27 @@
           }
           if (res && res.wallet) applyServerWallet(res.wallet);
           else saveMkt();
-        }).catch(() => {});
+        }).catch((err) => {
+          if (!shouldRollbackMutationError(err)) return;
+          const deadId = newBooking.id;
+          st.bookings = (Array.isArray(st.bookings) ? st.bookings : []).filter((x) => x && x.id !== deadId);
+          if (reserved > 0) {
+            st.balance = (Number(st.balance) || 0) + reserved;
+          }
+          if (ui.lastSentBookingId === deadId) ui.lastSentBookingId = "";
+          if (ui.messenger && ui.messenger.activeThreadId === ("booking:" + deadId)) {
+            ui.messenger.activeThreadId = "";
+            ui.messenger.error = "";
+          }
+          saveMkt();
+          if (EGE.api.market && typeof EGE.api.market.state === "function") {
+            EGE.api.market.state().then((mres) => {
+              if (mres && mres.wallet) applyServerWallet(mres.wallet);
+            }).catch(() => {});
+          }
+          toast((err && err.message) || "Не удалось создать заявку. Пополните баланс и попробуйте снова.");
+          scheduleRender();
+        });
       }
       if (EGE.views.marketplace && typeof EGE.views.marketplace.publishStudentBid === "function") {
         EGE.views.marketplace.publishStudentBid(newBooking, tutor);
