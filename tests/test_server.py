@@ -1549,3 +1549,35 @@ def test_courses_run_python_sandbox(tmp_path: Path) -> None:
         assert "лимит времени" in (r_tle.json()["results"][0]["error"] or "").lower()
 
 
+def test_favicon_routes_and_head_placement(tmp_path: Path) -> None:
+    app = create_app(_make_settings(tmp_path / "favicons"))
+    with TestClient(app) as client:
+        r_ico = client.get("/favicon.ico")
+        assert r_ico.status_code == 200
+        assert "image/x-icon" in (r_ico.headers.get("content-type") or "")
+        assert r_ico.content[:4] == b"\x00\x00\x01\x00"
+
+        for png_path in ("/apple-touch-icon.png", "/assets/favicon-32x32.png", "/assets/favicon-16x16.png"):
+            r_png = client.get(png_path)
+            assert r_png.status_code == 200
+            assert "image/png" in (r_png.headers.get("content-type") or "")
+            assert r_png.content.startswith(b"\x89PNG\r\n\x1a\n")
+
+        r_svg = client.get("/assets/favicon.svg")
+        assert r_svg.status_code == 200
+        assert "image/svg+xml" in (r_svg.headers.get("content-type") or "")
+        assert "<svg" in r_svg.text
+
+        for route in ("/", "/student", "/landing", "/privacy"):
+            res = client.get(route)
+            assert res.status_code == 200
+            html = res.text
+            head_start = html.find("<head>")
+            head_end = html.find("</head>")
+            assert head_start != -1 and head_end > head_start, f"missing <head> bounds on {route}"
+            head_slice = html[head_start:head_end]
+            assert 'rel="icon"' in head_slice, f"favicon link must be inside <head> on {route}"
+            assert "/favicon.ico" in head_slice and "/assets/favicon.svg" in head_slice
+            assert "<title>" in head_slice, f"<title> must be inside <head> on {route}"
+
+

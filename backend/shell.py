@@ -13,13 +13,13 @@ from .api.auth_docs import public_base_url
 from .config import ROOT_DIR, Settings, load_settings
 from .legal import render_privacy_html, render_refunds_html, render_terms_html
 
-SHELL_PREFIX = (
+SHELL_HEAD_OPEN = (
     "<!doctype html><html><head><meta charset=utf-8>"
     '<meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">'
     "<style>:root{color-scheme:light dark;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}"
     "body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>"
-    "</head><body>"
 )
+SHELL_PREFIX = SHELL_HEAD_OPEN + "</head><body>"
 BODY_CLOSE = "</body></html>"
 
 
@@ -108,7 +108,12 @@ def render_index_html(
             break
     else:
         raw = raw + "\n" + flag_script
-    return SHELL_PREFIX + raw + "</body></html>"
+
+    for body_marker in ('<svg aria-hidden="true"', '<div class="site-boot-loader"'):
+        if body_marker in raw:
+            head_part, body_part = raw.split(body_marker, 1)
+            return SHELL_HEAD_OPEN + "\n" + head_part + "</head><body>\n" + body_marker + body_part + BODY_CLOSE
+    return SHELL_PREFIX + raw + BODY_CLOSE
 
 
 def register_shell_routes(
@@ -282,6 +287,28 @@ def register_shell_routes(
     async def refunds_page() -> HTMLResponse:
         return HTMLResponse(content=render_refunds_html(), headers={"Cache-Control": "no-cache"})
 
+    @app.get("/favicon.ico")
+    async def favicon_ico() -> FileResponse:
+        ico = (frontend_dir / "assets" / "favicon.ico").resolve()
+        if not ico.is_file():
+            raise HTTPException(status_code=404, detail="Not found")
+        return FileResponse(
+            ico,
+            media_type="image/x-icon",
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
+
+    @app.get("/apple-touch-icon.png")
+    async def apple_touch_icon() -> FileResponse:
+        png = (frontend_dir / "assets" / "apple-touch-icon.png").resolve()
+        if not png.is_file():
+            raise HTTPException(status_code=404, detail="Not found")
+        return FileResponse(
+            png,
+            media_type="image/png",
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
+
     @app.get("/{asset_path:path}")
     async def static_assets(asset_path: str) -> FileResponse:
         clean = asset_path.strip("/")
@@ -314,7 +341,7 @@ def register_shell_routes(
             top = clean.split("/", 1)[0]
             target = (frontend_dir / clean).resolve()
             allowed_dir = (frontend_dir / top).resolve()
-        elif clean.startswith("assets/") and clean.lower().endswith((".png", ".jpg", ".jpeg", ".webp", ".svg")):
+        elif clean.startswith("assets/") and clean.lower().endswith((".png", ".jpg", ".jpeg", ".webp", ".svg", ".ico")):
             target = (frontend_dir / clean).resolve()
             allowed_dir = (frontend_dir / "assets").resolve()
             ext = target.suffix.lower()
@@ -324,6 +351,8 @@ def register_shell_routes(
                 media_type = "image/png"
             elif ext == ".webp":
                 media_type = "image/webp"
+            elif ext == ".ico":
+                media_type = "image/x-icon"
             else:
                 media_type = "image/svg+xml; charset=utf-8"
         else:

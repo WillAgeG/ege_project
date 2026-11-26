@@ -14,19 +14,20 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 FRONTEND_DIR = ROOT_DIR / "frontend"
 UX_UI_DIR = ROOT_DIR / "ux-ui"
 
-SHELL_PREFIX = (
+SHELL_HEAD_OPEN = (
     "<!doctype html><html><head><meta charset=utf-8>"
     '<meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">'
     "<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}"
     "body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>"
-    "</head><body>"
 )
+SHELL_PREFIX = SHELL_HEAD_OPEN + "</head><body>"
 
 STATIC_TYPES = {
     ".js": "application/javascript; charset=utf-8",
     ".css": "text/css; charset=utf-8",
     ".svg": "image/svg+xml; charset=utf-8",
     ".png": "image/png",
+    ".ico": "image/x-icon",
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
     ".webp": "image/webp",
@@ -66,6 +67,10 @@ def render_standalone_app(
         raw = raw.replace(target, flag_script + "\n" + target, 1)
     else:
         raw = raw + "\n" + flag_script
+    for body_marker in ('<svg aria-hidden="true"', '<div class="site-boot-loader"'):
+        if body_marker in raw:
+            head_part, body_part = raw.split(body_marker, 1)
+            return (SHELL_HEAD_OPEN + "\n" + head_part + "</head><body>\n" + body_marker + body_part + "</body></html>").encode("utf-8")
     return (SHELL_PREFIX + raw + "</body></html>").encode("utf-8")
 
 
@@ -114,6 +119,9 @@ class DesignStudioHandler(BaseHTTPRequestHandler):
             slug = clean[len("brandbook/"):].strip("/").lower()
             self._send_bytes(200, render_standalone_app(site="brandbook", bb_site=slug), "text/html; charset=utf-8")
             return
+
+        if clean in {"favicon.ico", "apple-touch-icon.png"}:
+            clean = f"assets/{clean}"
 
         if clean.startswith("ux-ui/"):
             rest = clean[len("ux-ui/"):]
