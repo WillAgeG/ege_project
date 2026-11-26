@@ -261,8 +261,8 @@ def test_dual_write_no_user_id_collision_and_outbox(tmp_path: Path) -> None:
         assert store.get_user_by_token(token).username == uname_local
 
         # OAuth state + upsert_oauth_user
-        st = store.create_oauth_state("google", "ver-123", "https://ege.example/cb")
-        assert store.consume_oauth_state(st, "google") == ("ver-123", "https://ege.example/cb")
+        st = store.create_oauth_state("google", "ver-123", "https://ege.example/cb", role="tutor", next_url="/tutor")
+        assert store.consume_oauth_state(st, "google") == ("ver-123", "https://ege.example/cb", "tutor", "/tutor")
         oauth_u = store.upsert_oauth_user(
             "google",
             f"sub-{suffix}",

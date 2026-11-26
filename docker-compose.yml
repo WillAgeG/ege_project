@@ -1,0 +1,328 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-vektor_ege}
+      POSTGRES_USER: ${POSTGRES_USER:-vektor}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C.UTF-8"
+      TZ: ${TZ:-Europe/Moscow}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./deploy/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./deploy/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-vektor} -d $${POSTGRES_DB:-vektor_ege}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - backend_internal
+    logging: *default-logging
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: "no"
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_MODE: ${DB_MODE:-postgres}
+      DB_PATH: /data/app.db
+      DATABASE_URL: postgresql://${POSTGRES_USER:-vektor}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-vektor_ege}
+      TZ: ${TZ:-Europe/Moscow}
+    volumes:
+      - app_data:/data
+    networks:
+      - backend_internal
+    logging: *default-logging
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      PORT: "8000"
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+      VEKTOR_ENV: ${VEKTOR_ENV:-production}
+      DEV_DEMO_MODE: ${DEV_DEMO_MODE:-0}
+      SECURITY_HEADERS: ${SECURITY_HEADERS:-1}
+      ADMIN_REQUIRE_AUTH: ${ADMIN_REQUIRE_AUTH:-1}
+      TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-127.0.0.1/32,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+      DB_MODE: ${DB_MODE:-postgres}
+      DB_PATH: /data/app.db
+      DB_RUN_CONSTRAINT_DDL: ${DB_RUN_CONSTRAINT_DDL:-0}
+      DB_SKIP_SCHEMA_INIT: ${DB_SKIP_SCHEMA_INIT:-0}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-vektor}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-vektor_ege}
+      PUBLIC_BASE_URL: https://${APP_DOMAIN:?APP_DOMAIN is required}
+      CORS_ORIGINS: https://${APP_DOMAIN},https://${ADMIN_DOMAIN:-admin.${APP_DOMAIN}}
+      ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:?ADMIN_API_TOKEN is required}
+      SESSION_DAYS: ${SESSION_DAYS:-30}
+      INVITE_CODE: ${INVITE_CODE:-}
+      MAX_USERS: ${MAX_USERS:-0}
+      MAX_DOC_BYTES: ${MAX_DOC_BYTES:-2097152}
+      AI_PROVIDER: ${AI_PROVIDER:-auto}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-}
+      AI_MODEL_COMPLEX: ${AI_MODEL_COMPLEX:-}
+      AI_BASE_URL: ${AI_BASE_URL:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
+      TELEGRAM_ADMIN_CHAT_ID: ${TELEGRAM_ADMIN_CHAT_ID:-}
+      TELEGRAM_GATEWAY_TOKEN: ${TELEGRAM_GATEWAY_TOKEN:-}
+      TELEGRAM_GATEWAY_API_URL: ${TELEGRAM_GATEWAY_API_URL:-https://gatewayapi.telegram.org}
+      TELEGRAM_GATEWAY_SENDER_USERNAME: ${TELEGRAM_GATEWAY_SENDER_USERNAME:-}
+      TELEGRAM_GATEWAY_TTL_SEC: ${TELEGRAM_GATEWAY_TTL_SEC:-300}
+      WHATSAPP_PROVIDER: ${WHATSAPP_PROVIDER:-auto}
+      WHATSAPP_API_URL: ${WHATSAPP_API_URL:-https://graph.facebook.com/v21.0}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+      WHATSAPP_TEMPLATE_NAME: ${WHATSAPP_TEMPLATE_NAME:-vektor_otp_code}
+      WHATSAPP_TEMPLATE_LANG: ${WHATSAPP_TEMPLATE_LANG:-ru}
+      WHATSAPP_USE_TEMPLATE: ${WHATSAPP_USE_TEMPLATE:-1}
+      WHATSAPP_WEBHOOK_URL: ${WHATSAPP_WEBHOOK_URL:-}
+      WHATSAPP_WEBHOOK_TOKEN: ${WHATSAPP_WEBHOOK_TOKEN:-}
+      SMS_PROVIDER: ${SMS_PROVIDER:-auto}
+      SMS_SENDER: ${SMS_SENDER:-VektorEGE}
+      SMS_RU_API_ID: ${SMS_RU_API_ID:-}
+      SMS_RU_API_URL: ${SMS_RU_API_URL:-https://sms.ru/sms/send}
+      SMSC_LOGIN: ${SMSC_LOGIN:-}
+      SMSC_PASSWORD: ${SMSC_PASSWORD:-}
+      SMSC_API_URL: ${SMSC_API_URL:-https://smsc.ru/sys/send.php}
+      SMS_WEBHOOK_URL: ${SMS_WEBHOOK_URL:-}
+      SMS_WEBHOOK_TOKEN: ${SMS_WEBHOOK_TOKEN:-}
+      OTP_SMS_FALLBACK: ${OTP_SMS_FALLBACK:-1}
+      OTP_REQUIRE_DELIVERY: ${OTP_REQUIRE_DELIVERY:-0}
+      SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-1}
+      SCHEDULER_INTERVAL_SEC: ${SCHEDULER_INTERVAL_SEC:-60}
+      SCHEDULER_INITIAL_DELAY_SEC: ${SCHEDULER_INITIAL_DELAY_SEC:-15}
+      SCHEDULER_LESSON_DURATION_MIN: ${SCHEDULER_LESSON_DURATION_MIN:-60}
+      SCHEDULER_AUTO_CAPTURE_GRACE_MIN: ${SCHEDULER_AUTO_CAPTURE_GRACE_MIN:-15}
+      SCHEDULER_PENDING_TTL_HOURS: ${SCHEDULER_PENDING_TTL_HOURS:-24}
+      SCHEDULER_REMINDER_24H_MIN: ${SCHEDULER_REMINDER_24H_MIN:-1440}
+      SCHEDULER_REMINDER_1H_MIN: ${SCHEDULER_REMINDER_1H_MIN:-60}
+      SCHEDULER_CHAT_UNANSWERED_DELAY_SEC: ${SCHEDULER_CHAT_UNANSWERED_DELAY_SEC:-60}
+      SCHEDULER_CHAT_UNANSWERED_MAX_AGE_HOURS: ${SCHEDULER_CHAT_UNANSWERED_MAX_AGE_HOURS:-24}
+      SCHEDULER_CHAT_CHECK_INTERVAL_SEC: ${SCHEDULER_CHAT_CHECK_INTERVAL_SEC:-15}
+      SCHEDULER_REALTIME_RETENTION_DAYS: ${SCHEDULER_REALTIME_RETENTION_DAYS:-30}
+      SCHEDULER_ADVISORY_LOCK_ENABLED: ${SCHEDULER_ADVISORY_LOCK_ENABLED:-1}
+      REALTIME_PG_NOTIFY_ENABLED: ${REALTIME_PG_NOTIFY_ENABLED:-1}
+      BACKUP_ENABLED: ${BACKUP_ENABLED:-1}
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      BACKUP_DIR: ${BACKUP_DIR:-/data/backups}
+      BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:-}
+      BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-}
+      BACKUP_S3_PREFIX: ${BACKUP_S3_PREFIX:-backups}
+      BACKUP_S3_ENDPOINT_URL: ${BACKUP_S3_ENDPOINT_URL:-}
+      BACKUP_S3_REGION: ${BACKUP_S3_REGION:-ru-central1}
+      BACKUP_S3_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY_ID:-}
+      BACKUP_S3_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_ACCESS_KEY:-}
+      BACKUP_S3_REQUIRE_ENCRYPTION: ${BACKUP_S3_REQUIRE_ENCRYPTION:-1}
+      ALERT_5XX_ENABLED: ${ALERT_5XX_ENABLED:-1}
+      ALERT_COOLDOWN_SEC: ${ALERT_COOLDOWN_SEC:-300}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.0}
+      APP_RELEASE: ${APP_RELEASE:-vektor-ege@1.2.0}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      METRICS_ENABLED: ${METRICS_ENABLED:-1}
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+      YANDEX_METRIKA_ID: ${YANDEX_METRIKA_ID:-}
+      YANDEX_METRIKA_WEBVISOR: ${YANDEX_METRIKA_WEBVISOR:-0}
+      MEDIA_STORAGE: ${MEDIA_STORAGE:-auto}
+      MEDIA_LOCAL_DIR: ${MEDIA_LOCAL_DIR:-/data/media}
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-}
+      S3_REGION: ${S3_REGION:-ru-central1}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      S3_BUCKET_AVATARS: ${S3_BUCKET_AVATARS:-avatars-public}
+      S3_BUCKET_DIPLOMAS: ${S3_BUCKET_DIPLOMAS:-diplomas-private}
+      S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL:-}
+      MEDIA_MAX_AVATAR_BYTES: ${MEDIA_MAX_AVATAR_BYTES:-5242880}
+      MEDIA_MAX_DIPLOMA_BYTES: ${MEDIA_MAX_DIPLOMA_BYTES:-10485760}
+      MEDIA_PRESIGN_TTL_SEC: ${MEDIA_PRESIGN_TTL_SEC:-900}
+      MEDIA_AVATAR_WEBP: ${MEDIA_AVATAR_WEBP:-1}
+      MEDIA_AVATAR_MAX_DIM: ${MEDIA_AVATAR_MAX_DIM:-512}
+      MEDIA_AVATAR_WEBP_QUALITY: ${MEDIA_AVATAR_WEBP_QUALITY:-82}
+      MEDIA_PUBLIC_REDIRECT: ${MEDIA_PUBLIC_REDIRECT:-0}
+      MEDIA_PRIVATE_PRESIGN_REDIRECT: ${MEDIA_PRIVATE_PRESIGN_REDIRECT:-0}
+      PAYMENTS_PROVIDER: ${PAYMENTS_PROVIDER:-auto}
+      YOOKASSA_SHOP_ID: ${YOOKASSA_SHOP_ID:-}
+      YOOKASSA_SECRET_KEY: ${YOOKASSA_SECRET_KEY:-}
+      YOOKASSA_API_URL: ${YOOKASSA_API_URL:-https://api.yookassa.ru/v3}
+      YOOKASSA_RECEIPT_ENABLED: ${YOOKASSA_RECEIPT_ENABLED:-1}
+      YOOKASSA_VAT_CODE: ${YOOKASSA_VAT_CODE:-1}
+      YOOKASSA_TAX_SYSTEM_CODE: ${YOOKASSA_TAX_SYSTEM_CODE:-}
+      YOOKASSA_PAYMENT_MODE: ${YOOKASSA_PAYMENT_MODE:-advance}
+      YOOKASSA_PAYMENT_SUBJECT: ${YOOKASSA_PAYMENT_SUBJECT:-payment}
+      YOOKASSA_CHECK_WEBHOOK_IP: ${YOOKASSA_CHECK_WEBHOOK_IP:-1}
+      YOOKASSA_FALLBACK_RECEIPT_EMAIL: ${YOOKASSA_FALLBACK_RECEIPT_EMAIL:-}
+      PAYOUTS_PROVIDER: ${PAYOUTS_PROVIDER:-auto}
+      YOOKASSA_PAYOUT_AGENT_ID: ${YOOKASSA_PAYOUT_AGENT_ID:-}
+      YOOKASSA_PAYOUT_SECRET_KEY: ${YOOKASSA_PAYOUT_SECRET_KEY:-}
+      YOOKASSA_PAYOUT_API_URL: ${YOOKASSA_PAYOUT_API_URL:-https://api.yookassa.ru/v3}
+      PAYOUTS_AUTO_DISPATCH: ${PAYOUTS_AUTO_DISPATCH:-1}
+      PAYOUTS_AUTO_MAX_RUB: ${PAYOUTS_AUTO_MAX_RUB:-15000}
+      PAYOUTS_ANTIFRAUD_MIN_LESSONS: ${PAYOUTS_ANTIFRAUD_MIN_LESSONS:-1}
+      NPD_PROVIDER: ${NPD_PROVIDER:-auto}
+      NPD_STATUS_API_URL: ${NPD_STATUS_API_URL:-https://statusnpd.nalog.ru/api/v1/tracker/taxpayer_status}
+      NPD_CHECK_STATUS_ONLINE: ${NPD_CHECK_STATUS_ONLINE:-0}
+      NPD_PARTNER_API_URL: ${NPD_PARTNER_API_URL:-}
+      NPD_PARTNER_API_KEY: ${NPD_PARTNER_API_KEY:-}
+      NPD_LKNPD_API_URL: ${NPD_LKNPD_API_URL:-https://lknpd.nalog.ru/api/v1}
+      NPD_LKNPD_TOKEN: ${NPD_LKNPD_TOKEN:-}
+      NPD_PLATFORM_INN: ${NPD_PLATFORM_INN:-}
+      NPD_PLATFORM_NAME: ${NPD_PLATFORM_NAME:-ООО «Вектор ЕГЭ»}
+      TZ: ${TZ:-Europe/Moscow}
+    volumes:
+      - app_data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - edge
+      - backend_internal
+    logging: *default-logging
+
+  admin:
+    build:
+      context: ./admin_streamlit
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      ADMIN_API_BASE_URL: http://app:8000
+      ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:?ADMIN_API_TOKEN is required}
+      TZ: ${TZ:-Europe/Moscow}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=3)"]
+      interval: 25s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
+    networks:
+      - edge
+    logging: *default-logging
+
+  caddy:
+    image: caddy:2.9-alpine
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+      admin:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?APP_DOMAIN is required}
+      ADMIN_DOMAIN: ${ADMIN_DOMAIN:-admin.${APP_DOMAIN}}
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL is required}
+      ADMIN_BASIC_USER: ${ADMIN_BASIC_USER:-admin}
+      ADMIN_BASIC_HASH: ${ADMIN_BASIC_HASH:?ADMIN_BASIC_HASH is required}
+    volumes:
+      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - edge
+    logging: *default-logging
+
+  # Запасной polling-режим Telegram-бота (если не используется HTTPS webhook /api/telegram/webhook)
+  bot:
+    profiles:
+      - bot-polling
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["python", "-m", "backend.telegram_bot"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_MODE: ${DB_MODE:-postgres}
+      DB_PATH: /data/app.db
+      DATABASE_URL: postgresql://${POSTGRES_USER:-vektor}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-vektor_ege}
+      PUBLIC_BASE_URL: https://${APP_DOMAIN:?APP_DOMAIN is required}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_ADMIN_CHAT_ID: ${TELEGRAM_ADMIN_CHAT_ID:-}
+      TZ: ${TZ:-Europe/Moscow}
+    volumes:
+      - app_data:/data
+    networks:
+      - edge
+      - backend_internal
+    logging: *default-logging
+
+  pg-backup:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-vektor_ege}
+      POSTGRES_USER: ${POSTGRES_USER:-vektor}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      BACKUP_DIR: /backups
+      BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:-}
+      TZ: ${TZ:-Europe/Moscow}
+    volumes:
+      - pg_backups:/backups
+      - ./deploy/scripts/pg_backup_loop.sh:/usr/local/bin/pg_backup_loop.sh:ro
+    entrypoint: ["/bin/sh", "/usr/local/bin/pg_backup_loop.sh"]
+    networks:
+      - backend_internal
+    logging: *default-logging
+
+networks:
+  edge:
+    driver: bridge
+  backend_internal:
+    driver: bridge
+    internal: true
+
+volumes:
+  pg_data:
+  pg_backups:
+  app_data:
+  caddy_data:
+  caddy_config:

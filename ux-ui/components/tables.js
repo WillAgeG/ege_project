@@ -7,20 +7,20 @@
   const { esc } = EGE.utils || { esc: (s) => String(s == null ? "" : s) };
 
   const TABLE_ROWS = [
-    { id: "tbl-1", student: "Алёна Егорова", subjectId: "bio", subject: "Биология · ЕГЭ", city: "Якутск (UTC+9)", slot: "Сб · 14:00", rate: 1100, net: 1045, status: "accepted", statusLabel: "Подтверждено ✓", whatsapp: "79142100102", telegram: "alena_bio_ykt", maxHandle: "alena_ykt" },
-    { id: "tbl-2", student: "Дамир Осипов", subjectId: "chem", subject: "Химия · ЕГЭ", city: "Якутск (UTC+9)", slot: "Вс · 10:00", rate: 1200, net: 1140, status: "accepted", statusLabel: "Подтверждено ✓", whatsapp: "79142100104", telegram: "damir_chem", maxHandle: "damir_osipov" },
-    { id: "tbl-3", student: "Саяна Кычкина", subjectId: "bio", subject: "Биология · Пробный 0 ₽", city: "Москва (UTC+3)", slot: "Пн · 18:00", rate: 950, net: 903, status: "trial", statusLabel: "Пробный · старт 5к", whatsapp: "79142100106", telegram: "sayana_msk", maxHandle: "sayana_k" },
-    { id: "tbl-4", student: "Тимур Платонов", subjectId: "chem", subject: "Химия · Медвуз", city: "Якутск (UTC+9)", slot: "Вт · 16:00", rate: 1400, net: 1330, status: "pending", statusLabel: "Ждёт ответа", whatsapp: "79142100108", telegram: "timur_med", maxHandle: "timur_p" },
-    { id: "tbl-5", student: "Мария Фёдорова", subjectId: "bio", subject: "Биология · ОГЭ 9 кл.", city: "Якутск (UTC+9)", slot: "Чт · 17:00", rate: 1000, net: 950, status: "accepted", statusLabel: "Подтверждено ✓", whatsapp: "79142100110", telegram: "maria_oge", maxHandle: "maria_f" },
-    { id: "tbl-6", student: "Ньургун Иванов", subjectId: "chem", subject: "Химия · Олимпиада", city: "Москва (UTC+3)", slot: "Пт · 19:00", rate: 1500, net: 1425, status: "pending", statusLabel: "Ждёт ответа", whatsapp: "79142100112", telegram: "nyurgun_chem", maxHandle: "nyurgun_i" }
+    { id: "tbl-1", student: "Алёна Егорова", subjectId: "bio", subject: "Биология · ЕГЭ", city: "Якутск (UTC+9)", slot: "Сб · 14:00", rate: 1100, net: 1034, status: "accepted", statusLabel: "Подтверждено ✓", whatsapp: "79142100102", telegram: "alena_bio_ykt", maxHandle: "alena_ykt" },
+    { id: "tbl-2", student: "Дамир Осипов", subjectId: "chem", subject: "Химия · ЕГЭ", city: "Якутск (UTC+9)", slot: "Вс · 10:00", rate: 1200, net: 1128, status: "accepted", statusLabel: "Подтверждено ✓", whatsapp: "79142100104", telegram: "damir_chem", maxHandle: "damir_osipov" },
+    { id: "tbl-3", student: "Саяна Кычкина", subjectId: "bio", subject: "Биология · Пробный 0 ₽", city: "Москва (UTC+3)", slot: "Пн · 18:00", rate: 950, net: 892, status: "trial", statusLabel: "Пробный · старт 5к", whatsapp: "79142100106", telegram: "sayana_msk", maxHandle: "sayana_k" },
+    { id: "tbl-4", student: "Тимур Платонов", subjectId: "chem", subject: "Химия · Медвуз", city: "Якутск (UTC+9)", slot: "Вт · 16:00", rate: 1400, net: 1316, status: "pending", statusLabel: "Ждёт ответа", whatsapp: "79142100108", telegram: "timur_med", maxHandle: "timur_p" },
+    { id: "tbl-5", student: "Мария Фёдорова", subjectId: "bio", subject: "Биология · ОГЭ 9 кл.", city: "Якутск (UTC+9)", slot: "Чт · 17:00", rate: 1000, net: 940, status: "accepted", statusLabel: "Подтверждено ✓", whatsapp: "79142100110", telegram: "maria_oge", maxHandle: "maria_f" },
+    { id: "tbl-6", student: "Ньургун Иванов", subjectId: "chem", subject: "Химия · Олимпиада", city: "Москва (UTC+3)", slot: "Пт · 19:00", rate: 1500, net: 1410, status: "pending", statusLabel: "Ждёт ответа", whatsapp: "79142100112", telegram: "nyurgun_chem", maxHandle: "nyurgun_i" }
   ];
 
   const PAYOUT_ROWS = [
-    { id: "pay-1", date: "14.05.2026", channel: "sbp", method: "СБП · Т-Банк", requisites: "+7 (914) 210-••-11", gross: 12000, fee: 600, amount: 11400, receipt: "Чек № 88412-НПД", status: "accepted", statusLabel: "Выплачено ✓" },
-    { id: "pay-2", date: "10.05.2026", channel: "card", method: "Карта Мир · Сбер", requisites: "2200 70•• •••• 4812", gross: 8000, fee: 400, amount: 7600, receipt: "Чек № 88305-НПД", status: "accepted", statusLabel: "Выплачено ✓" },
-    { id: "pay-3", date: "15.05.2026", channel: "sbp", method: "СБП · АЭБ (Якутск)", requisites: "+7 (914) 210-••-11", gross: 5000, fee: 250, amount: 4750, receipt: "Ожидает чек НПД", status: "pending", statusLabel: "На проверке" },
+    { id: "pay-1", date: "14.05.2026", channel: "sbp", method: "СБП · Т-Банк", requisites: "+7 (914) 210-••-11", gross: 12000, fee: 720, amount: 11280, receipt: "Чек № 88412-НПД", status: "accepted", statusLabel: "Выплачено ✓" },
+    { id: "pay-2", date: "10.05.2026", channel: "card", method: "Карта Мир · Сбер", requisites: "2200 70•• •••• 4812", gross: 8000, fee: 480, amount: 7520, receipt: "Чек № 88305-НПД", status: "accepted", statusLabel: "Выплачено ✓" },
+    { id: "pay-3", date: "15.05.2026", channel: "sbp", method: "СБП · АЭБ (Якутск)", requisites: "+7 (914) 210-••-11", gross: 5000, fee: 300, amount: 4700, receipt: "Ожидает чек НПД", status: "pending", statusLabel: "На проверке" },
     { id: "pay-4", date: "03.05.2026", channel: "sbp", method: "СБП · ВТБ", requisites: "+7 (914) 210-••-11", gross: 2400, fee: 0, amount: 2400, receipt: "Сторно отмены 100%", status: "refund", statusLabel: "Возврат ученику" },
-    { id: "pay-5", date: "12.05.2026", channel: "sbp", method: "СБП · Озон Банк", requisites: "+7 (924) 550-••-90", gross: 3600, fee: 180, amount: 3420, receipt: "Сформирован НПД", status: "info", statusLabel: "Готов к выводу" }
+    { id: "pay-5", date: "12.05.2026", channel: "sbp", method: "СБП · Озон Банк", requisites: "+7 (924) 550-••-90", gross: 3600, fee: 216, amount: 3384, receipt: "Сформирован НПД", status: "info", statusLabel: "Готов к выводу" }
   ];
 
   const EXAM_ROWS = [
@@ -42,8 +42,8 @@
   const ADMIN_ROWS = [
     { id: "adm-1", category: "moderation", entity: "Айтал Борисов · Биология", kind: "Анкета репетитора", subject: "Биология · ЕГЭ", city: "Якутск (UTC+9)", updatedAt: "14:42", amount: "1 200 ₽/ч", outbox: "vektor.market.bids.v1", modStatus: "pending", status: "pending", statusLabel: "На проверке" },
     { id: "adm-2", category: "moderation", entity: "Анна Соколова · Химия", kind: "Верификация диплома", subject: "Химия · Медвуз", city: "Москва (UTC+3)", updatedAt: "14:28", amount: "1 600 ₽/ч", outbox: "vektor.market.bids.v1", modStatus: "verified", status: "accepted", statusLabel: "Проверен ✓" },
-    { id: "adm-3", category: "payouts", entity: "Выплата #4812 · СБП Т-Банк", kind: "Вывод НПД", subject: "Комиссия 5% · на руки 95%", city: "Якутск (UTC+9)", updatedAt: "14:15", amount: "11 400 ₽", outbox: "vektor.payments.ledger.v1", modStatus: "paid", status: "accepted", statusLabel: "Выплачено ✓" },
-    { id: "adm-4", category: "payouts", entity: "Эскроу #9031 · Артём И.", kind: "Резерв эскроу", subject: "Удержание до 16:00", city: "Якутск (UTC+9)", updatedAt: "13:55", amount: "1 140 ₽", outbox: "vektor.payments.ledger.v1", modStatus: "frozen", status: "info", statusLabel: "В резерве" },
+    { id: "adm-3", category: "payouts", entity: "Выплата #4812 · СБП Т-Банк", kind: "Вывод НПД", subject: "Комиссия 5% + 1% СБП · на руки 94%", city: "Якутск (UTC+9)", updatedAt: "14:15", amount: "11 280 ₽", outbox: "vektor.payments.ledger.v1", modStatus: "paid", status: "accepted", statusLabel: "Выплачено ✓" },
+    { id: "adm-4", category: "payouts", entity: "Эскроу #9031 · Артём И.", kind: "Резерв эскроу", subject: "Удержание до 16:00", city: "Якутск (UTC+9)", updatedAt: "13:55", amount: "1 128 ₽", outbox: "vektor.payments.ledger.v1", modStatus: "frozen", status: "info", statusLabel: "В резерве" },
     { id: "adm-5", category: "system", entity: "Outbox #41820 · Clickstream", kind: "Событие Kafka", subject: "batch=18 · PG17 → Kafka", city: "Cluster · PG17", updatedAt: "13:40", amount: "0.8 ms", outbox: "vektor.user.clickstream.v1", modStatus: "published", status: "accepted", statusLabel: "Отправлено в Kafka" },
     { id: "adm-6", category: "moderation", entity: "Иван К. · Дубликат Ykt/TG", kind: "Проверка жалобы", subject: "Физика · 800 ₽/ч", city: "Якутск (UTC+9)", updatedAt: "13:12", amount: "800 ₽/ч", outbox: "vektor.market.bids.v1", modStatus: "flagged", status: "pending", statusLabel: "Требует внимания" }
   ];
@@ -105,7 +105,7 @@
       },
       {
         key: "net",
-        label: "На руки (95%)",
+        label: "На руки (94%)",
         minCols: 7,
         num: true,
         render: (r) => `<b class="num" style="color:var(--confirm)">${Number(r.net || 0).toLocaleString("ru-RU")} ₽</b>`
@@ -562,21 +562,21 @@
       },
       {
         key: "net95",
-        label: "На руки 95%",
+        label: "На руки 94%",
         num: true,
         render: (r) => {
           const rate = rowRateValue(r);
-          const net = Number(r.net) || Math.round(rate * 0.95);
+          const net = Number(r.net) || Math.max(0, rate - Math.round(rate * 0.05) - Math.round(rate * 0.01));
           return `<b class="num" style="color:var(--confirm)">${net.toLocaleString("ru-RU")} ₽</b>`;
         }
       },
       {
         key: "fee5",
-        label: "Сбор 5%",
+        label: "Сбор 5% + 1%",
         num: true,
         render: (r) => {
           const rate = rowRateValue(r);
-          const net = Number(r.net) || Math.round(rate * 0.95);
+          const net = Number(r.net) || Math.max(0, rate - Math.round(rate * 0.05) - Math.round(rate * 0.01));
           const fee = r.fee != null ? Number(r.fee) : Math.max(0, rate - net);
           return `<span class="num muted">${fee.toLocaleString("ru-RU")} ₽</span>`;
         }
@@ -722,7 +722,7 @@
           const ov = r && r.id ? rateOverrides[r.id] : null;
           if (!(Number(ov) > 0)) return r;
           const rate = Math.round(Number(ov));
-          const net = Math.round(rate * 0.95);
+          const net = Math.max(0, rate - Math.round(rate * 0.05) - Math.round(rate * 0.01));
           return Object.assign({}, r, { rate, net, fee: rate - net });
         })
       : rawRows;
@@ -764,7 +764,7 @@
     const messengerHTML = (r) => renderMessengerLinks && r
       ? renderMessengerLinks({
           entity: { id: r.id, name: r.student || r.entity, whatsapp: r.whatsapp, telegram: r.telegram, maxHandle: r.maxHandle },
-          message: `Здравствуйте, ${r.student || r.entity || "коллега"}! Напоминаю о занятии (${r.subject || ""}, ${r.slot || r.nextSlot || ""}) через Вектор ЕГЭ.`,
+          message: `Здравствуйте, ${r.student || r.entity || "коллега"}! Напоминаю о занятии (${r.subject || ""}, ${r.slot || r.nextSlot || ""}) через Вектор.`,
           primaryLabel: "WA",
           compact: true
         })

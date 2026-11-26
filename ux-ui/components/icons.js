@@ -1,4 +1,4 @@
-/* SVG-иконки, логотип «Вектор ЕГЭ», каталог 40 иконок, якутские узоры Оһуор / Харысхал / Күн и триггер анимации. */
+/* SVG-иконки, логотип «Вектор», каталог 40 иконок, якутские узоры Оһуор / Харысхал / Күн и триггер анимации. */
 (function () {
   "use strict";
 
@@ -10,7 +10,7 @@
     leaf: '<path d="M5 19c0-8 5-14 15-15-1 10-7 15-15 15z"/><path d="M5 19l8-8"/>',
     list: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 2 2 3-3"/><path d="M14 10h4"/><path d="m7 15 2 2 3-3"/><path d="M14 16h4"/>',
     chart: '<path d="M4 20V11"/><path d="M10 20V5"/><path d="M16 20v-7"/><path d="M3 20h18"/>',
-    chat: '<path d="M21 12a8 8 0 0 1-11.8 7L4 20l1.1-4.4A8 8 0 1 1 21 12z"/>',
+    chat: '<path d="M21 14a3 3 0 0 1-3 3H8l-5 4V6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3z"/>',
     gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
     arrow: '<path d="M5 12h14"/><path d="m13 6 6 6-6 6"/>',
     check: '<path d="m5 12 5 5 9-10"/>',
@@ -48,7 +48,7 @@
     shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>',
     video: '<polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>',
     clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
-    send: '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
+    send: '<path d="M5.4 4.8 20.4 12 5.4 19.2l2.6-7.2L5.4 4.8z"/><path d="M8 12h6.4"/>',
     flame: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
     award: '<circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/>',
     copy: '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
@@ -56,6 +56,7 @@
     pin: '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>',
     lock: '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
     plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+    file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
     ohyorCross: '<polygon points="12,3 21,12 12,21 3,12"/><polygon points="12,8 16,12 12,16 8,12"/><line x1="12" y1="1.2" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="22.8"/><line x1="1.2" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="22.8" y2="12"/><line x1="7.5" y1="7.5" x2="5.2" y2="5.2"/><line x1="16.5" y1="7.5" x2="18.8" y2="5.2"/><line x1="7.5" y1="16.5" x2="5.2" y2="18.8"/><line x1="16.5" y1="16.5" x2="18.8" y2="18.8"/>',
     sakhaStar: '<polygon points="12,2 14,7.5 12,10.5 10,7.5"/><polygon points="12,22 14,16.5 12,13.5 10,16.5"/><polygon points="2,12 7.5,10 10.5,12 7.5,14"/><polygon points="22,12 16.5,10 13.5,12 16.5,14"/><polygon points="4.8,4.8 9.2,7.2 10.5,10.5 7.2,9.2"/><polygon points="19.2,4.8 16.8,9.2 13.5,10.5 14.8,7.2"/><polygon points="19.2,19.2 14.8,16.8 13.5,13.5 16.8,14.8"/><polygon points="4.8,19.2 7.2,14.8 10.5,13.5 9.2,16.8"/><circle cx="12" cy="12" r="1.2"/>',
     sakhaLattice: '<polygon points="12,2.5 21.5,12 12,21.5 2.5,12"/><polygon points="12,7 17,12 12,17 7,12"/><line x1="7.2" y1="7.2" x2="16.8" y2="16.8"/><line x1="16.8" y1="7.2" x2="7.2" y2="16.8"/>',
@@ -124,7 +125,7 @@
         sakhaStarCoreSVG() +
         "</svg>" +
         "</span>";
-      return `<div class="sakha-divider is-gold-logo" aria-label="${label || "Вектор ЕГЭ · Саха"}"><span class="sakha-div-line" aria-hidden="true"></span>${goldEmblem}<span class="sakha-div-line" aria-hidden="true"></span></div>`;
+      return `<div class="sakha-divider is-gold-logo" aria-label="${label || "Вектор · Саха"}"><span class="sakha-div-line" aria-hidden="true"></span>${goldEmblem}<span class="sakha-div-line" aria-hidden="true"></span></div>`;
     }
     const ornament =
       '<svg width="64" height="18" viewBox="0 0 64 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
@@ -230,6 +231,12 @@
 
   const GOOGLE_SVG =
     '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5a5.6 5.6 0 0 1-2.4 3.6v3h3.9c2.3-2.1 3.5-5.2 3.5-8.8z"/><path fill="#34A853" d="M12 24c3.2 0 6-1.1 8-3l-3.9-3c-1.1.7-2.5 1.2-4.1 1.2-3.1 0-5.8-2.1-6.8-5H1.2v3.1A12 12 0 0 0 12 24z"/><path fill="#FBBC05" d="M5.2 14.2A7.2 7.2 0 0 1 4.8 12c0-.8.1-1.5.4-2.2V6.7H1.2A12 12 0 0 0 0 12c0 1.9.5 3.8 1.2 5.3l4-3.1z"/><path fill="#EA4335" d="M12 4.8c1.8 0 3.3.6 4.6 1.8l3.4-3.4A11.9 11.9 0 0 0 12 0 12 12 0 0 0 1.2 6.7l4 3.1c1-2.9 3.7-5 6.8-5z"/></svg>';
+
+  const TELEGRAM_SVG =
+    '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#229ED9"/><path fill="#ffffff" d="M17.4 7.4c.2-.8-.3-1.2-1-.9L5.9 10.6c-.7.3-.7.8-.1 1l2.7.8 6.2-3.9c.3-.2.6-.1.4.1l-5 4.5-.2 2.9c.3 0 .4-.1.6-.3l1.4-1.3 2.8 2c.5.3.9.2 1-.5l1.7-8.5z"/></svg>';
+
+  const WHATSAPP_SVG =
+    '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#25D366"/><path fill="none" stroke="#ffffff" stroke-width="1.65" stroke-linejoin="round" d="M12 5.5a6.3 6.3 0 0 0-5.45 9.45L5.6 18.4l3.55-.93A6.3 6.3 0 1 0 12 5.5z"/><path fill="#ffffff" d="M15.45 13.78c-.19-.1-1.12-.55-1.3-.62-.17-.06-.3-.1-.42.1-.13.19-.48.61-.59.74-.11.12-.22.14-.41.05-.19-.1-.8-.3-1.52-.94-.56-.5-.94-1.12-1.05-1.31-.11-.19-.01-.29.08-.39.09-.08.19-.22.28-.33.1-.11.13-.19.19-.31.06-.13.03-.24-.02-.33-.05-.1-.42-1.02-.58-1.4-.15-.37-.31-.32-.42-.32h-.36c-.13 0-.33.05-.5.24-.17.19-.66.64-.66 1.56s.67 1.81.77 1.94c.09.12 1.32 2.02 3.21 2.83.45.19.8.31 1.07.4.45.14.86.12 1.18.07.36-.05 1.12-.46 1.28-.9.16-.44.16-.82.11-.9-.05-.08-.17-.13-.34-.18z"/></svg>';
 
   function sbpLogoSVG(size) {
     const h = Number(size) || 28;
@@ -467,6 +474,8 @@
     brandLockupHTML,
     brandLogoSVG,
     GOOGLE_SVG,
+    TELEGRAM_SVG,
+    WHATSAPP_SVG,
     sbpLogoSVG,
     mirLogoSVG,
     cardNetworkLogoHTML,

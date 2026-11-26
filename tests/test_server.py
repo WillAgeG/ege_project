@@ -1,16 +1,16 @@
-"""Тесты FastAPI-бэкенда «Вектор ЕГЭ»."""
+"""Тесты FastAPI-бэкенда «Вектор»."""
 
 import json
 from pathlib import Path
 import sqlite3
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote as quote_url, urlparse
 
 from fastapi.testclient import TestClient
 import httpx
 import pytest
 
 from backend.ai import AIError, extract_json, normalize_messages
-from backend.config import AIConfig, GoogleOAuthConfig, Settings, load_ai_config, resolve_db_path
+from backend.config import AIConfig, GoogleOAuthConfig, Settings, TelegramAuthConfig, load_ai_config, load_settings, resolve_db_path
 from backend.main import create_app
 from databases.sqlite.store import Database
 
@@ -23,15 +23,23 @@ def _make_settings(
     max_doc_bytes: int = 2 * 1024 * 1024,
     ai: AIConfig | None = None,
     google: GoogleOAuthConfig | None = None,
+    telegram: TelegramAuthConfig | None = None,
     public_base_url: str = "",
+    env: str = "development",
+    dev_demo_mode: bool = True,
+    cors_origins: tuple[str, ...] = (),
 ) -> Settings:
     return Settings(
         db_path=tmp_path / "test.db",
+        env=env,
+        dev_demo_mode=dev_demo_mode,
+        cors_origins=cors_origins,
         invite_code=invite_code,
         max_users=max_users,
         max_doc_bytes=max_doc_bytes,
         ai=ai or AIConfig(None, None, None, None, None),
         google=google or GoogleOAuthConfig(None, None),
+        telegram=telegram or TelegramAuthConfig(),
         public_base_url=public_base_url,
     )
 
@@ -56,12 +64,15 @@ def test_health_and_html_shell(tmp_path: Path) -> None:
         assert r_home.headers["cache-control"] == "no-store"
         html = r_home.text
         assert html.startswith("<!doctype html><html>")
-        assert "<title>Вектор ЕГЭ</title>" in html
+        assert "<title>Вектор</title>" in html
         assert "--accent: #0070ff" in html and "--accent: #1d7bff" in html
         assert "#13794b" not in html
-        flag_pos = html.find("<script>window.EGE_HOST={backend:true};</script>")
+        flag_pos = html.find('<script id="ege-host-config" type="application/json">{"backend":true}</script>')
+        helper_pos = html.find('<script src="/core/host-config.js"></script>')
         app_pos = html.find('<script src="app.js"></script>')
-        assert 0 < flag_pos < app_pos
+        assert 0 < flag_pos < helper_pos < app_pos
+        assert "/core/legal-theme.js" in html or True
+        assert "<script>window.EGE_HOST=" not in html
 
         r_priv = client.get("/privacy")
         assert r_priv.status_code == 200
@@ -91,7 +102,6 @@ def test_static_asset_allowlist(tmp_path: Path) -> None:
             "/views/tutor-schedule.js",
             "/views/tutor-payouts.js",
             "/views/tutor-cabinet.js",
-            "/views/admin.js",
             "/ux-ui/components/icons.js",
             "/ux-ui/components/hh-components.js",
             "/ux-ui/components/charts.js",
@@ -157,7 +167,7 @@ def test_auth_register_login_logout_and_limits(tmp_path: Path) -> None:
         assert r_me.status_code == 200
         assert r_me.json()["user"] is None
         assert r_me.json()["inviteRequired"] is True
-        assert r_me.json()["providers"] == {"local": True, "google": False}
+        assert r_me.json()["providers"] == {"local": True, "phone": True, "google": False, "telegram": False}
 
         # Без кода приглашения — отказ
         r_bad_inv = client.post(
@@ -528,7 +538,7 @@ def test_google_oauth_flow_and_email_linking(tmp_path: Path) -> None:
         client.app.state.http = httpx.AsyncClient(transport=_mock_transport(google_handler))
 
         me = client.get("/api/me").json()
-        assert me["providers"] == {"local": True, "google": True}
+        assert me["providers"] == {"local": True, "phone": True, "google": True, "telegram": False}
 
         # 1. Инициализация PKCE OAuth
         r_start = client.get("/api/auth/google/start", follow_redirects=False)
@@ -615,6 +625,91 @@ def test_google_oauth_flow_and_email_linking(tmp_path: Path) -> None:
         assert r_lim.headers["location"] == "/?auth_error=user_limit"
 
 
+def test_google_oauth_role_and_next_redirect(tmp_path: Path) -> None:
+    google_cfg = GoogleOAuthConfig(client_id="gid-role", client_secret="gsec-role")
+    tg_cfg = TelegramAuthConfig(bot_username="vektor_ege_bot", bot_token="123456:TESTTOKEN")
+    app = create_app(
+        _make_settings(
+            tmp_path / "google_role",
+            google=google_cfg,
+            telegram=tg_cfg,
+            public_base_url="https://ege.example.com",
+            max_users=10,
+        )
+    )
+
+    profile_data = {
+        "sub": "google-tutor-1",
+        "email": "tutor@gmail.com",
+        "email_verified": True,
+        "name": "Алина Репетитор",
+    }
+
+    def google_handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if url == "https://oauth2.googleapis.com/token":
+            parsed = parse_qs(request.content.decode("utf-8"))
+            if parsed.get("code", [""])[0] == "bad-code":
+                return httpx.Response(400, json={"error": "invalid_grant"})
+            return httpx.Response(200, json={"access_token": "tok-role"})
+        if url == "https://openidconnect.googleapis.com/v1/userinfo":
+            return httpx.Response(200, json=profile_data)
+        return httpx.Response(404)
+
+    with TestClient(app) as client:
+        client.app.state.http = httpx.AsyncClient(transport=_mock_transport(google_handler))
+
+        # /api/me отдает только числовой telegramBotId без секрета токена, а CSP включает Telegram Login
+        me_r = client.get("/api/me")
+        assert me_r.status_code == 200
+        me_json = me_r.json()
+        assert me_json["telegramBotUsername"] == "vektor_ege_bot"
+        assert me_json["telegramBotId"] == "123456"
+        assert "TESTTOKEN" not in me_r.text
+        csp = me_r.headers.get("content-security-policy") or ""
+        assert "https://telegram.org" in csp
+        assert "https://oauth.telegram.org" in csp
+
+        # 1. role=tutor + next=/tutor#tutor-profile сохраняются и применяются на callback
+        r1 = client.get("/api/auth/google/start?role=tutor&next=/tutor%23tutor-profile", follow_redirects=False)
+        assert r1.status_code == 302
+        st1 = parse_qs(urlparse(r1.headers["location"]).query)["state"][0]
+        cb1 = client.get(f"/api/auth/google/callback?code=ok&state={st1}", follow_redirects=False)
+        assert cb1.status_code == 302
+        assert cb1.headers["location"] == "/tutor#tutor-profile"
+        u1 = client.get("/api/me").json()["user"]
+        assert u1["role"] == "tutor"
+
+    with TestClient(app) as c2:
+        c2.app.state.http = httpx.AsyncClient(transport=_mock_transport(google_handler))
+        # 2. role=tutor без next -> дефолт /tutor; открытые редиректы отсекаются
+        for bad_next in ("", "https://evil.com/phish", "//evil.com/phish", "/\\evil"):
+            profile_data["sub"] = f"google-tutor-{len(bad_next)}"
+            profile_data["email"] = f"tut{len(bad_next)}@gmail.com"
+            r_st = c2.get(
+                f"/api/auth/google/start?role=tutor&next={quote_url(bad_next)}",
+                follow_redirects=False,
+            )
+            st_tok = parse_qs(urlparse(r_st.headers["location"]).query)["state"][0]
+            cb = c2.get(f"/api/auth/google/callback?code=ok&state={st_tok}", follow_redirects=False)
+            assert cb.status_code == 302
+            assert cb.headers["location"] == "/tutor"
+            assert c2.get("/api/me").json()["user"]["role"] == "tutor"
+
+        # 3. Недопустимая роль admin сбрасывается в student, а ошибка exchange сохраняет next
+        r_adm = c2.get("/api/auth/google/start?role=admin&next=/fees", follow_redirects=False)
+        st_adm = parse_qs(urlparse(r_adm.headers["location"]).query)["state"][0]
+        profile_data.update({"sub": "google-stu-adm", "email": "stuadm@gmail.com"})
+        cb_adm = c2.get(f"/api/auth/google/callback?code=ok&state={st_adm}", follow_redirects=False)
+        assert cb_adm.headers["location"] == "/fees"
+        assert c2.get("/api/me").json()["user"]["role"] == "student"
+
+        r_err_st = c2.get("/api/auth/google/start?role=tutor", follow_redirects=False)
+        st_err = parse_qs(urlparse(r_err_st.headers["location"]).query)["state"][0]
+        cb_err = c2.get(f"/api/auth/google/callback?code=bad-code&state={st_err}", follow_redirects=False)
+        assert cb_err.headers["location"] == "/tutor?auth_error=oauth_exchange"
+
+
 def test_legacy_sqlite_migration(tmp_path: Path) -> None:
     db_path = tmp_path / "legacy.db"
     conn = sqlite3.connect(db_path)
@@ -666,41 +761,39 @@ def test_landing_and_tutors_catalog(tmp_path: Path) -> None:
     with TestClient(app) as client:
         r_root = client.get("/")
         assert r_root.status_code == 200
-        assert "<title>Вектор ЕГЭ</title>" in r_root.text
-        assert "window.EGE_HOST={backend:true};" in r_root.text
+        assert "<title>Вектор</title>" in r_root.text
+        assert '<script id="ege-host-config" type="application/json">{"backend":true}</script>' in r_root.text
+        assert 'src="/core/host-config.js"' in r_root.text
         assert 'href="ux-ui/styles/tables.css"' in r_root.text
         assert 'src="ux-ui/components/tables.js"' in r_root.text
 
         r_stu = client.get("/student")
         assert r_stu.status_code == 200
-        assert "<title>Вектор ЕГЭ — Ученик</title>" in r_stu.text
-        assert 'window.EGE_HOST={backend:true,site:"student"};' in r_stu.text
+        assert "<title>Вектор — Ученик</title>" in r_stu.text
+        assert '<script id="ege-host-config" type="application/json">{"backend":true,"site":"student"}</script>' in r_stu.text
         assert 'src="views/admin.js"' not in r_stu.text
 
         for tutor_route in ("/tutor", "/teacher", "/cabinet"):
             r_tut = client.get(tutor_route)
             assert r_tut.status_code == 200, tutor_route
-            assert "<title>Вектор ЕГЭ — Преподаватель</title>" in r_tut.text
-            assert 'window.EGE_HOST={backend:true,site:"tutor"};' in r_tut.text
+            assert "<title>Вектор — Преподаватель</title>" in r_tut.text
+            assert '<script id="ege-host-config" type="application/json">{"backend":true,"site":"tutor"}</script>' in r_tut.text
             assert 'src="views/admin.js"' not in r_tut.text
             assert 'src="subjects/biology.js"' in r_tut.text
 
-        r_adm = client.get("/admin")
-        assert r_adm.status_code == 200
-        assert "<title>Вектор ЕГЭ — Админ-панель</title>" in r_adm.text
-        assert 'window.EGE_HOST={backend:true,site:"admin"};' in r_adm.text
-        assert 'src="views/admin.js"' in r_adm.text
+        assert client.get("/views/admin.js").status_code == 404
+        assert client.get("/admin").status_code == 404
 
         r_land = client.get("/landing")
         assert r_land.status_code == 200
         assert '<meta name="viewport"' in r_land.text
-        assert "window.EGE_HOST={backend:true,landing:true}" in r_land.text
+        assert '<script id="ege-host-config" type="application/json">{"backend":true,"landing":true}</script>' in r_land.text
         assert 'src="data/tutors.js"' in r_land.text
 
         r_bb = client.get("/brandbook")
         assert r_bb.status_code == 200
-        assert "<title>Вектор ЕГЭ — Брендбук</title>" in r_bb.text
-        assert 'window.EGE_HOST={backend:true,site:"brandbook"};' in r_bb.text
+        assert "<title>Вектор — Брендбук</title>" in r_bb.text
+        assert '<script id="ege-host-config" type="application/json">{"backend":true,"site":"brandbook"}</script>' in r_bb.text
         assert 'src="ux-ui/brandbook/subsites.js"' in r_bb.text
         assert 'src="app.js"' in r_bb.text
 
@@ -718,14 +811,22 @@ def test_landing_and_tutors_catalog(tmp_path: Path) -> None:
         ):
             r_sub = client.get(f"/brandbook/{sub_slug}")
             assert r_sub.status_code == 200, sub_slug
-            assert f'bbSite:"{sub_slug}"' in r_sub.text
+            assert f'"bbSite":"{sub_slug}"' in r_sub.text
 
         assert client.get("/brandbook/nonexistent-page").status_code == 404
 
+        r_mkt = client.get("/market")
+        assert r_mkt.status_code == 200
+        assert "<title>Вектор — Поиск репетиторов</title>" in r_mkt.text
+        assert '<script id="ege-host-config" type="application/json">{"backend":true,"view":"market"}</script>' in r_mkt.text
+        assert 'src="views/admin.js"' not in r_mkt.text
+        assert 'src="app.js"' in r_mkt.text
+        assert 'src="views/marketplace.js"' in r_mkt.text
+
         r_fees = client.get("/fees")
         assert r_fees.status_code == 200
-        assert "<title>Вектор ЕГЭ — Выплаты преподавателя</title>" in r_fees.text
-        assert 'window.EGE_HOST={backend:true,site:"tutor",view:"fees"};' in r_fees.text
+        assert "<title>Вектор — Условия оплаты, эскроу и комиссия</title>" in r_fees.text
+        assert '<script id="ege-host-config" type="application/json">{"backend":true,"view":"fees"}</script>' in r_fees.text
         assert 'src="views/admin.js"' not in r_fees.text
         assert 'src="app.js"' in r_fees.text
 
@@ -742,4 +843,517 @@ def test_landing_and_tutors_catalog(tmp_path: Path) -> None:
         assert "javascript" in r_js.headers["content-type"]
         assert "EGE.tutors" in r_js.text
 
+
+def test_phone_otp_auth_whatsapp_and_telegram(tmp_path: Path) -> None:
+    app = create_app(_make_settings(tmp_path / "phone_otp", invite_code="MED2027"))
+    with TestClient(app) as client:
+        me0 = client.get("/api/me").json()
+        assert me0["providers"]["phone"] is True
+        assert "telegram" in me0["providers"]
+
+        # 1. Невалидный телефон -> 400
+        r_bad_phone = client.post(
+            "/api/auth/phone/send",
+            json={"phone": "123", "country": "RU", "channel": "wa", "mode": "login"},
+        )
+        assert r_bad_phone.status_code == 400
+        assert r_bad_phone.json()["detail"]["code"] == "invalid_phone"
+
+        # 2. Проверка INVITE_CODE на регистрации
+        r_bad_inv = client.post(
+            "/api/auth/phone/send",
+            json={
+                "phone": "+7 (914) 210-05-11",
+                "country": "RU",
+                "channel": "wa",
+                "mode": "register",
+                "inviteCode": "WRONG",
+            },
+        )
+        assert r_bad_inv.status_code == 403
+        assert r_bad_inv.json()["detail"]["code"] == "invalid_invite"
+
+        # 3. Отправка кода в WhatsApp -> смена канала на Telegram -> 7391
+        r_wa = client.post(
+            "/api/auth/phone/send",
+            json={
+                "phone": "+7 (914) 210-05-11",
+                "country": "RU",
+                "channel": "wa",
+                "mode": "register",
+                "inviteCode": "MED2027",
+            },
+        )
+        assert r_wa.status_code == 200
+        d_wa = r_wa.json()
+        assert d_wa["ok"] is True
+        assert d_wa["channel"] == "wa"
+        assert d_wa["channelName"] == "WhatsApp"
+        assert d_wa["demoCode"] == "4829"
+
+        r_tg = client.post(
+            "/api/auth/phone/send",
+            json={
+                "phone": "+7 (914) 210-05-11",
+                "country": "RU",
+                "channel": "tg",
+                "mode": "register",
+                "inviteCode": "MED2027",
+                "resend": True,
+            },
+        )
+        assert r_tg.status_code == 200
+        d_tg = r_tg.json()
+        assert d_tg["channel"] == "tg"
+        assert d_tg["channelName"] == "Telegram"
+        assert d_tg["demoCode"] == "7391"
+
+        # 4. Неверный код -> 400
+        r_wrong = client.post(
+            "/api/auth/phone/verify",
+            json={
+                "phone": "+7 (914) 210-05-11",
+                "country": "RU",
+                "channel": "tg",
+                "code": "0000",
+                "role": "tutor",
+                "authProvider": "telegram",
+            },
+        )
+        assert r_wrong.status_code == 400
+        assert r_wrong.json()["detail"]["code"] == "invalid_code"
+
+        # 5. Верный код -> создаёт пользователя с ролью tutor и ставит cookie
+        r_ok = client.post(
+            "/api/auth/phone/verify",
+            json={
+                "phone": "+7 (914) 210-05-11",
+                "country": "RU",
+                "channel": "tg",
+                "code": "7391",
+                "role": "tutor",
+                "authProvider": "telegram",
+            },
+        )
+        assert r_ok.status_code == 200
+        u1 = r_ok.json()["user"]
+        assert u1["role"] == "tutor"
+        assert u1["authProvider"] == "telegram"
+        assert "pvm_session" in client.cookies
+
+        me1 = client.get("/api/me").json()["user"]
+        assert me1["id"] == u1["id"]
+        assert me1["role"] == "tutor"
+
+    # 6. Повторный вход по тому же номеру (89142100511 -> нормализуется в 79142100511) возвращает того же пользователя
+    with TestClient(app) as c2:
+        r_send2 = c2.post(
+            "/api/auth/phone/send",
+            json={"phone": "89142100511", "country": "RU", "channel": "wa", "mode": "login"},
+        )
+        assert r_send2.status_code == 200
+        r_ok2 = c2.post(
+            "/api/auth/phone/verify",
+            json={
+                "phone": "89142100511",
+                "country": "RU",
+                "channel": "wa",
+                "code": r_send2.json()["demoCode"],
+                "authProvider": "telegram",
+            },
+        )
+        assert r_ok2.status_code == 200
+        assert r_ok2.json()["user"]["id"] == u1["id"]
+
+
+def test_orchestrator_directions_discover_and_sync(tmp_path: Path) -> None:
+    app = create_app(_make_settings(tmp_path / "directions"))
+    with TestClient(app) as client:
+        # 1. Изначально список направлений пуст, /api/market/state отдаёт directions
+        r0 = client.get("/api/market/directions")
+        assert r0.status_code == 200
+        assert r0.json() == {"ok": True, "directions": []}
+        st0 = client.get("/api/market/state")
+        assert st0.status_code == 200
+        assert st0.json()["directions"] == []
+
+        # 2. Валидация слишком короткого названия -> 400
+        r_bad = client.post("/api/market/directions/discover", json={"name": " "})
+        assert r_bad.status_code == 400
+
+        # 3. Оркестратор обнаруживает новое направление
+        r1 = client.post(
+            "/api/market/directions/discover",
+            json={
+                "name": "Каллиграфия и леттеринг",
+                "short": "Каллиграфия",
+                "source": "orchestrator",
+                "keywords": ["перо", "тушь"],
+                "tutorCount": 3,
+            },
+        )
+        assert r1.status_code == 200
+        d1 = r1.json()
+        assert d1["ok"] is True
+        assert d1["created"] is True
+        assert d1["direction"]["short"] == "Каллиграфия"
+        assert d1["direction"]["source"] == "orchestrator"
+        assert d1["direction"]["demandCount"] == 1
+        assert d1["direction"]["tutorCount"] == 3
+        assert d1["direction"]["autoAdded"] is True
+
+        # 4. Повторное обнаружение дедуплицируется и увеличивает demandCount
+        r2 = client.post(
+            "/api/market/directions/discover",
+            json={
+                "name": "каллиграфия",
+                "source": "orchestrator",
+                "keywords": ["кисть"],
+                "tutorCount": 5,
+            },
+        )
+        assert r2.status_code == 200
+        d2 = r2.json()
+        assert d2["created"] is False
+        assert d2["direction"]["id"] == d1["direction"]["id"]
+        assert d2["direction"]["demandCount"] == 2
+        assert d2["direction"]["tutorCount"] == 5
+        assert "кисть" in d2["direction"]["keywords"]
+
+        # 5. Отображается в GET /api/market/directions и GET /api/market/state
+        st1 = client.get("/api/market/state").json()
+        assert len(st1["directions"]) == 1
+        assert st1["directions"][0]["short"] == "Каллиграфия"
+
+
+def test_reviews_recalculate_rating_and_dispute_escrow_refund(tmp_path: Path) -> None:
+    app = create_app(_make_settings(tmp_path / "reviews_disputes"))
+    with TestClient(app) as client:
+        r_reg = client.post(
+            "/api/auth/register",
+            json={"username": "stu_review", "password": "secret123", "displayName": "Мария К."},
+        )
+        assert r_reg.status_code == 200
+
+        # Пополняем баланс до 5000 ₽
+        r_top = client.post("/api/wallet/topup", json={"amount": 5000, "method": "sbp"})
+        assert r_top.status_code == 200
+        pre_balance = int(r_top.json()["wallet"]["balanceRub"])
+        assert pre_balance >= 5000
+
+        # Создаём и принимаем бронь за 1200 ₽ (эскроу списывает 1200 ₽ с доступного баланса)
+        r_bk = client.post(
+            "/api/bookings",
+            json={
+                "tutorId": "tut-sokolova",
+                "tutorName": "Анна Соколова",
+                "subject": "eng",
+                "subjectName": "Английский язык",
+                "exam": "ЕГЭ",
+                "format": "Онлайн",
+                "city": "Якутск",
+                "dayIso": "2026-11-25",
+                "hour": "16:00",
+                "offerPrice": 1200,
+                "tutorPrice": 1200,
+                "firstLessonGuarantee": True,
+            },
+        )
+        assert r_bk.status_code == 200
+        booking_id = r_bk.json()["booking"]["id"]
+
+        r_acc = client.post(f"/api/bookings/{booking_id}/accept", json={"counterPrice": 1200})
+        assert r_acc.status_code == 200
+        after_hold_balance = int(r_acc.json()["wallet"]["balanceRub"])
+        assert after_hold_balance == pre_balance - 1200
+
+        # Оставляем отзыв 3 ★ и проверяем пересчёт среднего рейтинга и reviewsSummary
+        r_rev1 = client.post(
+            "/api/tutors/tut-sokolova/reviews",
+            json={
+                "rating": 3,
+                "comment": "Понятный разбор, но мало практики.",
+                "bookingId": booking_id,
+                "tags": ["Понятно объясняет"],
+            },
+        )
+        assert r_rev1.status_code == 200
+        rev1_data = r_rev1.json()
+        assert rev1_data["ok"] is True
+        assert rev1_data["reviewsCount"] == 1
+        assert rev1_data["rating"] == 3.0
+
+        r_rev2 = client.post(
+            "/api/tutors/tut-sokolova/reviews",
+            json={"rating": 5, "comment": "Второй урок прошёл идеально!"},
+        )
+        assert r_rev2.status_code == 200
+        rev2_data = r_rev2.json()
+        assert rev2_data["reviewsCount"] == 2
+        assert rev2_data["rating"] == 4.0
+
+        r_list = client.get("/api/tutors/tut-sokolova/reviews")
+        assert r_list.status_code == 200
+        list_json = r_list.json()
+        assert list_json["reviewsCount"] == 2
+        assert list_json["rating"] == 4.0
+        assert len(list_json["reviews"]) == 2
+
+        st_after_rev = client.get("/api/market/state").json()
+        assert st_after_rev["reviewsSummary"]["tut-sokolova"]["reviewsCount"] == 2
+        assert st_after_rev["reviewsSummary"]["tut-sokolova"]["rating"] == 4.0
+
+        # Короткий комментарий спора -> 400 / 422
+        r_bad_dsp = client.post(
+            f"/api/bookings/{booking_id}/dispute",
+            json={"reason": "first_lesson_guarantee", "comment": "а", "firstLessonGuarantee": True},
+        )
+        assert r_bad_dsp.status_code in (400, 422)
+
+        # Открываем спор по гарантии 1-го урока
+        r_dsp = client.post(
+            f"/api/bookings/{booking_id}/dispute",
+            json={
+                "reason": "first_lesson_guarantee",
+                "comment": "Первый урок не подошёл по формату, прошу вернуть оплату.",
+                "firstLessonGuarantee": True,
+            },
+        )
+        assert r_dsp.status_code == 200
+        dispute = r_dsp.json()["dispute"]
+        dispute_id = dispute["id"]
+        assert dispute["status"] == "open"
+        assert dispute["amountRub"] == 1200
+
+        # Виден и ученику, и админу
+        r_my_dsp = client.get("/api/disputes")
+        assert r_my_dsp.status_code == 200
+        assert any(d["id"] == dispute_id for d in r_my_dsp.json()["disputes"])
+
+        r_adm_dsp = client.get("/api/admin/disputes")
+        assert r_adm_dsp.status_code == 200
+        assert any(d["id"] == dispute_id for d in r_adm_dsp.json()["disputes"])
+
+        # Админ одобряет возврат оплаты с эскроу
+        r_res = client.post(
+            f"/api/admin/disputes/{dispute_id}/resolve",
+            json={"action": "refund", "resolutionNote": "Подтверждено по гарантии 1-го урока"},
+        )
+        assert r_res.status_code == 200
+        res_json = r_res.json()
+        assert res_json["ok"] is True
+        assert res_json["dispute"]["status"] == "refunded"
+        assert res_json["refundedRub"] == 1200
+        assert int(res_json["wallet"]["balanceRub"]) == pre_balance
+
+        # Повторное решение по закрытому спору -> 409
+        r_dup = client.post(f"/api/admin/disputes/{dispute_id}/resolve", json={"action": "refund"})
+        assert r_dup.status_code == 409
+
+
+def test_legal_pages_privacy_terms_refunds_152fz(tmp_path: Path) -> None:
+    app = create_app(_make_settings(tmp_path / "legal"))
+    with TestClient(app) as client:
+        r_priv = client.get("/privacy")
+        assert r_priv.status_code == 200
+        assert "Политика конфиденциальности" in r_priv.text
+        assert "152-ФЗ" in r_priv.text
+        assert "/terms" in r_priv.text
+        assert "/refunds" in r_priv.text
+
+        for path in ("/terms", "/offer"):
+            r_terms = client.get(path)
+            assert r_terms.status_code == 200
+            assert "Публичная оферта" in r_terms.text
+            assert "437" in r_terms.text
+            assert "5%" in r_terms.text and "94%" in r_terms.text and "98%" in r_terms.text
+            assert "/student?auth=register" in r_terms.text
+            assert "/tutor?auth=register" in r_terms.text
+            assert "/student?auth=login" in r_terms.text
+
+        for path in ("/refunds", "/escrow"):
+            r_ref = client.get(path)
+            assert r_ref.status_code == 200
+            assert "Правила возврата средств" in r_ref.text
+            assert "Гарантия первого урока" in r_ref.text
+            assert "first_lesson_guarantee" in r_ref.text
+
+
+def test_production_mode_disables_demo_otp_and_student_sim_accept(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("VEKTOR_ENV", "production")
+    monkeypatch.delenv("DEV_DEMO_MODE", raising=False)
+    monkeypatch.delenv("ADMIN_REQUIRE_AUTH", raising=False)
+    monkeypatch.setenv("CORS_ORIGINS", "https://app.vektor-ege.ru/, https://admin.vektor-ege.ru")
+    prod_loaded = load_settings()
+    assert prod_loaded.env == "production"
+    assert prod_loaded.dev_demo_mode is False
+    assert prod_loaded.admin_require_auth is True
+    assert prod_loaded.cors_origins == ("https://app.vektor-ege.ru", "https://admin.vektor-ege.ru")
+
+    app = create_app(_make_settings(tmp_path / "prod_mode", env="production", dev_demo_mode=False))
+    with TestClient(app) as client:
+        me0 = client.get("/api/me").json()
+        assert me0["demoMode"] is False
+
+        home_html = client.get("/").text
+        assert '<script id="ege-host-config" type="application/json">{"backend":true,"demoMode":false}</script>' in home_html
+
+        r_send = client.post(
+            "/api/auth/phone/send",
+            json={"phone": "+7 (914) 210-05-99", "country": "RU", "channel": "wa", "mode": "login"},
+        )
+        assert r_send.status_code == 200
+        send_data = r_send.json()
+        assert send_data["ok"] is True
+        assert send_data["demoMode"] is False
+        assert "demoCode" not in send_data
+
+        # В проде дефолтный "4829" не принимается
+        r_bad_otp = client.post(
+            "/api/auth/phone/verify",
+            json={"phone": "+7 (914) 210-05-99", "country": "RU", "channel": "wa", "code": "4829"},
+        )
+        assert r_bad_otp.status_code == 400
+        assert r_bad_otp.json()["detail"]["code"] == "invalid_code"
+
+        # Ученик в проде не может сам нажать accept по своей pending-заявке
+        assert client.post(
+            "/api/auth/register",
+            json={"username": "stu_prod_sec", "password": "secret123", "displayName": "Артём"},
+        ).status_code == 200
+        assert client.post("/api/wallet/topup", json={"amount": 5000, "method": "sbp"}).status_code == 503
+        stu_uid = client.get("/api/me").json()["user"]["id"]
+        app.state.db.topup_wallet(stu_uid, amount_rub=5000, method="sbp")
+        r_bk = client.post(
+            "/api/bookings",
+            json={
+                "tutorId": "tut-sokolova",
+                "tutorName": "Анна Соколова",
+                "subject": "eng",
+                "subjectName": "Английский язык",
+                "dayIso": "2026-11-26",
+                "hour": "16:00",
+                "offerPrice": 1200,
+            },
+        )
+        assert r_bk.status_code == 200
+        bk_id = r_bk.json()["booking"]["id"]
+        r_stu_acc = client.post(f"/api/bookings/{bk_id}/accept", json={"counterPrice": 1200})
+        assert r_stu_acc.status_code == 403
+        assert r_stu_acc.json()["code"] == "forbidden"
+
+
+def test_account_export_and_delete_152fz(tmp_path: Path) -> None:
+    app = create_app(_make_settings(tmp_path / "delete_152fz"))
+    with TestClient(app) as client:
+        assert client.get("/api/me/export").status_code == 401
+        assert client.delete("/api/me").status_code == 401
+
+        r_reg = client.post(
+            "/api/auth/register",
+            json={"username": "pd_user", "password": "secret123", "displayName": "Ольга Н.", "email": "olga@example.com"},
+        )
+        assert r_reg.status_code == 200
+        user_id = int(r_reg.json()["user"]["id"])
+
+        assert client.patch(
+            "/api/docs/profile",
+            json={"name": "Ольга Николаева", "phone": "+79142100577", "city": "Якутск"},
+        ).status_code == 200
+        assert client.post("/api/wallet/topup", json={"amount": 5000, "method": "sbp"}).status_code == 200
+        r_bk = client.post(
+            "/api/bookings",
+            json={
+                "tutorId": "tut-sokolova",
+                "tutorName": "Анна Соколова",
+                "subject": "eng",
+                "subjectName": "Английский язык",
+                "dayIso": "2026-11-27",
+                "hour": "17:00",
+                "offerPrice": 1100,
+                "note": "Подготовка к ЕГЭ",
+            },
+        )
+        assert r_bk.status_code == 200
+        booking_id = r_bk.json()["booking"]["id"]
+
+        # 1. Экспорт ПДн (152-ФЗ)
+        r_exp = client.get("/api/me/export")
+        assert r_exp.status_code == 200
+        assert r_exp.headers["cache-control"] == "no-store"
+        assert "attachment;" in r_exp.headers["content-disposition"]
+        exp = r_exp.json()
+        assert exp["schema"] == "vektor-ege-personal-data-v1"
+        assert exp["legalBasis"] == "152-FZ"
+        assert exp["account"]["username"] == "pd_user"
+        assert exp["account"]["email"] == "olga@example.com"
+        assert "password_hash" not in json.dumps(exp)
+        assert exp["docs"]["profile"]["city"] == "Якутск"
+        assert any(b["id"] == booking_id for b in exp["bookings"])
+
+        # 2. Удаление аккаунта (152-ФЗ)
+        r_del = client.delete("/api/me")
+        assert r_del.status_code == 200
+        del_data = r_del.json()
+        assert del_data["ok"] is True
+        assert del_data["deleted"] is True
+        assert del_data["userId"] == user_id
+        assert del_data["revokedSessions"] >= 1
+        assert del_data["anonymizedBookings"] == 1
+
+        # Сессия и логин больше не действительны
+        assert client.get("/api/me").json()["user"] is None
+        assert client.get("/api/docs").status_code == 401
+        r_relogin = client.post("/api/auth/login", json={"username": "pd_user", "password": "secret123"})
+        assert r_relogin.status_code == 401
+
+        # Персональные данные в заявке обезличены, а таблица users не содержит запись
+        with sqlite3.connect(app.state.settings.db_path) as conn:
+            u_cnt = conn.execute("SELECT COUNT(*) FROM users WHERE id = ?", (user_id,)).fetchone()[0]
+            assert u_cnt == 0
+            bk_row = conn.execute(
+                "SELECT student_user_id, student_name, note FROM admin_lesson_requests WHERE id = ?",
+                (booking_id,),
+            ).fetchone()
+            assert bk_row == (None, "Удалённый пользователь", "")
+
+
+def test_security_headers_and_seo_routes(tmp_path: Path) -> None:
+    app = create_app(
+        _make_settings(
+            tmp_path / "sec_seo",
+            public_base_url="https://vektor-ege.example.com",
+        )
+    )
+    with TestClient(app) as client:
+        for path in ("/", "/api/health", "/terms"):
+            r = client.get(path)
+            assert r.status_code == 200, path
+            assert r.headers.get("x-content-type-options") == "nosniff"
+            assert r.headers.get("x-frame-options") == "SAMEORIGIN"
+            assert r.headers.get("referrer-policy") == "strict-origin-when-cross-origin"
+            assert "camera=(self)" in (r.headers.get("permissions-policy") or "")
+            assert r.headers.get("x-permitted-cross-domain-policies") == "none"
+            csp = r.headers.get("content-security-policy") or ""
+            script_src_dir = next((d.strip() for d in csp.split(";") if d.strip().startswith("script-src")), "")
+            assert "default-src 'self'" in csp and "frame-ancestors 'self'" in csp
+            assert "'self'" in script_src_dir and "'unsafe-inline'" not in script_src_dir
+
+        r_https = client.get("/", headers={"X-Forwarded-Proto": "https"})
+        assert r_https.status_code == 200
+        assert "max-age=31536000" in (r_https.headers.get("strict-transport-security") or "")
+
+        r_rob = client.get("/robots.txt")
+        assert r_rob.status_code == 200
+        assert "text/plain" in r_rob.headers["content-type"]
+        assert "Disallow: /api/" in r_rob.text
+        assert "Sitemap: https://vektor-ege.example.com/sitemap.xml" in r_rob.text
+
+        r_map = client.get("/sitemap.xml")
+        assert r_map.status_code == 200
+        assert "application/xml" in r_map.headers["content-type"]
+        for page in ("/", "/landing", "/market", "/terms", "/refunds", "/privacy"):
+            assert f"<loc>https://vektor-ege.example.com{page}</loc>" in r_map.text
 

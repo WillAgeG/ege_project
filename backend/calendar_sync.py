@@ -191,7 +191,7 @@ def generate_ics(cal_state: dict[str, Any]) -> str:
         cal_state.get("timezone"),
         cal_state.get("city"),
     )
-    tutor_name = str(cal_state.get("tutorName") or cal_state.get("tutor_name") or "Преподаватель Вектор ЕГЭ").strip()
+    tutor_name = str(cal_state.get("tutorName") or cal_state.get("tutor_name") or "Преподаватель Вектор").strip()
     dtstamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
     lines = [
@@ -200,7 +200,7 @@ def generate_ics(cal_state: dict[str, Any]) -> str:
         "PRODID:-//Vektor EGE//Schedule 2027//RU",
         "CALSCALE:GREGORIAN",
         "METHOD:PUBLISH",
-        f"X-WR-CALNAME:{_ics_escape(f'Вектор ЕГЭ — {tutor_name}')}",
+        f"X-WR-CALNAME:{_ics_escape(f'Вектор — {tutor_name}')}",
         f"X-WR-TIMEZONE:{iana_name}",
         "BEGIN:VTIMEZONE",
         f"TZID:{iana_name}",
@@ -541,13 +541,13 @@ def build_google_calendar_urls(
         subj = str(first.get("subjectName") or first.get("subject") or "Биология").strip()
         exam = str(first.get("exam") or "ЕГЭ").strip()
         title = f"Урок {exam}: {student} ({subj})"
-        details = f"Платформа Вектор ЕГЭ · {tz_code} ({iana_name}). Ссылка подписки: {ics_url}"
+        details = f"Платформа Вектор · {tz_code} ({iana_name}). Ссылка подписки: {ics_url}"
     else:
         default_date = slot_date_for_dow(6, ref_date=datetime.now(tzinfo).date())
         start_dt = datetime(default_date.year, default_date.month, default_date.day, 16, 0, tzinfo=tzinfo)
         end_dt = start_dt + timedelta(hours=1)
-        tutor_name = str(cal_state.get("tutorName") or "Преподаватель Вектор ЕГЭ").strip()
-        title = f"Занятие Вектор ЕГЭ — {tutor_name}"
+        tutor_name = str(cal_state.get("tutorName") or "Преподаватель Вектор").strip()
+        title = f"Занятие Вектор — {tutor_name}"
         details = f"Расписание {tz_code} ({iana_name}). Подписка .ics: {ics_url}"
 
     utc_start = start_dt.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")

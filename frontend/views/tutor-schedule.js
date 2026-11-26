@@ -13,6 +13,7 @@
     CITY_OPTIONS, TZ_OPTIONS, WA_LEAD_OPTIONS, AUTO_CHANNELS, AUTO_BUMP_HOURS,
     GOAL_PRESETS, QUICK_TEMPLATES, DEFAULT_REQUESTS, DEFAULT_STUDENTS,
     SAMPLE_GCAL_ICS, MIN_PAYOUT_RUB, PAYOUT_BANKS,
+    isDevDemoMode,
     getCtx, configure, getTDATA, getTutorSlug, syncTutorCalendar, publishRtUpdate,
     formatPhone, formatTelegram, formatCardMask, normalizeChannelList, normalizeLeadList,
     copyStr, formatTimestamp, defaultState, tState, saveState,
@@ -34,6 +35,19 @@
     return rDow === dowStr;
   }
 
+  function lessonMatchesDay(r, dayObj) {
+    if (!r || !dayObj) return false;
+    const dowStr = String(dayObj.dow);
+    const sp = r.schedulePlan;
+    if (sp && (sp.status === "confirmed" || sp.status === "sent_to_tutor") && Array.isArray(sp.dows) && sp.dows.length) {
+      return sp.dows.map((x) => String(x)).includes(dowStr);
+    }
+    if (r.dayIso && dayObj.iso) {
+      return String(r.dayIso) === String(dayObj.iso);
+    }
+    return lessonMatchesDow(r, dowStr);
+  }
+
   function findStudentForLesson(st, lesson) {
     const list = (st && Array.isArray(st.students)) ? st.students : [];
     if (!lesson || !list.length) return null;
@@ -46,7 +60,237 @@
     return list.find((s) => s && String(s.name || "").trim().toLowerCase() === targetName) || null;
   }
 
+  function collectTutorStudents(st, allReqs) {
+    const TDATA = getTDATA();
+    const reqs = Array.isArray(allReqs) ? allReqs : [];
+    const reqStatsByKey = new Map();
+    const recordReqStat = (key, r) => {
+      if (!key) return;
+      if (!reqStatsByKey.has(key)) {
+        reqStatsByKey.set(key, { activeCnt: 0, completedCnt: 0, pastCnt: 0, earnedRub: 0, latest: r, activeReqId: "" });
+      }
+      const stat = reqStatsByKey.get(key);
+      if (r.status === "accepted") {
+        stat.activeCnt += 1;
+        if (!stat.activeReqId) stat.activeReqId = r.id;
+      } else if (r.status === "completed") {
+        stat.completedCnt += 1;
+        stat.pastCnt += 1;
+      } else if (r.status === "cancelled") {
+        stat.pastCnt += 1;
+      }
+      const pay = typeof getLessonPaymentState === "function" ? getLessonPaymentState(st, r) : { paid: r.paid === true };
+      if (r.status === "completed" || pay.paid) {
+        const bRate = Number(r.counterPrice || r.offerPrice || r.tutorPrice || 0);
+        const bSplit = typeof calcLessonSplit === "function" ? calcLessonSplit(bRate, r, TDATA) : { payout: bRate };
+        stat.earnedRub += Number(r.payout > 0 ? r.payout : (bSplit.payout || 0));
+      }
+      if (String(r.updatedAt || "") >= String((stat.latest && stat.latest.updatedAt) || "")) stat.latest = r;
+    };
+
+    reqs.forEach((r) => {
+      if (!r || !["accepted", "completed", "cancelled"].includes(r.status)) return;
+      const nmKey = String(r.studentName || "").trim().toLowerCase();
+      if (r.studentId) recordReqStat("id:" + String(r.studentId), r);
+      if (nmKey) recordReqStat("nm:" + nmKey, r);
+      if (!r.studentId && !nmKey && r.id) recordReqStat("id:" + String(r.id), r);
+    });
+
+    const out = [];
+    const seenIds = new Set();
+    const seenNames = new Set();
+
+    const pushStudent = (src, fromReq) => {
+      const id = String((src && src.id) || "");
+      const name = String((src && (src.name || src.studentName)) || "Ученик").trim() || "Ученик";
+      const nmLower = name.toLowerCase();
+      if (id && seenIds.has(id)) return;
+      if (nmLower && seenNames.has(nmLower)) return;
+      if (id) seenIds.add(id);
+      if (nmLower) seenNames.add(nmLower);
+
+      const stat = (id && reqStatsByKey.get("id:" + id)) || (nmLower && reqStatsByKey.get("nm:" + nmLower)) || null;
+      const latestReq = (stat && stat.latest) || fromReq || null;
+      const manualStatus = String((src && src.manualStatus) || "");
+      const hasAccepted = Boolean(stat && stat.activeCnt > 0);
+      const hasPastBookings = Boolean(stat && stat.pastCnt > 0);
+
+      let isPast = false;
+      if (manualStatus === "past") isPast = true;
+      else if (manualStatus === "active") isPast = false;
+      else if (hasAccepted) isPast = false;
+      else if (src && src.status === "past") isPast = true;
+      else if (hasPastBookings && !(src && src.lessonsDone && src.status !== "past")) isPast = true;
+      else if (fromReq && !hasAccepted) isPast = true;
+
+      const sp = latestReq && latestReq.schedulePlan;
+      const dowObj = latestReq ? DAY_LIST.find((d) => d.dow === String(latestReq.dow || "")) : null;
+      const dayLabel = (src && src.lessonDay) || (dowObj && dowObj.full) || (latestReq && latestReq.dayLabel) || "По расписанию";
+      const timeLabel = (src && src.lessonTime) || (sp && sp.hour) || (latestReq && latestReq.hour) || "";
+      const scheduleText = timeLabel ? `${dayLabel}, ${timeLabel}` : dayLabel;
+      const examText = (src && src.exam) || (latestReq ? `${latestReq.exam || "ЕГЭ"} · ${latestReq.subjectName || "Подготовка"}` : "Подготовка");
+      const rate = Number((src && src.rate) || (latestReq && (latestReq.counterPrice || latestReq.offerPrice)) || 0);
+      const effRate = rate > 0 ? rate : Number((st && st.profile && st.profile.price) || 0);
+      const lessonsDone = Math.max(
+        Number((src && src.lessonsDone) || 0),
+        stat ? stat.completedCnt || 0 : 0
+      );
+      const netPerLesson = effRate > 0
+        ? (typeof calcLessonSplit === "function" ? calcLessonSplit(effRate, latestReq, TDATA).payout : Math.round(effRate * 0.94))
+        : 0;
+      const earnedRub = Math.max(
+        Number((src && src.earnedRub) || 0),
+        stat ? Number(stat.earnedRub || 0) : 0,
+        lessonsDone > 0 && netPerLesson > 0 ? lessonsDone * netPerLesson : 0
+      );
+
+      out.push({
+        id: id || ("stu-" + nmLower),
+        name,
+        exam: examText,
+        isPast,
+        scheduleText,
+        endedLabel: (src && src.endedLabel) || (latestReq && latestReq.dayLabel ? `Последний слот: ${latestReq.dayLabel}` : "Занятия завершены"),
+        lessonsDone,
+        rate,
+        earnedRub,
+        note: String((src && src.hw) || (latestReq && latestReq.note) || "").trim(),
+        activeReqId: (stat && stat.activeReqId) || (fromReq && fromReq.id) || "",
+        lastReqId: String((src && src.lastReqId) || (latestReq && latestReq.id) || (stat && stat.activeReqId) || ""),
+        whatsapp: (src && src.whatsapp) || (latestReq && latestReq.whatsapp) || "",
+        telegram: (src && src.telegram) || (latestReq && latestReq.telegram) || "",
+        maxHandle: (src && src.maxHandle) || (latestReq && latestReq.maxHandle) || ""
+      });
+    };
+
+    (Array.isArray(st && st.students) ? st.students : []).forEach((s) => {
+      if (s) pushStudent(s, null);
+    });
+    reqs.forEach((r) => {
+      if (!r || !["accepted", "completed", "cancelled"].includes(r.status)) return;
+      pushStudent({
+        id: String(r.studentId || r.id || ""),
+        name: r.studentName || "Ученик",
+        exam: `${r.exam || "ЕГЭ"} · ${r.subjectName || "Подготовка"}`,
+        status: r.status === "accepted" ? "active" : "past",
+        rate: Number(r.counterPrice || r.offerPrice || 0),
+        hw: r.note || ""
+      }, r);
+    });
+
+    return out;
+  }
+
+  function renderStudentsDirectory(st, TDATA, allReqs, allStudents) {
+    const list = Array.isArray(allStudents) ? allStudents : collectTutorStudents(st, allReqs);
+    const currentStudents = list.filter((s) => !s.isPast);
+    const pastStudents = list.filter((s) => s.isPast);
+    const scope = st.studentsScope === "past" ? "past" : "current";
+    const visible = scope === "past" ? pastStudents : currentStudents;
+    const expandedId = String(st.expandedStudentId || "");
+
+    const itemsHTML = visible.length
+      ? `<div class="tc-stu-list">
+          ${visible.map((stu) => {
+            const isExpanded = expandedId === stu.id;
+            const isConfirmDrop = st.confirmDropStudentKey === stu.id;
+            const contacts = typeof resolveLessonContacts === "function"
+              ? resolveLessonContacts(st, null, stu)
+              : { entity: stu, available: null };
+            const msgBar = (EGE.kit && typeof EGE.kit.messengerLinksHTML === "function" && (contacts.entity.whatsapp || contacts.entity.telegram || contacts.entity.maxHandle))
+              ? EGE.kit.messengerLinksHTML({
+                  entity: contacts.entity,
+                  available: contacts.available,
+                  message: `Здравствуйте, ${stu.name}! Пишу по занятиям на платформе Вектор.`,
+                  primaryTitle: "Написать ученику",
+                  iconOnly: true,
+                  compact: true
+                })
+              : "";
+            const detailHTML = isExpanded ? `<div class="tc-stu-detail" data-stu-detail="${esc(stu.id)}">
+              <div class="tc-stu-meta-grid">
+                <div class="tc-stu-meta-kv">
+                  <span>Статус</span>
+                  <b>${stu.isPast ? "Бывший ученик" : "Текущий ученик"}</b>
+                </div>
+                <div class="tc-stu-meta-kv">
+                  <span>${stu.isPast ? "Период" : "Расписание"}</span>
+                  <b>${esc(stu.isPast ? stu.endedLabel : stu.scheduleText)}</b>
+                </div>
+                <div class="tc-stu-meta-kv">
+                  <span>Занятий</span>
+                  <b class="num">${stu.lessonsDone} ${plural(stu.lessonsDone, "урок", "урока", "уроков")}</b>
+                </div>
+                ${stu.rate > 0 ? `<div class="tc-stu-meta-kv">
+                  <span>Ставка</span>
+                  <b class="num">${stu.rate.toLocaleString("ru-RU")} ₽/ч</b>
+                </div>` : ""}
+                ${(stu.earnedRub > 0 || stu.isPast) ? `<div class="tc-stu-meta-kv">
+                  <span>Заработано</span>
+                  <b class="num savings-gold-txt">${(Number(stu.earnedRub) || 0).toLocaleString("ru-RU")} ₽</b>
+                </div>` : ""}
+              </div>
+              ${stu.note ? `<div class="tc-stu-hw">${esc(stu.note)}</div>` : ""}
+              ${msgBar}
+              <div class="tc-stu-detail-acts">
+                <button type="button" class="btn soft sm" data-a="tc-stu-chat" data-id="${esc(stu.id)}" data-req-id="${esc(stu.lastReqId || stu.activeReqId || "")}" data-name="${esc(stu.name)}" data-exam="${esc(stu.exam)}" data-rate="${stu.rate || 0}">${icon("chat")}<span>Написать</span></button>
+                ${stu.isPast
+                  ? `<button type="button" class="btn ghost sm" data-a="tc-stu-restore" data-id="${esc(stu.id)}" data-name="${esc(stu.name)}">Вернуть в текущие</button>`
+                  : (isConfirmDrop
+                    ? `<div class="tc-sp-confirm tc-stu-drop-confirm" style="flex:1 1 100%">
+                        <span class="tc-sp-confirm-label">Убрать ученика?</span>
+                        <div class="tc-sp-confirm-btns">
+                          <button type="button" class="btn ghost sm" data-a="tc-student-drop-cancel">Отмена</button>
+                          <button type="button" class="btn bad sm" data-a="tc-student-drop-confirm" data-id="${esc(stu.id)}" data-req-id="${esc(stu.activeReqId)}" data-name="${esc(stu.name)}">Убрать</button>
+                        </div>
+                      </div>`
+                    : `<button type="button" class="btn ghost sm tc-stu-drop-btn" data-a="tc-student-drop-ask" data-id="${esc(stu.id)}">Убрать ученика</button>`)}
+              </div>
+            </div>` : "";
+            return `<article class="tc-stu-item${isExpanded ? " is-expanded" : ""}" data-stu-id="${esc(stu.id)}">
+              <div class="tc-stu-row">
+                <div class="tc-stu-ident">
+                  <span class="avatar sm${stu.isPast ? " is-past" : ""}" aria-hidden="true">${esc(initials(stu.name))}</span>
+                  <div class="tc-stu-head-txt">
+                    <b>${esc(stu.name)}</b>
+                    <span class="small muted">${esc(stu.exam)}</span>
+                  </div>
+                </div>
+                <button type="button" class="btn ${isExpanded ? "ghost" : "soft"} sm tc-stu-more-btn" data-a="tc-stu-detail" data-id="${esc(stu.id)}" aria-expanded="${isExpanded}">${isExpanded ? "Свернуть" : "Подробнее"}</button>
+              </div>
+              ${detailHTML}
+            </article>`;
+          }).join("")}
+        </div>`
+      : `<div class="empty">
+          <b>${scope === "past" ? "Бывших учеников пока нет" : "Текущих учеников пока нет"}</b>
+          <span>${scope === "past" ? "Сюда попадают ученики, которые завершили обучение или были убраны из активного расписания." : "Подтвердите заявку во вкладке «Заявки» или запишите ученика в разделе «Календарь»."}</span>
+        </div>`;
+
+    return `<section class="stack tc-stu-dir" id="tc-students-list" aria-label="Список учеников">
+      <div class="hh-seg equal tc-stu-scope-seg" role="group" aria-label="Категория учеников">
+        <button type="button" data-a="tc-stu-scope" data-v="current" aria-pressed="${scope === "current"}">Текущие (${currentStudents.length})</button>
+        <button type="button" data-a="tc-stu-scope" data-v="past" aria-pressed="${scope === "past"}">Бывшие (${pastStudents.length})</button>
+      </div>
+      ${itemsHTML}
+    </section>`;
+  }
+
   function renderCalendarTab(st, TDATA, allReqs) {
+    const subView = st.studentsSubView === "list" ? "list" : "calendar";
+    const allStudents = collectTutorStudents(st, allReqs);
+    const modeSwitchHTML = `<div class="hh-seg equal tc-stu-mode-seg" id="tc-students-mode-seg" role="group" aria-label="Выбор режима раздела Ученики">
+      <button type="button" data-a="tc-stu-view" data-v="calendar" aria-pressed="${subView === "calendar"}">${icon("cal")}<span>Календарь</span></button>
+      <button type="button" data-a="tc-stu-view" data-v="list" aria-pressed="${subView === "list"}">${icon("users")}<span>Ученики (${allStudents.length})</span></button>
+    </div>`;
+
+    if (subView === "list") {
+      return `<div class="stack tc-students-tab-wrap">
+        ${modeSwitchHTML}
+        ${renderStudentsDirectory(st, TDATA, allReqs, allStudents)}
+      </div>`;
+    }
+
     const hours = (TDATA && TDATA.HOURS) ? TDATA.HOURS : ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
     const rawWeek = Number(st.calWeek);
     const weekOffset = Number.isFinite(rawWeek) ? Math.max(-12, Math.min(12, Math.trunc(rawWeek))) : 0;
@@ -71,17 +315,16 @@
     const dowStr = String(activeDay.dow);
     const dayKeyByDow = { "1": "mon", "2": "tue", "3": "wed", "4": "thu", "5": "fri", "6": "sat", "0": "sun" };
     const activeDayKey = dayKeyByDow[dowStr] || "sat";
-    const confirmedReqs = allReqs.filter((r) => r.status === "accepted");
-    const activeLessons = confirmedReqs
-      .filter((r) => lessonMatchesDow(r, dowStr))
+    const scheduledReqs = allReqs.filter((r) => r.status === "accepted" || r.status === "completed");
+    const activeLessons = scheduledReqs
+      .filter((r) => lessonMatchesDay(r, activeDay))
       .sort((a, b) => {
         const ha = String((a.schedulePlan && a.schedulePlan.hour) || a.hour || "");
         const hb = String((b.schedulePlan && b.schedulePlan.hour) || b.hour || "");
         return ha.localeCompare(hb);
       });
     const weekCount = weekDays.reduce((sum, d) => {
-      const k = String(d.dow);
-      return sum + confirmedReqs.filter((r) => lessonMatchesDow(r, k)).length;
+      return sum + scheduledReqs.filter((r) => lessonMatchesDay(r, d)).length;
     }, 0);
 
     const rtCal = (EGE.realtime && typeof EGE.realtime.getState === "function") ? EGE.realtime.getState().calendar : null;
@@ -93,18 +336,23 @@
     const gcalConnected = !!(cs.gcalConnected || busySlots.length > 0);
     const unbookedGcal = busyForActiveDay.filter((b) => !activeLessons.some((l) => String((l.schedulePlan && l.schedulePlan.hour) || l.hour || "") === String(b.hour || "")));
 
+    const isDemo = isDevDemoMode();
+    const ctxStore = getCtx().store;
+    const isAuthed = !!(ctxStore && ctxStore.user);
     const students = Array.isArray(st.students) ? st.students : [];
     const waCfg = st.waSettings || { enabled: true, lead: "1h", leads: ["24h", "1h"], channels: ["wa", "tg", "max"], template: "Здравствуйте, {имя}! Скоро будет урок ({предмет}) — {день} в {время}." };
     const cfgChannels = normalizeChannelList(waCfg.channels);
     const cfgLeads = normalizeLeadList(waCfg.leads);
-    const sampleStudent = students[0] || { id: "st-alina", name: "Алина С.", exam: "ЕГЭ · Биология", lessonDay: "Воскресенье", lessonTime: "10:00", whatsapp: "+7 (914) 210-05-11", telegram: "@alina_bio" };
+    const sampleStudent = students.find((s) => s && s.whatsapp) || students[0] || (isDemo
+      ? { id: "st-alina", name: "Алина С.", exam: "ЕГЭ · Биология", lessonDay: "Воскресенье", lessonTime: "10:00", whatsapp: "+7 (914) 210-05-11", telegram: "@alina_bio" }
+      : { id: "", name: "Имя ученика", exam: "ЕГЭ", lessonDay: "Воскресенье", lessonTime: "10:00", whatsapp: "", telegram: "" });
     const samplePreview = formatWaReminderText(st, sampleStudent);
     const sampleWaHref = studentWaHref(st, sampleStudent);
 
     const daysStripHTML = `<div class="study-week-days${isPastWeek ? " is-past-week" : ""}" data-week-swipe="tc" role="group" aria-label="Дни недели и записанные ученики">
       ${weekDays.map((d) => {
         const k = String(d.dow);
-        const bookedCnt = confirmedReqs.filter((r) => lessonMatchesDow(r, k)).length;
+        const bookedCnt = scheduledReqs.filter((r) => lessonMatchesDay(r, d)).length;
         const isOn = k === dowStr;
         const isPastDay = isPastWeek || Boolean(d.iso && d.iso < todayIso);
         return `<button type="button" class="study-week-day-btn${isOn ? " on" : ""}${bookedCnt > 0 ? " has-lessons" : ""}${isPastDay ? " is-past" : ""}" data-a="tc-day" data-dow="${k}" aria-pressed="${isOn}">
@@ -134,7 +382,7 @@
               const rate = Number(lesson.counterPrice || lesson.offerPrice) || st.profile.price;
               const lSplit = typeof calcLessonSplit === "function"
                 ? calcLessonSplit(rate, lesson, TDATA)
-                : { total: rate, fee: Math.round(rate * 0.05), payout: rate - Math.round(rate * 0.05), pct: 5, isManual: false };
+                : { total: rate, fee: Math.round(rate * 0.05), sbpFee: Math.round(rate * 0.01), payout: Math.max(0, rate - Math.round(rate * 0.05) - Math.round(rate * 0.01)), pct: 5, sbpPct: 1, isManual: false };
               const pay = typeof getLessonPaymentState === "function" ? getLessonPaymentState(st, lesson) : { paid: false };
               return `<article class="study-lesson-card is-past" data-req-id="${esc(lesson.id)}">
                 <div class="study-lesson-time-row">
@@ -174,12 +422,10 @@
             const rate = Number(lesson.counterPrice || lesson.offerPrice) || st.profile.price;
             const lSplit = typeof calcLessonSplit === "function"
               ? calcLessonSplit(rate, lesson, TDATA)
-              : { total: rate, fee: Math.round(rate * 0.05), payout: rate - Math.round(rate * 0.05), pct: 5, isManual: false };
+              : { total: rate, fee: Math.round(rate * 0.05), sbpFee: Math.round(rate * 0.01), payout: Math.max(0, rate - Math.round(rate * 0.05) - Math.round(rate * 0.01)), pct: 5, sbpPct: 1, isManual: false };
             const gcalBusy = busyForActiveDay.find((b) => b.hour === lessonHour);
             const tmUrl = typeof ensureTelemostUrl === "function" ? ensureTelemostUrl(st, lesson) : String(lesson.telemostUrl || "").trim();
             const stu = findStudentForLesson(st, lesson);
-            const stuGain = stu ? ((Number(stu.curScore) || 0) - (Number(stu.startScore) || 0)) : 0;
-            const stuPct = stu ? Math.max(8, Math.min(100, Math.round(((Number(stu.curScore) || 0) / Math.max(1, Number(stu.targetScore) || 100)) * 100))) : 0;
             const stuChannels = stu ? normalizeChannelList(stu.autoChannels) : [];
             const stuChBadge = stuChannels.map((cid) => (AUTO_CHANNELS.find((c) => c.id === cid) || {}).short || cid.toUpperCase()).join(" · ");
             const contacts = typeof resolveLessonContacts === "function"
@@ -189,7 +435,7 @@
               ? EGE.kit.messengerLinksHTML({
                   entity: contacts.entity,
                   available: contacts.available,
-                  message: `Здравствуйте, ${lesson.studentName}! Напоминаю про занятие (${lesson.subjectName}, ${activeDay.shortLabel} в ${lessonHour}) на платформе Вектор ЕГЭ.`,
+                  message: `Здравствуйте, ${lesson.studentName}! Напоминаю про занятие (${lesson.subjectName}, ${activeDay.shortLabel} в ${lessonHour}) на платформе Вектор.`,
                   primaryTitle: "Написать ученику · WhatsApp",
                   iconOnly: true,
                   allowHoldAdd: true,
@@ -197,19 +443,19 @@
                 })
               : `<button type="button" class="btn soft sm" data-a="tc-req-msg" data-id="${esc(lesson.id)}">${icon("msg")}<span>Написать ученику</span></button>`;
 
-            const stuProgressHTML = stu ? `<div class="tc-stu-progress">
-              <div class="row between small" style="gap:8px;flex-wrap:wrap;align-items:center">
-                <span class="muted">Баллы: <b class="num">${stu.startScore}</b> → <b class="num savings-gold-txt">${stu.curScore}</b> / Цель <b class="num">${stu.targetScore}</b> · <b class="num">${stu.lessonsDone}</b> ${plural(stu.lessonsDone, "урок", "урока", "уроков")}</span>
-                <span class="chip confirm num">+${stuGain} б.</span>
-              </div>
-              <div class="tc-score-track"><div class="tc-score-fill" style="width:${stuPct}%"></div></div>
-              ${stu.hw ? `<div class="small muted" style="line-height:1.4">${esc(stu.hw)}</div>` : ""}
-              <div class="tc-stu-actions">
-                <button type="button" class="btn soft sm" data-a="tc-student-score" data-id="${esc(stu.id)}" data-delta="2">+2 б.</button>
-                <button type="button" class="btn ghost sm" data-a="tc-student-lesson" data-id="${esc(stu.id)}">+1 урок</button>
-                <button type="button" class="btn confirm sm tc-stu-remind-btn" data-a="tc-student-remind" data-id="${esc(stu.id)}">${icon("msg")}<span>Напомнить (${esc(stu.lessonDay || activeDay.wd)}, ${esc(stu.lessonTime || lessonHour)})</span></button>
-              </div>
-            </div>` : "";
+            const dropKey = String((stu && stu.id) || lesson.id);
+            const isConfirmDrop = st.confirmDropStudentKey === dropKey;
+            const dropStudentHTML = lesson.status === "accepted"
+              ? (isConfirmDrop
+                ? `<div class="tc-sp-confirm tc-stu-drop-confirm">
+                    <span class="tc-sp-confirm-label">Убрать ученика? Занятия будут отменены.</span>
+                    <div class="tc-sp-confirm-btns">
+                      <button type="button" class="btn ghost sm" data-a="tc-student-drop-cancel">Отмена</button>
+                      <button type="button" class="btn bad sm" data-a="tc-student-drop-confirm" data-id="${esc(dropKey)}" data-req-id="${esc(lesson.id)}" data-name="${esc(lesson.studentName)}">Убрать</button>
+                    </div>
+                  </div>`
+                : `<button type="button" class="btn ghost sm study-cancel-btn tc-stu-drop-btn" data-a="tc-student-drop-ask" data-id="${esc(dropKey)}">Убрать ученика</button>`)
+              : "";
 
             const stuFoldHTML = stu ? `<details class="tc-stu-fold">
               <summary>Контакты и автоуведомления</summary>
@@ -228,7 +474,7 @@
                 <div class="tc-two-col">
                   <div class="field" style="gap:3px">
                     <label class="small muted" for="st-wa-${esc(stu.id)}">Телефон (WA / MAX)</label>
-                    <input class="input num" id="st-wa-${esc(stu.id)}" data-tc-student="whatsapp" data-id="${esc(stu.id)}" value="${esc(formatPhone(stu.whatsapp || "79142100511"))}" maxlength="22" placeholder="+7 (914) 000-00-00">
+                    <input class="input num" id="st-wa-${esc(stu.id)}" data-tc-student="whatsapp" data-id="${esc(stu.id)}" value="${esc(formatPhone(stu.whatsapp || (isDemo ? "79142100511" : "")))}" maxlength="22" placeholder="+7 (914) 000-00-00">
                   </div>
                   <div class="field" style="gap:3px">
                     <label class="small muted" for="st-tg-${esc(stu.id)}">Telegram (@ или +7)</label>
@@ -245,6 +491,7 @@
                     <input class="input num" id="st-time-${esc(stu.id)}" data-tc-student="lessonTime" data-id="${esc(stu.id)}" value="${esc(stu.lessonTime || lessonHour)}" maxlength="12" placeholder="10:00">
                   </div>
                 </div>
+                <button type="button" class="btn confirm sm tc-stu-remind-btn" data-a="tc-student-remind" data-id="${esc(stu.id)}">${icon("msg")}<span>Напомнить (${esc(stu.lessonDay || activeDay.wd)}, ${esc(stu.lessonTime || lessonHour)})</span></button>
               </div>
             </details>` : "";
 
@@ -254,9 +501,9 @@
                 <span class="small muted">${esc(activeDay.shortLabel)} · ${esc(lesson.format || "Онлайн")}</span>
               </div>
               <div class="study-lesson-pills">
-                ${lSplit.isManual ? `<span class="chip confirm">Свой ученик · 1%</span>` : ""}
+                ${lSplit.isManual ? `<span class="chip confirm">Свой ученик · 1% + 1% СБП</span>` : ""}
                 ${isWeekly ? `<span class="chip accent">Каждую неделю</span>` : ""}
-                <span class="bb-tbl-st is-confirmed">✓ Подтверждён</span>
+                <span class="bb-tbl-st is-confirmed">${lesson.status === "completed" ? "✓ Проведён" : "✓ Подтверждён"}</span>
                 ${gcalBusy ? `<span class="chip bad">Конфликт GCal</span>` : ""}
               </div>
               <div class="tutor-name-line">
@@ -265,27 +512,35 @@
                   <div class="tutor-title-inline">
                     <b class="tutor-person-name">${esc(lesson.studentName)}</b>
                   </div>
-                  <span class="small muted">${esc(lesson.exam || "ЕГЭ")} · ${esc(lesson.subjectName || "")} · ${rate.toLocaleString("ru-RU")} ₽/ч${lSplit.isManual ? ` · На руки ${lSplit.payout.toLocaleString("ru-RU")} ₽ (сбор 1%)` : ""}</span>
+                  <span class="small muted">${esc(lesson.exam || "ЕГЭ")} · ${esc(lesson.subjectName || "")} · ${rate.toLocaleString("ru-RU")} ₽/ч${lSplit.isManual ? ` · На руки ${lSplit.payout.toLocaleString("ru-RU")} ₽ (сбор 1% + 1% СБП)` : ""}</span>
                 </div>
               </div>
               ${lesson.note ? `<div class="tc-req-quote">${esc(lesson.note)}</div>` : ""}
-              ${stuProgressHTML}
               ${typeof renderLessonPaymentHTML === "function" ? renderLessonPaymentHTML(st, lesson, stu) : ""}
               ${tmUrl ? `<a class="btn soft sm bid-telemost-join" href="${esc(tmUrl)}" target="_blank" rel="noopener noreferrer">${icon("video")}<span>Подключиться к Яндекс Телемосту</span></a>` : ""}
               ${msgBar}
               <div class="small muted tc-hold-hint">Удерживайте иконку, чтобы изменить контакт</div>
               ${typeof renderLessonNotifyHTML === "function" ? renderLessonNotifyHTML(st, lesson, stu) : ""}
               ${stuFoldHTML}
-              <button type="button" class="btn ghost sm study-cancel-btn" data-a="tc-req-decline" data-id="${esc(lesson.id)}">Снять с расписания</button>
+              ${dropStudentHTML}
             </article>`;
           }).join("")}
           ${unbookedGcalHTML}
         </div>`
-      : `<div class="empty">
-          <b>На ${esc(activeDay.fullLabel)} записанных учеников нет</b>
-          <span>Выберите день с цифрой выше или запишите ученика вручную.</span>
-          <button type="button" class="btn soft sm" data-a="tc-cal-open-add" data-hour="${hours[0]}">+ Записать ученика</button>
-        </div>`);
+      : (!isDemo && !isAuthed
+        ? `<div class="empty" id="tc-cal-auth-empty">
+            <b>Войдите в аккаунт преподавателя</b>
+            <span>После авторизации в календаре появятся подтверждённые и проведённые занятия с учениками.</span>
+            <button type="button" class="btn sm" data-a="auth-modal-open">Войти или зарегистрироваться</button>
+          </div>`
+        : `<div class="empty">
+            <b>На ${esc(activeDay.fullLabel)} записанных учеников нет</b>
+            <span>${isDemo ? "Выберите день с цифрой выше или запишите ученика вручную." : "Подтвердите заявки во вкладке «Заявки» или запишите своего ученика вручную."}</span>
+            <div class="row" style="gap:8px;flex-wrap:wrap;justify-content:center">
+              <button type="button" class="btn soft sm" data-a="tc-cal-open-add" data-hour="${hours[0]}">+ Записать ученика</button>
+              ${!isDemo ? `<button type="button" class="btn ghost sm" data-a="tc-tab" data-tab="requests">Перейти к заявкам</button>` : ""}
+            </div>
+          </div>`));
 
     const waDrawerHTML = st.waPanelOpen ? `<div class="tc-wa-inline-panel stack" aria-label="Настройка автоуведомлений">
       <div class="tc-drawer-head">
@@ -328,7 +583,9 @@
         <div class="stack" style="gap:8px">
           <b class="small">Пример (${esc(sampleStudent.name)} · ${esc(sampleStudent.lessonDay || "Воскресенье")}, ${esc(sampleStudent.lessonTime || "10:00")})</b>
           <div class="tc-template-body">${esc(samplePreview)}</div>
-          <a class="btn confirm sm" href="${esc(sampleWaHref)}" target="_blank" rel="noopener" style="width:100%;justify-content:center">${icon("send")}<span>Тест в WhatsApp</span></a>
+          ${sampleWaHref
+            ? `<a class="btn confirm sm" href="${esc(sampleWaHref)}" target="_blank" rel="noopener" style="width:100%;justify-content:center">${icon("send")}<span>Тест в WhatsApp</span></a>`
+            : `<span class="small muted">Добавьте ученика с номером телефона, чтобы протестировать отправку в WhatsApp.</span>`}
         </div>
       </div>
       <details class="tc-stu-fold">
@@ -348,19 +605,13 @@
       </details>
     </div>` : "";
 
-    return `<section class="stack study-cal-card" id="tc-week-strip">
-      <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
-        <div>
-          <div class="eyebrow">Живое расписание · 10:00–20:00</div>
-          <h2 class="h2">Календарь записанных учеников (${weekCount})</h2>
-        </div>
-        ${gcalConnected ? `<span class="chip confirm">✓ GCal</span>` : ""}
-      </div>
-
+    return `<div class="stack tc-students-tab-wrap">
+      ${modeSwitchHTML}
+      <section class="stack study-cal-card" id="tc-week-strip">
       <div class="tc-cal-toolbar">
         <button type="button" class="btn soft sm" data-a="tc-cal-open-add" data-hour="${hours[0]}">+ Записать ученика</button>
         <button type="button" class="btn ${st.waPanelOpen ? "confirm" : "ghost"} sm" data-a="tc-wa-panel-toggle" aria-pressed="${!!st.waPanelOpen}">${icon("bell")}<span>Уведомления</span><i class="tc-status-dot${waCfg.enabled ? " is-on" : ""}" aria-hidden="true"></i></button>
-        <button type="button" class="btn ghost sm" data-a="tc-cal-import-modal">Google / Apple</button>
+        <button type="button" class="btn ghost sm" data-a="tc-cal-import-modal">${gcalConnected ? "✓ Google / Apple" : "Google / Apple"}</button>
       </div>
 
       ${waDrawerHTML}
@@ -376,11 +627,11 @@
         <div class="tc-ics-quick-row">
           <label class="btn soft sm" for="tc-ics-file" style="cursor:pointer;justify-content:center">${icon("upload")}<span>Файл .ics</span></label>
           <input type="file" id="tc-ics-file" accept=".ics,text/calendar" data-tc-ics-file="1" class="sr">
-          <button type="button" class="btn soft sm" data-a="tc-cal-import-sample" style="justify-content:center">Тестовое GCal</button>
+          ${isDemo ? `<button type="button" class="btn soft sm" data-a="tc-cal-import-sample" style="justify-content:center">Тестовое GCal</button>` : ""}
         </div>
         <div class="field">
           <label for="tc-ics-text">Или вставьте текст расписания (.ics)</label>
-          <textarea class="textarea mono tc-ics-area" id="tc-ics-text" name="icsText" rows="3" placeholder="BEGIN:VCALENDAR...">${esc(st.calImportDraft || SAMPLE_GCAL_ICS)}</textarea>
+          <textarea class="textarea mono tc-ics-area" id="tc-ics-text" name="icsText" rows="3" placeholder="BEGIN:VCALENDAR...">${esc(st.calImportDraft || (isDemo ? SAMPLE_GCAL_ICS : ""))}</textarea>
         </div>
         <div class="tc-cal-import-actions">
           <button type="submit" class="btn sm" style="width:100%;justify-content:center">${icon("check")}<span>Перенести занятые слоты (${esc(st.profile.timezone || "UTC+9")})</span></button>
@@ -401,7 +652,7 @@
           <b>Записать своего ученика (${esc(activeDay.shortLabel)})</b>
           <button type="button" class="icon-btn sm" data-a="tc-cal-close-add" aria-label="Закрыть">${icon("x")}</button>
         </div>
-        <div class="tc-fee1-banner">Комиссия за своего ученика — <b>всего 1%</b> (на руки 99%)</div>
+        <div class="tc-fee1-banner">Комиссия за своего ученика — <b>всего 1% + 1% СБП</b> (на руки 98%)</div>
         <div class="tc-two-col">
           <div class="field">
             <label for="tc-add-name">Имя ученика</label>
@@ -417,7 +668,7 @@
         <div class="field">
           <label for="tc-add-price">Цена урока (₽/ч)</label>
           <input class="input num" id="tc-add-price" name="offerPrice" data-a="tc-add-price" type="number" min="500" max="15000" step="50" value="${st.profile.price}">
-          <span class="small muted" id="tc-add-fee-note">На руки 99%: <b class="num" style="color:var(--confirm)">${Math.max(0, st.profile.price - Math.round(st.profile.price * 0.01)).toLocaleString("ru-RU")} ₽</b> · сбор 1% (${Math.round(st.profile.price * 0.01).toLocaleString("ru-RU")} ₽)</span>
+          <span class="small muted" id="tc-add-fee-note">На руки 98%: <b class="num" style="color:var(--confirm)">${Math.max(0, st.profile.price - Math.round(st.profile.price * 0.01) * 2).toLocaleString("ru-RU")} ₽</b> · сбор 1% + 1% СБП (${(Math.round(st.profile.price * 0.01) * 2).toLocaleString("ru-RU")} ₽)</span>
         </div>
         <div class="field">
           <label for="tc-add-note">Тема / ДЗ</label>
@@ -439,7 +690,8 @@
         </div>
         ${dayLessonsHTML}
       </div>
-    </section>`;
+    </section>
+    </div>`;
   }
 
   function formatWaReminderText(st, student) {
@@ -453,8 +705,9 @@
   }
 
   function studentWaHref(st, student) {
-    const phone = String((student && student.whatsapp) || "79142100511").replace(/\D+/g, "") || "79142100511";
-    return `https://wa.me/${phone}?text=${encodeURIComponent(formatWaReminderText(st, student))}`;
+    const raw = String((student && student.whatsapp) || (isDevDemoMode() ? "79142100511" : "")).replace(/\D+/g, "");
+    if (!raw) return "";
+    return `https://wa.me/${raw}?text=${encodeURIComponent(formatWaReminderText(st, student))}`;
   }
 
   function studentReminderUrl(st, student, chId) {
@@ -472,11 +725,14 @@
 
   function renderStudentsTab(st) {
     const p = st.profile;
+    const isDemo = isDevDemoMode();
     const students = Array.isArray(st.students) ? st.students : [];
     const waCfg = st.waSettings || { enabled: true, lead: "1h", leads: ["24h", "1h"], channels: ["wa", "tg", "max"], template: "Здравствуйте, {имя}! Скоро будет урок ({предмет}) — {день} в {время}." };
     const cfgChannels = normalizeChannelList(waCfg.channels);
     const cfgLeads = normalizeLeadList(waCfg.leads);
-    const sampleStudent = students[0] || { id: "st-alina", name: "Алина С.", exam: "ЕГЭ · Биология", lessonDay: "Воскресенье", lessonTime: "10:00", whatsapp: "+7 (914) 210-05-11", telegram: "@alina_bio" };
+    const sampleStudent = students.find((s) => s && s.whatsapp) || students[0] || (isDemo
+      ? { id: "st-alina", name: "Алина С.", exam: "ЕГЭ · Биология", lessonDay: "Воскресенье", lessonTime: "10:00", whatsapp: "+7 (914) 210-05-11", telegram: "@alina_bio" }
+      : { id: "", name: "Имя ученика", exam: "ЕГЭ", lessonDay: "Воскресенье", lessonTime: "10:00", whatsapp: "", telegram: "" });
     const samplePreview = formatWaReminderText(st, sampleStudent);
     const sampleWaHref = studentWaHref(st, sampleStudent);
     const stFilter = ["all", "auto", "off"].includes(st.stTblFilter) ? st.stTblFilter : "all";
@@ -540,7 +796,7 @@
         render: (s) => `<div style="display:grid;gap:6px;width:170px">
           <div class="field" style="gap:3px">
             <label class="small muted" for="st-wa-${esc(s.id)}">Телефон (WA / MAX)</label>
-            <input class="input num" id="st-wa-${esc(s.id)}" data-tc-student="whatsapp" data-id="${esc(s.id)}" value="${esc(formatPhone(s.whatsapp || "79142100511"))}" maxlength="22" placeholder="+7 (914) 000-00-00" style="min-height:32px;padding:5px 9px;font-size:13px">
+            <input class="input num" id="st-wa-${esc(s.id)}" data-tc-student="whatsapp" data-id="${esc(s.id)}" value="${esc(formatPhone(s.whatsapp || (isDemo ? "79142100511" : "")))}" maxlength="22" placeholder="+7 (914) 000-00-00" style="min-height:32px;padding:5px 9px;font-size:13px">
           </div>
           <div class="field" style="gap:3px">
             <label class="small muted" for="st-tg-${esc(s.id)}">Telegram (@ или +7)</label>
@@ -574,7 +830,7 @@
             ${EGE.kit && typeof EGE.kit.messengerLinksHTML === "function"
               ? EGE.kit.messengerLinksHTML({
                   entity: s,
-                  message: `Здравствуйте, ${s.name}! Напоминаю про занятие (${s.exam || "ЕГЭ"}, ${day} в ${time}) через Вектор ЕГЭ.`,
+                  message: `Здравствуйте, ${s.name}! Напоминаю про занятие (${s.exam || "ЕГЭ"}, ${day} в ${time}) через Вектор.`,
                   primaryLabel: "WhatsApp",
                   compact: true
                 })
@@ -605,7 +861,7 @@
       columns: studentColumns,
       rows: students,
       searchFields: (s) => [s.name, s.exam, s.hw, s.lessonDay, s.lessonTime, s.whatsapp, s.telegram, String(s.curScore || "")].join(" "),
-      emptyText: "По выбранному фильтру учеников нет."
+      emptyText: isDemo ? "По выбранному фильтру учеников нет." : "Учеников пока нет. Они появятся после подтверждения заявок."
     });
 
     return `<div class="stack" style="gap:16px">
@@ -646,14 +902,16 @@
           <div class="tc-template-card">
             <div class="row between" style="gap:8px;flex-wrap:wrap">
               <b class="small">Пример сообщения (${esc(sampleStudent.name)} · ${esc(sampleStudent.lessonDay || "Воскресенье")}, ${esc(sampleStudent.lessonTime || "10:00")})</b>
-              ${EGE.kit && typeof EGE.kit.messengerLinksHTML === "function"
-                ? EGE.kit.messengerLinksHTML({
-                    entity: sampleStudent,
-                    message: samplePreview,
-                    primaryLabel: "Тест в WhatsApp",
-                    compact: true
-                  })
-                : `<a class="btn confirm sm" href="${esc(sampleWaHref)}" target="_blank" rel="noopener">${icon("send")}<span>Тест в WhatsApp</span></a>`}
+              ${sampleWaHref
+                ? (EGE.kit && typeof EGE.kit.messengerLinksHTML === "function"
+                  ? EGE.kit.messengerLinksHTML({
+                      entity: sampleStudent,
+                      message: samplePreview,
+                      primaryLabel: "Тест в WhatsApp",
+                      compact: true
+                    })
+                  : `<a class="btn confirm sm" href="${esc(sampleWaHref)}" target="_blank" rel="noopener">${icon("send")}<span>Тест в WhatsApp</span></a>`)
+                : `<span class="small muted">Нет номера телефона</span>`}
             </div>
             <div class="tc-template-body">${esc(samplePreview)}</div>
           </div>
@@ -749,7 +1007,7 @@
           const deltaLabel = delta === 0
             ? "= бюджету"
             : (delta > 0 ? `+${delta.toLocaleString("ru-RU")} ₽ к бюджету` : `−${Math.abs(delta).toLocaleString("ru-RU")} ₽`);
-          const sp = TDATA && typeof TDATA.commissionSplit === "function" ? TDATA.commissionSplit(counterRate) : { payout: Math.round(counterRate * 0.95) };
+          const sp = TDATA && typeof TDATA.commissionSplit === "function" ? TDATA.commissionSplit(counterRate) : { payout: Math.max(0, counterRate - Math.round(counterRate * 0.05) - Math.round(counterRate * 0.01)) };
           return `<div style="display:grid;gap:6px;justify-items:start;min-width:210px">
             <div class="hh-price-stepper compact">
               <button type="button" class="hh-step-btn" data-a="tc-lead-step" data-id="${esc(lead.id)}" data-step="-50">−50 ₽</button>
@@ -759,7 +1017,7 @@
               </div>
               <button type="button" class="hh-step-btn" data-a="tc-lead-step" data-id="${esc(lead.id)}" data-step="50">+50 ₽</button>
             </div>
-            <span class="small muted num" style="white-space:nowrap"><span data-tc-lead-delta="${esc(lead.id)}">${deltaLabel}</span> · На руки 95%: <b class="savings-gold-txt" data-tc-lead-payout="${esc(lead.id)}">${sp.payout.toLocaleString("ru-RU")} ₽</b></span>
+            <span class="small muted num" style="white-space:nowrap"><span data-tc-lead-delta="${esc(lead.id)}">${deltaLabel}</span> · На руки 94%: <b class="savings-gold-txt" data-tc-lead-payout="${esc(lead.id)}">${sp.payout.toLocaleString("ru-RU")} ₽</b></span>
           </div>`;
         }
       },
@@ -777,7 +1035,7 @@
             <button type="button" class="btn ${lead.responded ? "soft" : ""} sm" data-a="tc-lead-offer" data-id="${esc(lead.id)}">${lead.responded ? `✓ Отклик ${counterRate} ₽` : `Предложить ${counterRate.toLocaleString("ru-RU")} ₽/ч`}</button>
             ${waHref ? (EGE.kit && typeof EGE.kit.messengerLinksHTML === "function"
               ? EGE.kit.messengerLinksHTML({
-                  entity: { id: lead.id, name: lead.studentName, whatsapp: lead.whatsapp || "79142100511" },
+                  entity: { id: lead.id, name: lead.studentName, whatsapp: lead.whatsapp || (isDevDemoMode() ? "79142100511" : "") },
                   message: `Здравствуйте, ${lead.studentName}! Вижу ваш запрос по предмету ${lead.subjectName || "ЕГЭ"}. Готов(а) провести урок по ставке ${counterRate} ₽/ч.`,
                   primaryLabel: "Написать ученику · WA",
                   compact: true
@@ -834,6 +1092,7 @@
 
 
   Object.assign(TC, {
+    collectTutorStudents,
     renderCalendarTab,
     formatWaReminderText,
     studentWaHref,

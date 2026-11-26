@@ -15,7 +15,7 @@
     ["combo", "Тренд", "06 · Палочки + линия тренда (.is-combo)", "Единый SVG: палочки, монотонная кривая Фрича–Карлсона с градиентом и точные узлы без рассинхрона."]
   ];
 
-  /* Палитра из 20 контрастных различимых цветов брендбука Вектор ЕГЭ. */
+  /* Палитра из 20 контрастных различимых цветов брендбука Вектор. */
   const CHART_PALETTE_20 = [
     "#0070ff", "#c59b5f", "#7c3aed", "#16a34a", "#f97316",
     "#0284c7", "#e11d48", "#0d9488", "#d97706", "#6366f1",
@@ -47,13 +47,13 @@
       ];
     }
     return [
-      { wd: "Пн", val: "4.2к", minVal: "2.4к", maxVal: "4.2к", num: 4200, detail: "Пн · 2.4к–4.2к ₽ · 4 урока · на руки 95% · 3 990 ₽", pct: 52, benchPct: 48, low: 16, span: 42, gold: false },
-      { wd: "Вт", val: "5.6к", minVal: "3.1к", maxVal: "5.6к", num: 5600, detail: "Вт · 3.1к–5.6к ₽ · 5 уроков · на руки 95% · 5 320 ₽", pct: 70, benchPct: 60, low: 22, span: 50, gold: false },
-      { wd: "Ср", val: "3.4к", minVal: "1.9к", maxVal: "3.4к", num: 3400, detail: "Ср · 1.9к–3.4к ₽ · 3 урока · на руки 95% · 3 230 ₽", pct: 44, benchPct: 50, low: 14, span: 34, gold: false },
-      { wd: "Чт", val: "7.9к", minVal: "4.8к", maxVal: "7.9к", num: 7900, detail: "Чт · 4.8к–7.9к ₽ · 7 уроков · на руки 95% · 7 505 ₽ · Пик авто-24ч", pct: 100, benchPct: 68, low: 32, span: 60, gold: true },
-      { wd: "Пт", val: "5.1к", minVal: "2.9к", maxVal: "5.1к", num: 5100, detail: "Пт · 2.9к–5.1к ₽ · 5 уроков · на руки 95% · 4 845 ₽", pct: 64, benchPct: 58, low: 20, span: 46, gold: false },
-      { wd: "Сб", val: "6.8к", minVal: "3.9к", maxVal: "6.8к", num: 6800, detail: "Сб · 3.9к–6.8к ₽ · 6 уроков · на руки 95% · 6 460 ₽ · Пик авто-24ч", pct: 86, benchPct: 66, low: 26, span: 56, gold: true },
-      { wd: "Вс", val: "4.5к", minVal: "2.5к", maxVal: "4.5к", num: 4500, detail: "Вс · 2.5к–4.5к ₽ · 4 урока · на руки 95% · 4 275 ₽", pct: 56, benchPct: 52, low: 18, span: 40, gold: false }
+      { wd: "Пн", val: "4.2к", minVal: "2.4к", maxVal: "4.2к", num: 4200, detail: "Пн · 2.4к–4.2к ₽ · 4 урока · на руки 94% · 3 948 ₽", pct: 52, benchPct: 48, low: 16, span: 42, gold: false },
+      { wd: "Вт", val: "5.6к", minVal: "3.1к", maxVal: "5.6к", num: 5600, detail: "Вт · 3.1к–5.6к ₽ · 5 уроков · на руки 94% · 5 264 ₽", pct: 70, benchPct: 60, low: 22, span: 50, gold: false },
+      { wd: "Ср", val: "3.4к", minVal: "1.9к", maxVal: "3.4к", num: 3400, detail: "Ср · 1.9к–3.4к ₽ · 3 урока · на руки 94% · 3 196 ₽", pct: 44, benchPct: 50, low: 14, span: 34, gold: false },
+      { wd: "Чт", val: "7.9к", minVal: "4.8к", maxVal: "7.9к", num: 7900, detail: "Чт · 4.8к–7.9к ₽ · 7 уроков · на руки 94% · 7 426 ₽ · Пик авто-24ч", pct: 100, benchPct: 68, low: 32, span: 60, gold: true },
+      { wd: "Пт", val: "5.1к", minVal: "2.9к", maxVal: "5.1к", num: 5100, detail: "Пт · 2.9к–5.1к ₽ · 5 уроков · на руки 94% · 4 794 ₽", pct: 64, benchPct: 58, low: 20, span: 46, gold: false },
+      { wd: "Сб", val: "6.8к", minVal: "3.9к", maxVal: "6.8к", num: 6800, detail: "Сб · 3.9к–6.8к ₽ · 6 уроков · на руки 94% · 6 392 ₽ · Пик авто-24ч", pct: 86, benchPct: 66, low: 26, span: 56, gold: true },
+      { wd: "Вс", val: "4.5к", minVal: "2.5к", maxVal: "4.5к", num: 4500, detail: "Вс · 2.5к–4.5к ₽ · 4 урока · на руки 94% · 4 230 ₽", pct: 56, benchPct: 52, low: 18, span: 40, gold: false }
     ];
   }
 
@@ -641,7 +641,7 @@
     subjects: {
       title: "Доля выручки по предметам",
       totalVal: "84.5к ₽",
-      totalSub: "чистыми (95%)",
+      totalSub: "чистыми (94%)",
       slices: [
         { label: "Биология · ЕГЭ", share: 36, count: "30 420 ₽", color: "var(--confirm)" },
         { label: "Химия · Медвуз", share: 29, count: "24 505 ₽", color: "var(--accent)" },

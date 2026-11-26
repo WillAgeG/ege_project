@@ -47,10 +47,10 @@
     { id: "overlays", targetId: "bb-cards-sys", cat: "controls", title: "Тарифы, баланс топ-бара, оранжевый тост и модалки", api: "EGE.kit.sentNoticeHTML() / notifySide() / .top-bal-wrap", css: ".plan-card.super .top-bal-pill .toast.is-side .modal-card", desc: "Иерархия 0 / 5 000 / 10 000 ₽ / любая сумма, баланс в шапке, свайп-тост и диалоги." },
     { id: "study", targetId: "bb-study-states", cat: "app", title: "Тренажёр ЕГЭ, Skeleton, Empty и Danger", api: "EGE.views.study / .opt / .meter", css: ".opt.ok .meter .bb-skel-bar .empty .confirm", desc: "Варианты ответов, конспект .theory, шиммер 1.6 s и адаптивная отмена." },
     { id: "marketApp", targetId: "bb-market-app", cat: "app", title: "Каталог /market, Кабинет преподавателя и 5-tab .tabbar", api: "EGE.views.tutorCabinet / EGE.views.market", css: ".tutor-card .tc-req-card .diff-tag.pro .side .tabbar", desc: "Кабинет ученика и личный кабинет преподавателя, до 2 плашек квалификации и «Преподаватель» без сокращений." },
-    { id: "cabinet", targetId: "bb-cabinet", cat: "app", title: "Кабинет преподавателя, расписание, 6 видов графиков с палочками и баланс", api: "EGE.views.tutorCabinet / EGE.charts.stickChartHTML() / balanceModalHTML()", css: ".sakha-divider.is-gold-logo .tc-cal-hours .tc-bar-chart .is-sticks .is-lollipop .is-capsule .is-dual .is-range .is-combo .tc-hh-meter .wallet-bar", desc: "Модалка пополнения (.wallet-bar, старт 5 000 ₽ / от 100 ₽), сетка слотов 10:00–20:00, лиды учеников, выплаты 95%, витрина графиков с палочками (тонкие, леденцы, капсулы, парные, диапазон, комбо-тренд), профиль .tc-hh-meter и трекер баллов." },
+    { id: "cabinet", targetId: "bb-cabinet", cat: "app", title: "Кабинет преподавателя, расписание, 6 видов графиков с палочками и баланс", api: "EGE.views.tutorCabinet / EGE.charts.stickChartHTML() / balanceModalHTML()", css: ".sakha-divider.is-gold-logo .tc-cal-hours .tc-bar-chart .is-sticks .is-lollipop .is-capsule .is-dual .is-range .is-combo .tc-hh-meter .wallet-bar", desc: "Модалка пополнения (.wallet-bar, старт 5 000 ₽ / от 100 ₽), сетка слотов 10:00–20:00, лиды учеников, выплаты 94%, витрина графиков с палочками (тонкие, леденцы, капсулы, парные, диапазон, комбо-тренд), профиль .tc-hh-meter и трекер баллов." },
     { id: "dataViz", targetId: "bb-data-viz", cat: "app", title: "Линейные графики, Круговая диаграмма и Таблица (3/5/7 колонок + пресеты)", api: "EGE.charts.{lineChartHTML, donutChartHTML, dataTableHTML}({ preset, confirmedIds, cardWrap })", css: ".bb-line-chart .bb-donut-chart .bb-table-shell .bb-data-table.is-adaptive", desc: "SVG-график с линией и областью, кольцевая диаграмма, супер-адаптивная таблица (Заявки / Выплаты / Пробники, 3/5/7 колонок, кнопка Подтвердить и карточки @container) + WA · Telegram · MAX." },
     { id: "maskTrainer", targetId: "bb-mask-trainer", cat: "app", title: "Живой тренажёр масок контактов (WA · Telegram · MAX)", api: "EGE.kit.{formatPhoneMask, formatTelegramContact, resolveMessengerUrls, messengerLinksHTML}()", css: ".tc-contact-grid .bb-mask-urls .btn-msg.is-wa.is-tg.is-max", desc: "Редактируемые поля +7 (XXX) XXX-XX-XX, @login и MAX с быстрыми примерами и живым расчётом ссылок wa.me / t.me / max.ru." },
-    { id: "payments", targetId: "bb-payments", cat: "app", title: "Эквайринг, эскроу-статусы и выплаты (EGE.payments)", api: "EGE.payments.{createTopupIntent, createPayoutIntent}()", css: ".bb-pay-grid .bb-pay-split .bb-pay-dock-preview .bb-tbl-st.is-refund", desc: "Пополнение от 5 000 ₽ / 100 ₽, эскроу frozen -> captured (95% / 5%) -> refunded (100%), вывод (кнопка «Вывести») на СБП / Мир и чек НПД." },
+    { id: "payments", targetId: "bb-payments", cat: "app", title: "Эквайринг, эскроу-статусы и выплаты (EGE.payments)", api: "EGE.payments.{createTopupIntent, createPayoutIntent}()", css: ".bb-pay-grid .bb-pay-split .bb-pay-dock-preview .bb-tbl-st.is-refund", desc: "Пополнение от 490 ₽ / 100 ₽, эскроу frozen -> captured (94% / 5% + 1% СБП) -> refunded (100%), вывод (кнопка «Вывести») на СБП / Мир и чек НПД." },
     { id: "uiKitShells", targetId: "bb-ui-kit-shells", cat: "app", title: "Единые Shell-виджеты сайта из EGE.kit", api: "EGE.kit.{topBalanceWidgetHTML, tutorBalanceDockHTML, walletSummaryBarHTML, sideToastInnerHTML, emptyStateHTML, skeletonCardHTML}()", css: ".top-bal-wrap .tutor-bal-dock.is-inline-preview .wallet-bar .toast-side-row .empty .bb-skel-bar", desc: "Единые виджеты баланса ученика и преподавателя, панель кошелька (.wallet-bar), боковой тост, empty-state и skeleton-загрузка." },
     { id: "telemetryEtl", targetId: "bb-telemetry-etl", cat: "app", title: "Data & Observability UI Kit: Пайплайны ETL/ELT и Поток логов", api: "EGE.kit.{pipelineStageCardHTML, eventLogFeedHTML}()", css: ".bb-pipe-card .bb-pipe-metrics .bb-log-feed .bb-log-row", desc: "Карточки стадий ETL/ELT (PostgreSQL 17, Polars M4 Pro, Airflow DAG, Kafka Clickstream, Grafana BI) и лента событий кликстрима." },
     { id: "egeTimers", targetId: "bb-ege-timers", cat: "app", title: "Таймеры ЕГЭ-2027 и ИИ-проверка сочинения (Задание 27)", api: "EGE.exams / EGE.essay", css: ".bb-timer-grid .bb-timer-card .bb-essay-box .bb-essay-criteria", desc: "Обратный отсчёт до экзаменов 2027 (Химия, Русский, Биология), чекпоинт 1 февраля и разбор критериев К1–К10 (21 / 22 б.)." },
@@ -59,7 +59,7 @@
     { id: "layers", targetId: "bb-layers", cat: "layout", title: "Слои Z-index, статус отклика и Reduced Motion", api: "EGE.kit.sentNoticeHTML({ slot, offer })", css: ".hh-motion-status.sent .bb-pulse-dot .is-reduced", desc: "Статус под кнопкой, подъём −2 px, таблица слоёв (10→100) и отключение анимаций." },
     { id: "bounds", targetId: "bb-bounds", cat: "layout", title: "Границы 390 px, воздух 6 px и зазор 8 px", api: ".cal-days / .hh-price-stepper", css: ".bb-bp-stage .bb-phone-frame .bb-days-rail", desc: "Защита от обрезания рамок при hover, угол 84 px и мобильный фрейм." },
     { id: "responsive", targetId: "bb-responsive", cat: "layout", title: "Стенд адаптивности (320 px — 1340 px)", api: "applyBrandbookViewport(width)", css: "@container (max-width: 880px) / @container (max-width: 640px)", desc: "Живой ползунок ширины экрана от Mini SE 320 px до Desktop." },
-    { id: "kit", targetId: "bb-landing-kit", cat: "sections", title: "Блоки витрины (Лента, Золотая ставка, Ставки, Отзывы)", api: "EGE.kit.rateBenchCardHTML / reviewCardHTML / .savings-bar-fill.gold-fill", css: ".marquee-pill .savings-gold-txt .rate-bench-card .review-card", desc: "Общие компоненты EGE.kit и золотой акцент «Вектор ЕГЭ · твоя ставка»." },
+    { id: "kit", targetId: "bb-landing-kit", cat: "sections", title: "Блоки витрины (Лента, Золотая ставка, Ставки, Отзывы)", api: "EGE.kit.rateBenchCardHTML / reviewCardHTML / .savings-bar-fill.gold-fill", css: ".marquee-pill .savings-gold-txt .rate-bench-card .review-card", desc: "Общие компоненты EGE.kit и золотой акцент «Вектор · твоя ставка»." },
     { id: "dodont", targetId: "bb-dodont", cat: "sections", title: "Do / Don't и Tone of Voice (формат текстов)", api: "tokens.json -> editorial", css: ".bb-do-card .bb-dont-card", desc: "Оранжевые уведомления, правило 5% (/fees и кабинет), формат ₽/ч и якутская орфография." },
     { id: "compare", targetId: "bb-compare", cat: "brand", title: "Сквозная проверка Light vs Dark OLED", api: "EGE.views.brandbook.brandbookPaneHTML()", css: ".bb-pane.is-light .bb-pane.is-dark", desc: "Одновременное сравнение свотчей, слайдера, степпера и карточки в двух темах." },
     { id: "admin-kit", section: "Паттерны", category: "cabinet", num: "26", targetId: "bb-admin-kit", cat: "app", title: "Админ-панель и модерация (Admin UI Kit)", api: "EGE.kit.{adminKpiGridHTML, adminModerationBadgeHTML, roleSwitchBannerHTML}()", css: ".adm-kpi-grid .adm-kpi-card .adm-mod-badge .role-switch-banner", desc: "KPI-карточки, бейджи верификации, роль Администратор и адаптивные таблицы управления", tag: "Admin" },
@@ -141,7 +141,7 @@
       const reduced = (document.documentElement && document.documentElement.classList && document.documentElement.classList.contains("reduced-motion")) ||
         (typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
       const sy = typeof window.scrollY === "number" ? window.scrollY : 0;
-      const cards = typeof document.querySelectorAll === "function" ? document.querySelectorAll(".land-page:not(#brandbook-page) [data-float-depth]") : [];
+      const cards = typeof document.querySelectorAll === "function" ? document.querySelectorAll(".land-page:not(#brandbook-page):not(#fees-page):not(#market-page) [data-float-depth]") : [];
       cards.forEach((el) => {
         if (!el || !el.style || typeof el.style.setProperty !== "function") return;
         if (reduced) {
@@ -156,7 +156,7 @@
         el.style.setProperty("--px", px + "px");
         el.style.setProperty("--py", py + "px");
       });
-      const landPage = typeof document.querySelector === "function" ? document.querySelector(".land-page:not(#brandbook-page)") : null;
+      const landPage = typeof document.querySelector === "function" ? document.querySelector(".land-page:not(#brandbook-page):not(#fees-page):not(#market-page)") : null;
       if (landPage && typeof landPage.querySelector === "function") {
         const topbar = landPage.querySelector(".land-top");
         const heroEl = landPage.querySelector(":scope > .land-hero-banner") || landPage.querySelector(".land-hero-banner");
@@ -460,6 +460,12 @@
     const showClose = opts.showClose !== false && !!closeAction;
     const badgeText = opts.badgeText || "";
     const badgeClass = opts.badgeClass || "chip notif";
+    const rawActionUrl = typeof opts.actionUrl === "string" ? opts.actionUrl.trim() : "";
+    const actionUrl = /^https?:\/\//i.test(rawActionUrl) ? rawActionUrl : "";
+    const actionLabel = opts.actionLabel || "Войти на встречу";
+    const actionHTML = actionUrl
+      ? `<a class="toast-action-link" href="${esc(actionUrl)}" target="_blank" rel="noopener noreferrer">${esc(actionLabel)} ↗</a>`
+      : "";
     const rightEl = showClose
       ? `<button type="button" class="toast-close" data-a="${esc(closeAction)}" aria-label="${esc(opts.closeLabel || "Убрать уведомление")}">×</button>`
       : (badgeText ? `<span class="${esc(badgeClass)}" style="flex:none">${esc(badgeText)}</span>` : "");
@@ -469,6 +475,7 @@
       <span class="toast-side-copy">
         <b>${esc(title)}</b>
         <span>${esc(body)}</span>
+        ${actionHTML}
       </span>
       ${rightEl}
     </span>`;
@@ -733,14 +740,14 @@
 
   function whatsappUrl(entity, message) {
     const phone = normalizePhoneDigits((entity && (entity.whatsapp || entity.phone)) || "79142100100") || "79142100100";
-    const text = message || ("Здравствуйте" + (entity && entity.name ? (", " + entity.name) : "") + "! Пишу с платформы Вектор ЕГЭ по поводу занятий (" + ((entity && entity.subjectName) || "подготовка") + ").");
+    const text = message || ("Здравствуйте" + (entity && entity.name ? (", " + entity.name) : "") + "! Пишу с платформы Вектор по поводу занятий (" + ((entity && entity.subjectName) || "подготовка") + ").");
     return "https://wa.me/" + phone + "?text=" + encodeURIComponent(text);
   }
 
   function telegramUrl(entity, message) {
     const rawTg = entity && (entity.telegram || entity.tg || entity.handle || entity.username);
     const tgStr = String(rawTg == null ? "" : rawTg).trim();
-    const text = message || ("Здравствуйте" + (entity && entity.name ? (", " + entity.name) : "") + "! Пишу с платформы Вектор ЕГЭ по поводу занятий.");
+    const text = message || ("Здравствуйте" + (entity && entity.name ? (", " + entity.name) : "") + "! Пишу с платформы Вектор по поводу занятий.");
     const tgDigits = normalizePhoneDigits(tgStr);
     if (tgStr && !/[a-zA-Z]/.test(tgStr) && tgDigits.length >= 10) {
       return "https://t.me/+" + tgDigits + "?text=" + encodeURIComponent(text);
@@ -750,7 +757,7 @@
 
   function maxUrl(entity, message) {
     const slug = String((entity && entity.maxHandle) || entitySlug(entity)).replace(/^@/, "");
-    const text = message || ("Здравствуйте" + (entity && entity.name ? (", " + entity.name) : "") + "! Пишу с платформы Вектор ЕГЭ.");
+    const text = message || ("Здравствуйте" + (entity && entity.name ? (", " + entity.name) : "") + "! Пишу с платформы Вектор.");
     return "https://max.ru/" + encodeURIComponent(slug) + "?text=" + encodeURIComponent(text);
   }
 
@@ -839,7 +846,7 @@
     const gcalConnected = !!opts.gcalConnected;
     const icsUrl = opts.icsUrl || "/api/calendar/tutor-demo.ics";
     const gcalSubUrl = opts.googleSubscribeUrl || ("https://calendar.google.com/calendar/u/0/r?cid=" + encodeURIComponent(icsUrl));
-    const gcalTplUrl = opts.googleTemplateUrl || ("https://calendar.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent("Урок ЕГЭ · Вектор ЕГЭ") + "&ctz=" + encodeURIComponent(ianaTz));
+    const gcalTplUrl = opts.googleTemplateUrl || ("https://calendar.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent("Урок ЕГЭ · Вектор") + "&ctz=" + encodeURIComponent(ianaTz));
     const eventCount = Number(opts.eventCount || 0) || 0;
     const busySlots = Array.isArray(opts.busySlots) ? opts.busySlots : [];
     const conflictsCount = Number(opts.conflictsCount || 0) || 0;

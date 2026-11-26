@@ -36,7 +36,7 @@
       icsUrl: "/api/calendar/demo-tutor.ics",
       webcalUrl: "webcal://localhost/api/calendar/demo-tutor.ics",
       googleSubscribeUrl: "https://calendar.google.com/calendar/u/0/r?cid=" + encodeURIComponent("/api/calendar/demo-tutor.ics"),
-      googleTemplateUrl: "https://calendar.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent("Урок ЕГЭ · Вектор ЕГЭ") + "&ctz=Asia%2FYakutsk"
+      googleTemplateUrl: "https://calendar.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent("Урок ЕГЭ · Вектор") + "&ctz=Asia%2FYakutsk"
     }
   };
 
@@ -97,6 +97,7 @@
   function dispatchEvent(raw, opts) {
     opts = opts || {};
     const evt = normalizeEvent(raw);
+    if (opts.catchup) evt._catchup = true;
     const dedupKey = evt.id + "|" + evt.eventType + "|" + evt.tutorSlug;
     if (seenEventIds.has(dedupKey)) return evt;
     seenEventIds.add(dedupKey);
@@ -173,7 +174,7 @@
           state.mode = data.transport === "ws" ? "ws" : "sse";
           if (Number(data.latestId || 0) > state.latestId) state.latestId = Number(data.latestId);
           if (Array.isArray(data.events)) {
-            data.events.forEach(item => dispatchEvent(item, { silent: true }));
+            data.events.forEach(item => dispatchEvent(item, { silent: true, catchup: true }));
           }
           emitState();
         });
@@ -457,7 +458,7 @@
     state.calendar.icsUrl = icsPath;
     state.calendar.webcalUrl = "webcal://" + host + icsPath;
     state.calendar.googleSubscribeUrl = "https://calendar.google.com/calendar/u/0/r?cid=" + encodeURIComponent(fullIcs);
-    state.calendar.googleTemplateUrl = "https://calendar.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent("Урок ЕГЭ · " + (payload.tutorName || "Вектор ЕГЭ")) + "&ctz=" + encodeURIComponent(tzIana(tz));
+    state.calendar.googleTemplateUrl = "https://calendar.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent("Урок ЕГЭ · " + (payload.tutorName || "Вектор")) + "&ctz=" + encodeURIComponent(tzIana(tz));
   }
 
   function syncCalendar(payload) {

@@ -124,11 +124,42 @@
   const DEFAULT_STUDENTS = [
     { id: "st-alina", name: "Алина С.", exam: "ЕГЭ · Биология", startScore: 58, curScore: 76, targetScore: 88, lessonsDone: 6, hw: "Линия №28 (сцепление генов) — сдать до Сб", lessonDay: "Воскресенье", lessonTime: "10:00", whatsapp: "+7 (914) 210-05-11", telegram: "@alina_bio", maxHandle: "alina_bio", autoNotify: true, autoChannels: ["wa", "tg", "max"], autoLeads: ["24h", "1h"], lastRemindedAt: 0 },
     { id: "st-darya", name: "Дарья В.", exam: "ОГЭ · Русский", startScore: 22, curScore: 31, targetScore: 36, lessonsDone: 4, hw: "Синтаксис и сжатое изложение — вариант №4", lessonDay: "Понедельник", lessonTime: "18:00", whatsapp: "+7 (914) 210-05-12", telegram: "+7 (914) 210-05-12", autoNotify: false, autoChannels: ["wa", "tg", "max"], lastRemindedAt: 0 },
-    { id: "st-timur", name: "Тимур К.", exam: "ЕГЭ · Химия", startScore: 64, curScore: 81, targetScore: 92, lessonsDone: 8, hw: "№34 на олеум и массовую долю — 5 задач", lessonDay: "Суббота", lessonTime: "16:00", whatsapp: "+7 (914) 210-05-13", telegram: "@timur_chem", autoNotify: true, autoChannels: ["wa", "tg", "max"], lastRemindedAt: 0 }
+    { id: "st-timur", name: "Тимур К.", exam: "ЕГЭ · Химия", startScore: 64, curScore: 81, targetScore: 92, lessonsDone: 8, hw: "№34 на олеум и массовую долю — 5 задач", lessonDay: "Суббота", lessonTime: "16:00", whatsapp: "+7 (914) 210-05-13", telegram: "@timur_chem", autoNotify: true, autoChannels: ["wa", "tg", "max"], lastRemindedAt: 0 },
+    { id: "st-elena", name: "Елена М.", exam: "ЕГЭ · Биология", status: "past", endedLabel: "Октябрь 2026 · курс завершён", rate: 1200, earnedRub: 20304, startScore: 54, curScore: 89, targetScore: 85, lessonsDone: 18, hw: "Курс ЕГЭ по биологии успешно завершён", lessonDay: "Среда", lessonTime: "15:00", whatsapp: "+7 (914) 210-05-14", telegram: "@elena_med", autoNotify: false, autoChannels: ["wa", "tg"], lastRemindedAt: 0 }
   ];
+
+  const DEMO_REQ_IDS = new Set(["tc-req-1", "tc-req-2", "tc-req-3"]);
+  const DEMO_STUDENT_IDS = new Set(["st-alina", "st-darya", "st-timur", "st-elena"]);
+  const DEMO_PAYOUT_IDS = new Set(["out-seed-1"]);
+  const DEMO_PROFILE_DEFAULTS = {
+    name: "Анна Соколова",
+    headline: "Эксперт ЕГЭ и ОГЭ · Подготовка к медвузу",
+    whatsapp: "+7 (914) 210-01-99",
+    whatsappAlt: "79142100199",
+    studentPhoneAlt: "79142100511",
+    telegram: "@anna_sokolova_ege",
+    education: "СВФУ им. М.К. Аммосова · Педагог-исследователь",
+    customSkills: "Задания ФИПИ 2027, №28 Генетика, разбор пробников, медвуз",
+    bio: "Экспертная подготовка без шаблонов: разбираем задания ФИПИ, ловушки второй части и пишем пробники на 85+.",
+    card: "2200 7004 8210 4419",
+    bank: "АЭБ (Алмазэргиэнбанк)",
+    icsUrl: "/api/calendar/anna-sokolova.ics"
+  };
+  const DEMO_SLOTS = {
+    "1": ["14:00", "16:00", "19:00"],
+    "2": ["10:00", "18:00"],
+    "3": ["12:00", "16:00", "20:00"],
+    "4": ["15:00", "18:00"],
+    "5": ["10:00", "14:00", "19:00"],
+    "6": ["10:00", "12:00", "16:00", "18:00"],
+    "0": ["11:00", "15:00"]
+  };
+  const RU_MONTHS_SHORT = ["янв.", "февр.", "мар.", "апр.", "мая", "июн.", "июл.", "авг.", "сент.", "окт.", "нояб.", "дек."];
 
   let _ctx = {};
   let _cache = null;
+  let _demoMode = !(root.EGE_HOST && root.EGE_HOST.demoMode === false);
+  let _inFlightHydrate = null;
   let _countdownTimer = null;
   let _rtUnsub = null;
   const _payRemindAnim = Object.create(null);
@@ -156,6 +187,8 @@
 
   function getTutorSlug(st) {
     const p = (st && st.profile) || {};
+    const directId = String(p.id || p.slug || "").trim();
+    if (directId) return directId;
     if (EGE.kit && typeof EGE.kit.entitySlug === "function") {
       return EGE.kit.entitySlug({ slug: p.slug, name: p.name || "tutor" });
     }
@@ -163,42 +196,72 @@
   }
 
   function applyRtEventToCabinet(evt) {
-    if (!evt || evt.eventType !== "market.bid.created") return;
-    const p = evt.payload || {};
-    const st = tState();
-    const rawId = String(p.bookingId || p.id || evt.id || Date.now());
-    const mktState = typeof _ctx.mkt === "function" ? _ctx.mkt() : null;
-    const mktBookings = (mktState && Array.isArray(mktState.bookings)) ? mktState.bookings : [];
-    const inMarket = mktBookings.some((b) => String(b.id) === rawId);
-    const reqId = "rt-" + rawId;
-    if (!inMarket && !(st.requests || []).some((r) => r.id === reqId || String(r.mktId || "") === rawId)) {
-      const rate = Number(p.offerPrice) || st.profile.price;
-      st.requests = st.requests || [];
-      st.requests.unshift({
-        id: reqId,
-        mktId: rawId,
-        studentName: p.studentName || "Заявка ученика (Live)",
-        exam: p.exam || "ЕГЭ",
-        subjectName: p.subjectName || "Подготовка",
-        format: p.format || "Онлайн",
-        dow: p.dow != null ? String(p.dow) : dayDowFromLabel(p.dayLabel),
-        dayIso: p.dayIso || "",
-        dayLabel: p.dayLabel || "Ближайший слот",
-        hour: p.hour || "14:00",
-        offerPrice: rate,
-        counterPrice: Number(p.counterPrice || rate) || rate,
-        tutorPrice: Number(p.tutorPrice) || st.profile.price,
-        marketPrice: Math.round((Number(p.tutorPrice) || st.profile.price) * 1.28),
-        note: p.note || evt.message || "Новая ставка с витрины /market",
-        status: "pending",
-        createdLabel: "Live · только что"
-      });
-      saveState();
+    if (!evt) return;
+    if (evt.eventType === "market.bid.created") {
+      const p = evt.payload || {};
+      const st = tState();
+      const rawId = String(p.bookingId || p.id || evt.id || Date.now());
+      const mktState = typeof _ctx.mkt === "function" ? _ctx.mkt() : null;
+      const mktBookings = (mktState && Array.isArray(mktState.bookings)) ? mktState.bookings : [];
+      const inMarket = isDevDemoMode() && mktBookings.some((b) => String(b.id) === rawId);
+      const mapped = p.booking
+        ? mapServerBookingToRequest(p.booking, st)
+        : {
+            id: isDevDemoMode() ? ("rt-" + rawId) : rawId,
+            serverId: p.bookingId ? String(p.bookingId) : "",
+            mktId: rawId,
+            studentName: p.studentName || "Заявка ученика (Live)",
+            exam: p.exam || "ЕГЭ",
+            subjectName: p.subjectName || "Подготовка",
+            format: p.format || "Онлайн",
+            dow: p.dow != null ? String(p.dow) : dayDowFromLabel(p.dayLabel),
+            dayIso: p.dayIso || "",
+            dayLabel: p.dayLabel || "Ближайший слот",
+            hour: p.hour || "14:00",
+            offerPrice: p.offerPrice != null ? Number(p.offerPrice) : st.profile.price,
+            counterPrice: p.counterPrice != null ? Number(p.counterPrice) : (p.offerPrice != null ? Number(p.offerPrice) : st.profile.price),
+            tutorPrice: Number(p.tutorPrice) || st.profile.price,
+            marketPrice: Math.round((Number(p.tutorPrice) || st.profile.price) * 1.28),
+            note: p.note || evt.message || "Новая ставка с витрины /market",
+            status: "pending",
+            createdLabel: "Live · только что"
+          };
+      const reqId = String(mapped.id);
+      const exists = (st.requests || []).some((r) => r && (r.id === reqId || String(r.serverId || "") === rawId || String(r.mktId || "") === rawId));
+      if (!inMarket && !exists) {
+        st.requests = st.requests || [];
+        st.requests.unshift(mapped);
+        saveState();
+      }
+      if (typeof _ctx.notifySide === "function") {
+        _ctx.notifySide(evt.title || "Новая ставка от ученика", evt.message || "Проверьте вкладку «Заявки»", { inbox: true });
+      }
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
     }
-    if (typeof _ctx.notifySide === "function") {
-      _ctx.notifySide(evt.title || "Новая ставка от ученика", evt.message || "Проверьте вкладку «Заявки»");
+    if (evt.eventType === "market.telemost.updated") {
+      const p = evt.payload || {};
+      const bkId = String(p.bookingId || "").trim();
+      const nextUrl = String(p.telemostUrl || "").trim();
+      const st = _cache || tState();
+      if (st && Array.isArray(st.requests) && bkId) {
+        let changed = false;
+        st.requests.forEach((r) => {
+          if (r && (String(r.id) === bkId || String(r.serverId || "") === bkId || String(r.mktId || "") === bkId)) {
+            if (r.telemostUrl !== nextUrl) {
+              r.telemostUrl = nextUrl;
+              changed = true;
+            }
+          }
+        });
+        if (changed) {
+          saveState();
+          if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+        }
+      }
     }
-    if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+    if (!isDevDemoMode() && /^(market\.bid\.|market\.lesson\.completed|payments\.payout\.|payments\.npd\.)/.test(String(evt.eventType || ""))) {
+      hydrateFromBackend({ force: true });
+    }
   }
 
   function ensureRealtimeConnected() {
@@ -225,7 +288,7 @@
       tutorName: st.profile.name,
       city: st.profile.city,
       timezone: st.profile.timezone,
-      openSlots: st.slots,
+      openSlots: mergeAllProfileSlots(st),
       lessons
     });
     const rtCal = typeof EGE.realtime.getState === "function" ? EGE.realtime.getState().calendar : null;
@@ -274,11 +337,32 @@
 
   function configure(ctx) {
     _ctx = ctx || {};
+    if (!isDevDemoMode() && _cache) {
+      sanitizeProdState(_cache);
+    }
     ensureRealtimeConnected();
   }
 
   function getTDATA() {
     return _ctx.TDATA || EGE.tutors || null;
+  }
+
+  function isDevDemoMode() {
+    if (_demoMode === false) return false;
+    if (typeof _ctx.isDevDemoMode === "function" && !_ctx.isDevDemoMode()) return false;
+    const st = _ctx && _ctx.store;
+    if (st && st.demoMode === false) return false;
+    if (root.EGE_HOST && root.EGE_HOST.demoMode === false) return false;
+    return true;
+  }
+
+  function setDemoMode(enabled) {
+    _demoMode = !!enabled;
+    if (!_demoMode && _cache) {
+      sanitizeProdState(_cache);
+      saveState();
+    }
+    return _demoMode;
   }
 
   function formatPhone(raw) {
@@ -295,6 +379,28 @@
 
   const MIN_PAYOUT_RUB = 500;
   const PAYOUT_BANKS = ["Сбербанк", "Т-Банк", "Альфа-Банк", "ВТБ", "АЭБ (Алмазэргиэнбанк)"];
+  const SBP_BANK_IDS = {
+    "Сбербанк": "100000000111",
+    "Т-Банк": "100000000004",
+    "Альфа-Банк": "100000000008",
+    "ВТБ": "100000000005",
+    "АЭБ (Алмазэргиэнбанк)": "100000000078"
+  };
+
+  function validateInn12(raw) {
+    const clean = String(raw || "").replace(/\D+/g, "");
+    if (clean.length !== 12) return { valid: false, inn: clean };
+    const d = clean.split("").map((ch) => Number(ch));
+    const w11 = [7, 2, 4, 10, 3, 5, 9, 4, 6, 8];
+    const w12 = [3, 7, 2, 4, 10, 3, 5, 9, 4, 6, 8];
+    let s11 = 0;
+    for (let i = 0; i < 10; i++) s11 += d[i] * w11[i];
+    const c11 = (s11 % 11) % 10;
+    let s12 = 0;
+    for (let i = 0; i < 11; i++) s12 += d[i] * w12[i];
+    const c12 = (s12 % 11) % 10;
+    return { valid: d[10] === c11 && d[11] === c12, inn: clean };
+  }
 
   function formatCardMask(raw) {
     const digits = String(raw || "").replace(/\D+/g, "").slice(0, 16);
@@ -334,11 +440,316 @@
     return `${d.getDate()} ${months[d.getMonth()]} в ${hh}:${mm}`;
   }
 
+  function emptySlotsMap() {
+    return { "1": [], "2": [], "3": [], "4": [], "5": [], "6": [], "0": [] };
+  }
+
+  function cloneDemoSlots() {
+    const out = {};
+    Object.keys(DEMO_SLOTS).forEach((k) => { out[k] = DEMO_SLOTS[k].slice(); });
+    return out;
+  }
+
+  function slotsEqual(a, b) {
+    if (!a || !b) return false;
+    for (let i = 0; i < DAY_LIST.length; i++) {
+      const k = DAY_LIST[i].dow;
+      const arrA = Array.isArray(a[k]) ? a[k] : [];
+      const arrB = Array.isArray(b[k]) ? b[k] : [];
+      if (arrA.length !== arrB.length) return false;
+      for (let j = 0; j < arrA.length; j++) {
+        if (arrA[j] !== arrB[j]) return false;
+      }
+    }
+    return true;
+  }
+
+  function normalizeSlotsMap(raw) {
+    const out = emptySlotsMap();
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
+    Object.keys(out).forEach((k) => {
+      const src = Array.isArray(raw[k]) ? raw[k] : (Array.isArray(raw[Number(k)]) ? raw[Number(k)] : []);
+      const uniq = new Set();
+      src.forEach((h) => {
+        const clean = String(h == null ? "" : h).trim();
+        if (clean) uniq.add(clean);
+      });
+      out[k] = Array.from(uniq).sort();
+    });
+    return out;
+  }
+
+  function countSlots(slots) {
+    if (!slots || typeof slots !== "object") return 0;
+    return Object.keys(slots).reduce((sum, k) => sum + (Array.isArray(slots[k]) ? slots[k].length : 0), 0);
+  }
+
+  function mergeAllProfileSlots(st) {
+    const out = emptySlotsMap();
+    const spList = st && Array.isArray(st.searchProfiles) ? st.searchProfiles : [];
+    const sources = spList.length
+      ? spList.map((sp) => sp && sp.slots)
+      : [st && st.newProfileDraft && st.newProfileDraft.slots, st && st.slots];
+    Object.keys(out).forEach((k) => {
+      const merged = new Set();
+      sources.forEach((srcMap) => {
+        if (!srcMap || typeof srcMap !== "object") return;
+        const arr = Array.isArray(srcMap[k]) ? srcMap[k] : (Array.isArray(srcMap[Number(k)]) ? srcMap[Number(k)] : []);
+        arr.forEach((h) => {
+          const clean = String(h == null ? "" : h).trim();
+          if (clean) merged.add(clean);
+        });
+      });
+      out[k] = Array.from(merged).sort();
+    });
+    return out;
+  }
+
+  function formatIsoShort(iso) {
+    const raw = String(iso || "").trim();
+    if (!raw) return "";
+    const d = new Date(raw);
+    if (!Number.isFinite(d.getTime())) return "";
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    return `${d.getDate()} ${RU_MONTHS_SHORT[d.getMonth()]}, ${hh}:${mm}`;
+  }
+
+  function sanitizeAccount(acc, realDisplayName, realAvatarUrl, allowDemo) {
+    const a = (acc && typeof acc === "object") ? acc : {};
+    if (!allowDemo) {
+      if (a.name === DEMO_PROFILE_DEFAULTS.name && realDisplayName !== DEMO_PROFILE_DEFAULTS.name) {
+        a.name = realDisplayName || "";
+      }
+      const waDigits = String(a.whatsapp || "").replace(/\D+/g, "");
+      if (a.whatsapp === DEMO_PROFILE_DEFAULTS.whatsapp || waDigits === DEMO_PROFILE_DEFAULTS.whatsappAlt || waDigits === DEMO_PROFILE_DEFAULTS.studentPhoneAlt) {
+        a.whatsapp = "";
+      }
+      if (a.telegram === DEMO_PROFILE_DEFAULTS.telegram) a.telegram = "";
+      if (!a.photo && a.hasPhoto !== false && realAvatarUrl) a.photo = realAvatarUrl;
+    }
+    a.city = CITY_OPTIONS.find((c) => String(a.city || "").indexOf(c) >= 0) || "Якутск";
+    a.timezone = a.city === "Москва" ? "UTC+3" : "UTC+9";
+    if (a.hasPhoto === false) a.photo = "";
+    a.hasPhoto = a.hasPhoto != null ? !!a.hasPhoto : Boolean(String(a.photo || "").trim());
+    a.whatsapp = a.whatsapp ? formatPhone(a.whatsapp) : "";
+    a.telegram = a.telegram ? formatTelegram(a.telegram) : "";
+    a.maxHandle = typeof a.maxHandle === "string" ? a.maxHandle : "";
+    a.vk = typeof a.vk === "string" ? a.vk : "";
+    return a;
+  }
+
+  function sanitizeSearchProfileObj(p, isServerProf) {
+    if (!p || typeof p !== "object") return p;
+    if (!isServerProf) {
+      if (p.headline === DEMO_PROFILE_DEFAULTS.headline) p.headline = "";
+      if (p.education === DEMO_PROFILE_DEFAULTS.education) p.education = "";
+      if (p.customSkills === DEMO_PROFILE_DEFAULTS.customSkills) p.customSkills = "";
+      if (p.bio === DEMO_PROFILE_DEFAULTS.bio) p.bio = "";
+      if (Array.isArray(p.customBadges) && p.customBadges[0] === "Эксперт жюри ВсОШ" && !p.customBadges[1]) {
+        p.customBadges = ["", ""];
+      }
+      if (p.avgScore === 86) p.avgScore = 0;
+      if (p.highScorers === 14) p.highScorers = 0;
+      if (p.expYears === 6) p.expYears = 1;
+    }
+    p.slots = normalizeSlotsMap(p.slots);
+    if (!isServerProf && slotsEqual(p.slots, DEMO_SLOTS)) {
+      p.slots = emptySlotsMap();
+    }
+    return p;
+  }
+
+  function createEmptySearchProfile(acc, seed) {
+    acc = (acc && typeof acc === "object") ? acc : {};
+    seed = (seed && typeof seed === "object") ? seed : {};
+    const subjIds = Array.isArray(seed.subjects) && seed.subjects.length
+      ? seed.subjects.filter(Boolean).slice(0, 8)
+      : (seed.subject ? [String(seed.subject)] : ["bio"]);
+    const basePrice = Math.max(100, Number(seed.price != null ? seed.price : seed.baseRateRub) || 1200);
+    const rawMinFair = Number(seed.minFair);
+    const minFair = Number.isFinite(rawMinFair) && rawMinFair > 0
+      ? Math.max(400, Math.min(basePrice, rawMinFair))
+      : Math.max(400, Math.round((basePrice * 0.85) / 50) * 50);
+    const rawBadges = Array.isArray(seed.customBadges) ? seed.customBadges.slice(0, 2) : ["", ""];
+    while (rawBadges.length < 2) rawBadges.push("");
+    const guarantee = seed.firstLessonGuarantee !== undefined
+      ? (seed.firstLessonGuarantee !== false)
+      : (seed.trialMode ? seed.trialMode === "free" : true);
+    const hasAccPhoto = acc.hasPhoto != null ? !!acc.hasPhoto : Boolean(acc.photo);
+    const city = CITY_OPTIONS.find((c) => String(seed.city || acc.city || "").indexOf(c) >= 0) || "Якутск";
+    const timezone = city === "Москва" ? "UTC+3" : "UTC+9";
+    return {
+      id: String(seed.id || ""),
+      name: String(acc.name || seed.name || ""),
+      photo: hasAccPhoto ? String(acc.photo || seed.photo || "") : "",
+      hasPhoto: hasAccPhoto,
+      city,
+      timezone,
+      whatsapp: acc.whatsapp != null ? String(acc.whatsapp) : String(seed.whatsapp || ""),
+      telegram: acc.telegram != null ? String(acc.telegram) : String(seed.telegram || ""),
+      maxHandle: acc.maxHandle != null ? String(acc.maxHandle) : String(seed.maxHandle || ""),
+      vk: acc.vk != null ? String(acc.vk) : String(seed.vk || ""),
+      headline: String(seed.headline || ""),
+      subject: subjIds[0] || "bio",
+      subjects: subjIds,
+      customBadges: [String(rawBadges[0] || ""), String(rawBadges[1] || "")],
+      exams: Array.isArray(seed.exams) && seed.exams.length ? seed.exams.slice() : ["ЕГЭ"],
+      formats: Array.isArray(seed.formats) && seed.formats.length ? seed.formats.slice() : ["Онлайн"],
+      education: String(seed.education || ""),
+      expYears: Math.max(1, Number(seed.expYears) || 1),
+      avgScore: Number(seed.avgScore) || 0,
+      highScorers: Number(seed.highScorers) || 0,
+      firstLessonGuarantee: guarantee,
+      trialMode: guarantee ? "free" : "none",
+      trialPrice: guarantee ? 0 : null,
+      trialFree: guarantee,
+      customSkills: String(seed.customSkills || ""),
+      price: basePrice,
+      minFair,
+      bio: String(seed.bio || ""),
+      slots: seed.slots && typeof seed.slots === "object" ? normalizeSlotsMap(seed.slots) : emptySlotsMap(),
+      published: seed.published !== false,
+      verified: !!seed.verified,
+      bumpedToday: !!seed.bumpedToday,
+      lastBumpedAt: String(seed.lastBumpedAt || ""),
+      updatedAt: String(seed.updatedAt || ""),
+      rating: seed.rating != null ? Number(seed.rating) : 4.9,
+      reviewsCount: seed.reviewsCount != null ? Number(seed.reviewsCount) : 0
+    };
+  }
+
+  function getEditingSearchProfile(st) {
+    if (!st) return createEmptySearchProfile({}, {});
+    if (st.creatingSearchProfile) {
+      if (!st.newProfileDraft || typeof st.newProfileDraft !== "object") {
+        st.newProfileDraft = createEmptySearchProfile(st.account, { published: true });
+      }
+      return st.newProfileDraft;
+    }
+    const list = Array.isArray(st.searchProfiles) ? st.searchProfiles : [];
+    const hit = list.find((item) => item && item.id && item.id === st.activeSearchProfileId) || list[0] || null;
+    if (hit) {
+      st.activeSearchProfileId = String(hit.id || "");
+      return hit;
+    }
+    if (!st.newProfileDraft || typeof st.newProfileDraft !== "object") {
+      st.newProfileDraft = createEmptySearchProfile(st.account, { published: true });
+    }
+    return st.newProfileDraft;
+  }
+
+  function syncProfileMirror(st) {
+    if (!st || typeof st !== "object") return st;
+    if (!st.account || typeof st.account !== "object") {
+      st.account = sanitizeAccount(st.profile || {}, "", "", isDevDemoMode());
+    }
+    const acc = st.account;
+    const accHasPhoto = acc.hasPhoto != null ? !!acc.hasPhoto : Boolean(acc.photo);
+    const applyAccFields = (sp) => {
+      if (!sp || typeof sp !== "object") return;
+      sp.name = String(acc.name || "");
+      sp.hasPhoto = accHasPhoto;
+      sp.photo = accHasPhoto ? String(acc.photo || "") : "";
+      sp.city = CITY_OPTIONS.find((c) => String(acc.city || "").indexOf(c) >= 0) || "Якутск";
+      sp.timezone = TZ_OPTIONS.some((t) => t.id === acc.timezone)
+        ? acc.timezone
+        : (sp.city === "Москва" ? "UTC+3" : "UTC+9");
+      sp.whatsapp = String(acc.whatsapp || "");
+      sp.telegram = String(acc.telegram || "");
+      sp.maxHandle = String(acc.maxHandle || "");
+      sp.vk = String(acc.vk || "");
+      sp.slots = normalizeSlotsMap(sp.slots);
+    };
+    if (!Array.isArray(st.searchProfiles)) st.searchProfiles = [];
+    st.searchProfiles.forEach(applyAccFields);
+    if (st.newProfileDraft) applyAccFields(st.newProfileDraft);
+    const active = getEditingSearchProfile(st);
+    applyAccFields(active);
+    active.slots = normalizeSlotsMap(active.slots);
+    st.profile = Object.assign({}, active, { slots: normalizeSlotsMap(active.slots) });
+    st.slots = normalizeSlotsMap(active.slots);
+    st.published = st.searchProfiles.some((sp) => sp && sp.published !== false);
+    return st;
+  }
+
+  function sanitizeProdState(st) {
+    if (!st || typeof st !== "object") return st;
+    const ctxUser = (_ctx && _ctx.store && _ctx.store.user) || null;
+    const realDisplayName = ctxUser ? String(ctxUser.displayName || ctxUser.username || "").trim() : "";
+    const realAvatarUrl = ctxUser ? String(ctxUser.avatarUrl || "").trim() : "";
+
+    st.requests = Array.isArray(st.requests)
+      ? st.requests.filter((r) => r && !DEMO_REQ_IDS.has(String(r.id || "")) && (String(r.id || "").indexOf("mkt-") !== 0 || r.fromServer))
+      : [];
+
+    st.students = Array.isArray(st.students)
+      ? st.students.filter((s) => s && !DEMO_STUDENT_IDS.has(String(s.id || ""))).map((s) => {
+          const copy = Object.assign({}, s);
+          const waDigits = String(copy.whatsapp || "").replace(/\D+/g, "");
+          if (copy.whatsapp === DEMO_PROFILE_DEFAULTS.whatsapp || waDigits === DEMO_PROFILE_DEFAULTS.studentPhoneAlt || waDigits === DEMO_PROFILE_DEFAULTS.whatsappAlt) {
+            copy.whatsapp = "";
+          } else if (copy.whatsapp) {
+            copy.whatsapp = formatPhone(copy.whatsapp);
+          }
+          if (copy.telegram === "@alina_bio" || copy.telegram === "@timur_chem") copy.telegram = "";
+          copy.autoChannels = normalizeChannelList(copy.autoChannels);
+          return copy;
+        })
+      : [];
+
+    st.payouts = Array.isArray(st.payouts)
+      ? st.payouts.filter((p) => p && !DEMO_PAYOUT_IDS.has(String(p.id || "")))
+      : [];
+
+    const hasServerRows = Array.isArray(st.searchProfiles) && st.searchProfiles.some((sp) => sp && sp.id && sp.id !== "tc-my-profile");
+    if (!hasServerRows) {
+      st.searchProfiles = Array.isArray(st.searchProfiles)
+        ? st.searchProfiles.filter((sp) => sp && sp.id !== "tc-my-profile")
+        : [];
+    }
+    const p = (st.profile && typeof st.profile === "object") ? st.profile : (st.profile = {});
+    const isServerProf = hasServerRows || !!(st.published && p.id && p.id !== "tc-my-profile");
+    st.account = sanitizeAccount(st.account || p, realDisplayName, realAvatarUrl, false);
+    st.searchProfiles.forEach((sp) => sanitizeSearchProfileObj(sp, isServerProf));
+    if (st.newProfileDraft) sanitizeSearchProfileObj(st.newProfileDraft, false);
+    sanitizeSearchProfileObj(p, isServerProf);
+    syncProfileMirror(st);
+
+    const ps = (st.payoutSettings && typeof st.payoutSettings === "object") ? st.payoutSettings : (st.payoutSettings = {});
+    const psPhoneDigits = String(ps.phone || "").replace(/\D+/g, "");
+    if (ps.phone === DEMO_PROFILE_DEFAULTS.whatsapp || psPhoneDigits === DEMO_PROFILE_DEFAULTS.whatsappAlt) {
+      ps.phone = "";
+    }
+    if (ps.card === DEMO_PROFILE_DEFAULTS.card || String(ps.card || "").replace(/\s+/g, "") === "2200700482104419") {
+      ps.card = "";
+    }
+    if (ps.bank === DEMO_PROFILE_DEFAULTS.bank && !ps.phone && !ps.inn) {
+      ps.bank = "Сбербанк";
+    }
+
+    if (!isServerProf && slotsEqual(st.slots, DEMO_SLOTS)) {
+      st.slots = emptySlotsMap();
+    }
+    if (st.calendarSync && st.calendarSync.icsUrl === DEMO_PROFILE_DEFAULTS.icsUrl) {
+      st.calendarSync.icsUrl = "";
+    }
+    if (!isServerProf && st.bumpCount === 7 && !st.lastManualBumpAt) {
+      st.bumpCount = 0;
+      st.autoBump24h = false;
+      st.lastAutoBumpAt = 0;
+      st.lastBumpAt = 0;
+    }
+    return st;
+  }
+
   function defaultState() {
+    const demo = isDevDemoMode();
     const profName =
       (typeof _ctx.profile === "function" && _ctx.profile().name) ||
       (_ctx.store && _ctx.store.user && (_ctx.store.user.displayName || _ctx.store.user.username)) ||
       "";
+    const ctxAvatar = (_ctx.store && _ctx.store.user && _ctx.store.user.avatarUrl) || "";
     const now = Date.now();
     return {
       tab: "requests",
@@ -353,13 +764,16 @@
       leadCounterPrices: {},
       activeDow: "6",
       calWeek: 0,
+      studentsSubView: "calendar",
+      studentsScope: "current",
+      expandedStudentId: "",
       calAddHour: "",
       calAddOpen: false,
       calImportOpen: false,
       calImportDraft: "",
       calendarSync: {
         gcalConnected: false,
-        icsUrl: "/api/calendar/anna-sokolova.ics",
+        icsUrl: demo ? DEMO_PROFILE_DEFAULTS.icsUrl : "",
         googleSubscribeUrl: "",
         googleTemplateUrl: "",
         eventCount: 0,
@@ -377,14 +791,14 @@
       historyDetailsOpen: false,
       bumpDetailsOpen: false,
       bumpedToday: false,
-      autoBump24h: true,
+      autoBump24h: demo,
       autoBumpHour: "09:00",
-      lastBumpAt: now - 18 * 3600000,
-      lastAutoBumpAt: now - 18 * 3600000,
+      lastBumpAt: demo ? (now - 18 * 3600000) : 0,
+      lastAutoBumpAt: demo ? (now - 18 * 3600000) : 0,
       lastManualBumpAt: 0,
-      bumpCount: 7,
+      bumpCount: demo ? 7 : 0,
       profilePreview: false,
-      published: false,
+      published: demo,
       subjMenuOpen: false,
       tzMenuOpen: false,
       leadsSubj: "all",
@@ -399,71 +813,123 @@
         channels: ["wa", "tg", "max"],
         template: "Здравствуйте, {имя}! Напоминаю, что скоро будет урок ({предмет}) — {день} в {время}. Материалы и ссылку пришлю перед занятием."
       },
+      account: {
+        name: demo ? (profName || DEMO_PROFILE_DEFAULTS.name) : profName,
+        photo: demo ? "" : ctxAvatar,
+        hasPhoto: demo ? false : Boolean(ctxAvatar),
+        city: "Якутск",
+        timezone: "UTC+9",
+        whatsapp: demo ? DEMO_PROFILE_DEFAULTS.whatsapp : "",
+        telegram: demo ? DEMO_PROFILE_DEFAULTS.telegram : "",
+        maxHandle: "",
+        vk: ""
+      },
+      searchProfiles: demo ? [
+        createEmptySearchProfile({
+          name: profName || DEMO_PROFILE_DEFAULTS.name,
+          photo: "",
+          hasPhoto: false,
+          city: "Якутск",
+          timezone: "UTC+9",
+          whatsapp: DEMO_PROFILE_DEFAULTS.whatsapp,
+          telegram: DEMO_PROFILE_DEFAULTS.telegram,
+          maxHandle: "",
+          vk: ""
+        }, {
+          id: "tc-my-profile",
+          headline: DEMO_PROFILE_DEFAULTS.headline,
+          subject: "bio",
+          subjects: ["bio"],
+          customBadges: ["Эксперт жюри ВсОШ", ""],
+          exams: ["ЕГЭ", "ОГЭ"],
+          formats: ["Онлайн"],
+          education: DEMO_PROFILE_DEFAULTS.education,
+          expYears: 6,
+          avgScore: 86,
+          highScorers: 14,
+          firstLessonGuarantee: true,
+          customSkills: DEMO_PROFILE_DEFAULTS.customSkills,
+          price: 1200,
+          minFair: 900,
+          bio: DEMO_PROFILE_DEFAULTS.bio,
+          slots: cloneDemoSlots(),
+          published: true,
+          verified: true
+        })
+      ] : [],
+      activeSearchProfileId: demo ? "tc-my-profile" : "",
+      spEditorOpen: false,
+      creatingSearchProfile: false,
+      newProfileDraft: null,
+      confirmDeleteProfileId: null,
+      confirmDropStudentKey: null,
       profile: {
-        name: profName || "Анна Соколова",
-        headline: "Эксперт ЕГЭ и ОГЭ · Подготовка к медвузу",
-        photo: "",
+        id: demo ? "tc-my-profile" : "",
+        name: demo ? (profName || DEMO_PROFILE_DEFAULTS.name) : profName,
+        headline: demo ? DEMO_PROFILE_DEFAULTS.headline : "",
+        photo: demo ? "" : ctxAvatar,
+        hasPhoto: demo ? false : Boolean(ctxAvatar),
         subject: "bio",
         subjects: ["bio"],
-        customBadges: ["Эксперт жюри ВсОШ", ""],
-        exams: ["ЕГЭ", "ОГЭ"],
+        customBadges: demo ? ["Эксперт жюри ВсОШ", ""] : ["", ""],
+        exams: demo ? ["ЕГЭ", "ОГЭ"] : ["ЕГЭ"],
         formats: ["Онлайн"],
         city: "Якутск",
         timezone: "UTC+9",
-        whatsapp: "+7 (914) 210-01-99",
-        telegram: "@anna_sokolova_ege",
+        whatsapp: demo ? DEMO_PROFILE_DEFAULTS.whatsapp : "",
+        telegram: demo ? DEMO_PROFILE_DEFAULTS.telegram : "",
         maxHandle: "",
         vk: "",
-        education: "СВФУ им. М.К. Аммосова · Педагог-исследователь",
-        expYears: 6,
-        avgScore: 86,
-        highScorers: 14,
+        education: demo ? DEMO_PROFILE_DEFAULTS.education : "",
+        expYears: demo ? 6 : 1,
+        avgScore: demo ? 86 : 0,
+        highScorers: demo ? 14 : 0,
         firstLessonGuarantee: true,
         trialMode: "free",
         trialPrice: 0,
         trialFree: true,
-        customSkills: "Задания ФИПИ 2027, №28 Генетика, разбор пробников, медвуз",
+        customSkills: demo ? DEMO_PROFILE_DEFAULTS.customSkills : "",
         price: 1200,
         minFair: 900,
-        bio: "Экспертная подготовка без шаблонов: разбираем задания ФИПИ, ловушки второй части и пишем пробники на 85+."
+        bio: demo ? DEMO_PROFILE_DEFAULTS.bio : "",
+        published: demo
       },
-      slots: {
-        "1": ["14:00", "16:00", "19:00"],
-        "2": ["10:00", "18:00"],
-        "3": ["12:00", "16:00", "20:00"],
-        "4": ["15:00", "18:00"],
-        "5": ["10:00", "14:00", "19:00"],
-        "6": ["10:00", "12:00", "16:00", "18:00"],
-        "0": ["11:00", "15:00"]
-      },
-      requests: DEFAULT_REQUESTS.map((r) => Object.assign({}, r)),
-      students: DEFAULT_STUDENTS.map((s) => Object.assign({}, s)),
+      slots: demo ? cloneDemoSlots() : emptySlotsMap(),
+      requests: demo ? DEFAULT_REQUESTS.map((r) => Object.assign({}, r)) : [],
+      students: demo ? DEFAULT_STUDENTS.map((s) => Object.assign({}, s)) : [],
       payoutSettings: {
         method: "sbp",
-        bank: "АЭБ (Алмазэргиэнбанк)",
-        phone: "+7 (914) 210-01-99",
-        card: "2200 7004 8210 4419",
-        npdReceipt: true
+        bank: demo ? DEMO_PROFILE_DEFAULTS.bank : "Сбербанк",
+        phone: demo ? DEMO_PROFILE_DEFAULTS.whatsapp : "",
+        card: demo ? DEMO_PROFILE_DEFAULTS.card : "",
+        npdReceipt: true,
+        inn: ""
       },
-      payouts: [
+      payouts: demo ? [
         {
           id: "out-seed-1",
           createdAtLabel: "10 нояб., 18:20",
           amount: 4500,
           method: "sbp",
           methodLabel: "СБП · АЭБ (Алмазэргиэнбанк)",
-          destination: "+7 (914) 210-01-99",
+          destination: DEMO_PROFILE_DEFAULTS.whatsapp,
           npdReceipt: true,
           fee: 0,
           status: "succeeded",
           statusLabel: "Исполнено ✓"
         }
-      ]
+      ] : [],
+      serverSummary: null,
+      _serverLoaded: false,
+      _serverLoading: false,
+      _serverError: "",
+      _ownerUserId: (_ctx && _ctx.store && _ctx.store.user && _ctx.store.user.id != null) ? String(_ctx.store.user.id) : ""
     };
   }
 
   function tState() {
     if (_cache) return _cache;
+    const demo = isDevDemoMode();
     let saved = null;
     try {
       const raw = localStorage.getItem(TC_LS_KEY);
@@ -500,10 +966,10 @@
       const savedProf = saved.profile && typeof saved.profile === "object" ? saved.profile : null;
       _cache.profile.whatsapp = savedProf && Object.prototype.hasOwnProperty.call(savedProf, "whatsapp")
         ? (savedProf.whatsapp ? formatPhone(savedProf.whatsapp) : "")
-        : formatPhone(def.profile.whatsapp);
+        : (def.profile.whatsapp ? formatPhone(def.profile.whatsapp) : "");
       _cache.profile.telegram = savedProf && Object.prototype.hasOwnProperty.call(savedProf, "telegram")
         ? (savedProf.telegram ? formatTelegram(savedProf.telegram) : "")
-        : formatTelegram(def.profile.telegram);
+        : (def.profile.telegram ? formatTelegram(def.profile.telegram) : "");
       if (typeof _cache.profile.maxHandle !== "string") _cache.profile.maxHandle = "";
       if (typeof _cache.profile.vk !== "string") _cache.profile.vk = "";
       if (typeof _cache.profile.firstLessonGuarantee !== "boolean") {
@@ -515,7 +981,7 @@
       _cache.profile.trialFree = _cache.profile.firstLessonGuarantee;
       _cache.profile.trialMode = _cache.profile.firstLessonGuarantee ? "free" : "none";
       _cache.profile.trialPrice = _cache.profile.firstLessonGuarantee ? 0 : null;
-      _cache.lastAutoBumpAt = Number(_cache.lastAutoBumpAt || _cache.lastBumpAt) || def.lastAutoBumpAt;
+      _cache.lastAutoBumpAt = demo ? (Number(_cache.lastAutoBumpAt || _cache.lastBumpAt) || def.lastAutoBumpAt) : (Number(_cache.lastAutoBumpAt || _cache.lastBumpAt) || 0);
       _cache.lastBumpAt = _cache.lastAutoBumpAt;
       _cache.lastManualBumpAt = Number(_cache.lastManualBumpAt) || 0;
       _cache.reqTblCols = [3, 5, 7].includes(Number(_cache.reqTblCols)) ? Number(_cache.reqTblCols) : 5;
@@ -527,23 +993,36 @@
       _cache.leadsTblCols = [3, 5, 7].includes(Number(_cache.leadsTblCols)) ? Number(_cache.leadsTblCols) : 5;
       _cache.leadCounterPrices = (_cache.leadCounterPrices && typeof _cache.leadCounterPrices === "object") ? _cache.leadCounterPrices : {};
       _cache.slots = Object.assign({}, def.slots, saved.slots || {});
-      _cache.requests = Array.isArray(saved.requests) && saved.requests.length ? saved.requests : def.requests;
-      _cache.students = Array.isArray(saved.students) && saved.students.length
-        ? saved.students.map((s, idx) => {
-            const merged = Object.assign({}, def.students[idx] || { lessonDay: "Воскресенье", lessonTime: "10:00", whatsapp: "+7 (914) 210-05-11", telegram: "@alina_bio", autoNotify: true, autoChannels: ["wa", "tg", "max"], lastRemindedAt: 0 }, s);
-            merged.whatsapp = formatPhone(merged.whatsapp || "+7 (914) 210-05-11");
-            merged.telegram = formatTelegram(merged.telegram || "");
-            merged.autoChannels = normalizeChannelList(merged.autoChannels);
-            return merged;
-          })
+      _cache.requests = Array.isArray(saved.requests)
+        ? (demo ? (saved.requests.length ? saved.requests : def.requests) : saved.requests.filter(Boolean))
+        : def.requests;
+      _cache.students = Array.isArray(saved.students)
+        ? (demo
+          ? (saved.students.length
+            ? saved.students.map((s, idx) => {
+                const merged = Object.assign({}, def.students[idx] || { lessonDay: "Воскресенье", lessonTime: "10:00", whatsapp: "+7 (914) 210-05-11", telegram: "@alina_bio", autoNotify: true, autoChannels: ["wa", "tg", "max"], lastRemindedAt: 0 }, s);
+                merged.whatsapp = formatPhone(merged.whatsapp || "+7 (914) 210-05-11");
+                merged.telegram = formatTelegram(merged.telegram || "");
+                merged.autoChannels = normalizeChannelList(merged.autoChannels);
+                return merged;
+              })
+            : def.students)
+          : saved.students.filter(Boolean).map((s) => {
+              const merged = Object.assign({ lessonDay: "Воскресенье", lessonTime: "10:00", whatsapp: "", telegram: "", autoNotify: true, autoChannels: ["wa", "tg", "max"], lastRemindedAt: 0 }, s);
+              merged.whatsapp = merged.whatsapp ? formatPhone(merged.whatsapp) : "";
+              merged.telegram = formatTelegram(merged.telegram || "");
+              merged.autoChannels = normalizeChannelList(merged.autoChannels);
+              return merged;
+            }))
         : def.students;
       const rawPs = saved.payoutSettings && typeof saved.payoutSettings === "object" ? saved.payoutSettings : {};
       _cache.payoutSettings = {
         method: rawPs.method === "card" ? "card" : "sbp",
         bank: String(rawPs.bank || def.payoutSettings.bank),
-        phone: formatPhone(rawPs.phone) || def.payoutSettings.phone,
-        card: formatCardMask(rawPs.card) || def.payoutSettings.card,
-        npdReceipt: rawPs.npdReceipt !== undefined ? !!rawPs.npdReceipt : def.payoutSettings.npdReceipt
+        phone: (rawPs.phone ? formatPhone(rawPs.phone) : "") || def.payoutSettings.phone,
+        card: (rawPs.card ? formatCardMask(rawPs.card) : "") || def.payoutSettings.card,
+        npdReceipt: rawPs.npdReceipt !== undefined ? !!rawPs.npdReceipt : def.payoutSettings.npdReceipt,
+        inn: String(rawPs.inn || "").replace(/\D+/g, "").slice(0, 12)
       };
       _cache.payouts = Array.isArray(saved.payouts)
         ? saved.payouts.filter(Boolean).map((item, idx) => Object.assign({
@@ -552,7 +1031,7 @@
             amount: 0,
             method: "sbp",
             methodLabel: "СБП",
-            destination: _cache.payoutSettings.phone,
+            destination: _cache.payoutSettings.phone || "",
             npdReceipt: true,
             fee: 0,
             status: "succeeded",
@@ -562,20 +1041,61 @@
     } else {
       _cache = def;
     }
+    _cache._serverLoaded = false;
+    _cache._serverLoading = false;
+    _cache._verifLoaded = false;
+    _cache._verifLoading = false;
+    _cache._serverError = "";
+    _cache.confirmDropStudentKey = null;
+    _cache.spEditorOpen = !!_cache.spEditorOpen;
+    _cache.studentsSubView = _cache.studentsSubView === "list" ? "list" : "calendar";
+    _cache.studentsScope = _cache.studentsScope === "past" ? "past" : "current";
+    _cache.expandedStudentId = typeof _cache.expandedStudentId === "string" ? _cache.expandedStudentId : "";
     if (!_cache.chartStyle) _cache.chartStyle = "sticks";
     if (!_cache.leadCounterPrices || typeof _cache.leadCounterPrices !== "object") _cache.leadCounterPrices = {};
     if (!_cache.calendarSync || typeof _cache.calendarSync !== "object") {
-      _cache.calendarSync = Object.assign({}, defaultState().calendarSync);
+      _cache.calendarSync = Object.assign({}, def.calendarSync);
     }
     if (!Array.isArray(_cache.calendarSync.busySlots)) _cache.calendarSync.busySlots = [];
     if (!Array.isArray(_cache.calendarSync.conflicts)) _cache.calendarSync.conflicts = [];
+    if (!demo) sanitizeProdState(_cache);
+    else {
+      if (!_cache.account || typeof _cache.account !== "object") {
+        _cache.account = sanitizeAccount(_cache.profile || def.account, "", "", true);
+      }
+      if (!Array.isArray(_cache.searchProfiles) || !_cache.searchProfiles.length) {
+        const legacySp = Object.assign({}, def.searchProfiles[0], _cache.profile || {}, {
+          id: (_cache.profile && _cache.profile.id) ? _cache.profile.id : "tc-my-profile",
+          slots: _cache.slots || def.slots
+        });
+        _cache.searchProfiles = [createEmptySearchProfile(_cache.account, legacySp)];
+      } else {
+        _cache.searchProfiles = _cache.searchProfiles.filter(Boolean).map((sp, idx) => {
+          const hasOwnSlots = sp && sp.slots && typeof sp.slots === "object" && !Array.isArray(sp.slots);
+          const inheritLegacy = !hasOwnSlots && _cache.slots && (sp.id === _cache.activeSearchProfileId || idx === 0);
+          return createEmptySearchProfile(_cache.account, inheritLegacy ? Object.assign({}, sp, { slots: _cache.slots }) : sp);
+        });
+      }
+      if (!_cache.activeSearchProfileId) {
+        _cache.activeSearchProfileId = _cache.searchProfiles[0].id || "tc-my-profile";
+      }
+      syncProfileMirror(_cache);
+    }
+    _cache.confirmDeleteProfileId = null;
     checkAutoBumpDue(_cache, true);
     return _cache;
   }
 
   function saveState() {
     try {
-      localStorage.setItem(TC_LS_KEY, JSON.stringify(tState()));
+      const st = Object.assign({}, syncProfileMirror(tState()));
+      delete st._serverLoaded;
+      delete st._serverLoading;
+      delete st._serverError;
+      delete st._verifLoaded;
+      delete st._verifLoading;
+      delete st.confirmDeleteProfileId;
+      localStorage.setItem(TC_LS_KEY, JSON.stringify(st));
     } catch (e) { /* игнор */ }
   }
 
@@ -717,9 +1237,10 @@
     };
   }
 
-  function buildMarketTutorPayload(st) {
+  function buildMarketTutorPayload(st, spOverride) {
     const TDATA = getTDATA();
-    const p = st.profile;
+    const acc = (st && st.account && typeof st.account === "object") ? st.account : (st.profile || {});
+    const p = spOverride || getEditingSearchProfile(st);
     const subjIds = Array.isArray(p.subjects) && p.subjects.length ? p.subjects.slice() : [p.subject || "bio"];
     const subjNames = (TDATA && typeof TDATA.subjectNamesForIds === "function")
       ? TDATA.subjectNamesForIds(subjIds)
@@ -727,20 +1248,27 @@
           const hit = (TDATA && TDATA.SUBJECTS || []).find((s) => s.id === id);
           return hit ? hit.name : "";
         }).filter(Boolean);
+    const srcSlots = normalizeSlotsMap(p && p.slots);
     const cleanSlots = {};
-    Object.keys(st.slots || {}).forEach((k) => {
-      if (Array.isArray(st.slots[k]) && st.slots[k].length) cleanSlots[Number(k)] = st.slots[k].slice();
+    Object.keys(srcSlots).forEach((k) => {
+      if (Array.isArray(srcSlots[k]) && srcSlots[k].length) cleanSlots[Number(k)] = srcSlots[k].slice();
     });
     const years = Math.max(1, Number(p.expYears) || 1);
-    const isPro = p.price >= 1400;
+    const basePrice = Number(p.price) || 1200;
+    const isPro = basePrice >= 1400;
     const customBadges = Array.isArray(p.customBadges)
       ? p.customBadges.map((b) => String(b || "").trim().slice(0, 36)).filter(Boolean).slice(0, 2)
       : [];
     const customSkillsText = String(p.customSkills || "").trim();
+    const hasPhoto = acc.hasPhoto != null ? !!acc.hasPhoto : Boolean(acc.photo);
+    const accCity = CITY_OPTIONS.find((c) => String(acc.city || p.city || "").indexOf(c) >= 0) || "Якутск";
+    const accTz = TZ_OPTIONS.some((t) => t.id === acc.timezone)
+      ? acc.timezone
+      : (accCity === "Москва" ? "UTC+3" : "UTC+9");
     return {
-      id: "tc-my-profile",
-      name: p.name || "Преподаватель",
-      photo: p.photo || "",
+      id: String(p.id || "tc-my-profile"),
+      name: String(acc.name || p.name || "Преподаватель"),
+      photo: hasPhoto ? String(acc.photo || "") : "",
       subject: subjIds[0] || "bio",
       subjects: subjIds,
       subjectName: subjNames.length ? subjNames.join(" · ") : "Биология",
@@ -748,15 +1276,15 @@
       customSkillsText,
       exams: Array.isArray(p.exams) && p.exams.length ? p.exams.slice() : ["ЕГЭ"],
       formats: Array.isArray(p.formats) && p.formats.length ? p.formats.slice() : ["Онлайн"],
-      city: p.city || "Якутск",
-      timezone: p.timezone || "UTC+9",
+      city: accCity,
+      timezone: accTz,
       price: p.price != null ? Number(p.price) : 1200,
       minFair: Math.min(p.price != null ? Number(p.price) : 1200, p.minFair != null ? Number(p.minFair) : 900),
       firstLessonGuarantee: p.firstLessonGuarantee !== false,
       trialMode: p.firstLessonGuarantee !== false ? "free" : "none",
       trialPrice: p.firstLessonGuarantee !== false ? 0 : null,
       trialFree: p.firstLessonGuarantee !== false,
-      marketPrice: isPro ? Math.max(1150, Math.round(((Number(p.price) || 1200) * 0.85) / 50) * 50) : Math.round(((Number(p.price) || 1200) * 1.28) / 50) * 50,
+      marketPrice: isPro ? Math.max(1150, Math.round((basePrice * 0.85) / 50) * 50) : Math.round((basePrice * 1.28) / 50) * 50,
       tier: isPro ? "pro" : "budget",
       qualBadge: isPro ? "Профиль · Эксперт" : "Проверенная анкета",
       rating: 4.9,
@@ -765,22 +1293,35 @@
       tag: p.headline || customSkillsText || "Подготовка ФИПИ",
       source: "Кабинет",
       fromCabinet: true,
-      whatsapp: p.whatsapp || "",
-      telegram: p.telegram || "",
-      maxHandle: p.maxHandle || "",
-      vk: p.vk || "",
-      verified: true,
-      bumpedToday: !!(st.bumpedToday || st.autoBump24h),
-      bumpText: st.autoBump24h ? `Автоподнятие 24 ч (${st.autoBumpHour})` : (st.bumpedToday ? "Поднята сегодня" : "Ваша анкета"),
+      whatsapp: acc.whatsapp || "",
+      telegram: acc.telegram || "",
+      maxHandle: acc.maxHandle || "",
+      vk: acc.vk || "",
+      verified: p.verified !== false,
+      published: p.published !== false,
+      bumpedToday: !!(p.bumpedToday || st.bumpedToday || st.autoBump24h),
+      bumpText: st.autoBump24h ? `Автоподнятие 24 ч (${st.autoBumpHour})` : ((p.bumpedToday || st.bumpedToday) ? "Поднята сегодня" : "Ваша анкета"),
       bio: p.bio || "Подготовка к ЕГЭ и ОГЭ с проверкой пробников.",
       slots: Object.keys(cleanSlots).length ? cleanSlots : { 6: ["10:00", "14:00"] }
     };
   }
 
   function syncPublishedTutor(st) {
+    if (!isDevDemoMode()) return null;
     const TDATA = getTDATA();
-    if (!st.published || !TDATA || typeof TDATA.upsertCustomTutor !== "function") return null;
-    return TDATA.upsertCustomTutor(buildMarketTutorPayload(st));
+    if (!TDATA || typeof TDATA.upsertCustomTutor !== "function") return null;
+    const list = Array.isArray(st.searchProfiles) ? st.searchProfiles : [];
+    let lastCard = null;
+    list.forEach((sp) => {
+      if (!sp) return;
+      const cardId = String(sp.id || "tc-my-profile");
+      if (sp.published === false) {
+        if (typeof TDATA.removeCustomTutor === "function") TDATA.removeCustomTutor(cardId);
+      } else {
+        lastCard = TDATA.upsertCustomTutor(buildMarketTutorPayload(st, sp));
+      }
+    });
+    return lastCard;
   }
 
   function dayDowFromLabel(lbl) {
@@ -791,6 +1332,9 @@
 
   function syncedRequests() {
     const st = tState();
+    if (!isDevDemoMode()) {
+      return Array.isArray(st.requests) ? st.requests : [];
+    }
     const mktState = typeof _ctx.mkt === "function" ? _ctx.mkt() : null;
     const mktBookings = (mktState && Array.isArray(mktState.bookings)) ? mktState.bookings : [];
     const fromMarket = mktBookings.map((bk) => ({
@@ -824,6 +1368,498 @@
     const marketIds = new Set(fromMarket.map((x) => x.id));
     const localOnly = (st.requests || []).filter((r) => !marketIds.has(r.id));
     return fromMarket.concat(localOnly);
+  }
+
+  function mapServerBookingToRequest(bk, st) {
+    bk = bk || {};
+    st = st || _cache || {};
+    const profPrice = (st && st.profile && Number(st.profile.price)) || 1200;
+    const rawOffer = bk.offerPrice != null ? Number(bk.offerPrice) : profPrice;
+    const rawCounter = bk.counterPrice != null
+      ? Number(bk.counterPrice)
+      : (bk.finalPrice != null ? Number(bk.finalPrice) : rawOffer);
+    const rawTutorPrice = bk.tutorPrice != null ? Number(bk.tutorPrice) : profPrice;
+    const rawDow = bk.dow != null
+      ? String(bk.dow)
+      : (Array.isArray(bk.dows) && bk.dows.length ? String(bk.dows[0]) : dayDowFromLabel(bk.dayLabel));
+    const dayIso = String(bk.dayIso || bk.slotDate || "");
+    const stuUid = bk.studentUserId != null ? Number(bk.studentUserId) : null;
+    const stuName = String(bk.studentName || "Ученик");
+    const studentId = stuUid != null && Number.isFinite(stuUid)
+      ? ("srv-stu-" + stuUid)
+      : ("srv-stu-name-" + stuName.trim().toLowerCase());
+    const escStatus = String(bk.escrowStatus || "none");
+    return {
+      id: String(bk.id),
+      serverId: String(bk.id),
+      mktId: String(bk.id),
+      tutorId: String(bk.tutorId || ""),
+      tutorName: String(bk.tutorName || ""),
+      fromServer: true,
+      studentUserId: stuUid,
+      studentId,
+      studentName: stuName,
+      exam: String(bk.exam || "ЕГЭ"),
+      subject: String(bk.subject || ""),
+      subjectName: String(bk.subjectName || bk.subject || "Подготовка"),
+      format: String(bk.format || "Онлайн"),
+      city: String(bk.city || ""),
+      timezone: String(bk.timezone || ""),
+      dow: rawDow,
+      dows: Array.isArray(bk.dows) ? bk.dows.slice() : [],
+      dayIso,
+      dayLabel: String(bk.dayLabel || dayIso || "Ближайший слот"),
+      hour: String(bk.hour || "14:00"),
+      offerPrice: rawOffer,
+      counterPrice: rawCounter,
+      finalPrice: bk.finalPrice != null ? Number(bk.finalPrice) : null,
+      tutorPrice: rawTutorPrice,
+      marketPrice: Number(bk.marketPrice) || Math.round((rawTutorPrice || rawOffer || profPrice) * 1.28),
+      fee: bk.fee != null ? Number(bk.fee) : 0,
+      sbpFee: bk.sbpFee != null ? Number(bk.sbpFee) : 0,
+      payout: bk.payout != null ? Number(bk.payout) : 0,
+      reserved: Number(bk.reserved) || 0,
+      escrowStatus: escStatus,
+      paid: escStatus === "frozen" || escStatus === "captured" || Number(bk.reserved) > 0 || Boolean(bk.paid),
+      paidAt: 0,
+      payRemindedAt: 0,
+      payRemindCount: 0,
+      note: String(bk.note || ""),
+      telemostUrl: String(bk.telemostUrl || ""),
+      whatsapp: String(bk.whatsapp || ""),
+      telegram: String(bk.telegram || ""),
+      maxHandle: String(bk.maxHandle || ""),
+      schedulePlan: bk.schedulePlan || null,
+      status: String(bk.status || "pending"),
+      rawStatus: String(bk.rawStatus || bk.status || "pending"),
+      createdAt: String(bk.createdAt || ""),
+      updatedAt: String(bk.updatedAt || ""),
+      createdLabel: formatIsoShort(bk.createdAt) || "С сервера"
+    };
+  }
+
+  function mapServerPayoutToRow(p) {
+    p = p || {};
+    const method = p.method === "card" ? "card" : "sbp";
+    const status = String(p.status || "pending");
+    const statusLabel = status === "succeeded"
+      ? "Исполнено ✓"
+      : (status === "rejected"
+        ? "Отклонено"
+        : (p.providerPayoutId ? "Отправлено в ЮKassa" : (p.antifraudHold ? "Проверка" : "В обработке")));
+    return {
+      id: String(p.id || ""),
+      fromServer: true,
+      createdAt: String(p.createdAt || ""),
+      createdAtLabel: formatIsoShort(p.createdAt) || "Сегодня",
+      amount: Number(p.amountRub != null ? p.amountRub : p.amount) || 0,
+      method,
+      methodLabel: p.bank ? `${method === "sbp" ? "СБП" : "Карта"} · ${p.bank}` : (method === "sbp" ? "СБП" : "Карта РФ"),
+      destination: String(p.destinationMasked || p.destination || "—"),
+      npdReceipt: p.npdReceipt != null ? p.npdReceipt : p.npdRequested !== false,
+      npdReceiptCode: p.npdReceipt || "",
+      npdReceiptUrl: String(p.npdReceiptUrl || ""),
+      npdStatus: String(p.npdStatus || (p.npdRequested === false ? "none" : "pending")),
+      tutorInn: String(p.tutorInn || ""),
+      providerPayoutId: String(p.providerPayoutId || ""),
+      antifraudHold: !!p.antifraudHold,
+      antifraudReason: String(p.antifraudReason || ""),
+      errorMessage: String(p.errorMessage || ""),
+      fee: 0,
+      status,
+      statusLabel
+    };
+  }
+
+  function deriveStudentsFromBookings(serverReqs, existingStudents) {
+    const existingList = Array.isArray(existingStudents) ? existingStudents : [];
+    const byId = new Map();
+    const byName = new Map();
+    const manualList = [];
+    existingList.forEach((s) => {
+      if (!s) return;
+      if (!isDevDemoMode() && DEMO_STUDENT_IDS.has(String(s.id || ""))) return;
+      if (s.id) byId.set(String(s.id), s);
+      const nm = String(s.name || "").trim().toLowerCase();
+      if (nm) byName.set(nm, s);
+      if (s.manualStudent) manualList.push(s);
+    });
+
+    const grouped = new Map();
+    const TDATA = getTDATA();
+    (Array.isArray(serverReqs) ? serverReqs : []).forEach((r) => {
+      if (!r || (r.status !== "accepted" && r.status !== "completed" && r.status !== "cancelled")) return;
+      const nmKey = String(r.studentName || "Ученик").trim().toLowerCase();
+      const sid = String(r.studentId || ("srv-stu-" + (r.studentUserId != null ? r.studentUserId : nmKey)));
+      const rate = Number(r.counterPrice || r.offerPrice || r.tutorPrice || 0);
+      const isPaid = r.status === "completed" || r.paid === true || String(r.escrowStatus || "") === "released" || String(r.escrowStatus || "") === "paid";
+      const net = (r.payout != null && Number(r.payout) > 0)
+        ? Number(r.payout)
+        : (rate > 0 ? calcLessonSplit(rate, r, TDATA).payout : 0);
+      const addEarned = isPaid ? net : 0;
+      if (!grouped.has(sid)) {
+        grouped.set(sid, {
+          id: sid,
+          latest: r,
+          activeCnt: r.status === "accepted" ? 1 : 0,
+          completedCnt: r.status === "completed" ? 1 : 0,
+          cancelledCnt: r.status === "cancelled" ? 1 : 0,
+          earnedRub: addEarned
+        });
+      } else {
+        const entry = grouped.get(sid);
+        if (r.status === "accepted") entry.activeCnt += 1;
+        if (r.status === "completed") entry.completedCnt += 1;
+        if (r.status === "cancelled") entry.cancelledCnt += 1;
+        entry.earnedRub += addEarned;
+        if (String(r.updatedAt || "") > String(entry.latest.updatedAt || "")) entry.latest = r;
+      }
+    });
+
+    const derived = [];
+    grouped.forEach((entry) => {
+      const r = entry.latest;
+      const nmLower = String(r.studentName || "").trim().toLowerCase();
+      const prev = byId.get(entry.id) || (nmLower ? byName.get(nmLower) : null) || {};
+      const dowObj = DAY_LIST.find((d) => d.dow === String(r.dow || ""));
+      const sp = r.schedulePlan;
+      const effHour = (sp && sp.hour) || r.hour || prev.lessonTime || "16:00";
+      const effDay = (dowObj && dowObj.full) || r.dayLabel || prev.lessonDay || "По расписанию";
+      const effStatus = entry.activeCnt > 0
+        ? "active"
+        : (prev.manualStatus === "active" ? "active" : "past");
+      derived.push({
+        id: entry.id,
+        fromServer: true,
+        studentUserId: r.studentUserId != null ? r.studentUserId : null,
+        lastReqId: String(r.id || prev.lastReqId || ""),
+        name: r.studentName || prev.name || "Ученик",
+        exam: `${r.exam || "ЕГЭ"} · ${r.subjectName || "Подготовка"}`,
+        status: effStatus,
+        manualStatus: prev.manualStatus || "",
+        endedLabel: effStatus === "past" ? (prev.endedLabel || (r.dayLabel ? `Последний урок: ${r.dayLabel}` : "Занятия завершены")) : "",
+        rate: Number(r.counterPrice || r.offerPrice || r.tutorPrice || prev.rate || 0),
+        earnedRub: Math.max(entry.earnedRub, Number(prev.earnedRub) || 0),
+        startScore: prev.startScore != null ? Number(prev.startScore) : 0,
+        curScore: prev.curScore != null ? Number(prev.curScore) : 0,
+        targetScore: prev.targetScore != null ? Number(prev.targetScore) : 85,
+        lessonsDone: Math.max(entry.completedCnt, Number(prev.lessonsDone) || 0),
+        hw: prev.hw || r.note || "",
+        lessonDay: effDay,
+        lessonTime: effHour,
+        whatsapp: prev.whatsapp ? formatPhone(prev.whatsapp) : (r.whatsapp ? formatPhone(r.whatsapp) : ""),
+        telegram: prev.telegram ? formatTelegram(prev.telegram) : (r.telegram ? formatTelegram(r.telegram) : ""),
+        maxHandle: prev.maxHandle || r.maxHandle || "",
+        autoNotify: prev.autoNotify !== undefined ? !!prev.autoNotify : true,
+        autoChannels: normalizeChannelList(prev.autoChannels),
+        autoLeads: normalizeLeadList(prev.autoLeads),
+        lastRemindedAt: Number(prev.lastRemindedAt) || 0
+      });
+    });
+
+    const seenIds = new Set(derived.map((s) => s.id));
+    manualList.forEach((m) => {
+      if (!seenIds.has(String(m.id))) derived.push(m);
+    });
+    return derived;
+  }
+
+  function serverTutorToSearchProfile(tutorObj, acc) {
+    const TDATA = getTDATA();
+    const rawSubjs = Array.isArray(tutorObj.subjects) && tutorObj.subjects.length
+      ? tutorObj.subjects.filter(Boolean)
+      : (tutorObj.subject ? [String(tutorObj.subject)] : ["bio"]);
+    const resolvedSubjs = rawSubjs.map((val) => {
+      const s = String(val || "").trim();
+      if (!s) return "";
+      if (TDATA && Array.isArray(TDATA.SUBJECTS)) {
+        const low = s.toLowerCase();
+        const hit = TDATA.SUBJECTS.find((item) =>
+          String(item.id || "").toLowerCase() === low ||
+          String(item.name || "").toLowerCase() === low ||
+          String(item.short || "").toLowerCase() === low
+        );
+        if (hit && hit.id) return hit.id;
+      }
+      return s;
+    }).filter(Boolean);
+    const srvPrice = Number(tutorObj.price != null ? tutorObj.price : tutorObj.baseRateRub) || 1200;
+    const rawMinFair = Number(tutorObj.minFair);
+    const minFair = Number.isFinite(rawMinFair) && rawMinFair > 0
+      ? Math.max(400, Math.min(srvPrice, rawMinFair))
+      : Math.max(400, Math.round((srvPrice * 0.85) / 50) * 50);
+    return createEmptySearchProfile(acc, {
+      id: String(tutorObj.id || ""),
+      headline: String(tutorObj.headline || ""),
+      subject: resolvedSubjs[0] || "bio",
+      subjects: resolvedSubjs.length ? resolvedSubjs : ["bio"],
+      exams: Array.isArray(tutorObj.exams) && tutorObj.exams.length ? tutorObj.exams.slice() : ["ЕГЭ"],
+      formats: Array.isArray(tutorObj.formats) && tutorObj.formats.length ? tutorObj.formats.slice() : ["Онлайн"],
+      education: String(tutorObj.education || ""),
+      expYears: Math.max(1, Number(tutorObj.expYears) || 1),
+      avgScore: Number(tutorObj.avgScore) || 0,
+      customSkills: String(tutorObj.customSkills || ""),
+      bio: String(tutorObj.bio || ""),
+      price: srvPrice,
+      minFair,
+      firstLessonGuarantee: tutorObj.firstLessonGuarantee !== false,
+      customBadges: Array.isArray(tutorObj.customBadges) ? tutorObj.customBadges.slice(0, 2) : ["", ""],
+      slots: normalizeSlotsMap(tutorObj.slots),
+      verified: !!tutorObj.verified,
+      published: tutorObj.published !== false,
+      bumpedToday: !!tutorObj.bumpedToday,
+      lastBumpedAt: String(tutorObj.lastBumpedAt || ""),
+      updatedAt: String(tutorObj.updatedAt || ""),
+      rating: tutorObj.rating != null ? Number(tutorObj.rating) : 4.9,
+      reviewsCount: tutorObj.reviewsCount != null ? Number(tutorObj.reviewsCount) : 0
+    });
+  }
+
+  function applyServerProfile(tutorObj, st, opts) {
+    if (!st) return;
+    opts = opts || {};
+    const ctxUser = (_ctx && _ctx.store && _ctx.store.user) || null;
+    if (!st.account || typeof st.account !== "object") {
+      st.account = sanitizeAccount({}, "", "", isDevDemoMode());
+    }
+    if (!Array.isArray(st.searchProfiles)) st.searchProfiles = [];
+    if (tutorObj && typeof tutorObj === "object" && tutorObj.id) {
+      if (opts.syncAccount !== false) {
+        if (!st.account.name && (tutorObj.name || tutorObj.fullName)) {
+          st.account.name = String(tutorObj.name || tutorObj.fullName || "");
+        }
+        if (tutorObj.city) st.account.city = String(tutorObj.city);
+        if (tutorObj.timezone) st.account.timezone = String(tutorObj.timezone);
+        if (typeof tutorObj.photoUrl === "string" && tutorObj.photoUrl) {
+          st.account.photo = tutorObj.photoUrl;
+          st.account.hasPhoto = tutorObj.hasPhoto !== false;
+        }
+        if (tutorObj.whatsappPhone && !st.account.whatsapp) st.account.whatsapp = formatPhone(tutorObj.whatsappPhone);
+        if (tutorObj.telegramHandle && !st.account.telegram) st.account.telegram = formatTelegram(tutorObj.telegramHandle);
+        if (tutorObj.maxHandle && !st.account.maxHandle) st.account.maxHandle = String(tutorObj.maxHandle);
+      }
+      const sp = serverTutorToSearchProfile(tutorObj, st.account);
+      const idx = st.searchProfiles.findIndex((item) => item && item.id === sp.id);
+      if (idx >= 0) st.searchProfiles[idx] = sp;
+      else st.searchProfiles.unshift(sp);
+      st.activeSearchProfileId = sp.id;
+      st.creatingSearchProfile = false;
+      st.newProfileDraft = null;
+      st.bumpedToday = !!tutorObj.bumpedToday;
+      syncProfileMirror(st);
+      syncPublishedTutor(st);
+    } else {
+      if (!st.account.name && ctxUser) st.account.name = String(ctxUser.displayName || ctxUser.username || "");
+      if (!st.account.photo && st.account.hasPhoto !== false && ctxUser && ctxUser.avatarUrl) {
+        st.account.photo = String(ctxUser.avatarUrl);
+        st.account.hasPhoto = true;
+      }
+      syncProfileMirror(st);
+    }
+  }
+
+  function applyServerProfiles(profilesList, st, docProfile) {
+    if (!st) return;
+    const ctxUser = (_ctx && _ctx.store && _ctx.store.user) || null;
+    const list = Array.isArray(profilesList) ? profilesList.filter((x) => x && x.id) : [];
+    const doc = (docProfile && typeof docProfile === "object") ? docProfile : {};
+    const first = list[0] || null;
+    const nextAcc = Object.assign({}, st.account || {});
+    if (doc.name) nextAcc.name = String(doc.name);
+    else if (first && (first.name || first.fullName)) nextAcc.name = String(first.name || first.fullName);
+    else if (!nextAcc.name && ctxUser) nextAcc.name = String(ctxUser.displayName || ctxUser.username || "");
+    if (doc.city) nextAcc.city = String(doc.city);
+    else if (first && first.city) nextAcc.city = String(first.city);
+    if (doc.timezone) nextAcc.timezone = String(doc.timezone);
+    else if (first && first.timezone) nextAcc.timezone = String(first.timezone);
+    if (doc.hasPhoto === false) {
+      nextAcc.hasPhoto = false;
+      nextAcc.photo = "";
+    } else if (doc.photo) {
+      nextAcc.photo = String(doc.photo);
+      nextAcc.hasPhoto = true;
+    } else if (first && first.hasPhoto === false) {
+      nextAcc.hasPhoto = false;
+      nextAcc.photo = "";
+    } else if (first && first.photoUrl) {
+      nextAcc.photo = String(first.photoUrl);
+      nextAcc.hasPhoto = true;
+    } else if (!nextAcc.photo && nextAcc.hasPhoto !== false && ctxUser && ctxUser.avatarUrl) {
+      nextAcc.photo = String(ctxUser.avatarUrl);
+      nextAcc.hasPhoto = true;
+    }
+    if (doc.whatsapp != null) nextAcc.whatsapp = doc.whatsapp ? formatPhone(doc.whatsapp) : "";
+    else if (first && first.whatsappPhone != null) nextAcc.whatsapp = first.whatsappPhone ? formatPhone(first.whatsappPhone) : "";
+    if (doc.telegram != null) nextAcc.telegram = doc.telegram ? formatTelegram(doc.telegram) : "";
+    else if (first && first.telegramHandle != null) nextAcc.telegram = first.telegramHandle ? formatTelegram(first.telegramHandle) : "";
+    if (doc.maxHandle != null) nextAcc.maxHandle = String(doc.maxHandle || "");
+    else if (first && first.maxHandle != null) nextAcc.maxHandle = String(first.maxHandle || "");
+    if (doc.vk != null) nextAcc.vk = String(doc.vk || "");
+
+    st.account = sanitizeAccount(nextAcc, nextAcc.name || "", nextAcc.photo || "", isDevDemoMode());
+    st.searchProfiles = list.map((item) => serverTutorToSearchProfile(item, st.account));
+    if (st.searchProfiles.length) {
+      const stillValid = st.searchProfiles.some((sp) => sp.id === st.activeSearchProfileId);
+      if (!stillValid) st.activeSearchProfileId = st.searchProfiles[0].id;
+    } else {
+      st.activeSearchProfileId = "";
+    }
+    const activeSrv = list.find((item) => String(item.id) === st.activeSearchProfileId) || first;
+    st.bumpedToday = !!(activeSrv && activeSrv.bumpedToday);
+    syncProfileMirror(st);
+    syncPublishedTutor(st);
+  }
+
+  function resetSession() {
+    _inFlightHydrate = null;
+    if (!isDevDemoMode()) {
+      try { localStorage.removeItem(TC_LS_KEY); } catch (e) { /* игнор */ }
+      _cache = null;
+      return;
+    }
+    if (_cache) {
+      _cache.serverSummary = null;
+      _cache._serverLoaded = false;
+      _cache._serverLoading = false;
+      _cache._serverError = "";
+      _cache._verifLoaded = false;
+      _cache._verifLoading = false;
+      _cache._ownerUserId = "";
+    }
+  }
+
+  function hydrateFromBackend(opts) {
+    opts = opts || {};
+    const ctxStore = _ctx && _ctx.store;
+    if (!ctxStore || !ctxStore.backend || !ctxStore.user || !EGE.api) {
+      return Promise.resolve(null);
+    }
+    const ownerUid = String(ctxStore.user.id || "");
+    let st = tState();
+    if (st._ownerUserId && String(st._ownerUserId) !== ownerUid) {
+      resetSession();
+      st = tState();
+    }
+    if (!opts.force && _inFlightHydrate) {
+      return _inFlightHydrate;
+    }
+    st._serverLoading = true;
+    st._ownerUserId = ownerUid;
+
+    const pSummary = EGE.api.tutor && typeof EGE.api.tutor.summary === "function"
+      ? EGE.api.tutor.summary().catch((err) => ({ _err: err }))
+      : Promise.resolve(null);
+    const pProfiles = EGE.api.tutor && typeof EGE.api.tutor.listProfiles === "function"
+      ? EGE.api.tutor.listProfiles().catch((err) => ({ _err: err }))
+      : Promise.resolve(null);
+    const pBookings = EGE.api.bookings && typeof EGE.api.bookings.list === "function"
+      ? EGE.api.bookings.list({ scope: "tutor", limit: 100 }).catch((err) => ({ _err: err }))
+      : Promise.resolve(null);
+    const pLeads = !isDevDemoMode() && EGE.api.leads && typeof EGE.api.leads.list === "function"
+      ? EGE.api.leads.list({ limit: 100 }).catch(() => null)
+      : Promise.resolve(null);
+
+    const prom = Promise.all([pSummary, pProfiles, pBookings, pLeads]).then(([sumRes, profRes, bkRes, leadsRes]) => {
+      const curStore = _ctx && _ctx.store;
+      if (!curStore || !curStore.user || String(curStore.user.id || "") !== ownerUid) {
+        return null;
+      }
+      const curSt = tState();
+      const docProfile = (curStore.docs && curStore.docs.profile && typeof curStore.docs.profile === "object")
+        ? curStore.docs.profile
+        : ((typeof _ctx.profile === "function") ? _ctx.profile() : {});
+      if (sumRes && !sumRes._err && sumRes.ok) {
+        curSt.serverSummary = {
+          tutorId: sumRes.tutorId || null,
+          tutorInn: String(sumRes.tutorInn || ""),
+          npdVerified: !!sumRes.npdVerified,
+          earnedNetRub: Number(sumRes.earnedNetRub) || 0,
+          earned30dNetRub: Number(sumRes.earned30dNetRub) || 0,
+          frozenNetRub: Number(sumRes.frozenNetRub) || 0,
+          withdrawnRub: Number(sumRes.withdrawnRub) || 0,
+          availableRub: Number(sumRes.availableRub) || 0,
+          completedLessonsCount: Number(sumRes.completedLessonsCount) || 0,
+          completedLessons30dCount: Number(sumRes.completedLessons30dCount) || 0,
+          minPayoutRub: Number(sumRes.minPayoutRub) || MIN_PAYOUT_RUB
+        };
+        if (sumRes.tutorInn && curSt.payoutSettings) {
+          curSt.payoutSettings.inn = String(sumRes.tutorInn).replace(/\D+/g, "").slice(0, 12);
+        }
+        const srvPayouts = Array.isArray(sumRes.payouts) ? sumRes.payouts.map(mapServerPayoutToRow) : [];
+        if (!isDevDemoMode() || srvPayouts.length > 0) {
+          curSt.payouts = srvPayouts;
+        }
+      }
+      const srvProfilesList = (profRes && !profRes._err && profRes.ok && Array.isArray(profRes.profiles))
+        ? profRes.profiles
+        : (sumRes && Array.isArray(sumRes.profiles) ? sumRes.profiles : (sumRes && sumRes.tutor ? [sumRes.tutor] : []));
+      if ((profRes && profRes.ok) || (sumRes && sumRes.ok)) {
+        applyServerProfiles(srvProfilesList, curSt, docProfile);
+      }
+
+      if (bkRes && !bkRes._err && bkRes.ok && Array.isArray(bkRes.bookings)) {
+        const mapped = bkRes.bookings.map((b) => mapServerBookingToRequest(b, curSt));
+        const mappedIds = new Set(mapped.map((m) => String(m.id)));
+        const localKeep = (curSt.requests || []).filter((r) => {
+          if (!r) return false;
+          if (mappedIds.has(String(r.id))) return false;
+          if (r.manualStudent) return true;
+          return isDevDemoMode() && !r.fromServer;
+        });
+        if (!isDevDemoMode() || mapped.length > 0) {
+          curSt.requests = mapped.concat(localKeep);
+          const nextStudents = deriveStudentsFromBookings(mapped, curSt.students);
+          if (!isDevDemoMode()) {
+            curSt.students = nextStudents;
+          } else if (nextStudents.length) {
+            const seenSt = new Set(nextStudents.map((s) => s.id));
+            curSt.students = nextStudents.concat((curSt.students || []).filter((s) => s && !seenSt.has(s.id)));
+          }
+        }
+      }
+
+      if (leadsRes && leadsRes.ok && Array.isArray(leadsRes.leads)) {
+        const TDATA = getTDATA();
+        if (TDATA && typeof TDATA.syncStudentLeads === "function") {
+          TDATA.syncStudentLeads(leadsRes.leads, { replace: !isDevDemoMode() });
+        }
+      }
+
+      curSt._serverLoaded = true;
+      curSt._serverLoading = false;
+      curSt._serverError = (sumRes && sumRes._err && sumRes._err.message) || (bkRes && bkRes._err && bkRes._err.message) || "";
+      if (!isDevDemoMode()) sanitizeProdState(curSt);
+      saveState();
+      ensureRealtimeConnected();
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return curSt;
+    }).catch((err) => {
+      const curSt = _cache;
+      if (curSt) {
+        curSt._serverLoading = false;
+        curSt._serverLoaded = true;
+        curSt._serverError = (err && err.message) || "Не удалось загрузить данные кабинета.";
+      }
+      if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
+      return null;
+    }).finally(() => {
+      if (_inFlightHydrate === prom) _inFlightHydrate = null;
+    });
+
+    _inFlightHydrate = prom;
+    return prom;
+  }
+
+  function ensureServerHydrated() {
+    const ctxStore = _ctx && _ctx.store;
+    if (!ctxStore || !ctxStore.backend || !ctxStore.user) return null;
+    const st = tState();
+    const uid = String(ctxStore.user.id || "");
+    if (st._ownerUserId && String(st._ownerUserId) !== uid) {
+      return hydrateFromBackend({ force: true });
+    }
+    if (st._serverLoaded || st._serverLoading) return null;
+    return hydrateFromBackend();
   }
 
   function findReq(id) {
@@ -864,13 +1900,13 @@
 
   function getTab() {
     const t = tState().tab;
-    return ["requests", "leads", "profile", "calendar", "students"].includes(t) ? t : "requests";
+    return ["requests", "leads", "profile", "calendar", "students", "comm"].includes(t) ? t : "requests";
   }
 
   function setTab(nextTab) {
     const st = tState();
     const mapped = nextTab === "calendar" ? "students" : nextTab;
-    st.tab = ["requests", "leads", "profile", "students"].includes(mapped) ? mapped : "requests";
+    st.tab = ["requests", "leads", "profile", "students", "comm"].includes(mapped) ? mapped : "requests";
     saveState();
   }
 
@@ -924,7 +1960,8 @@
     const map = (mktState && mktState.tutorContacts && typeof mktState.tutorContacts === "object") ? mktState.tutorContacts : {};
     const ovReq = (req && req.id && map[req.id]) || {};
     const ovStu = (stu && stu.id && map[stu.id]) || {};
-    const wa = String(ovReq.whatsapp || ovStu.whatsapp || (stu && stu.whatsapp) || (req && req.whatsapp) || "79142100511").trim();
+    const fallbackWa = isDevDemoMode() ? "79142100511" : "";
+    const wa = String(ovReq.whatsapp || ovStu.whatsapp || (stu && stu.whatsapp) || (req && req.whatsapp) || fallbackWa).trim();
     const tg = String(ovReq.telegram || ovStu.telegram || (stu && stu.telegram) || (req && req.telegram) || "").trim();
     const maxH = String(ovReq.maxHandle || ovStu.maxHandle || (stu && stu.maxHandle) || (req && req.maxHandle) || "").trim();
     return {
@@ -936,7 +1973,7 @@
         maxHandle: maxH
       },
       available: {
-        wa: true,
+        wa: Boolean(wa),
         tg: Boolean(tg),
         max: Boolean(maxH)
       }
@@ -974,13 +2011,15 @@
     const isManual = Boolean(req && (req.manualStudent || Number(req.feePct) === 1 || String(req.id || "").indexOf("tc-man-") === 0));
     if (isManual) {
       const fee = Math.round(cleanRate * 0.01);
-      return { total: cleanRate, fee, payout: Math.max(0, cleanRate - fee), pct: 1, isManual: true };
+      const sbpFee = Math.round(cleanRate * 0.01);
+      return { total: cleanRate, fee, sbpFee, payout: Math.max(0, cleanRate - fee - sbpFee), pct: 1, sbpPct: 1, netPct: 98, isManual: true };
     }
     if (TDATA && typeof TDATA.commissionSplit === "function") {
       return Object.assign({ isManual: false }, TDATA.commissionSplit(cleanRate));
     }
     const fee = Math.round(cleanRate * 0.05);
-    return { total: cleanRate, fee, payout: Math.max(0, cleanRate - fee), pct: 5, isManual: false };
+    const sbpFee = Math.round(cleanRate * 0.01);
+    return { total: cleanRate, fee, sbpFee, payout: Math.max(0, cleanRate - fee - sbpFee), pct: 5, sbpPct: 1, netPct: 94, isManual: false };
   }
 
   let _animSwitch = null;
@@ -1064,7 +2103,10 @@
     TC_LS_KEY, DAY_MS, FOUR_HOURS_MS, PAY_REMIND_COOLDOWN_MS, DAY_LIST, EXAM_OPTIONS, FORMAT_OPTIONS,
     CITY_OPTIONS, TZ_OPTIONS, WA_LEAD_OPTIONS, DEFAULT_WA_LEADS, AUTO_CHANNELS, AUTO_BUMP_HOURS,
     GOAL_PRESETS, QUICK_TEMPLATES, DEFAULT_REQUESTS, DEFAULT_STUDENTS,
-    SAMPLE_GCAL_ICS, MIN_PAYOUT_RUB, PAYOUT_BANKS,
+    DEMO_REQ_IDS, DEMO_STUDENT_IDS, DEMO_PAYOUT_IDS,
+    SAMPLE_GCAL_ICS, MIN_PAYOUT_RUB, PAYOUT_BANKS, SBP_BANK_IDS, validateInn12,
+    isDevDemoMode, setDemoMode, hydrateFromBackend, ensureServerHydrated, resetSession,
+    mapServerBookingToRequest, mapServerPayoutToRow, deriveStudentsFromBookings, formatIsoShort,
     getCtx, configure, getTDATA, getTutorSlug, applyRtEventToCabinet,
     ensureRealtimeConnected, syncTutorCalendar, publishRtUpdate,
     formatPhone, formatTelegram, formatCardMask, normalizeChannelList, normalizeLeadList,
@@ -1073,6 +2115,8 @@
     ensureTelemostUrl, resolveLessonContacts, getLessonNotifyConfig, getLessonPaymentState, calcLessonSplit, renderLessonNotifyHTML, renderLessonPaymentHTML,
     checkAutoBumpDue, formatCountdown, formatShortCountdown, autoBumpRemainingMs, manualBumpRemainingMs, payRemindRemainingMs, markPayRemindAnim,
     ensureCountdownTimer, clampStep, profileCompleteness, buildMarketTutorPayload,
+    emptySlotsMap, normalizeSlotsMap, countSlots, mergeAllProfileSlots,
+    createEmptySearchProfile, getEditingSearchProfile, syncProfileMirror, applyServerProfile, applyServerProfiles,
     syncPublishedTutor, dayDowFromLabel, syncedRequests, findReq, updateReq,
     pendingCount, renderDataTable, getTab, setTab, toggleArrayVal
   });

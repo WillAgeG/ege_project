@@ -61,6 +61,14 @@
     return _ctx.ui || {};
   }
 
+  function isDevDemoMode() {
+    if (typeof _ctx.isDevDemoMode === "function") return !!_ctx.isDevDemoMode();
+    const st = _ctx && _ctx.store;
+    if (st && st.demoMode === false) return false;
+    if (root.EGE_HOST && root.EGE_HOST.demoMode === false) return false;
+    return true;
+  }
+
   const MOTION_PRESETS = {
     design: { id: "design", label: "UX/UI и Figma", short: "UX/UI-дизайн", tutorId: "tut-kovalev", fallbackName: "Денис Ковалёв", role: "Figma · дизайн-системы · портфолио", defaultHour: 10, defaultOffer: 1200 },
     eng: { id: "eng", label: "Английский", short: "Английский", tutorId: "tut-sokolova", fallbackName: "Анна Соколова", role: "ЕГЭ 90+ · ОГЭ · разговорный", defaultHour: 12, defaultOffer: 1200 },
@@ -110,7 +118,7 @@
     const hourPct = Math.round(((hourNum - 10) / 10) * 100);
     const split = TDATA && TDATA.commissionSplit
       ? TDATA.commissionSplit(offer)
-      : { total: offer, fee: Math.round(offer * 0.05), payout: offer - Math.round(offer * 0.05), pct: 5 };
+      : { total: offer, fee: Math.round(offer * 0.05), sbpFee: Math.round(offer * 0.01), payout: Math.max(0, offer - Math.round(offer * 0.05) - Math.round(offer * 0.01)), pct: 5, sbpPct: 1 };
     return { m, preset, tutor, market, tutorPrice, minOffer, maxOffer, offer, belowMarketRub, aboveMarketRub, belowTutorRub, aboveTutorRub, offerBelowPct, hourNum, slot, hourPct, split };
   }
 
@@ -376,12 +384,12 @@
   function syncHeroMotion() {
     const ui = getUi();
     const landEl = typeof document !== "undefined" && typeof document.querySelector === "function"
-      ? document.querySelector(".land-page:not(#brandbook-page)")
+      ? document.querySelector(".land-page:not(#brandbook-page):not(#fees-page):not(#market-page)")
       : null;
     const mainEl = typeof document !== "undefined" && typeof document.getElementById === "function"
       ? document.getElementById("main")
       : null;
-    const mainHasLand = !!(mainEl && typeof mainEl.innerHTML === "string" && mainEl.innerHTML.includes('class="land-page'));
+    const mainHasLand = !!(mainEl && typeof mainEl.innerHTML === "string" && mainEl.innerHTML.includes('class="land-page') && !mainEl.innerHTML.includes('id="fees-page"') && !mainEl.innerHTML.includes('id="market-page"'));
     const onLanding = ui.view === "landing" || !!landEl || mainHasLand;
     const isLandWhite = !!(onLanding && (ui.landWhiteStage || (landEl && landEl.classList && landEl.classList.contains("is-white-stage"))));
     if (!onLanding) {
@@ -511,7 +519,7 @@
     const barPct = mktRate > 0 ? Math.max(18, Math.min(96, Math.round((monthOff / Math.max(1, monthMkt)) * 100))) : 18;
     const split = TDATA && TDATA.commissionSplit
       ? TDATA.commissionSplit(offRate)
-      : { payout: Math.round(offRate * 0.95), fee: Math.round(offRate * 0.05), total: offRate, pct: 5 };
+      : { payout: Math.max(0, offRate - Math.round(offRate * 0.05) - Math.round(offRate * 0.01)), fee: Math.round(offRate * 0.05), sbpFee: Math.round(offRate * 0.01), total: offRate, pct: 5, sbpPct: 1 };
     return { freq, mktRate, offRate, monthMkt, monthOff, monthSave, yearSave, pct, barPct, split };
   }
 
@@ -557,7 +565,7 @@
               <div class="savings-bar-track"><div class="savings-bar-fill muted-fill" style="width:100%"></div></div>
             </div>
             <div class="stack" style="gap:4px">
-              <div class="row between small"><span class="savings-gold-label">Вектор ЕГЭ · твоя ставка</span><b class="num savings-gold-txt" data-s="month-off">${st.monthOff.toLocaleString("ru-RU")} ₽/мес</b></div>
+              <div class="row between small"><span class="savings-gold-label">Вектор · твоя ставка</span><b class="num savings-gold-txt" data-s="month-off">${st.monthOff.toLocaleString("ru-RU")} ₽/мес</b></div>
               <div class="savings-bar-track"><div class="savings-bar-fill gold-fill" data-s="off-bar" style="width:${st.barPct}%"></div></div>
             </div>
           </div>
@@ -897,7 +905,8 @@
     }
     const minPrice = filtered.length ? Math.min(...filtered.map((t) => t.price)) : 900;
     const maxMarket = filtered.length ? Math.max(...filtered.map((t) => t.marketPrice || Math.round(t.price * 1.45))) : 1650;
-    return { ms, filtered, minPrice, maxMarket, totalCount: TDATA && TDATA.CATALOG_TOTAL ? TDATA.CATALOG_TOTAL : 2480 };
+    const totalCount = isDevDemoMode() ? (TDATA && TDATA.CATALOG_TOTAL ? TDATA.CATALOG_TOTAL : 2480) : list.length;
+    return { ms, filtered, minPrice, maxMarket, totalCount };
   }
 
   function quickMatchSectionHTML() {
@@ -999,6 +1008,7 @@
         hasPro: maxRate >= 1400
       });
     }).join("");
+    if (!String(cards || "").trim()) return "";
     return `<section class="land-sec" id="land-rates" aria-label="Аналитика ставок по предметам">
       <div class="land-sec-head">
         <div>
@@ -1072,7 +1082,11 @@
     opts = opts || {};
     const TDATA = getTDATA();
     const ui = getUi();
-    const catalogTotal = TDATA && TDATA.CATALOG_TOTAL ? TDATA.CATALOG_TOTAL.toLocaleString("ru-RU") : "2 480";
+    const demo = isDevDemoMode();
+    const realCount = TDATA && Array.isArray(TDATA.LIST) ? TDATA.LIST.length : 0;
+    const catalogTotal = demo
+      ? (TDATA && TDATA.CATALOG_TOTAL ? TDATA.CATALOG_TOTAL.toLocaleString("ru-RU") : "2 480")
+      : realCount.toLocaleString("ru-RU");
     const isDemo = !!opts.brandbookDemo;
     const bb = (ui && ui.brandbook) || {};
     return heroBannerHTML({
@@ -1087,13 +1101,15 @@
     opts = opts || {};
     const TDATA = getTDATA();
     const inside = !!opts.inside;
-    const catalogTotal = TDATA && TDATA.CATALOG_TOTAL ? TDATA.CATALOG_TOTAL.toLocaleString("ru-RU") : "2 480";
+    const demo = isDevDemoMode();
+    const realCount = TDATA && Array.isArray(TDATA.LIST) ? TDATA.LIST.length : 0;
+    const totalNum = demo ? ((TDATA && TDATA.CATALOG_TOTAL) ? Number(TDATA.CATALOG_TOTAL) : 2480) : realCount;
+    const catalogTotal = totalNum.toLocaleString("ru-RU");
     const mktApi = EGE.views && EGE.views.marketplace;
 
     const ui = getUi();
-    const totalNum = (TDATA && TDATA.CATALOG_TOTAL) ? Number(TDATA.CATALOG_TOTAL) : 2480;
     const prevLandEl = typeof document !== "undefined" && typeof document.querySelector === "function"
-      ? document.querySelector(".land-page:not(#brandbook-page)")
+      ? document.querySelector(".land-page:not(#brandbook-page):not(#fees-page):not(#market-page)")
       : null;
     const prevLockUntil = Math.max(
       Number(ui.landWhiteLockUntil) || 0,
@@ -1113,8 +1129,8 @@
         <a href="#land-market" class="brand-home-link" data-a="land-scroll" data-target="land-market" aria-label="Вектор — к репетиторам">${brandLockupHTML({})}</a>
         <nav class="land-links" aria-label="Разделы лендинга">
           <a href="#land-market" data-a="land-scroll" data-target="land-market">Репетиторы</a>
-          <a href="/student">Для ученика</a>
-          <a href="/tutor">Для преподавателя</a>
+          <a href="/student?auth=register" data-a="auth-register-open" data-role="student">Для ученика</a>
+          <a href="/tutor?auth=register" data-a="auth-register-open" data-role="tutor">Для преподавателя</a>
           <a href="/fees" data-a="go" data-v="fees">Условия оплаты</a>
         </nav>
         <div class="land-top-actions">
@@ -1135,13 +1151,16 @@
           <button type="button" class="land-foot-plain" data-a="bug-site">Сообщить о баге</button>
           <button type="button" class="land-foot-plain" data-a="coop-open">Сотрудничество</button>
           <a href="/fees" class="land-foot-plain" data-a="go" data-v="fees">Условия оплаты</a>
+          <a href="/terms" class="land-foot-plain">Публичная оферта</a>
+          <a href="/refunds" class="land-foot-plain">Возврат и эскроу</a>
           <a href="/privacy" class="land-foot-plain">Политика конфиденциальности</a>
+          <button type="button" class="land-foot-plain" data-a="cookie-settings">Настройки cookies</button>
         </div>
       </footer>
 
       <div class="land-mobile-sticky" id="land-mobile-sticky" role="region" aria-label="Быстрый переход к подбору">
         <div class="land-mobile-sticky-copy">
-          <b class="num">Самая большая база · <span class="num" data-countup="${totalNum}">${catalogTotal}</span>+ анкет</b>
+          <b class="num">${demo ? `Самая большая база · <span class="num" data-countup="${totalNum}">${catalogTotal}</span>+ анкет` : `База преподавателей · <span class="num">${catalogTotal}</span> ${plural(totalNum, "анкета", "анкеты", "анкет")}`}</b>
           <span class="small muted num">Ставка 0–99 999 ₽/ч · дешевле на <span class="num" data-countup="30">30</span>%</span>
         </div>
         <button type="button" class="btn sm land-mobile-sticky-btn" data-a="land-scroll" data-target="land-market">Подобрать →</button>

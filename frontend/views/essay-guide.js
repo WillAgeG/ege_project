@@ -7,7 +7,7 @@
   const { $, dateShort, esc, newId, norm, pad, plural, rich, todayISO } = EGE.utils;
   const { icon } = EGE.ui;
 
-  let CONTENT, SUBJ, ai, hash, store, ui;
+  let CONTENT, SUBJ, ai, hash, store, ui, profile, selectedContentSubjects;
   let go, markPlanPrep, patchDoc, scheduleRender, toast;
 
   const aiErrorText = (e) => EGE.views.trainer.aiErrorText(e);
@@ -18,7 +18,7 @@
 
   function configure(ctx) {
     ({
-      CONTENT, SUBJ, ai, hash, store, ui,
+      CONTENT, SUBJ, ai, hash, store, ui, profile, selectedContentSubjects,
       go, markPlanPrep, patchDoc, scheduleRender, toast
     } = ctx || {});
   }
@@ -27,14 +27,21 @@
   function tableBlockHTML(tb) {
     return `<div class="small muted">${rich(tb.title)}</div><div class="qtbl-wrap"><table class="qtbl">${tb.rows.map((r, i) => `<tr>${r.map((c, j) => (i === 0 || (tb.head1 && j === 0) ? `<th>${esc(c)}</th>` : `<td>${esc(c)}</td>`)).join("")}</tr>`).join("")}</table></div>${tb.note ? `<div class="small muted">${rich(tb.note)}</div>` : ""}`;
   }
-  function guideQuickChips(sid) {
+  function guideQuickChips(sid, pool) {
     const bySub = {
       bio: ["митоз", "фотосинтез", "мейоз", "генетический код", "кровообращение"],
       rus: ["ударения", "н и нн", "запятые", "причастный оборот", "клише", "аргументы"],
       chem: ["овр", "гидролиз", "электролиз", "изомерия", "степень окисления"],
       all: ["митоз", "фотосинтез", "ударения", "запятые", "гидролиз", "овр", "клише"]
     };
-    return (bySub[sid] || bySub.all);
+    if (sid !== "all" || !Array.isArray(pool) || !pool.length) return (bySub[sid] || bySub.all);
+    const out = [];
+    pool.forEach((s) => {
+      (bySub[s.id] || []).slice(0, 3).forEach((w) => {
+        if (!out.includes(w)) out.push(w);
+      });
+    });
+    return out.length ? out : bySub.all;
   }
   function guideMatchEssay(terms) {
     const E = EGE.essay;
@@ -49,8 +56,9 @@
       ${argHits.slice(0, 2).map((g) => `<div class="stack" style="gap:4px"><div class="label">${esc(g.theme)}</div><ul class="theory">${g.items.slice(0, 2).map((x) => `<li><b>${esc(x.src)}:</b> ${esc(x.text)}</li>`).join("")}</ul></div>`).join("")}
     </article>`;
   }
-  function guideOverview(sid) {
-    const list = sid === "all" ? CONTENT : CONTENT.filter((s) => s.id === sid);
+  function guideOverview(sid, pool) {
+    const src = Array.isArray(pool) ? pool : CONTENT;
+    const list = sid === "all" ? src : src.filter((s) => s.id === sid);
     const cards = list.map((s) => {
       const topics = (s.content && s.content.topicList) || [];
       const withTables = topics.filter((t) => t.tables && t.tables.length);
@@ -60,7 +68,8 @@
         <div class="suggest">${sample.map((t) => `<button type="button" data-a="open-topic" data-id="${t.id}">${esc(t.title)}</button>`).join("")}</div>
       </section>`;
     }).join("");
-    const essayCard = (sid === "all" || sid === "rus") && EGE.essay
+    const hasRus = src.some((s) => s.id === "rus");
+    const essayCard = (sid === "all" || sid === "rus") && hasRus && EGE.essay
       ? `<section class="card stack">
           <div class="row between"><h2 class="h2">Сочинение ЕГЭ · памятка</h2><button type="button" class="btn soft sm" data-a="go" data-v="essay">Открыть тренажёр</button></div>
           <p class="small ink2">План на 200–250 слов, готовые клише по критериям К1–К3, образец сочинения и банк литературных аргументов.</p>
@@ -68,27 +77,40 @@
       : "";
     return cards + essayCard;
   }
-  function viewGuide() {
-    const sid = ui.guideSid && (ui.guideSid === "all" || SUBJ[ui.guideSid]) ? ui.guideSid : "all";
+  function viewGuide(opts) {
+    opts = opts || {};
+    const embedded = !!opts.embedded;
+    const pool = typeof selectedContentSubjects === "function" ? selectedContentSubjects() : CONTENT;
+    const headHtml = embedded
+      ? ""
+      : `<div class="hh-seg learn-head-seg" role="group" aria-label="Раздел учёбы">
+        <button type="button" data-a="go" data-v="tests" aria-pressed="false">Предметы и тесты</button>
+        <button type="button" data-a="learn-tab" data-tab="guide" aria-pressed="true">Справочник</button>
+      </div>`;
+    if (!pool.length) {
+      return `${headHtml}<div class="card pad-lg empty"><b>По выбранным предметам офлайн-справочник ещё готовится</b><span>Выберите биологию, русский или химию в профиле либо занимайтесь с преподавателем по выбранному направлению.</span><div class="row" style="gap:8px;flex-wrap:wrap;justify-content:center"><button type="button" class="btn sm" data-a="go" data-v="profile">Изменить предметы в профиле</button><button type="button" class="btn soft sm" data-a="go" data-v="market">Найти репетитора</button></div></div>`;
+    }
+    let sid = ui.guideSid && (ui.guideSid === "all" || pool.some((s) => s.id === ui.guideSid)) ? ui.guideSid : "all";
+    if (pool.length === 1) sid = pool[0].id;
     const qNorm = norm(ui.guideQ);
     const terms = qNorm ? qNorm.split(/\s+/).filter(Boolean) : [];
     const switcher = `<div class="switch" role="group" aria-label="Предмет">
-      <button type="button" data-a="guide-sid" data-sid="all" aria-pressed="${sid === "all"}">Все предметы</button>
-      ${CONTENT.map((s) => `<button type="button" data-a="guide-sid" data-sid="${s.id}" aria-pressed="${sid === s.id}"><i class="dot" style="background:var(--c-${s.id})"></i><span>${esc(s.name)}</span></button>`).join("")}
+      ${pool.length > 1 ? `<button type="button" data-a="guide-sid" data-sid="all" aria-pressed="${sid === "all"}">Все предметы</button>` : ""}
+      ${pool.map((s) => `<button type="button" data-a="guide-sid" data-sid="${s.id}" aria-pressed="${sid === s.id}"><i class="dot" style="background:var(--c-${s.id})"></i><span>${esc(s.name)}</span></button>`).join("")}
     </div>`;
     const searchBox = `<div class="search-wrap">
       <label class="sr" for="guide-q">Поиск по конспектам и таблицам</label>
       <input class="input" type="search" id="guide-q" value="${esc(ui.guideQ)}" placeholder="Поиск по правилам, терминам, формулам и исключениям…">
       ${ui.guideQ ? `<button type="button" class="search-clear" data-a="guide-clear" aria-label="Очистить поиск">${icon("x")}</button>` : ""}
     </div>`;
-    const chips = `<div class="suggest">${guideQuickChips(sid).map((w) => `<button type="button" data-a="guide-chip" data-q="${esc(w)}">${esc(w)}</button>`).join("")}</div>`;
+    const chips = `<div class="suggest">${guideQuickChips(sid, pool).map((w) => `<button type="button" data-a="guide-chip" data-q="${esc(w)}">${esc(w)}</button>`).join("")}</div>`;
     let body = "";
     if (!terms.length) {
-      body = guideOverview(sid);
+      body = guideOverview(sid, pool);
     } else {
-      const pool = (sid === "all" ? CONTENT : CONTENT.filter((s) => s.id === sid));
+      const searchPool = (sid === "all" ? pool : pool.filter((s) => s.id === sid));
       const hits = [];
-      for (const s of pool) {
+      for (const s of searchPool) {
         const secs = (s.content && s.content.sections) || [];
         for (const sec of secs) {
           for (const t of sec.topics) {
@@ -103,7 +125,7 @@
         }
       }
       hits.sort((a, b) => b.score - a.score);
-      const essayHit = (sid === "all" || sid === "rus") ? guideMatchEssay(terms) : "";
+      const essayHit = ((sid === "all" || sid === "rus") && pool.some((s) => s.id === "rus")) ? guideMatchEssay(terms) : "";
       const cards = hits.slice(0, 12).map(({ s, sec, t, matchTables, matchBullets }) => {
         const bullets = (matchBullets.length ? matchBullets : (t.theory || []).filter((x) => !x.startsWith("## "))).slice(0, 4);
         const tb = matchTables[0] || (t.tables && t.tables[0]) || null;
@@ -122,20 +144,24 @@
       }).join("");
       body = (essayHit + cards) || `<div class="empty"><b>По запросу «${esc(ui.guideQ)}» ничего не найдено</b><span>Попробуй более короткое слово: например, «митоз», «гидролиз» или «запятые».</span><button type="button" class="btn ghost sm" data-a="guide-clear">Показать все разделы</button></div>`;
     }
-    return `<div class="head"><div class="eyebrow">Справочник</div><h1 class="h1">Быстрый поиск без нейросети</h1><p class="lead">Правила, термины, формулы, исключения и клише сочинения по всему банку ЕГЭ — работает мгновенно и без интернета к ИИ.</p></div>
+    return `${headHtml}
       ${switcher}
       ${searchBox}
       ${chips}
       ${body}`;
   }
 
-  function viewTutor() {
-    if (ai.state !== "ready") return viewGuide();
+  function viewTutor(opts) {
+    opts = opts || {};
+    const embedded = !!opts.embedded;
+    if (ai.state !== "ready") return viewGuide(opts);
     const c = ui.chat;
-    const lead = store.backend
-      ? "ИИ-репетитор объяснит правило или термин, разберёт задачу, проверит сочинение, подскажет, как запомнить. Важное сверяй с конспектом и материалами ФИПИ."
-      : "Отвечает Claude: объяснит правило или термин, разберёт задачу, проверит сочинение, подскажет, как запомнить. Важное сверяй с конспектом и материалами ФИПИ.";
-    const head = `<div class="head"><div class="eyebrow">Репетитор</div><h1 class="h1">Спроси о любой теме</h1><p class="lead">${lead}</p></div>`;
+    const head = embedded
+      ? ""
+      : `<div class="hh-seg learn-head-seg" role="group" aria-label="Раздел учёбы">
+        <button type="button" data-a="go" data-v="tests" aria-pressed="false">Предметы и тесты</button>
+        <button type="button" data-a="learn-tab" data-tab="guide" aria-pressed="true">Справочник</button>
+      </div>`;
     const sugg = subjectAI(c.sid).suggest || [];
     const switcher = CONTENT.length > 1
       ? `<div class="switch" role="group" aria-label="Предмет">${CONTENT.map((s) => `<button type="button" data-a="chat-subject" data-sid="${s.id}" aria-pressed="${s.id === c.sid}">${esc(s.name)}</button>`).join("")}</div>`
@@ -394,7 +420,7 @@
     "del-essay": (el) => {
       patchDoc("essays", { e: { [el.dataset.id]: null } });
       if (ui.essay && ui.essay.editId === el.dataset.id) ui.essay.editId = null;
-      ui.confirmDel = null; toast("Сочинение удалено");
+      ui.confirmDel = null;
     },
     });
   }

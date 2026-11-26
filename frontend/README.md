@@ -1,4 +1,4 @@
-# Frontend — Клиентский стек «Вектор ЕГЭ»
+# Frontend — Клиентский стек «Вектор»
 
 ## Технологический стек
 
@@ -22,7 +22,7 @@
 
 ## HTTP-роутинг статики
 
-Файлы из `frontend/` отдаются бэкендом по коротким корневым URL (`/app.js`, `/styles/marketplace.css`, `/views/landing.js`, `/views/admin.js`, `/core/api.js`, `/data/tutors.js`, `/subjects/biology.js`), а дизайн-система — по префиксу `/ux-ui/...` (allowlist в [`backend/shell.py`](../backend/shell.py)).
+Файлы из `frontend/` отдаются бэкендом по коротким корневым URL (`/app.js`, `/styles/marketplace.css`, `/views/landing.js`, `/core/api.js`, `/data/tutors.js`, `/subjects/biology.js`), а дизайн-система — по префиксу `/ux-ui/...` (allowlist в [`backend/shell.py`](../backend/shell.py)).
 
 ## Связь с UI Kit и общий стек
 

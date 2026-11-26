@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from xml.sax.saxutils import escape as xml_escape
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, Response
 
-from .config import ROOT_DIR
+from .api.auth_docs import public_base_url
+from .config import ROOT_DIR, Settings, load_settings
+from .legal import render_privacy_html, render_refunds_html, render_terms_html
 
 SHELL_PREFIX = (
     "<!doctype html><html><head><meta charset=utf-8>"
@@ -17,14 +20,13 @@ SHELL_PREFIX = (
     "body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>"
     "</head><body>"
 )
-HOST_FLAG_SCRIPT = "<script>window.EGE_HOST={backend:true};</script>"
+BODY_CLOSE = "</body></html>"
 
 
 SITE_TITLES = {
-    "student": "Вектор ЕГЭ — Ученик",
-    "tutor": "Вектор ЕГЭ — Преподаватель",
-    "admin": "Вектор ЕГЭ — Админ-панель",
-    "brandbook": "Вектор ЕГЭ — Брендбук",
+    "student": "Вектор — Ученик",
+    "tutor": "Вектор — Преподаватель",
+    "brandbook": "Вектор — Брендбук",
 }
 
 BB_SUBSITE_TITLES = {
@@ -60,59 +62,145 @@ def render_index_html(
     site: str | None = None,
     view: str | None = None,
     bb_site: str | None = None,
+    dev_demo_mode: bool = True,
+    yandex_metrika_id: str | None = None,
+    yandex_metrika_webvisor: bool = False,
 ) -> str:
     frontend_dir = root_dir / "frontend"
     raw = (frontend_dir / "index.html").read_text(encoding="utf-8")
 
-    if site == "tutor" and view == "fees":
-        page_title = "Вектор ЕГЭ — Выплаты преподавателя"
+    if view == "fees":
+        page_title = "Вектор — Условия оплаты, эскроу и комиссия"
+    elif view == "market":
+        page_title = "Вектор — Поиск репетиторов"
     elif site == "brandbook" and bb_site and bb_site in BB_SUBSITE_TITLES:
-        page_title = f"Вектор ЕГЭ — Брендбук · {BB_SUBSITE_TITLES[bb_site]}"
+        page_title = f"Вектор — Брендбук · {BB_SUBSITE_TITLES[bb_site]}"
     else:
         page_title = SITE_TITLES.get(site or "")
     if page_title:
-        raw = raw.replace("<title>Вектор ЕГЭ</title>", f"<title>{page_title}</title>", 1)
+        raw = raw.replace("<title>Вектор</title>", f"<title>{page_title}</title>", 1)
 
-    if site in {"student", "tutor"}:
-        raw = raw.replace('<script src="views/admin.js"></script>\r\n', "")
-        raw = raw.replace('<script src="views/admin.js"></script>\n', "")
-        raw = raw.replace('<script src="views/admin.js"></script>', "")
-
-    parts = ["backend:true"]
+    host_cfg: dict[str, Any] = {"backend": True}
+    if not dev_demo_mode:
+        host_cfg["demoMode"] = False
     if landing:
-        parts.append("landing:true")
+        host_cfg["landing"] = True
     if site:
-        parts.append(f"site:{json.dumps(site)}")
+        host_cfg["site"] = site
     if view:
-        parts.append(f"view:{json.dumps(view)}")
+        host_cfg["view"] = view
     if bb_site:
-        parts.append(f"bbSite:{json.dumps(bb_site)}")
-    flag_script = "<script>window.EGE_HOST={" + ",".join(parts) + "};</script>"
+        host_cfg["bbSite"] = bb_site
+    clean_ym = str(yandex_metrika_id or "").strip()
+    if clean_ym.isdigit():
+        host_cfg["ymId"] = clean_ym
+        if yandex_metrika_webvisor:
+            host_cfg["ymWebvisor"] = True
+    host_json = json.dumps(host_cfg, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+    flag_script = (
+        f'<script id="ege-host-config" type="application/json">{host_json}</script>\n'
+        '<script src="/core/host-config.js"></script>'
+    )
 
-    target = '<script src="app.js"></script>'
-    if target in raw:
-        raw = raw.replace(target, flag_script + "\n" + target, 1)
+    for target in ('<script src="data/tutors.js"></script>', '<script src="app.js"></script>'):
+        if target in raw:
+            raw = raw.replace(target, flag_script + "\n" + target, 1)
+            break
     else:
         raw = raw + "\n" + flag_script
     return SHELL_PREFIX + raw + "</body></html>"
 
 
-def register_shell_routes(app: FastAPI, root_dir: Path = ROOT_DIR) -> None:
+def register_shell_routes(
+    app: FastAPI,
+    root_dir: Path = ROOT_DIR,
+    settings: Settings | None = None,
+) -> None:
     frontend_dir = root_dir / "frontend"
     ux_ui_dir = root_dir / "ux-ui"
+
+    def _eff_settings() -> Settings:
+        return settings or getattr(app.state, "settings", None) or load_settings()
+
+    def _demo_flag() -> bool:
+        return bool(getattr(_eff_settings(), "dev_demo_mode", True))
+
+    def _analytics_kwargs() -> dict[str, Any]:
+        acfg = getattr(_eff_settings(), "analytics", None)
+        if not acfg:
+            return {}
+        return {
+            "yandex_metrika_id": getattr(acfg, "yandex_metrika_id", None),
+            "yandex_metrika_webvisor": bool(getattr(acfg, "yandex_metrika_webvisor", False)),
+        }
+
+    @app.get("/robots.txt", response_class=PlainTextResponse)
+    async def robots_txt(request: Request) -> PlainTextResponse:
+        base = public_base_url(request, _eff_settings())
+        body = "\n".join(
+            [
+                "User-agent: *",
+                "Allow: /",
+                "Disallow: /api/",
+                "Disallow: /docs",
+                "Disallow: /redoc",
+                "Disallow: /openapi.json",
+                "Disallow: /design",
+                "Disallow: /studio",
+                f"Sitemap: {base}/sitemap.xml",
+                "",
+            ]
+        )
+        return PlainTextResponse(
+            content=body,
+            media_type="text/plain; charset=utf-8",
+            headers={"Cache-Control": "public, max-age=3600"},
+        )
+
+    @app.get("/sitemap.xml")
+    async def sitemap_xml(request: Request) -> Response:
+        base = public_base_url(request, _eff_settings())
+        entries = (
+            ("/", "daily", "1.0"),
+            ("/landing", "daily", "0.9"),
+            ("/market", "daily", "0.9"),
+            ("/student", "weekly", "0.8"),
+            ("/tutor", "weekly", "0.8"),
+            ("/fees", "monthly", "0.6"),
+            ("/brandbook", "weekly", "0.7"),
+            ("/terms", "monthly", "0.4"),
+            ("/refunds", "monthly", "0.4"),
+            ("/privacy", "monthly", "0.4"),
+        )
+        urls_xml = "".join(
+            f"  <url><loc>{xml_escape(base + path)}</loc>"
+            f"<changefreq>{freq}</changefreq><priority>{prio}</priority></url>\n"
+            for path, freq, prio in entries
+        )
+        xml_body = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+            f"{urls_xml}"
+            "</urlset>\n"
+        )
+        return Response(
+            content=xml_body,
+            media_type="application/xml; charset=utf-8",
+            headers={"Cache-Control": "public, max-age=3600"},
+        )
 
     @app.get("/", response_class=HTMLResponse)
     @app.get("/index.html", response_class=HTMLResponse)
     async def index_page() -> HTMLResponse:
         return HTMLResponse(
-            content=render_index_html(root_dir, landing=False),
+            content=render_index_html(root_dir, landing=False, dev_demo_mode=_demo_flag(), **_analytics_kwargs()),
             headers={"Cache-Control": "no-store"},
         )
 
     @app.get("/student", response_class=HTMLResponse)
     async def student_page() -> HTMLResponse:
         return HTMLResponse(
-            content=render_index_html(root_dir, site="student"),
+            content=render_index_html(root_dir, site="student", dev_demo_mode=_demo_flag(), **_analytics_kwargs()),
             headers={"Cache-Control": "no-store"},
         )
 
@@ -121,21 +209,28 @@ def register_shell_routes(app: FastAPI, root_dir: Path = ROOT_DIR) -> None:
     @app.get("/cabinet", response_class=HTMLResponse)
     async def tutor_page() -> HTMLResponse:
         return HTMLResponse(
-            content=render_index_html(root_dir, site="tutor"),
+            content=render_index_html(root_dir, site="tutor", dev_demo_mode=_demo_flag(), **_analytics_kwargs()),
             headers={"Cache-Control": "no-store"},
         )
 
     @app.get("/landing", response_class=HTMLResponse)
     async def landing_page() -> HTMLResponse:
         return HTMLResponse(
-            content=render_index_html(root_dir, landing=True),
+            content=render_index_html(root_dir, landing=True, dev_demo_mode=_demo_flag(), **_analytics_kwargs()),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @app.get("/market", response_class=HTMLResponse)
+    async def market_page() -> HTMLResponse:
+        return HTMLResponse(
+            content=render_index_html(root_dir, view="market", dev_demo_mode=_demo_flag(), **_analytics_kwargs()),
             headers={"Cache-Control": "no-store"},
         )
 
     @app.get("/brandbook", response_class=HTMLResponse)
     async def brandbook_page() -> HTMLResponse:
         return HTMLResponse(
-            content=render_index_html(root_dir, site="brandbook"),
+            content=render_index_html(root_dir, site="brandbook", dev_demo_mode=_demo_flag(), **_analytics_kwargs()),
             headers={"Cache-Control": "no-store"},
         )
 
@@ -145,21 +240,20 @@ def register_shell_routes(app: FastAPI, root_dir: Path = ROOT_DIR) -> None:
         if slug not in BB_SUBSITE_TITLES:
             raise HTTPException(status_code=404, detail="Not found")
         return HTMLResponse(
-            content=render_index_html(root_dir, site="brandbook", bb_site=slug),
+            content=render_index_html(
+                root_dir,
+                site="brandbook",
+                bb_site=slug,
+                dev_demo_mode=_demo_flag(),
+                **_analytics_kwargs(),
+            ),
             headers={"Cache-Control": "no-store"},
         )
 
     @app.get("/fees", response_class=HTMLResponse)
     async def fees_page() -> HTMLResponse:
         return HTMLResponse(
-            content=render_index_html(root_dir, site="tutor", view="fees"),
-            headers={"Cache-Control": "no-store"},
-        )
-
-    @app.get("/admin", response_class=HTMLResponse)
-    async def admin_page() -> HTMLResponse:
-        return HTMLResponse(
-            content=render_index_html(root_dir, site="admin"),
+            content=render_index_html(root_dir, view="fees", dev_demo_mode=_demo_flag(), **_analytics_kwargs()),
             headers={"Cache-Control": "no-store"},
         )
 
@@ -176,23 +270,17 @@ def register_shell_routes(app: FastAPI, root_dir: Path = ROOT_DIR) -> None:
 
     @app.get("/privacy", response_class=HTMLResponse)
     async def privacy_page() -> HTMLResponse:
-        html = """<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Политика конфиденциальности — Вектор ЕГЭ</title><style>
-body{margin:0;background:#f4f5f7;color:#141517;font:15px/1.6 system-ui,-apple-system,sans-serif;padding:32px 16px}
-main{max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #e4e6ec;border-radius:16px;padding:28px}
-h1{margin:0 0 12px;font-size:24px}h2{margin:20px 0 8px;font-size:17px}p,li{color:#3d424d}a{color:#0070ff}
-</style></head><body><main>
-<h1>Политика конфиденциальности «Вектор ЕГЭ»</h1>
-<p>Настоящая страница описывает, какие данные обрабатывает образовательное веб-приложение «Вектор ЕГЭ».</p>
-<h2>Какие данные мы получаем</h2>
-<ul><li>При регистрации или входе через Google — имя, адрес электронной почты и изображение профиля (если предоставлено Google).</li>
-<li>Данные вашей подготовки — результаты тестов, прочитанные темы, отметки плана поступления, пробники и сочинения.</li></ul>
-<h2>Как используются данные</h2>
-<p>Данные используются исключительно для авторизации и сохранения прогресса подготовки между вашими устройствами. Мы не передаём и не продаём персональные данные третьим лицам.</p>
-<h2>Удаление и связь</h2>
-<p>По вопросам обработки или удаления данных аккаунта обращайтесь к администратору сервиса по контакту, указанному на экране входа Google.</p>
-<p><a href="/">← Вернуться в «Вектор ЕГЭ»</a></p>
-</main></body></html>"""
-        return HTMLResponse(content=html, headers={"Cache-Control": "no-cache"})
+        return HTMLResponse(content=render_privacy_html(), headers={"Cache-Control": "no-cache"})
+
+    @app.get("/terms", response_class=HTMLResponse)
+    @app.get("/offer", response_class=HTMLResponse)
+    async def terms_page() -> HTMLResponse:
+        return HTMLResponse(content=render_terms_html(), headers={"Cache-Control": "no-cache"})
+
+    @app.get("/refunds", response_class=HTMLResponse)
+    @app.get("/escrow", response_class=HTMLResponse)
+    async def refunds_page() -> HTMLResponse:
+        return HTMLResponse(content=render_refunds_html(), headers={"Cache-Control": "no-cache"})
 
     @app.get("/{asset_path:path}")
     async def static_assets(asset_path: str) -> FileResponse:

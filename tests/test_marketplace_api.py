@@ -169,7 +169,7 @@ def test_booking_escrow_schedule_telemost_and_double_cancel_guard(tmp_path: Path
 
         assert client.post("/api/wallet/topup", json={"amount": 2000, "method": "sbp"}).status_code == 200
 
-        # Проверка граничной суммы 130 ₽ (5% half-away-from-zero: 6.5 -> 7, payout=123)
+        # Проверка граничной суммы 130 ₽ (5% half-away-from-zero: 6.5 -> 7 + 1% СБП: 1, payout=122)
         # + автоматическое создание единой постоянной ссылки Яндекс Телемост
         r_edge = client.post(
             "/api/bookings",
@@ -178,7 +178,8 @@ def test_booking_escrow_schedule_telemost_and_double_cancel_guard(tmp_path: Path
         assert r_edge.status_code == 200
         edge_bk = r_edge.json()["booking"]
         assert edge_bk["fee"] == 7
-        assert edge_bk["payout"] == 123
+        assert edge_bk["sbpFee"] == 1
+        assert edge_bk["payout"] == 122
         assert edge_bk["telemostUrl"].startswith("https://telemost.yandex.ru/j/")
         assert r_edge.json()["wallet"]["balanceRub"] == 1870
         assert r_edge.json()["wallet"]["frozenRub"] == 130
@@ -212,11 +213,24 @@ def test_booking_escrow_schedule_telemost_and_double_cancel_guard(tmp_path: Path
         assert sched_bk["dows"] == [3, 5, 0]
         assert sched_bk["schedulePlan"]["status"] == "confirmed"
 
-        # Телемост: чужой домен -> 400; смена ссылки синхронизирует все заявки ученика; очистка "" -> 200
-        assert client.patch(
+        # Видеосвязь: небезопасные/локальные URL -> 400; альтернативная https-ссылка (Zoom) и Телемост синхронизируются; очистка "" -> 200
+        for bad_url in (
+            "javascript:alert(1)",
+            "http://zoom.us/j/123",
+            "https://localhost/meet",
+            "not a url",
+        ):
+            assert client.patch(
+                f"/api/bookings/{edge_bk['id']}/telemost",
+                json={"url": bad_url},
+            ).status_code == 400
+        r_zoom = client.patch(
             f"/api/bookings/{edge_bk['id']}/telemost",
-            json={"url": "https://evil.example.com/meet"},
-        ).status_code == 400
+            json={"url": "https://zoom.us/j/9988776655"},
+        )
+        assert r_zoom.status_code == 200
+        assert r_zoom.json()["booking"]["telemostUrl"] == "https://zoom.us/j/9988776655"
+        assert {b["id"]: b for b in client.get("/api/bookings?scope=student").json()["bookings"]}[second_bk["id"]]["telemostUrl"] == "https://zoom.us/j/9988776655"
         r_tm = client.patch(
             f"/api/bookings/{edge_bk['id']}/telemost",
             json={"url": "https://telemost.yandex.ru/j/99887766"},
@@ -253,6 +267,17 @@ def test_tutor_profile_bump_cooldown_escrow_payout_leads_and_contacts(tmp_path: 
             "/api/auth/register",
             json={"username": "stu_lead", "password": "secret123", "displayName": "Айана"},
         ).status_code == 200
+
+        # Новый преподаватель без анкеты: /api/tutor/summary возвращает чистые нули и tutor=None
+        empty_sum = c_tut.get("/api/tutor/summary")
+        assert empty_sum.status_code == 200
+        empty_sum_json = empty_sum.json()
+        assert empty_sum_json["tutor"] is None
+        assert empty_sum_json["availableRub"] == 0
+        assert empty_sum_json["completedLessonsCount"] == 0
+        assert empty_sum_json["completedLessons30dCount"] == 0
+        assert empty_sum_json["earned30dNetRub"] == 0
+        assert empty_sum_json["payouts"] == []
 
         # Репетитор заполняет анкету (со слотами до 23:00)
         r_prof = c_tut.put(
@@ -304,16 +329,22 @@ def test_tutor_profile_bump_cooldown_escrow_payout_leads_and_contacts(tmp_path: 
         assert r_acc.json()["wallet"]["frozenRub"] == 1100
 
         # После accept доступно ещё 0 ₽ (деньги на эскроу)
-        assert c_tut.get("/api/tutor/summary").json()["frozenNetRub"] == 1045
+        assert c_tut.get("/api/tutor/summary").json()["frozenNetRub"] == 1034
         assert c_tut.get("/api/tutor/summary").json()["availableRub"] == 0
 
-        # Завершение урока переводит 1045 ₽ (95% от 1100) в доступный баланс репетитора
+        # Завершение урока переводит 1034 ₽ (94% от 1100: 5% сервис + 1% СБП) в доступный баланс репетитора
         r_comp = c_tut.post(f"/api/bookings/{bid}/complete")
         assert r_comp.status_code == 200
         assert r_comp.json()["booking"]["status"] == "completed"
         summary = c_tut.get("/api/tutor/summary").json()
-        assert summary["earnedNetRub"] == 1045
-        assert summary["availableRub"] == 1045
+        assert summary["tutor"] is not None
+        assert summary["tutor"]["id"] == tid
+        assert summary["tutor"]["name"] == "Саргылана Петрова"
+        assert summary["earnedNetRub"] == 1034
+        assert summary["earned30dNetRub"] == 1034
+        assert summary["completedLessonsCount"] == 1
+        assert summary["completedLessons30dCount"] == 1
+        assert summary["availableRub"] == 1034
 
         # Вывод сверх остатка отклонён, в пределах остатка -> создан с маской и чеком НПД
         r_over = c_tut.post(
@@ -331,7 +362,7 @@ def test_tutor_profile_bump_cooldown_escrow_payout_leads_and_contacts(tmp_path: 
         pay_data = r_pay.json()
         assert pay_data["payout"]["destinationMasked"] == "2200 70** **** 4419"
         assert str(pay_data["payout"]["npdReceipt"]).startswith("NPD-")
-        assert pay_data["summary"]["availableRub"] == 445
+        assert pay_data["summary"]["availableRub"] == 434
 
         # Запросы учеников (student_leads) и контакты преподавателей
         r_lead = c_stu.post(
@@ -374,6 +405,154 @@ def test_admin_auth_guard_and_refund_returns_wallet_balance(tmp_path: Path) -> N
         assert r_ref.status_code == 200
         assert r_ref.json()["request"]["status"] == "refunded"
         assert c_stu.get("/api/wallet").json()["wallet"]["balanceRub"] == 1500
+
+
+def test_tutor_multiple_search_profiles_account_sync_and_aggregated_summary(tmp_path: Path) -> None:
+    app = create_api_app(_sqlite_settings(tmp_path, "multi_profiles.db"))
+    with TestClient(app) as c_tut, TestClient(app) as c_stu:
+        assert c_tut.post(
+            "/api/auth/register",
+            json={"username": "tut_multi", "password": "secret123", "displayName": "Мария Софронова", "role": "tutor"},
+        ).status_code == 200
+        assert c_stu.post(
+            "/api/auth/register",
+            json={"username": "stu_multi", "password": "secret123", "displayName": "Алина", "role": "student"},
+        ).status_code == 200
+
+        # Создаём два отдельных поисковых профиля на одном аккаунте преподавателя
+        r_p1 = c_tut.post(
+            "/api/tutor/profiles",
+            json={
+                "name": "Мария Софронова",
+                "headline": "ЕГЭ Биология · медвуз",
+                "subjects": ["bio"],
+                "subject": "bio",
+                "subjectName": "Биология",
+                "price": 1200,
+                "minFair": 1000,
+                "customBadges": ["Эксперт ЕГЭ"],
+                "published": True,
+                "slots": {"6": ["10:00", "14:00"]},
+            },
+        )
+        assert r_p1.status_code == 200
+        tid1 = r_p1.json()["tutor"]["id"]
+
+        r_p2 = c_tut.post(
+            "/api/tutor/profiles",
+            json={
+                "headline": "ЕГЭ Химия · 90+ баллов",
+                "subjects": ["chem"],
+                "subject": "chem",
+                "subjectName": "Химия",
+                "price": 1500,
+                "minFair": 1300,
+                "customBadges": ["К.х.н."],
+                "published": True,
+                "slots": {"1": ["16:00"]},
+            },
+        )
+        assert r_p2.status_code == 200
+        tid2 = r_p2.json()["tutor"]["id"]
+        assert tid1 != tid2
+
+        # Оба профиля есть в списке кабинета и оба видны в публичном поиске /api/tutors со своими свободными окнами
+        own_list = c_tut.get("/api/tutor/profiles").json()["profiles"]
+        assert {p["id"] for p in own_list} == {tid1, tid2}
+        own_by_id = {p["id"]: p for p in own_list}
+        assert own_by_id[tid1]["slots"] == {"6": ["10:00", "14:00"]}
+        assert own_by_id[tid2]["slots"] == {"1": ["16:00"]}
+        pub_tutors = c_stu.get("/api/tutors").json()["tutors"]
+        pub_ids = {t["id"] for t in pub_tutors}
+        assert tid1 in pub_ids and tid2 in pub_ids
+        pub_by_id = {t["id"]: t for t in pub_tutors}
+        assert pub_by_id[tid1]["slots"] == {"6": ["10:00", "14:00"]}
+        assert pub_by_id[tid2]["slots"] == {"1": ["16:00"]}
+
+        # Обновление свободных окон во втором профиле не затрагивает первый профиль
+        r_upd_slots = c_tut.put(
+            f"/api/tutor/profiles/{tid2}",
+            json={
+                "headline": "ЕГЭ Химия · 90+ баллов",
+                "subjects": ["chem"],
+                "subject": "chem",
+                "subjectName": "Химия",
+                "price": 1500,
+                "minFair": 1300,
+                "customBadges": ["К.х.н."],
+                "published": True,
+                "slots": {"2": ["15:00", "17:00"]},
+            },
+        )
+        assert r_upd_slots.status_code == 200
+        assert r_upd_slots.json()["tutor"]["slots"] == {"2": ["15:00", "17:00"]}
+        own_after_slots = {p["id"]: p for p in c_tut.get("/api/tutor/profiles").json()["profiles"]}
+        assert own_after_slots[tid1]["slots"] == {"6": ["10:00", "14:00"]}
+        assert own_after_slots[tid2]["slots"] == {"2": ["15:00", "17:00"]}
+
+        # Скрытие второго профиля убирает его из /api/tutors, но оставляет в списке кабинета
+        r_hide = c_tut.patch(f"/api/tutor/profiles/{tid2}/publish", json={"published": False})
+        assert r_hide.status_code == 200 and r_hide.json()["tutor"]["published"] is False
+        pub_ids_after_hide = {t["id"] for t in c_stu.get("/api/tutors").json()["tutors"]}
+        assert tid1 in pub_ids_after_hide and tid2 not in pub_ids_after_hide
+        assert {p["id"] for p in c_tut.get("/api/tutor/profiles").json()["profiles"]} == {tid1, tid2}
+        assert c_tut.patch(f"/api/tutor/profiles/{tid2}/publish", json={"published": True}).status_code == 200
+
+        # Обновление данных аккаунта синхронизируется во все поисковые профили и в /api/me
+        r_acc = c_tut.put(
+            "/api/tutor/account",
+            json={
+                "name": "Анна Соколова",
+                "city": "Москва",
+                "timezone": "UTC+3",
+                "photo": "",
+                "hasPhoto": False,
+                "whatsapp": "+7 (916) 555-22-33",
+                "telegram": "@anna_msk",
+                "maxHandle": "anna_max",
+                "vk": "vk.com/anna_msk",
+            },
+        )
+        assert r_acc.status_code == 200
+        acc_profiles = r_acc.json()["profiles"]
+        assert len(acc_profiles) == 2
+        assert all(
+            p["name"] == "Анна Соколова" and p["city"] == "Москва" and p["timezone"] == "UTC+3"
+            and p["telegramHandle"] == "@anna_msk"
+            for p in acc_profiles
+        )
+        me_user = c_tut.get("/api/me").json()["user"]
+        assert me_user["displayName"] == "Анна Соколова"
+        me_doc = c_tut.get("/api/docs").json()["docs"]["profile"]
+        assert me_doc["name"] == "Анна Соколова" and me_doc["vk"] == "vk.com/anna_msk"
+
+        # Ученик бронирует второй профиль; после проведения урока баланс суммируется в /api/tutor/summary и доступен к выводу
+        assert c_stu.post("/api/wallet/topup", json={"amount": 2500, "method": "sbp"}).status_code == 200
+        r_bk = c_stu.post(
+            "/api/bookings",
+            json={"tutorId": tid2, "offerPrice": 1500, "hour": "16:00", "dayIso": "2026-11-23"},
+        )
+        assert r_bk.status_code == 200
+        bid = r_bk.json()["booking"]["id"]
+        assert c_tut.post(f"/api/bookings/{bid}/accept").status_code == 200
+        assert c_tut.post(f"/api/bookings/{bid}/complete").status_code == 200
+
+        sum_data = c_tut.get("/api/tutor/summary").json()
+        assert sum_data["availableRub"] == 1410  # 1500 - 75 (5%) - 15 (1% СБП)
+        assert len(sum_data["profiles"]) == 2
+        r_pay = c_tut.post(
+            "/api/tutor/payouts",
+            json={"method": "sbp", "bank": "Сбербанк", "phone": "+79165552233", "amount": 500},
+        )
+        assert r_pay.status_code == 200
+        assert r_pay.json()["summary"]["availableRub"] == 910
+
+        # Удаление неиспользованного профиля удаляет строку, а с историей — архивирует (скрывает)
+        r_del1 = c_tut.delete(f"/api/tutor/profiles/{tid1}")
+        assert r_del1.status_code == 200 and r_del1.json()["deleted"] is True and r_del1.json()["archived"] is False
+        r_del2 = c_tut.delete(f"/api/tutor/profiles/{tid2}")
+        assert r_del2.status_code == 200 and r_del2.json()["deleted"] is False and r_del2.json()["archived"] is True
+        assert tid2 not in {t["id"] for t in c_stu.get("/api/tutors").json()["tutors"]}
 
 
 def test_dualwrite_pg17_marketplace_full_flow(tmp_path: Path) -> None:

@@ -103,7 +103,7 @@
       const shouldClose = cur.dy > 84 || (cur.dy > 32 && vel > 0.55);
       if (cur.moved) suppressSheetClick = true;
       if (shouldClose) {
-        if (ui.contactVerifyModal && !ui.contactVerifyModal.fromGoogleDemo && ui.contactVerifyModal.required) {
+        if (ui.contactVerifyModal && !(ui.contactVerifyModal.fromSocialDemo || ui.contactVerifyModal.fromPhoneAuth || ui.contactVerifyModal.fromGoogleDemo) && ui.contactVerifyModal.required) {
           if (cur.sheet && cur.sheet.style) {
             cur.sheet.style.transition = "transform .2s cubic-bezier(.22, 1, .36, 1)";
             cur.sheet.style.transform = "";

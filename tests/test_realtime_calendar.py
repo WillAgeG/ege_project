@@ -63,7 +63,22 @@ def test_health_and_storage_endpoint(tmp_path: Path) -> None:
 
 def test_realtime_publish_recent_and_sse_replay(tmp_path: Path) -> None:
     app = create_app(_make_settings(tmp_path))
-    with TestClient(app) as client:
+    with TestClient(app) as client, TestClient(app) as c_other:
+        assert (
+            client.post(
+                "/api/auth/register",
+                json={"username": "rt_tut1", "password": "secret123", "displayName": "Анна С.", "role": "tutor"},
+            ).status_code
+            == 200
+        )
+        assert (
+            c_other.post(
+                "/api/auth/register",
+                json={"username": "rt_other1", "password": "secret123", "displayName": "Другой"},
+            ).status_code
+            == 200
+        )
+
         r1 = client.post(
             "/api/realtime/publish",
             json={
@@ -78,7 +93,7 @@ def test_realtime_publish_recent_and_sse_replay(tmp_path: Path) -> None:
         assert r1.status_code == 200
         ev1 = r1.json()["event"]
 
-        client.post(
+        c_other.post(
             "/api/realtime/publish",
             json={
                 "channel": "student",
@@ -105,6 +120,9 @@ def test_realtime_publish_recent_and_sse_replay(tmp_path: Path) -> None:
         assert r_recent.status_code == 200
         events = r_recent.json()["events"]
         assert [e["id"] for e in events] == [ev1["id"], ev2["id"]]
+
+        # Посторонний пользователь не видит чужие события
+        assert c_other.get("/api/realtime/recent", params={"channel": "tutor", "tutor_slug": "anna-sokolova"}).json()["events"] == []
 
         r_sse_all = client.get("/api/realtime/stream?channel=tutor&tutor_slug=anna-sokolova&once=1")
         assert r_sse_all.status_code == 200
@@ -133,6 +151,13 @@ def test_realtime_publish_recent_and_sse_replay(tmp_path: Path) -> None:
 def test_realtime_websocket_broadcast_two_clients(tmp_path: Path) -> None:
     app = create_app(_make_settings(tmp_path))
     with TestClient(app) as client:
+        assert (
+            client.post(
+                "/api/auth/register",
+                json={"username": "ws_tut1", "password": "secret123", "displayName": "Анна WS", "role": "tutor"},
+            ).status_code
+            == 200
+        )
         with client.websocket_connect("/api/realtime/ws?channel=tutor&tutor_slug=anna-sokolova") as ws1:
             c1 = ws1.receive_json()
             assert c1["type"] == "connected"
@@ -180,7 +205,21 @@ def test_realtime_websocket_broadcast_two_clients(tmp_path: Path) -> None:
 
 def test_calendar_sync_and_ics_feed_timezones(tmp_path: Path) -> None:
     app = create_app(_make_settings(tmp_path))
-    with TestClient(app) as client:
+    with TestClient(app) as client, TestClient(app) as c_msk, TestClient(app) as c_pub:
+        assert (
+            client.post(
+                "/api/auth/register",
+                json={"username": "cal_ykt_t", "password": "secret123", "displayName": "Анна Якт", "role": "tutor"},
+            ).status_code
+            == 200
+        )
+        assert (
+            c_msk.post(
+                "/api/auth/register",
+                json={"username": "cal_msk_t", "password": "secret123", "displayName": "Иван Мск", "role": "tutor"},
+            ).status_code
+            == 200
+        )
         r_ykt = client.put(
             "/api/calendar/sync",
             json={
@@ -215,7 +254,8 @@ def test_calendar_sync_and_ics_feed_timezones(tmp_path: Path) -> None:
         assert tpl_qs["dates"] == ["20261114T070000Z/20261114T080000Z"]
         assert tpl_qs["ctz"] == ["Asia/Yakutsk"]
 
-        r_ics_ykt = client.get(f"/api/calendar/{ykt_data['feedToken']}.ics")
+        # Публичный feed_token.ics доступен внешним календарным клиентам без cookies
+        r_ics_ykt = c_pub.get(f"/api/calendar/{ykt_data['feedToken']}.ics")
         assert r_ics_ykt.status_code == 200
         assert "text/calendar" in r_ics_ykt.headers["content-type"]
         ics_ykt = r_ics_ykt.text
@@ -227,7 +267,7 @@ def test_calendar_sync_and_ics_feed_timezones(tmp_path: Path) -> None:
         assert "DTSTART;TZID=Asia/Yakutsk:20261114T160000" in ics_ykt
         assert "SUMMARY:Урок ЕГЭ: Алина С. (Биология)" in ics_ykt
 
-        r_msk = client.put(
+        r_msk = c_msk.put(
             "/api/calendar/sync",
             json={
                 "tutorSlug": "ivan-msk",
@@ -256,13 +296,13 @@ def test_calendar_sync_and_ics_feed_timezones(tmp_path: Path) -> None:
         assert msk_qs["dates"] == ["20261114T130000Z/20261114T140000Z"]
         assert msk_qs["ctz"] == ["Europe/Moscow"]
 
-        r_ics_msk = client.get(f"/api/calendar/{msk_data['feedToken']}.ics")
+        r_ics_msk = c_pub.get(f"/api/calendar/{msk_data['feedToken']}.ics")
         assert r_ics_msk.status_code == 200
         assert "TZID:Europe/Moscow" in r_ics_msk.text
         assert "TZOFFSETTO:+0300" in r_ics_msk.text
         assert "DTSTART;TZID=Europe/Moscow:20261114T160000" in r_ics_msk.text
 
-        assert client.get("/api/calendar/nonexistent-token-xyz.ics").status_code == 404
+        assert c_pub.get("/api/calendar/nonexistent-token-xyz.ics").status_code == 404
 
 
 def test_calendar_import_ics_two_way_and_timezone_math(tmp_path: Path) -> None:
@@ -298,6 +338,13 @@ def test_calendar_import_ics_two_way_and_timezone_math(tmp_path: Path) -> None:
 
     app = create_app(_make_settings(tmp_path))
     with TestClient(app) as client:
+        assert (
+            client.post(
+                "/api/auth/register",
+                json={"username": "cal_imp_t", "password": "secret123", "displayName": "Анна Imp", "role": "tutor"},
+            ).status_code
+            == 200
+        )
         r_imp = client.post(
             "/api/calendar/import-ics",
             json={
@@ -350,6 +397,13 @@ def test_calendar_import_ics_two_way_and_timezone_math(tmp_path: Path) -> None:
 def test_calendar_import_ics_ssrf_guard(tmp_path: Path) -> None:
     app = create_app(_make_settings(tmp_path))
     with TestClient(app) as client:
+        assert (
+            client.post(
+                "/api/auth/register",
+                json={"username": "cal_ssrf_t", "password": "secret123", "displayName": "Анна SSRF", "role": "tutor"},
+            ).status_code
+            == 200
+        )
         for bad_url in (
             "http://127.0.0.1:8770/secret.ics",
             "https://localhost/cal.ics",

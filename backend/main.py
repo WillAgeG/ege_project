@@ -1,4 +1,4 @@
-"""Компоновщик FastAPI-сервера «Вектор ЕГЭ» (Headless API + SSR-оболочка SPA)."""
+"""Компоновщик FastAPI-сервера «Вектор» (Headless API + SSR-оболочка SPA)."""
 
 from __future__ import annotations
 
@@ -29,8 +29,8 @@ class SseSafeGZipMiddleware:
 def create_app(custom_settings: Settings | None = None) -> FastAPI:
     settings = custom_settings or load_settings()
     app = create_api_app(settings, enable_cors=True)
-    app.title = "Вектор ЕГЭ"
-    register_shell_routes(app, root_dir=ROOT_DIR)
+    app.title = "Вектор"
+    register_shell_routes(app, root_dir=ROOT_DIR, settings=settings)
     app.add_middleware(SseSafeGZipMiddleware, minimum_size=800)
     return app
 

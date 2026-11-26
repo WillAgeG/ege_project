@@ -37,7 +37,6 @@ STATIC_TYPES = {
 SITE_TITLES = {
     "student": "Вектор ЕГЭ — Ученик",
     "tutor": "Вектор ЕГЭ — Преподаватель",
-    "admin": "Вектор ЕГЭ — Админ-панель",
     "brandbook": "Вектор ЕГЭ — Брендбук",
 }
 
@@ -107,9 +106,6 @@ class DesignStudioHandler(BaseHTTPRequestHandler):
             return
         if clean == "fees":
             self._send_bytes(200, render_standalone_app(site="tutor", view="fees"), "text/html; charset=utf-8")
-            return
-        if clean == "admin":
-            self._send_bytes(200, render_standalone_app(site="admin"), "text/html; charset=utf-8")
             return
         if clean == "brandbook":
             self._send_bytes(200, render_standalone_app(site="brandbook"), "text/html; charset=utf-8")

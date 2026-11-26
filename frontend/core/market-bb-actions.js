@@ -9,14 +9,21 @@
   const { bidBtnLabelHTML, isValidHHMM } = EGE.hh;
 
   let EGEPayments, MOTION_PRESETS, TDATA, ai, defaultMarketState, draft, go;
-  let heroMotionMeta, isUserAuthenticated, mkt, notifySide, patchHeroMotionDOM, patchSavingsDOM;
-  let renderModal, requireAuthForBid, saveMkt, scheduleRender, stopMotionTimers, store, tile, toast, ui;
+  let heroMotionMeta, isDevDemoModeFn, isUserAuthenticated, mkt, notifySide, patchHeroMotionDOM, patchSavingsDOM, profile;
+  let renderModal, requireAuthForBid, saveMkt, scheduleRender, startServerTopup, stopMotionTimers, store, tile, toast, ui;
   let updateBookingModalLive, writeHash;
+
+  function isDevDemoMode() {
+    if (typeof isDevDemoModeFn === "function") return !!isDevDemoModeFn();
+    if (store && store.demoMode === false) return false;
+    if (root.EGE_HOST && root.EGE_HOST.demoMode === false) return false;
+    return true;
+  }
 
   function preserveLandingWhiteStage(ms) {
     if (typeof document === "undefined") return;
     const bodyWhite = !!(document.body && document.body.classList && document.body.classList.contains("is-land-white"));
-    const lp = typeof document.querySelector === "function" ? document.querySelector(".land-page:not(#brandbook-page)") : null;
+    const lp = typeof document.querySelector === "function" ? document.querySelector(".land-page:not(#brandbook-page):not(#fees-page):not(#market-page)") : null;
     const domWhite = !!(lp && lp.classList && lp.classList.contains("is-white-stage"));
     if (ui.landWhiteStage || bodyWhite || domWhite) {
       ui.landWhiteStage = true;
@@ -198,7 +205,7 @@
       telegram: tgNorm || tgRaw || "@aytal_bio",
       maxHandle: maxRaw || "aytal_ege"
     };
-    const msgText = "Здравствуйте! Проверяю живую маску контактов в Вектор ЕГЭ.";
+    const msgText = "Здравствуйте! Проверяю живую маску контактов в Вектор.";
     const urls = typeof urlsFn === "function"
       ? urlsFn(entity, msgText)
       : { whatsapp: "https://wa.me/79142100511", telegram: "https://t.me/aytal_bio", max: "https://max.ru/aytal_ege" };
@@ -217,8 +224,8 @@
   function registerMarketBbActions(ctx, ACTIONS) {
     ({
       EGEPayments, MOTION_PRESETS, TDATA, ai, defaultMarketState, draft, go,
-      heroMotionMeta, isUserAuthenticated, mkt, notifySide, patchHeroMotionDOM, patchSavingsDOM,
-      renderModal, requireAuthForBid, saveMkt, scheduleRender, stopMotionTimers, store, tile, toast, ui,
+      heroMotionMeta, isDevDemoMode: isDevDemoModeFn, isUserAuthenticated, mkt, notifySide, patchHeroMotionDOM, patchSavingsDOM, profile,
+      renderModal, requireAuthForBid, saveMkt, scheduleRender, startServerTopup, stopMotionTimers, store, tile, toast, ui,
       updateBookingModalLive, writeHash
     } = ctx || {});
 
@@ -248,7 +255,7 @@
         return;
       }
       if (id === "land-market") {
-        if (ui.view === "landing" && typeof isUserAuthenticated === "function" && isUserAuthenticated() && ui.role !== "tutor" && ui.role !== "admin") {
+        if (ui.view === "landing" && typeof isUserAuthenticated === "function" && isUserAuthenticated() && ui.role !== "tutor") {
           go("market");
           return;
         }
@@ -256,7 +263,7 @@
         ui.landWhiteLockUntil = Date.now() + 1400;
         if (typeof document !== "undefined") {
           if (document.body && document.body.classList) document.body.classList.add("is-land-white");
-          const lp = typeof document.querySelector === "function" ? document.querySelector(".land-page:not(#brandbook-page)") : null;
+          const lp = typeof document.querySelector === "function" ? document.querySelector(".land-page:not(#brandbook-page):not(#fees-page):not(#market-page)") : null;
           if (lp && lp.dataset) lp.dataset.whiteLockUntil = String(ui.landWhiteLockUntil);
           if (lp && lp.classList) lp.classList.add("is-white-stage");
           const top = lp && typeof lp.querySelector === "function" ? lp.querySelector(".land-top") : null;
@@ -274,10 +281,11 @@
       ui.mktVisibleCount = (Number(ui.mktVisibleCount) || 8) + 8;
       scheduleRender();
     },
-    "coop-open": () => { ui.coopModal = true; renderModal(); },
-    "coop-close": () => { ui.coopModal = false; renderModal(); },
+    "coop-open": () => { ui.coop = null; ui.coopModal = true; ui.focusNext = "coop-body"; renderModal(); },
+    "coop-close": () => { ui.coopModal = false; ui.coop = null; renderModal(); },
     "coop-to-apply": () => {
       ui.coopModal = false;
+      ui.coop = null;
       ui.tutorApply = ui.tutorApply || { name: "", subject: "eng", rate: 1100, contact: "", error: "" };
       ui.tutorApply.error = "";
       ui.tutorApplyModal = true;
@@ -297,6 +305,15 @@
       const st = mkt();
       const trialRub = (TDATA && TDATA.TRIAL_PRICE != null) ? Number(TDATA.TRIAL_PRICE) : 490;
       const targetBal = Math.max(390, Number(plan.balance) || trialRub);
+      if (isBackendAuthed() && store.payments && store.payments.yookassaEnabled && typeof startServerTopup === "function") {
+        startServerTopup({
+          amount: targetBal,
+          method: "sbp",
+          planId: plan.id,
+          pendingBooking: ui.balanceModal && ui.balanceModal.pendingBooking
+        });
+        return;
+      }
       EGEPayments.createTopupIntent({ amount: targetBal, planId: plan.id });
       st.planId = plan.id;
       const reserved = st.bookings.reduce((sum, bk) => sum + (bk.reserved || 0), 0);
@@ -363,6 +380,32 @@
       ui.balanceModal.error = "";
       renderModal();
     },
+    "bal-refund-toggle": () => {
+      if (!ui.balanceModal) return;
+      const bm = ui.balanceModal;
+      bm.refundOpen = !bm.refundOpen;
+      bm.refundError = "";
+      bm.refundSuccess = "";
+      if (bm.refundOpen) {
+        const bal = Math.max(0, Number(mkt().balance) || 0);
+        if (bm.refundAmount == null) bm.refundAmount = String(bal > 0 ? bal : "");
+        if (store.backend && store.user && EGE.api && EGE.api.payments && typeof EGE.api.payments.listRefunds === "function") {
+          EGE.api.payments.listRefunds(15).then((res) => {
+            if (!ui.balanceModal) return;
+            if (res && Array.isArray(res.refunds)) ui.balanceModal.refunds = res.refunds;
+            if (res && res.refundableRub != null) {
+              ui.balanceModal.refundableRub = Number(res.refundableRub) || 0;
+              const cap = Math.max(0, Math.min(Number(mkt().balance) || 0, ui.balanceModal.refundableRub));
+              if (cap > 0 && (!ui.balanceModal.refundAmount || Number(ui.balanceModal.refundAmount) > cap)) {
+                ui.balanceModal.refundAmount = String(cap);
+              }
+            }
+            if (ui.balanceModal.refundOpen) renderModal();
+          }).catch(() => {});
+        }
+      }
+      renderModal();
+    },
     "bal-method": (el) => {
       if (!ui.balanceModal) return;
       const st = mkt();
@@ -414,6 +457,15 @@
       const presetPlan = el.dataset.plan || "";
       const minAmt = presetPlan === "ai390" ? 390 : (st.initialPaid ? 100 : trialRub);
       const amt = Math.max(minAmt, Math.min(200000, Math.round(Number(el.dataset.amount) || trialRub)));
+      if (isBackendAuthed() && store.payments && store.payments.yookassaEnabled && typeof startServerTopup === "function") {
+        startServerTopup({
+          amount: amt,
+          method: "sbp",
+          planId: presetPlan || st.planId || "trial5k",
+          pendingBooking: ui.balanceModal && ui.balanceModal.pendingBooking
+        });
+        return;
+      }
       EGEPayments.createTopupIntent({ amount: amt, planId: presetPlan || st.planId || "trial5k" });
       st.balance = (Number(st.balance) || 0) + amt;
       if (st.balance >= trialRub) st.initialPaid = true;
@@ -432,21 +484,27 @@
         ui.booking = Object.assign({}, pending, { offerPrice: pending.mode === "trial" ? (Number(pending.offerPrice) || trialRub) : (pending.offerPrice != null ? pending.offerPrice : 1000) });
       }
       renderModal();
-      notifySide("Баланс пополнен по СБП", `+${amt.toLocaleString("ru-RU")} ₽ · на счёте ${st.balance.toLocaleString("ru-RU")} ₽`);
+      notifySide("Баланс пополнен по СБП", `+${amt.toLocaleString("ru-RU")} ₽ · на счёте ${st.balance.toLocaleString("ru-RU")} ₽`, { inbox: true });
       scheduleRender();
     },
     "tc-payout-open": () => {
       const tcMod = EGE.views.tutorCabinet;
       const summary = tcMod && typeof tcMod.getWalletSummary === "function" ? tcMod.getWalletSummary() : null;
+      if (isBackendAuthed() && tcMod && typeof tcMod.hydrateFromBackend === "function" && (!summary || !summary.fromServer)) {
+        tcMod.hydrateFromBackend();
+      }
       const sets = (summary && summary.settings) || {};
       const defAmt = summary ? summary.availableRub : 0;
+      const isDemo = isDevDemoMode();
       ui.payoutModal = {
         method: sets.method === "card" ? "card" : "sbp",
-        bank: sets.bank || "АЭБ (Алмазэргиэнбанк)",
-        phone: sets.phone || "+7 (914) 210-01-99",
-        card: sets.card || "2200 7004 8210 4419",
+        bank: sets.bank || (isDemo ? "АЭБ (Алмазэргиэнбанк)" : "Сбербанк"),
+        phone: sets.phone || (isDemo ? "+7 (914) 210-01-99" : ""),
+        card: sets.card || (isDemo ? "2200 7004 8210 4419" : ""),
         amount: defAmt,
-        npdReceipt: false,
+        npdReceipt: sets.npdReceipt !== false,
+        inn: sets.inn || "",
+        innCheck: null,
         error: ""
       };
       renderModal();
@@ -467,13 +525,138 @@
     },
     "tc-payout-npd": () => {
       if (!ui.payoutModal) return;
-      ui.payoutModal.npdReceipt = false;
-      if (typeof notifySide === "function") {
-        notifySide("Чек самозанятого", "Автопередача в «Мой налог» находится в разработке");
+      ui.payoutModal.npdReceipt = !ui.payoutModal.npdReceipt;
+      ui.payoutModal.error = "";
+      renderModal();
+    },
+    "tc-payout-check-inn": () => {
+      if (!ui.payoutModal) return;
+      const tcMod = EGE.views.tutorCabinet;
+      const rawInn = String(ui.payoutModal.inn || "").replace(/\D+/g, "");
+      const localCheck = tcMod && typeof tcMod.validateInn12 === "function"
+        ? tcMod.validateInn12(rawInn)
+        : { valid: /^\d{12}$/.test(rawInn), inn: rawInn };
+      if (!localCheck.valid) {
+        ui.payoutModal.innCheck = {
+          ok: false,
+          message: "Укажите корректный 12-значный ИНН физического лица / самозанятого."
+        };
+        renderModal();
+        return;
       }
+      if (isBackendAuthed() && EGE.api.tutor && typeof EGE.api.tutor.checkNpdInn === "function") {
+        const st = tcMod && typeof tcMod.tState === "function" ? tcMod.tState() : null;
+        const tid = st && st.profile && st.profile.id ? st.profile.id : null;
+        ui.payoutModal.innCheck = { ok: true, loading: true, message: "Проверяем ИНН в ФНС «Мой налог»..." };
+        renderModal();
+        EGE.api.tutor.checkNpdInn(localCheck.inn, true, tid).then((res) => {
+          if (!ui.payoutModal) return;
+          ui.payoutModal.inn = res.inn || localCheck.inn;
+          ui.payoutModal.innCheck = {
+            ok: !!res.isSelfEmployed,
+            loading: false,
+            message: res.message || (res.isSelfEmployed ? "Статус самозанятого подтверждён." : "ИНН не зарегистрирован как плательщик НПД.")
+          };
+          if (res.isSelfEmployed && st && typeof tcMod.saveState === "function") {
+            st.payoutSettings = Object.assign({}, st.payoutSettings || {}, { inn: ui.payoutModal.inn });
+            tcMod.saveState();
+          }
+          renderModal();
+        }).catch((err) => {
+          if (!ui.payoutModal) return;
+          ui.payoutModal.innCheck = {
+            ok: false,
+            loading: false,
+            message: (err && err.message) || "Не удалось проверить ИНН в ФНС."
+          };
+          renderModal();
+        });
+        return;
+      }
+      ui.payoutModal.inn = localCheck.inn;
+      ui.payoutModal.innCheck = {
+        ok: true,
+        loading: false,
+        message: "Контрольная сумма 12-значного ИНН верна."
+      };
+      renderModal();
     },
     "filter-open": () => { ui.filterModal = true; renderModal(); },
-    "filter-close": () => { ui.filterModal = false; renderModal(); },
+    "filter-close": () => {
+      ui.filterModal = false;
+      ui.filterSubjExpanded = false;
+      ui.filterSubjQ = "";
+      renderModal();
+    },
+    "mkt-subj-more": () => {
+      ui.filterSubjExpanded = !ui.filterSubjExpanded;
+      if (!ui.filterSubjExpanded) ui.filterSubjQ = "";
+      renderModal();
+    },
+    "mkt-subj-open-more": () => {
+      preserveLandingWhiteStage();
+      ui.filterModal = true;
+      ui.filterSubjExpanded = true;
+      ui.filterSubjQ = "";
+      ui.focusNext = "mkt-subj-q";
+      renderModal();
+    },
+    "mkt-subj-q-clear": () => {
+      ui.filterSubjQ = "";
+      ui.focusNext = "mkt-subj-q";
+      renderModal();
+    },
+    "mkt-subj-add": (el) => {
+      if (!TDATA || typeof TDATA.registerDirection !== "function") return;
+      preserveLandingWhiteStage();
+      const rawLabel = String((el && el.dataset && el.dataset.v) || ui.filterSubjQ || "").replace(/\s+/g, " ").trim();
+      if (rawLabel.length < 2) {
+        toast("Введите название направления (от 2 символов)");
+        return;
+      }
+      const res = TDATA.registerDirection({ name: rawLabel, short: rawLabel, source: "orchestrator" });
+      if (!res || !res.direction) return;
+      const dir = res.direction;
+      const st = mkt();
+      st.exam = "all";
+      st.subject = dir.id;
+      ui.filterSubjQ = "";
+      ui.mktVisibleCount = 8;
+      saveMkt();
+      if (store && store.backend && EGE.api && EGE.api.market && typeof EGE.api.market.discoverDirection === "function") {
+        EGE.api.market.discoverDirection({
+          id: dir.id,
+          name: dir.name,
+          short: dir.short,
+          source: "orchestrator",
+          category: dir.category
+        }).then((resp) => {
+          if (resp && Array.isArray(resp.directions) && typeof TDATA.syncDirections === "function") {
+            TDATA.syncDirections(resp.directions);
+            if (ui.filterModal) renderModal();
+            scheduleRender();
+          }
+        }).catch(() => {});
+      }
+      toast(res.created
+        ? `Направление «${dir.short}» добавлено — оркестратор подберёт преподавателей`
+        : `Выбрано направление «${dir.short}»`);
+      if (ui.filterModal) renderModal();
+      scheduleRender();
+    },
+    "mkt-lead-for-subj": (el) => {
+      const sid = String((el && el.dataset && el.dataset.v) || (mkt() && mkt().subject) || "").trim();
+      if (!ui.leadDraft) ui.leadDraft = { subjects: ["chem"], subjMenuOpen: false, exam: "ЕГЭ", format: "Онлайн", targetPrice: 1000, scheduleNote: "", whatsapp: "", comment: "" };
+      if (sid && sid !== "all") {
+        ui.leadDraft.subjects = [sid];
+        const sb = TDATA && TDATA.SUBJECTS && TDATA.SUBJECTS.find((s) => s.id === sid);
+        if (sb && !sb.isExam) ui.leadDraft.exam = "Навыки";
+      }
+      if (ui.view !== "study") go("study");
+      ui.studyTab = "week";
+      scheduleRender(true);
+      if (typeof setTimeout === "function") setTimeout(() => scrollToEl("study-lead-card"), 40);
+    },
     "study-tab": (el) => { ui.studyTab = el.dataset.tab || "week"; scheduleRender(true); },
     "study-week": (el) => {
       const w = Number(el.dataset && el.dataset.w);
@@ -550,7 +733,6 @@
       st.hour = "all";
       ui.mktVisibleCount = 8;
       saveMkt();
-      toast("Фильтр: Английский · ЕГЭ · Онлайн");
       if (ui.filterModal) renderModal();
       scheduleRender();
     },
@@ -607,6 +789,7 @@
       fresh.telemostUrl = cur.telemostUrl || "";
       ui.market = fresh;
       ui.mktVisibleCount = 8;
+      ui.filterSubjQ = "";
       saveMkt();
       if (ui.filterModal) renderModal();
       scheduleRender();
@@ -636,7 +819,7 @@
       if (!tutor) return;
       const draftBooking = buildBookingDraft(tutor, el, TDATA, mkt, ui);
       if (typeof requireAuthForBid === "function" && requireAuthForBid(draftBooking)) return;
-      if (ui.view === "landing" && typeof isUserAuthenticated === "function" && isUserAuthenticated() && ui.role !== "tutor" && ui.role !== "admin") {
+      if (ui.view === "landing" && typeof isUserAuthenticated === "function" && isUserAuthenticated() && ui.role !== "tutor") {
         ui.view = "market";
         if (typeof writeHash === "function") writeHash();
         scheduleRender();
@@ -648,11 +831,14 @@
       if (!TDATA) return;
       const tutor = TDATA.LIST.find((x) => x.id === el.dataset.id);
       if (!tutor) return;
-      if (ui.view === "landing" && typeof isUserAuthenticated === "function" && isUserAuthenticated() && ui.role !== "tutor" && ui.role !== "admin") {
+      if (ui.view === "landing" && typeof isUserAuthenticated === "function" && isUserAuthenticated() && ui.role !== "tutor") {
         ui.view = "market";
         if (typeof writeHash === "function") writeHash();
         scheduleRender();
       }
+      ui.reviewsModal = null;
+      ui.reviewModal = null;
+      ui.disputeModal = null;
       ui.booking = buildBookingDraft(tutor, el, TDATA, mkt, ui);
       renderModal();
     },
@@ -660,11 +846,14 @@
       if (!TDATA) return;
       const tutor = TDATA.LIST.find((x) => x.id === el.dataset.id);
       if (!tutor) return;
-      if (ui.view === "landing" && typeof isUserAuthenticated === "function" && isUserAuthenticated() && ui.role !== "tutor" && ui.role !== "admin") {
+      if (ui.view === "landing" && typeof isUserAuthenticated === "function" && isUserAuthenticated() && ui.role !== "tutor") {
         ui.view = "market";
         if (typeof writeHash === "function") writeHash();
         scheduleRender();
       }
+      ui.reviewsModal = null;
+      ui.reviewModal = null;
+      ui.disputeModal = null;
       const draftBooking = buildBookingDraft(tutor, el, TDATA, mkt, ui);
       ui.booking = draftBooking;
       if (!draftBooking.firstLessonGuarantee) {
@@ -709,7 +898,6 @@
     "lead-remove": (el) => {
       if (!TDATA || typeof TDATA.removeStudentLead !== "function" || !el.dataset.id) return;
       TDATA.removeStudentLead(el.dataset.id);
-      toast("Запрос снят с каталога преподавателей");
       scheduleRender();
     },
     "book-close": () => { ui.booking = null; renderModal(); },
@@ -809,7 +997,14 @@
       }
       const feeSplit = typeof TDATA.commissionSplit === "function"
         ? TDATA.commissionSplit(offerPrice)
-        : { total: offerPrice, fee: Math.round(offerPrice * 0.05), payout: offerPrice - Math.round(offerPrice * 0.05), pct: 5 };
+        : {
+            total: offerPrice,
+            fee: Math.round(offerPrice * 0.05),
+            sbpFee: Math.round(offerPrice * 0.01),
+            payout: Math.max(0, offerPrice - Math.round(offerPrice * 0.05) - Math.round(offerPrice * 0.01)),
+            pct: 5,
+            sbpPct: 1
+          };
       let reserved = 0;
       if (offerPrice > 0 && st.balance >= offerPrice) {
         reserved = offerPrice;
@@ -842,9 +1037,16 @@
         createdAt: Date.now()
       };
       st.bookings.unshift(newBooking);
+      ui.lastSentBookingId = newBooking.id;
+      if (typeof setTimeout === "function") {
+        setTimeout(() => {
+          if (ui.lastSentBookingId === newBooking.id) ui.lastSentBookingId = "";
+        }, 2000);
+      }
       ui.booking = null;
-      if (ui.role !== "tutor" && ui.role !== "admin") {
+      if (ui.role !== "tutor") {
         ui.view = "home";
+        ui.commTab = "bids";
         ui.homeBidFilter = "all";
         if (typeof writeHash === "function") writeHash();
         if (typeof window !== "undefined" && typeof window.scrollTo === "function") {
@@ -883,6 +1085,7 @@
             }
             if (ui.telemostEditId === oldId) ui.telemostEditId = res.booking.id;
             if (ui.schedEditId === oldId) ui.schedEditId = res.booking.id;
+            if (ui.lastSentBookingId === oldId) ui.lastSentBookingId = res.booking.id;
             if (ui.schedDrafts && ui.schedDrafts[oldId]) {
               ui.schedDrafts[res.booking.id] = ui.schedDrafts[oldId];
               delete ui.schedDrafts[oldId];
@@ -905,10 +1108,17 @@
         });
       }
       renderModal();
+      if (EGE.fx && typeof EGE.fx.playBidSentFx === "function") {
+        EGE.fx.playBidSentFx({
+          title: "Предложение отправлено",
+          subtitle: `${offerPrice.toLocaleString("ru-RU")} ₽/ч · ${tutor.name}`
+        });
+      }
       const gNote = hasGuarantee ? " · возврат за 1-й урок при отказе" : "";
       notifySide(
         "Предложение передано преподавателю",
-        `Написали ему в мессенджер (WhatsApp, Telegram, MAX) — когда ответит, мы напишем вам уведомление в WhatsApp, Telegram или MAX · ставка ${offerPrice.toLocaleString("ru-RU")} ₽/ч${reserved ? ` · в резерве ${reserved.toLocaleString("ru-RU")} ₽` : ""}${gNote}`
+        `Написали ему в мессенджер (WhatsApp, Telegram, MAX) — когда ответит, мы напишем вам уведомление в WhatsApp, Telegram или MAX · ставка ${offerPrice.toLocaleString("ru-RU")} ₽/ч${reserved ? ` · в резерве ${reserved.toLocaleString("ru-RU")} ₽` : ""}${gNote}`,
+        { inbox: true }
       );
       scheduleRender();
     },
@@ -959,6 +1169,10 @@
       }
     },
     "mkt-sim-accept": (el) => {
+      if (!isDevDemoMode()) {
+        toast("Подтвердить заявку может только преподаватель");
+        return;
+      }
       const st = mkt();
       const bk = st.bookings.find((x) => x.id === el.dataset.id);
       if (!bk) return;
@@ -986,8 +1200,46 @@
           if (res && res.wallet) applyServerWallet(res.wallet);
         }).catch(() => {});
       }
-      toast(`${bk.tutorName} подтвердил(а) занятие — выберите удобные дни и время`);
+      if (ui.view === "home" && ui.homeBidFilter === "pending") {
+        ui.homeBidFilter = "all";
+      }
+      ui.justAcceptedBookingId = bk.id;
+      const acceptSeq = (ui.justAcceptedSeq || 0) + 1;
+      ui.justAcceptedSeq = acceptSeq;
+      if (ui.view !== "home") {
+        toast("Занятие подтверждено — выберите удобные дни в «Откликах»", { duration: 2600 });
+      }
       scheduleRender();
+      if (typeof setTimeout === "function") {
+        const bkIdStr = String(bk.id);
+        setTimeout(() => {
+          if (ui.view !== "home") return;
+          if (typeof document === "undefined" || typeof document.querySelector !== "function") return;
+          try {
+            const schedEl = document.querySelector(`#home-bids-section [data-sched-box="${bkIdStr}"]`)
+              || document.querySelector(`#home-bids-section .tutor-card[data-booking-id="${bkIdStr}"]`);
+            if (schedEl && typeof schedEl.scrollIntoView === "function") {
+              const docEl = document.documentElement;
+              const reduced = !!(docEl && docEl.classList && docEl.classList.contains("reduced-motion"))
+                || (typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+              schedEl.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "nearest" });
+            }
+          } catch (e) { /* игнор */ }
+        }, 60);
+        setTimeout(() => {
+          if (ui.justAcceptedSeq !== acceptSeq) return;
+          ui.justAcceptedBookingId = "";
+          if (typeof document === "undefined" || typeof document.querySelectorAll !== "function") return;
+          try {
+            document.querySelectorAll("#home-bids-section .is-just-accepted, #home-bids-section .is-just-revealed").forEach((node) => {
+              if (node && node.classList) {
+                node.classList.remove("is-just-accepted");
+                node.classList.remove("is-just-revealed");
+              }
+            });
+          } catch (e) { /* игнор */ }
+        }, 2200);
+      }
     },
     "mkt-cancel-book": (el) => {
       const st = mkt();
@@ -1006,6 +1258,209 @@
         ? `Заявка отменена · ${bk.reserved.toLocaleString("ru-RU")} ₽ возвращены на баланс`
         : "Заявка отменена — можно выбрать другого репетитора");
       scheduleRender();
+    },
+    "reviews-open": (el) => {
+      const tutorId = (el && el.dataset && el.dataset.id) || "";
+      if (!tutorId || !TDATA) return;
+      ui.reviewsModal = { tutorId, loading: isBackendAuthed() && !!(EGE.api && EGE.api.reviews) };
+      renderModal();
+      if (isBackendAuthed() && EGE.api && EGE.api.reviews) {
+        EGE.api.reviews.list(tutorId).then((res) => {
+          if (res && typeof TDATA.syncTutorReviews === "function") {
+            TDATA.syncTutorReviews(tutorId, res.reviews || [], { rating: res.rating, reviewsCount: res.reviewsCount });
+          }
+          if (ui.reviewsModal && ui.reviewsModal.tutorId === tutorId) {
+            ui.reviewsModal.loading = false;
+            renderModal();
+          }
+          scheduleRender();
+        }).catch(() => {
+          if (ui.reviewsModal && ui.reviewsModal.tutorId === tutorId) {
+            ui.reviewsModal.loading = false;
+            renderModal();
+          }
+        });
+      }
+    },
+    "reviews-close": () => {
+      ui.reviewsModal = null;
+      renderModal();
+    },
+    "review-open": (el) => {
+      const st = mkt();
+      const bid = (el && el.dataset && el.dataset.id) || "";
+      const bk = (st.bookings || []).find((x) => x && String(x.id) === String(bid)) || null;
+      const tutorId = (bk && bk.tutorId) || (el && el.dataset && el.dataset.tutorId) || "";
+      if (!tutorId) return;
+      ui.reviewsModal = null;
+      ui.reviewModal = {
+        bookingId: bk ? bk.id : null,
+        tutorId,
+        rating: 5,
+        tags: [],
+        comment: "",
+        error: "",
+        busy: false
+      };
+      renderModal();
+    },
+    "review-close": () => {
+      ui.reviewModal = null;
+      renderModal();
+    },
+    "review-star": (el) => {
+      if (!ui.reviewModal) return;
+      ui.reviewModal.rating = clampInt(el.dataset.star, 1, 5);
+      renderModal();
+    },
+    "review-tag": (el) => {
+      if (!ui.reviewModal) return;
+      const tag = String((el && el.dataset && el.dataset.tag) || "").trim();
+      if (!tag) return;
+      const cur = Array.isArray(ui.reviewModal.tags) ? ui.reviewModal.tags.slice() : [];
+      const idx = cur.indexOf(tag);
+      if (idx >= 0) cur.splice(idx, 1);
+      else if (cur.length < 4) cur.push(tag);
+      ui.reviewModal.tags = cur;
+      renderModal();
+    },
+    "review-submit": () => {
+      if (!ui.reviewModal || ui.reviewModal.busy || !TDATA) return;
+      const rm = ui.reviewModal;
+      const commentNode = typeof document !== "undefined" && document.getElementById ? document.getElementById("review-comment") : null;
+      const comment = String((commentNode ? commentNode.value : rm.comment) || "").trim().slice(0, 600);
+      const rating = Math.max(1, Math.min(5, Math.round(Number(rm.rating) || 5)));
+      const tags = Array.isArray(rm.tags) ? rm.tags.slice(0, 4) : [];
+      const profObj = typeof profile === "function" ? profile() : null;
+      const studentName = String((profObj && profObj.name) || (store && store.user && store.user.displayName) || "Ученик").trim() || "Ученик";
+      const tutorId = rm.tutorId;
+      if (typeof TDATA.addTutorReview === "function") {
+        TDATA.addTutorReview({
+          tutorId,
+          bookingId: rm.bookingId,
+          studentName,
+          rating,
+          tags,
+          comment
+        });
+      }
+      const st = mkt();
+      if (rm.bookingId) {
+        const bk = (st.bookings || []).find((x) => x && String(x.id) === String(rm.bookingId));
+        if (bk) {
+          bk.myReviewRating = rating;
+          saveMkt();
+        }
+      }
+      ui.reviewModal = null;
+      renderModal();
+      scheduleRender();
+      toast("Спасибо! Отзыв опубликован — рейтинг преподавателя обновлён");
+      if (isBackendAuthed() && EGE.api && EGE.api.reviews) {
+        EGE.api.reviews.create(tutorId, {
+          rating,
+          comment,
+          bookingId: rm.bookingId,
+          tags,
+          studentName
+        }).then((res) => {
+          if (res && typeof TDATA.syncTutorReviews === "function") {
+            TDATA.syncTutorReviews(tutorId, res.review ? [res.review] : [], { rating: res.rating, reviewsCount: res.reviewsCount });
+            scheduleRender();
+          }
+        }).catch(() => {});
+      }
+    },
+    "dispute-open": (el) => {
+      const st = mkt();
+      const bid = (el && el.dataset && el.dataset.id) || "";
+      const bk = (st.bookings || []).find((x) => x && String(x.id) === String(bid));
+      if (!bk) return;
+      const existing = (Array.isArray(st.disputes) ? st.disputes : []).find((d) => d && String(d.bookingId || "") === String(bk.id)) || bk.dispute;
+      if (existing) {
+        toast("По этому занятию уже открыт спор");
+        return;
+      }
+      const tutor = TDATA && TDATA.LIST ? TDATA.LIST.find((x) => x.id === bk.tutorId) : null;
+      const mktView = EGE.views && EGE.views.marketplace;
+      const gInfo = (mktView && typeof mktView.resolveTutorGuarantee === "function" && tutor)
+        ? mktView.resolveTutorGuarantee(tutor)
+        : { enabled: bk.firstLessonGuarantee !== false };
+      ui.disputeModal = {
+        bookingId: bk.id,
+        reason: gInfo.enabled ? "first_lesson_guarantee" : "quality",
+        comment: "",
+        firstLessonGuarantee: !!gInfo.enabled,
+        error: "",
+        busy: false
+      };
+      renderModal();
+    },
+    "dispute-close": () => {
+      ui.disputeModal = null;
+      renderModal();
+    },
+    "dispute-reason": (el) => {
+      if (!ui.disputeModal) return;
+      ui.disputeModal.reason = String((el && el.dataset && el.dataset.reason) || "other");
+      ui.disputeModal.error = "";
+      renderModal();
+    },
+    "dispute-submit": () => {
+      if (!ui.disputeModal || ui.disputeModal.busy) return;
+      const dm = ui.disputeModal;
+      const st = mkt();
+      const bk = (st.bookings || []).find((x) => x && String(x.id) === String(dm.bookingId || ""));
+      if (!bk) {
+        ui.disputeModal = null;
+        renderModal();
+        return;
+      }
+      const commentNode = typeof document !== "undefined" && document.getElementById ? document.getElementById("dispute-comment") : null;
+      const comment = String((commentNode ? commentNode.value : dm.comment) || "").trim().slice(0, 600);
+      dm.comment = comment;
+      if (comment.length < 4) {
+        dm.error = "Опишите причину спора (минимум 4 символа).";
+        renderModal();
+        return;
+      }
+      const profObj = typeof profile === "function" ? profile() : null;
+      const studentName = String((profObj && profObj.name) || (store && store.user && store.user.displayName) || "Ученик").trim() || "Ученик";
+      const reason = String(dm.reason || "first_lesson_guarantee");
+      const firstLessonGuarantee = dm.firstLessonGuarantee !== false;
+      const amountRub = Math.max(0, Number(bk.reserved || bk.offerPrice || 0));
+      const localId = "dsp-" + Date.now() + "-" + Math.random().toString(36).slice(2, 5);
+      const dispute = {
+        id: localId,
+        bookingId: bk.id,
+        tutorId: bk.tutorId,
+        tutorName: bk.tutorName,
+        studentName,
+        subject: bk.subjectName,
+        amountRub,
+        reason,
+        comment,
+        firstLessonGuarantee,
+        status: "open",
+        createdAt: new Date().toISOString()
+      };
+      st.disputes = [dispute].concat((Array.isArray(st.disputes) ? st.disputes : []).filter((d) => d && String(d.bookingId || "") !== String(bk.id)));
+      bk.dispute = dispute;
+      saveMkt();
+      ui.disputeModal = null;
+      renderModal();
+      scheduleRender();
+      notifySide("Спор открыт", "Обращение передано модератору — уведомим о возврате оплаты", { inbox: true });
+      if (isBackendAuthed() && EGE.api && EGE.api.disputes && bk.serverSynced) {
+        EGE.api.disputes.open(bk.id, { reason, comment, firstLessonGuarantee }).then((res) => {
+          if (res && res.dispute) {
+            st.disputes = [res.dispute].concat((Array.isArray(st.disputes) ? st.disputes : []).filter((d) => d && d.id !== localId && String(d.bookingId || "") !== String(bk.id)));
+            bk.dispute = res.dispute;
+            saveMkt();
+            scheduleRender();
+          }
+        }).catch(() => {});
+      }
     },
     "motion-preset": (el) => {
       const id = el.dataset.v;
@@ -1298,8 +1753,6 @@
       saveMkt();
       scheduleRender();
       if (typeof setTimeout === "function") setTimeout(() => scrollToEl("land-market"), 40);
-      const cnt = EGE.views.landing && EGE.views.landing.computeQuickMatchMeta ? EGE.views.landing.computeQuickMatchMeta().filtered.length : 0;
-      notifySide("Подборка применена", `Показано анкет по твоим условиям: ${cnt}`);
     },
     "land-ai-subj": (el) => {
       ui.landAiSubj = ["bio", "chem", "rus"].includes(el.dataset.v) ? el.dataset.v : "bio";
@@ -1404,13 +1857,11 @@
     "bb-sakha-medallion": () => {
       const bb = bbState();
       bb.sakhaKunOn = !bb.sakhaKunOn;
-      notifySide(bb.sakhaKunOn ? "Күн Оһуор · Активен" : "Күн Оһуор · Сброшен", "Солнечный медальон в стиле Саха (.sakha-medallion-btn)");
       scheduleRender();
     },
     "bb-sakha-diamond": () => {
       const bb = bbState();
       bb.sakhaStarOn = !bb.sakhaStarOn;
-      notifySide(bb.sakhaStarOn ? "Сулус · Ромб выбран" : "Сулус · Сброшен", "Геометрический узор 8-лучевой звезды (.sakha-diamond-btn)");
       scheduleRender();
     },
     "bb-faq-toggle": (el) => {
@@ -1439,14 +1890,12 @@
       st.sort = "price_asc";
       saveMkt();
       scheduleRender();
-      notifySide("Күн Оһуор · Анкеты Саха и РФ", ui.landKunActive ? "Выборка до 1 400 ₽/ч (Доска Ykt, Telegram, WhatsApp, MAX)" : "Фильтр солнечного медальона сброшен");
     },
     "land-sakha-diamond": () => {
       ui.landStarActive = !ui.landStarActive;
       const preset = ui.landStarActive ? "inf" : "design";
       if (ACTIONS["motion-preset"]) ACTIONS["motion-preset"]({ dataset: { v: preset } });
       scheduleRender();
-      notifySide("Сулус · Звёздный фильтр Саха", ui.landStarActive ? "Включён трек Информатика КЕГЭ в живой карточке" : "Возвращён трек UX/UI и Figma");
     },
     "bb-modal-open": () => {
       ui.bbModal = true;
@@ -1476,14 +1925,12 @@
       const bb = bbState();
       bb.heroSubmitted = !bb.heroSubmitted;
       scheduleRender();
-      notifySide("Hero CTA · Найти ниже рынка", bb.heroSubmitted ? "Кнопка на фото перешла в статус .is-confirmed" : "Возврат в золото Саха");
     },
     "bb-hero-submit": () => ACTIONS["bb-hero-primary"](),
     "bb-hero-beta": () => {
       const bb = bbState();
       bb.heroBetaOn = !bb.heroBetaOn;
       scheduleRender();
-      notifySide("Hero CTA №2 · Бета-тест", bb.heroBetaOn ? "Кнопка бета-теста на фото -> .is-confirmed" : "Возврат в полупрозрачный контур на фото");
     },
     "bb-logo-dl": (el) => {
       const surface = (el.dataset && el.dataset.surface) || "light";
@@ -1505,8 +1952,7 @@
         }
       } catch (e) { /* в тестовом окружении скачивание файла пропускается */ }
       bbState().lastExportedSvg = svg;
-      toast("Скачан " + filename);
-      notifySide("Экспорт SVG · Вектор ЕГЭ", `Файл ${filename} (${surface}, ${kind})`);
+      notifySide("Экспорт SVG · Вектор", `Файл ${filename} (${surface}, ${kind})`);
     },
     "bb-logo-copy": (el) => {
       const surface = (el.dataset && el.dataset.surface) || "light";
@@ -1515,7 +1961,6 @@
       if (!svg) return;
       copyTextSafe(svg);
       bbState().lastExportedSvg = svg;
-      toast(`SVG (${surface}) скопирован`);
       notifySide("SVG в буфере", `Векторный ${kind} для поверхности «${surface}» скопирован`);
     },
     "bb-export-tokens": (el) => {
@@ -1523,7 +1968,6 @@
       const payload = buildBrandbookTokensExport(fmt);
       copyTextSafe(payload);
       bbState().lastExportedTokens = { fmt, payload };
-      toast(fmt === "json" ? "Скопирован tokens.json" : "Скопирован :root CSS");
       notifySide(fmt === "json" ? "Экспорт tokens.json" : "Экспорт :root CSS", `Токены (${payload.length} симв.) скопированы в буфер`);
     },
     "bb-app-role": (el) => {
@@ -1548,8 +1992,6 @@
         }
       } catch (e) { /* игнор */ }
       scheduleRender();
-      toast(bb.reducedMotion ? "prefers-reduced-motion: ВКЛ" : "Анимации восстановлены");
-      notifySide("Доступность · Motion", bb.reducedMotion ? "Анимации отключены (html.reduced-motion)" : "Плавные переходы и hover-эффекты активны");
     },
     "bb-reduced-motion": () => ACTIONS["bb-reduced-toggle"](),
     "bb-mask-sample": (el) => {
@@ -1591,40 +2033,32 @@
       const bb = bbState();
       bb.balFunded = bb.balFunded === false;
       scheduleRender();
-      toast(bb.balFunded ? "Баланс: 5 000 ₽ · пробный урок 0 ₽ открыт" : "Баланс: 0 ₽ · требуется первый взнос от 5 000 ₽");
-      notifySide("Баланс · Стенд", bb.balFunded ? "Первый порог 5 000 ₽ пройден — доступны пополнения от 100 ₽ и бесплатный пробный урок" : "Начальный баланс 0 ₽: запись на пробный 0 ₽ заблокирована до внесения 5 000 ₽");
     },
     "bb-chart-style": (el) => {
       const bb = bbState();
       bb.chartStyle = (el.dataset && el.dataset.v) || "sticks";
       scheduleRender();
-      toast("Вид графика: " + bb.chartStyle);
-      notifySide("График с палочками", `Выбран стиль «${bb.chartStyle}» — обновлён в кабинете и стенде`);
     },
     "bb-chart-data": (el) => {
       const bb = bbState();
       bb.chartDataset = (el.dataset && el.dataset.v) || "income";
       scheduleRender();
-      toast("Набор данных графика обновлён");
     },
     "bb-chart-bar": (el) => {
       const bb = bbState();
       bb.chartActiveIdx = Math.max(0, Math.min(59, Number(el.dataset && el.dataset.idx) || 0));
       scheduleRender();
-      toast("Выбран столбик №" + (bb.chartActiveIdx + 1));
     },
     "bb-line-pt": (el) => {
       const bb = bbState();
       bb.linePtIdx = Math.max(0, Math.min(59, Number(el.dataset && el.dataset.idx) || 0));
       scheduleRender();
-      toast("Точка линии №" + (bb.linePtIdx + 1));
     },
     "bb-donut-ds": (el) => {
       const bb = bbState();
       bb.donutDataset = (el.dataset && el.dataset.v) || "channels";
       bb.donutSliceIdx = 0;
       scheduleRender();
-      toast("Срез диаграммы обновлён");
     },
     "bb-donut-slice": (el) => {
       const bb = bbState();
@@ -1635,7 +2069,6 @@
       const bb = bbState();
       bb.tableCols = clampInt(Number(el.dataset && el.dataset.cols) || 5, 1, 15, 5);
       scheduleRender();
-      toast("Колонок в таблице: " + bb.tableCols);
     },
     "bb-tbl-preset": (el) => {
       const bb = bbState();
@@ -1644,7 +2077,6 @@
       bb.tableFilter = "all";
       bb.tableSearch = "";
       scheduleRender();
-      toast("Пресет таблицы: " + bb.tablePreset);
     },
     "bb-tbl-confirm": (el) => {
       const bb = bbState();
@@ -1701,6 +2133,14 @@
     "fees-rate": (el) => {
       const r = Number(el.dataset.rate);
       ui.feesRate = Math.max(0, Math.min(99999, Number.isFinite(r) ? r : 800));
+      scheduleRender();
+    },
+    "fees-source": (el) => {
+      ui.feesSource = (el.dataset && el.dataset.v === "own") ? "own" : "platform";
+      scheduleRender();
+    },
+    "fees-method": (el) => {
+      ui.feesMethod = (el.dataset && el.dataset.v === "card") ? "card" : "sbp";
       scheduleRender();
     }
     });

@@ -7,6 +7,7 @@ import json
 import re
 import secrets
 from typing import Any
+import uuid
 
 import psycopg
 from psycopg.types.json import Jsonb
@@ -16,16 +17,25 @@ from databases.sqlite.common import (
     _normalize_dow,
     _normalize_tz,
     calc_fee_split,
+    calc_sbp_fee,
+    clean_custom_badges,
+    clean_direction_label,
+    deep_merge,
     format_days_short,
     generate_telemost_url,
     mask_payout_destination,
     normalize_city_tz,
+    normalize_direction_payload,
+    normalize_dispute_payload,
+    normalize_review_payload,
+    normalize_tutor_profile_payload,
     sort_dows,
+    validate_display_name,
     validate_hour_slot,
     validate_schedule_plan,
     validate_telemost_url,
 )
-from .schema import _iso_utc, _utc_now
+from .schema import _doc_outbox_meta, _iso_utc, _row_to_user, _utc_now
 
 _PG_TO_MKT_STATUS = {
     "offered": "pending",
@@ -274,8 +284,12 @@ class PgMarketplaceMixin:
             "hasPhoto": bool(r.get("has_photo", True)),
             "verified": bool(r.get("verified", True)),
             "bumpedToday": bool(r.get("bumped_today", False)),
+            "published": bool(r.get("is_published", True)),
+            "customBadges": clean_custom_badges(r.get("custom_badges_json")),
+            "minFair": int(r["min_fair_rub"]) if int(r.get("min_fair_rub") or 0) > 0 else 0,
             "rating": float(r.get("rating") or 4.9),
             "reviewsCount": int(r.get("reviews_count") or 0),
+            "slots": r.get("slots_json") if isinstance(r.get("slots_json"), dict) else {},
             "lastBumpedAt": _iso_utc(r.get("last_bumped_at")),
             "updatedAt": _iso_utc(r.get("updated_at")),
         }
@@ -286,10 +300,13 @@ class PgMarketplaceMixin:
         subject: str | None = None,
         city: str | None = None,
         limit: int = 100,
+        include_unpublished: bool = False,
     ) -> list[dict[str, Any]]:
         lim = max(1, min(int(limit or 100), 500))
         clauses: list[str] = []
         params: list[Any] = []
+        if not include_unpublished:
+            clauses.append("COALESCE(is_published, TRUE) = TRUE")
         if subject and subject.strip().lower() not in ("", "all"):
             s = subject.strip().lower()
             clauses.append("(LOWER(subject) LIKE %s OR LOWER(subjects_json::text) LIKE %s)")
@@ -305,12 +322,25 @@ class PgMarketplaceMixin:
             ).fetchall()
         return [self._pg_tutor_to_public_dict(r) for r in rows]
 
+    def list_tutor_profiles(self, user_id: int) -> list[dict[str, Any]]:
+        uid = int(user_id)
+        with self._pool.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM oltp.tutors
+                WHERE user_id = %s
+                ORDER BY COALESCE(is_published, TRUE) DESC, updated_at DESC, id ASC
+                """,
+                (uid,),
+            ).fetchall()
+        return [self._pg_tutor_to_public_dict(r) for r in rows]
+
     def _pg_ensure_tutor_exists(
         self,
         conn: psycopg.Connection[Any],
         tutor_id: str,
         *,
-        tutor_name: str = "Преподаватель Вектор ЕГЭ",
+        tutor_name: str = "Преподаватель Вектор",
         subject: str = "Подготовка",
         city: str | None = None,
         timezone_str: str | None = None,
@@ -334,7 +364,7 @@ class PgMarketplaceMixin:
             """,
             (
                 tid,
-                (tutor_name or "Преподаватель Вектор ЕГЭ").strip()[:80],
+                (tutor_name or "Преподаватель Вектор").strip()[:80],
                 (subject or "Подготовка").strip()[:64],
                 norm_city,
                 norm_tz,
@@ -349,46 +379,96 @@ class PgMarketplaceMixin:
         payload: dict[str, Any],
         *,
         tutor_id: str | None = None,
+        create_new: bool = False,
+        strict_tutor_id: bool = False,
     ) -> dict[str, Any]:
         uid = int(user_id)
-        full_name = str(payload.get("name") or payload.get("fullName") or "").strip()[:80]
-        if len(full_name) < 2:
-            raise StorageError("invalid_name", "Укажите имя и фамилию преподавателя (минимум 2 символа).", 400)
-        norm_city, norm_tz = normalize_city_tz(payload.get("city"), payload.get("timezone"))
-        base_rate = max(100, min(99999, int(payload.get("price") or payload.get("baseRateRub") or 1200)))
-        market_rate = max(base_rate, int(payload.get("marketPrice") or payload.get("marketRateRub") or ((base_rate * 128 + 50) // 100)))
-        subjects = payload.get("subjects") if isinstance(payload.get("subjects"), list) else []
-        clean_subjects = [str(s).strip()[:32] for s in subjects if str(s).strip()][:8]
-        subject_label = str(payload.get("subjectName") or payload.get("subject") or (clean_subjects[0] if clean_subjects else "Биология")).strip()[:64]
-        exams = [str(x).strip()[:32] for x in (payload.get("exams") or ["ЕГЭ"]) if str(x).strip()][:5] or ["ЕГЭ"]
-        formats = [str(x).strip()[:32] for x in (payload.get("formats") or ["Онлайн"]) if str(x).strip()][:4] or ["Онлайн"]
-        raw_slots = payload.get("slots") if isinstance(payload.get("slots"), dict) else {}
-        clean_slots: dict[str, list[str]] = {}
-        for dow_key, hours_val in raw_slots.items():
-            try:
-                dow_num = int(dow_key)
-            except (TypeError, ValueError):
-                continue
-            if 0 <= dow_num <= 6 and isinstance(hours_val, list):
-                valid_hrs = sorted({validate_hour_slot(str(h)) for h in hours_val if str(h).strip()})
-                if valid_hrs:
-                    clean_slots[str(dow_num)] = valid_hrs
-
+        req_tid = str(tutor_id or payload.get("id") or payload.get("tutorId") or "").strip()[:64]
         with self._pool.connection() as conn:
             with conn.transaction():
-                own = conn.execute("SELECT * FROM oltp.tutors WHERE user_id = %s LIMIT 1", (uid,)).fetchone()
-                tid = str(own["id"]) if own else str(tutor_id or f"tut-{secrets.token_hex(5)}").strip()[:64]
-                if not own:
-                    clash = conn.execute("SELECT user_id FROM oltp.tutors WHERE id = %s", (tid,)).fetchone()
-                    if clash and clash.get("user_id") is not None and int(clash["user_id"]) != uid:
-                        tid = f"tut-{secrets.token_hex(5)}"
-                photo_url = str(payload.get("photo") or payload.get("photoUrl") or "").strip()[:220_000]
+                own = None
+                sibling = conn.execute(
+                    """
+                    SELECT * FROM oltp.tutors
+                    WHERE user_id = %s
+                    ORDER BY COALESCE(is_published, TRUE) DESC, updated_at DESC, id ASC
+                    LIMIT 1
+                    """,
+                    (uid,),
+                ).fetchone()
+                u_row = conn.execute(
+                    "SELECT display_name, city, avatar_url FROM oltp.users WHERE id = %s",
+                    (uid,),
+                ).fetchone()
+                cnt_row = conn.execute(
+                    "SELECT COUNT(*) AS cnt FROM oltp.tutors WHERE user_id = %s",
+                    (uid,),
+                ).fetchone()
+                profile_count = int(cnt_row["cnt"]) if cnt_row else 0
+
+                if create_new:
+                    if profile_count >= 10:
+                        raise StorageError("too_many_profiles", "Можно создать не более 10 профилей для поиска.", 400)
+                    tid = req_tid or f"tut-{secrets.token_hex(5)}"
+                    clash = conn.execute("SELECT id FROM oltp.tutors WHERE id = %s", (tid,)).fetchone()
+                    if clash:
+                        raise StorageError("already_exists", "Анкета с таким ID уже существует.", 409)
+                elif req_tid:
+                    own = conn.execute("SELECT * FROM oltp.tutors WHERE id = %s FOR UPDATE", (req_tid,)).fetchone()
+                    if own and own.get("user_id") is not None and int(own["user_id"]) != uid:
+                        raise StorageError("forbidden", "Нет прав на редактирование чужой анкеты.", 403)
+                    if not own:
+                        if strict_tutor_id:
+                            raise StorageError("not_found", "Профиль для поиска не найден.", 404)
+                        if profile_count >= 10:
+                            raise StorageError("too_many_profiles", "Можно создать не более 10 профилей для поиска.", 400)
+                    tid = req_tid
+                else:
+                    own = sibling
+                    tid = str(own["id"]) if own else f"tut-{secrets.token_hex(5)}"
+
+                fallback_name = str(
+                    (own.get("full_name") if own else "")
+                    or (sibling.get("full_name") if sibling else "")
+                    or (u_row.get("display_name") if u_row else "")
+                ).strip()
+                norm = normalize_tutor_profile_payload(payload, fallback_name=fallback_name)
+
+                if payload.get("hasPhoto") is False:
+                    photo_url = ""
+                else:
+                    photo_url = str(
+                        payload.get("photo")
+                        or payload.get("photoUrl")
+                        or (own.get("photo_url") if own and "photo" not in payload and "photoUrl" not in payload else "")
+                        or (sibling.get("photo_url") if not own and sibling and "photo" not in payload and "photoUrl" not in payload else "")
+                        or ""
+                    ).strip()[:220_000]
                 has_photo = bool(photo_url)
-                tariff_id = str(payload.get("tariffId") or (own["tariff_id"] if own else "free"))
+                tariff_id = str(payload.get("tariffId") or (own["tariff_id"] if own else (sibling["tariff_id"] if sibling else "free")))
                 if tariff_id not in ("free", "trial5k", "month10k"):
                     tariff_id = "free"
                 bumped_today = bool(own.get("bumped_today")) if own else False
-                verified = bool(own.get("verified", True)) if own else True
+                verified = bool(own.get("verified", False)) if own else (bool(sibling.get("verified", False)) if sibling else False)
+                inn_val = str(own.get("inn") or "") if own else (str(sibling.get("inn") or "") if sibling else "")
+                npd_ver = bool(own.get("npd_verified", False)) if own else (bool(sibling.get("npd_verified", False)) if sibling else False)
+                npd_at = own.get("npd_checked_at") if own else (sibling.get("npd_checked_at") if sibling else None)
+
+                is_published = (
+                    norm["published"]
+                    if norm["has_published"]
+                    else (bool(own.get("is_published", True)) if own else True)
+                )
+                min_fair = (
+                    norm["min_fair"]
+                    if norm["min_fair"] is not None
+                    else (int(own.get("min_fair_rub") or 0) if own else 0)
+                )
+                custom_badges = (
+                    norm["custom_badges"]
+                    if "customBadges" in payload
+                    else (clean_custom_badges(own.get("custom_badges_json")) if own else [])
+                )
 
                 row = conn.execute(
                     """
@@ -397,10 +477,13 @@ class PgMarketplaceMixin:
                         source_channel, tariff_id, whatsapp_phone, telegram_handle, max_handle,
                         has_photo, verified, bumped_today, rating, reviews_count,
                         photo_url, headline, bio, education, exp_years, avg_score,
-                        subjects_json, exams_json, formats_json, custom_skills, first_lesson_guarantee
+                        subjects_json, exams_json, formats_json, custom_skills, first_lesson_guarantee, slots_json,
+                        inn, npd_verified, npd_checked_at,
+                        is_published, custom_badges_json, min_fair_rub
                     ) VALUES (
                         %s, %s, %s, %s, %s, %s, %s, %s, 'platform', %s, %s, %s, %s,
-                        %s, %s, %s, 4.90, 12, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                        %s, %s, %s, 4.90, 12, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s, %s
                     )
                     ON CONFLICT (id) DO UPDATE SET
                         user_id = EXCLUDED.user_id,
@@ -425,18 +508,22 @@ class PgMarketplaceMixin:
                         exams_json = EXCLUDED.exams_json,
                         formats_json = EXCLUDED.formats_json,
                         custom_skills = EXCLUDED.custom_skills,
-                        first_lesson_guarantee = EXCLUDED.first_lesson_guarantee
+                        first_lesson_guarantee = EXCLUDED.first_lesson_guarantee,
+                        slots_json = EXCLUDED.slots_json,
+                        is_published = EXCLUDED.is_published,
+                        custom_badges_json = EXCLUDED.custom_badges_json,
+                        min_fair_rub = EXCLUDED.min_fair_rub
                     RETURNING *
                     """,
                     (
                         tid,
                         uid,
-                        full_name,
-                        subject_label,
-                        norm_city,
-                        norm_tz,
-                        base_rate,
-                        market_rate,
+                        norm["full_name"],
+                        norm["subject_label"],
+                        norm["norm_city"],
+                        norm["norm_tz"],
+                        norm["base_rate"],
+                        norm["market_rate"],
                         tariff_id,
                         str(payload.get("whatsapp") or "").strip()[:32],
                         str(payload.get("telegram") or "").strip()[:64],
@@ -450,16 +537,23 @@ class PgMarketplaceMixin:
                         str(payload.get("education") or "").strip()[:120],
                         max(1, min(60, int(payload.get("expYears") or 3))),
                         max(40, min(100, int(payload.get("avgScore") or 85))),
-                        Jsonb(clean_subjects),
-                        Jsonb(exams),
-                        Jsonb(formats),
+                        Jsonb(norm["clean_subjects"]),
+                        Jsonb(norm["exams"]),
+                        Jsonb(norm["formats"]),
                         str(payload.get("customSkills") or "").strip()[:240],
                         bool(payload.get("firstLessonGuarantee", True)),
+                        Jsonb(norm["clean_slots"]),
+                        inn_val,
+                        npd_ver,
+                        npd_at,
+                        is_published,
+                        Jsonb(custom_badges),
+                        min_fair,
                     ),
                 ).fetchone()
-                if clean_slots:
+                if norm["clean_slots"]:
                     conn.execute("DELETE FROM oltp.tutor_slots WHERE tutor_id = %s AND is_booked = FALSE", (tid,))
-                    for dow_str, hrs in clean_slots.items():
+                    for dow_str, hrs in norm["clean_slots"].items():
                         for h in hrs:
                             conn.execute(
                                 """
@@ -478,9 +572,225 @@ class PgMarketplaceMixin:
                     user_id=uid,
                     role="tutor",
                     view="cabinet",
-                    payload={"tutorId": tid, "city": norm_city, "price": base_rate},
+                    payload={"tutorId": tid, "city": norm["norm_city"], "price": norm["base_rate"], "published": is_published},
                 )
-                return {"tutor": self._pg_tutor_to_public_dict(row), "slots": clean_slots}
+                return {"tutor": self._pg_tutor_to_public_dict(row), "slots": norm["clean_slots"]}
+
+    def set_tutor_profile_published(
+        self,
+        user_id: int,
+        tutor_id: str,
+        published: bool,
+        *,
+        actor_role: str = "student",
+    ) -> dict[str, Any]:
+        uid = int(user_id)
+        tid = str(tutor_id or "").strip()[:64]
+        if not tid:
+            raise StorageError("not_found", "Профиль для поиска не найден.", 404)
+        pub_bool = bool(published)
+        with self._pool.connection() as conn:
+            with conn.transaction():
+                row = conn.execute("SELECT * FROM oltp.tutors WHERE id = %s FOR UPDATE", (tid,)).fetchone()
+                if not row:
+                    raise StorageError("not_found", "Профиль для поиска не найден.", 404)
+                if row.get("user_id") is not None and int(row["user_id"]) != uid and actor_role != "admin":
+                    raise StorageError("forbidden", "Нет прав на управление чужой анкетой.", 403)
+                updated = conn.execute(
+                    "UPDATE oltp.tutors SET is_published = %s, updated_at = NOW() WHERE id = %s RETURNING *",
+                    (pub_bool, tid),
+                ).fetchone()
+                self._insert_outbox(
+                    conn,
+                    topic="vektor.tutors.raw.v1",
+                    partition_key=tid,
+                    event_type="tutor.profile.visibility",
+                    user_id=uid,
+                    role="tutor",
+                    view="cabinet",
+                    payload={"tutorId": tid, "published": pub_bool},
+                )
+                return {"tutor": self._pg_tutor_to_public_dict(updated)}
+
+    def delete_tutor_profile(
+        self,
+        user_id: int,
+        tutor_id: str,
+        *,
+        actor_role: str = "student",
+    ) -> dict[str, Any]:
+        uid = int(user_id)
+        tid = str(tutor_id or "").strip()[:64]
+        if not tid:
+            raise StorageError("not_found", "Профиль для поиска не найден.", 404)
+        with self._pool.connection() as conn:
+            with conn.transaction():
+                row = conn.execute("SELECT * FROM oltp.tutors WHERE id = %s FOR UPDATE", (tid,)).fetchone()
+                if not row:
+                    raise StorageError("not_found", "Профиль для поиска не найден.", 404)
+                if row.get("user_id") is not None and int(row["user_id"]) != uid and actor_role != "admin":
+                    raise StorageError("forbidden", "Нет прав на удаление чужой анкеты.", 403)
+                has_deps = False
+                for tbl in (
+                    "oltp.lesson_requests",
+                    "oltp.escrow_holds",
+                    "oltp.payout_requests",
+                    "oltp.tutor_reviews",
+                    "oltp.npd_receipts",
+                ):
+                    cnt = conn.execute(f"SELECT COUNT(*) AS cnt FROM {tbl} WHERE tutor_id = %s", (tid,)).fetchone()
+                    if cnt and int(cnt["cnt"]) > 0:
+                        has_deps = True
+                        break
+                if has_deps:
+                    updated = conn.execute(
+                        "UPDATE oltp.tutors SET is_published = FALSE, updated_at = NOW() WHERE id = %s RETURNING *",
+                        (tid,),
+                    ).fetchone()
+                    self._insert_outbox(
+                        conn,
+                        topic="vektor.tutors.raw.v1",
+                        partition_key=tid,
+                        event_type="tutor.profile.archived",
+                        user_id=uid,
+                        role="tutor",
+                        view="cabinet",
+                        payload={"tutorId": tid},
+                    )
+                    return {
+                        "deleted": False,
+                        "archived": True,
+                        "tutorId": tid,
+                        "tutor": self._pg_tutor_to_public_dict(updated),
+                    }
+                conn.execute("DELETE FROM oltp.tutor_contact_overrides WHERE tutor_id = %s", (tid,))
+                conn.execute("DELETE FROM oltp.tutors WHERE id = %s", (tid,))
+                self._insert_outbox(
+                    conn,
+                    topic="vektor.tutors.raw.v1",
+                    partition_key=tid,
+                    event_type="tutor.profile.deleted",
+                    user_id=uid,
+                    role="tutor",
+                    view="cabinet",
+                    payload={"tutorId": tid},
+                )
+                return {"deleted": True, "archived": False, "tutorId": tid}
+
+    def update_tutor_account(self, user_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+        uid = int(user_id)
+        name_raw = str(payload.get("name") or payload.get("displayName") or "").strip()[:80]
+        clean_name = validate_display_name(name_raw)
+        if len(clean_name) < 2:
+            raise StorageError("invalid_name", "Укажите имя и фамилию преподавателя (минимум 2 символа).", 400)
+        norm_city, norm_tz = normalize_city_tz(payload.get("city"), payload.get("timezone"))
+        has_photo = payload.get("hasPhoto") is not False and bool(
+            str(payload.get("photo") or payload.get("photoUrl") or "").strip()
+        )
+        photo_url = (
+            str(payload.get("photo") or payload.get("photoUrl") or "").strip()[:220_000]
+            if has_photo
+            else ""
+        )
+        whatsapp = str(payload.get("whatsapp") or payload.get("whatsappPhone") or "").strip()[:32]
+        telegram = str(payload.get("telegram") or payload.get("telegramHandle") or "").strip()[:64]
+        max_handle = str(payload.get("maxHandle") or "").strip()[:64]
+        vk = str(payload.get("vk") or "").strip()[:120]
+        doc_patch = {
+            "name": clean_name,
+            "city": norm_city,
+            "timezone": norm_tz,
+            "photo": photo_url,
+            "hasPhoto": bool(has_photo),
+            "whatsapp": whatsapp,
+            "telegram": telegram,
+            "maxHandle": max_handle,
+            "vk": vk,
+        }
+        topic, role, view = _doc_outbox_meta("profile")
+        with self._pool.connection() as conn:
+            with conn.transaction():
+                u_row = conn.execute("SELECT * FROM oltp.users WHERE id = %s FOR UPDATE", (uid,)).fetchone()
+                if not u_row:
+                    raise StorageError("not_found", "Пользователь не найден.", 404)
+                d_row = conn.execute(
+                    "SELECT data FROM oltp.docs WHERE user_id = %s AND name = 'profile' FOR UPDATE",
+                    (uid,),
+                ).fetchone()
+                current_doc = d_row["data"] if d_row and isinstance(d_row.get("data"), dict) else {}
+                merged_doc = deep_merge(current_doc, doc_patch)
+                conn.execute(
+                    """
+                    INSERT INTO oltp.docs (user_id, name, data, updated_at)
+                    VALUES (%s, 'profile', %s, NOW())
+                    ON CONFLICT (user_id, name) DO UPDATE SET
+                        data = EXCLUDED.data,
+                        updated_at = NOW()
+                    """,
+                    (uid, Jsonb(merged_doc)),
+                )
+                u_updated = conn.execute(
+                    """
+                    UPDATE oltp.users
+                    SET display_name = %s,
+                        city = %s,
+                        avatar_url = %s,
+                        role = CASE WHEN role = 'student' THEN 'tutor' ELSE role END,
+                        updated_at = NOW()
+                    WHERE id = %s
+                    RETURNING id, username, display_name, email, avatar_url, auth_provider, role
+                    """,
+                    (clean_name, norm_city, photo_url or None, uid),
+                ).fetchone()
+                conn.execute(
+                    """
+                    UPDATE oltp.tutors
+                    SET full_name = %s,
+                        city = %s,
+                        timezone = %s,
+                        whatsapp_phone = %s,
+                        telegram_handle = %s,
+                        max_handle = %s,
+                        has_photo = %s,
+                        photo_url = %s,
+                        updated_at = NOW()
+                    WHERE user_id = %s
+                    """,
+                    (
+                        clean_name,
+                        norm_city,
+                        norm_tz,
+                        whatsapp,
+                        telegram,
+                        max_handle,
+                        bool(has_photo),
+                        photo_url,
+                        uid,
+                    ),
+                )
+                self._insert_outbox(
+                    conn,
+                    topic=topic,
+                    partition_key=str(uid),
+                    event_type="tutor.account.updated",
+                    user_id=uid,
+                    role="tutor",
+                    view="cabinet",
+                    payload={"city": norm_city},
+                )
+                t_rows = conn.execute(
+                    """
+                    SELECT * FROM oltp.tutors
+                    WHERE user_id = %s
+                    ORDER BY COALESCE(is_published, TRUE) DESC, updated_at DESC, id ASC
+                    """,
+                    (uid,),
+                ).fetchall()
+                return {
+                    "userObj": _row_to_user(u_updated),
+                    "account": merged_doc,
+                    "profiles": [self._pg_tutor_to_public_dict(r) for r in t_rows],
+                }
 
     def bump_tutor(self, user_id: int, *, actor_role: str = "student", tutor_id: str | None = None) -> dict[str, Any]:
         uid = int(user_id)
@@ -492,7 +802,10 @@ class PgMarketplaceMixin:
                     if row and row.get("user_id") is not None and int(row["user_id"]) != uid and actor_role != "admin":
                         raise StorageError("forbidden", "Нет прав на поднятие чужой анкеты.", 403)
                 if row is None:
-                    row = conn.execute("SELECT * FROM oltp.tutors WHERE user_id = %s LIMIT 1 FOR UPDATE", (uid,)).fetchone()
+                    row = conn.execute(
+                        "SELECT * FROM oltp.tutors WHERE user_id = %s ORDER BY COALESCE(is_published, TRUE) DESC, updated_at DESC, id ASC LIMIT 1 FOR UPDATE",
+                        (uid,),
+                    ).fetchone()
                 if not row:
                     raise StorageError("not_found", "Сначала сохраните анкету преподавателя.", 404)
                 last_dt = row.get("last_bumped_at")
@@ -533,6 +846,7 @@ class PgMarketplaceMixin:
         raw_status = str(r.get("status") or "offered")
         eff_price = int(r.get("final_price_rub") or r.get("counter_price_rub") or r.get("offer_price_rub") or 0)
         fee, payout = calc_fee_split(eff_price)
+        sbp_fee = calc_sbp_fee(eff_price)
         sd = r.get("slot_date")
         slot_date = sd.isoformat()[:10] if hasattr(sd, "isoformat") else str(sd or "")[:10]
         dows = sort_dows(r.get("dows") if isinstance(r.get("dows"), list) else [])
@@ -563,6 +877,7 @@ class PgMarketplaceMixin:
             "reserved": int(r.get("reserved_rub") or 0),
             "firstLessonGuarantee": bool(r.get("first_lesson_guarantee", True)),
             "fee": fee,
+            "sbpFee": sbp_fee,
             "payout": payout,
             "note": str(r.get("note") or ""),
             "telemostUrl": str(r.get("telemost_url") or ""),
@@ -687,7 +1002,7 @@ class PgMarketplaceMixin:
                 tutor_row = self._pg_ensure_tutor_exists(
                     conn,
                     tutor_id,
-                    tutor_name=str(payload.get("tutorName") or "Преподаватель Вектор ЕГЭ"),
+                    tutor_name=str(payload.get("tutorName") or "Преподаватель Вектор"),
                     subject=str(payload.get("subjectName") or payload.get("subject") or "Подготовка"),
                     city=payload.get("city") or (u_row.get("city") if u_row else None),
                     timezone_str=payload.get("timezone"),
@@ -888,6 +1203,7 @@ class PgMarketplaceMixin:
         actor_role: str,
         action: str,
         counter_price_rub: int | None = None,
+        allow_student_demo_accept: bool = True,
     ) -> dict[str, Any]:
         act = (action or "").strip().lower()
         if act not in ("accept", "counter", "cancel", "decline", "complete"):
@@ -906,7 +1222,7 @@ class PgMarketplaceMixin:
                 tutor_owned = row.get("tutor_owner_uid") is not None
                 if act in ("counter", "decline") and tutor_owned and not (is_tutor or is_admin):
                     raise StorageError("forbidden", "Только преподаватель может изменить или отклонить ставку.", 403)
-                if act == "accept" and tutor_owned and cur_norm == "pending" and not (is_tutor or is_admin):
+                if act == "accept" and cur_norm == "pending" and (tutor_owned or not allow_student_demo_accept) and not (is_tutor or is_admin):
                     raise StorageError("forbidden", "Подтвердить новую ставку должен преподаватель.", 403)
 
                 student_uid = int(row["student_user_id"]) if row.get("student_user_id") is not None else None
@@ -1164,12 +1480,12 @@ class PgMarketplaceMixin:
         clean_url = validate_telemost_url(telemost_url)
         with self._pool.connection() as conn:
             with conn.transaction():
-                row, _, _ = self._pg_load_authorized_booking(
+                row, is_student, _ = self._pg_load_authorized_booking(
                     conn, booking_id, actor_user_id=actor_user_id, actor_role=actor_role
                 )
                 bid = str(row["id"])
                 stu_id = row.get("student_user_id")
-                if clean_url and stu_id is not None:
+                if is_student and clean_url and stu_id is not None:
                     conn.execute(
                         "UPDATE oltp.lesson_requests SET telemost_url = %s, updated_at = NOW() WHERE student_user_id = %s OR id = %s",
                         (clean_url, int(stu_id), bid),
@@ -1372,60 +1688,109 @@ class PgMarketplaceMixin:
         self, conn: psycopg.Connection[Any], user_id: int, tutor_id: str | None = None
     ) -> dict[str, Any]:
         uid = int(user_id)
+        all_rows = conn.execute(
+            """
+            SELECT * FROM oltp.tutors
+            WHERE user_id = %s
+            ORDER BY COALESCE(is_published, TRUE) DESC, updated_at DESC, id ASC
+            """,
+            (uid,),
+        ).fetchall()
         row = None
         if tutor_id:
             row = conn.execute("SELECT * FROM oltp.tutors WHERE id = %s", (tutor_id.strip(),)).fetchone()
-        if row is None:
-            row = conn.execute("SELECT * FROM oltp.tutors WHERE user_id = %s LIMIT 1", (uid,)).fetchone()
+        if row is None and all_rows:
+            row = all_rows[0]
         if not row:
             return {
                 "tutorId": None,
+                "tutor": None,
+                "profiles": [],
+                "tutorInn": "",
+                "npdVerified": False,
                 "earnedNetRub": 0,
+                "earned30dNetRub": 0,
                 "frozenNetRub": 0,
                 "withdrawnRub": 0,
                 "availableRub": 0,
+                "completedLessonsCount": 0,
+                "completedLessons30dCount": 0,
                 "minPayoutRub": 500,
                 "payouts": [],
             }
         tid = str(row["id"])
+        target_ids = [tid] if tutor_id else ([str(r["id"]) for r in all_rows] if all_rows else [tid])
+        profiles_list = (
+            [self._pg_tutor_to_public_dict(r) for r in all_rows]
+            if all_rows
+            else [self._pg_tutor_to_public_dict(row)]
+        )
+        eff_inn = str(row.get("inn") or "")
+        if not eff_inn:
+            for r_own in all_rows:
+                if str(r_own.get("inn") or "").strip():
+                    eff_inn = str(r_own.get("inn") or "").strip()
+                    break
+        eff_npd_ver = bool(row.get("npd_verified")) or any(bool(r_own.get("npd_verified")) for r_own in all_rows)
         agg = conn.execute(
             """
             SELECT
                 COALESCE(SUM(tutor_payout_rub) FILTER (WHERE status = 'captured'), 0) AS earned_net,
+                COALESCE(SUM(tutor_payout_rub) FILTER (WHERE status = 'captured' AND COALESCE(settled_at, created_at) >= NOW() - INTERVAL '30 days'), 0) AS earned_30d_net,
                 COALESCE(SUM(tutor_payout_rub) FILTER (WHERE status = 'frozen'), 0) AS frozen_net
             FROM oltp.escrow_holds
-            WHERE tutor_id = %s
+            WHERE tutor_id = ANY(%s)
             """,
-            (tid,),
+            (target_ids,),
+        ).fetchone()
+        les_agg = conn.execute(
+            """
+            SELECT
+                COUNT(*) FILTER (WHERE status = 'completed') AS completed_total,
+                COUNT(*) FILTER (WHERE status = 'completed' AND COALESCE(updated_at, created_at) >= NOW() - INTERVAL '30 days') AS completed_30d
+            FROM oltp.lesson_requests
+            WHERE tutor_id = ANY(%s)
+            """,
+            (target_ids,),
         ).fetchone()
         wd = conn.execute(
             """
             SELECT COALESCE(SUM(amount_rub), 0) AS withdrawn
             FROM oltp.payout_requests
-            WHERE tutor_id = %s AND status <> 'failed'
+            WHERE tutor_id = ANY(%s) AND status NOT IN ('failed', 'rejected')
             """,
-            (tid,),
+            (target_ids,),
         ).fetchone()
         p_rows = conn.execute(
             """
             SELECT p.*, COALESCE(t.full_name, '') AS tutor_name
             FROM oltp.payout_requests p
             LEFT JOIN oltp.tutors t ON t.id = p.tutor_id
-            WHERE p.tutor_id = %s
+            WHERE p.tutor_id = ANY(%s)
             ORDER BY p.created_at DESC, p.id DESC
             LIMIT 30
             """,
-            (tid,),
+            (target_ids,),
         ).fetchall()
         earned = int(agg["earned_net"]) if agg else 0
+        earned_30d = int(agg["earned_30d_net"]) if agg else 0
         frozen = int(agg["frozen_net"]) if agg else 0
         withdrawn = int(wd["withdrawn"]) if wd else 0
+        completed_total = int(les_agg["completed_total"]) if les_agg else 0
+        completed_30d = int(les_agg["completed_30d"]) if les_agg else 0
         return {
             "tutorId": tid,
+            "tutor": self._pg_tutor_to_public_dict(row),
+            "profiles": profiles_list,
+            "tutorInn": eff_inn,
+            "npdVerified": eff_npd_ver,
             "earnedNetRub": earned,
+            "earned30dNetRub": earned_30d,
             "frozenNetRub": frozen,
             "withdrawnRub": withdrawn,
             "availableRub": max(0, earned - withdrawn),
+            "completedLessonsCount": completed_total,
+            "completedLessons30dCount": completed_30d,
             "minPayoutRub": 500,
             "payouts": [self._admin_payout_row_to_dict(r) for r in p_rows],
         }
@@ -1454,25 +1819,73 @@ class PgMarketplaceMixin:
         if method == "card" and len(digits) < 12:
             raise StorageError("invalid_destination", "Укажите корректный номер карты.", 400)
         bank = str(payload.get("bank") or ("Карта РФ (Мир)" if method == "card" else "СБП")).strip()[:48]
+        sbp_bank_id = str(payload.get("sbpBankId") or "").strip()[:32]
+        sbp_phone = str(payload.get("sbpPhone") or "").strip()[:32]
+        payout_token = str(payload.get("payoutToken") or "").strip()[:255]
+        tutor_inn = str(payload.get("tutorInn") or "").strip()[:16]
+        provider = str(payload.get("provider") or "manual").strip()[:32] or "manual"
+        idempotency_key = str(payload.get("idempotencyKey") or f"pout-{uuid.uuid4().hex[:16]}").strip()[:64]
+        antifraud_hold = bool(payload.get("antifraudHold"))
+        antifraud_reason = str(payload.get("antifraudReason") or "").strip()[:200]
+        npd_mode = str(payload.get("npdMode") or "demo").strip().lower()
         masked = mask_payout_destination(method, dest_raw)
         npd_flag = payload.get("npdReceipt", True) is not False
-        npd_receipt = f"NPD-{_utc_now().year}-{secrets.token_hex(4).upper()}" if npd_flag else None
+        explicit_code = str(payload.get("npdReceiptCode") or "").strip()[:80]
+        if not npd_flag:
+            npd_receipt = None
+            npd_status = "none"
+        elif npd_mode == "live":
+            npd_receipt = None
+            npd_status = "pending"
+        else:
+            npd_receipt = explicit_code or f"NPD-{_utc_now().year}-{secrets.token_hex(4).upper()}"
+            npd_status = "demo"
         pid = str(payout_id or f"pay-{secrets.token_hex(6)}").strip()[:64]
         req_tid = str(payload.get("tutorId") or "").strip() or None
 
         with self._pool.connection() as conn:
             with conn.transaction():
+                existing_idem = conn.execute(
+                    """
+                    SELECT p.*, COALESCE(t.full_name, '') AS tutor_name
+                    FROM oltp.payout_requests p
+                    LEFT JOIN oltp.tutors t ON t.id = p.tutor_id
+                    WHERE p.idempotency_key = %s
+                    """,
+                    (idempotency_key,),
+                ).fetchone()
+                if existing_idem:
+                    tid_existing = str(existing_idem["tutor_id"])
+                    return {
+                        "payout": self._admin_payout_row_to_dict(existing_idem),
+                        "summary": self._pg_tutor_summary_on_conn(conn, uid, tutor_id=tid_existing),
+                    }
+
                 row = None
                 if req_tid:
                     row = conn.execute("SELECT * FROM oltp.tutors WHERE id = %s FOR UPDATE", (req_tid,)).fetchone()
                     if row and row.get("user_id") is not None and int(row["user_id"]) != uid and actor_role != "admin":
                         raise StorageError("forbidden", "Нет прав на вывод средств чужой анкеты.", 403)
                 if row is None:
-                    row = conn.execute("SELECT * FROM oltp.tutors WHERE user_id = %s LIMIT 1 FOR UPDATE", (uid,)).fetchone()
+                    row = conn.execute(
+                        """
+                        SELECT * FROM oltp.tutors t
+                        WHERE t.user_id = %s
+                        ORDER BY
+                            EXISTS(SELECT 1 FROM oltp.lesson_requests lr WHERE lr.tutor_id = t.id) DESC,
+                            COALESCE(t.is_published, TRUE) DESC,
+                            t.updated_at DESC,
+                            t.id ASC
+                        LIMIT 1 FOR UPDATE OF t
+                        """,
+                        (uid,),
+                    ).fetchone()
                 if not row:
                     raise StorageError("not_found", "Анкета преподавателя не найдена.", 404)
                 tid = str(row["id"])
-                summary = self._pg_tutor_summary_on_conn(conn, uid, tutor_id=tid)
+                eff_inn = tutor_inn or str(row.get("inn") or "").strip()[:16]
+                sum_tid = None if (row.get("user_id") is not None and int(row["user_id"]) == uid) else tid
+                summary = self._pg_tutor_summary_on_conn(conn, uid, tutor_id=sum_tid)
                 if summary["availableRub"] < amount:
                     raise StorageError(
                         "insufficient_payout_balance",
@@ -1482,11 +1895,52 @@ class PgMarketplaceMixin:
                 conn.execute(
                     """
                     INSERT INTO oltp.payout_requests (
-                        id, tutor_id, method, amount_rub, npd_receipt, bank, destination_masked, status
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, 'processing')
+                        id, tutor_id, method, amount_rub, npd_receipt, bank, destination_masked, status,
+                        idempotency_key, provider, sbp_bank_id, sbp_phone, payout_token,
+                        tutor_inn, antifraud_hold, antifraud_reason, npd_requested, npd_status
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, 'processing', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
-                    (pid, tid, method, amount, npd_receipt, bank, masked),
+                    (
+                        pid,
+                        tid,
+                        method,
+                        amount,
+                        npd_receipt,
+                        bank,
+                        masked,
+                        idempotency_key,
+                        provider,
+                        sbp_bank_id,
+                        sbp_phone,
+                        payout_token,
+                        eff_inn,
+                        antifraud_hold,
+                        antifraud_reason,
+                        npd_flag,
+                        npd_status,
+                    ),
                 )
+                if npd_flag and npd_status == "demo" and npd_receipt:
+                    rid = f"npd-{uuid.uuid4().hex[:12]}"
+                    conn.execute(
+                        """
+                        INSERT INTO oltp.npd_receipts (
+                            id, payout_id, tutor_id, tutor_inn, provider,
+                            receipt_uuid, receipt_url, receipt_json_url, service_name,
+                            amount_rub, status, error_message
+                        ) VALUES (%s, %s, %s, %s, 'demo', %s, '', '', %s, %s, 'demo', '')
+                        ON CONFLICT (payout_id) DO NOTHING
+                        """,
+                        (
+                            rid,
+                            pid,
+                            tid,
+                            eff_inn,
+                            npd_receipt,
+                            "Услуги репетитора «Вектор»",
+                            amount,
+                        ),
+                    )
                 self._insert_outbox(
                     conn,
                     topic="vektor.payments.ledger.v1",
@@ -1495,7 +1949,14 @@ class PgMarketplaceMixin:
                     user_id=uid,
                     role="tutor",
                     view="fees",
-                    payload={"payoutId": pid, "tutorId": tid, "amountRub": amount, "method": method},
+                    payload={
+                        "payoutId": pid,
+                        "tutorId": tid,
+                        "amountRub": amount,
+                        "method": method,
+                        "provider": provider,
+                        "antifraudHold": antifraud_hold,
+                    },
                 )
                 p_row = conn.execute(
                     """
@@ -1508,5 +1969,735 @@ class PgMarketplaceMixin:
                 ).fetchone()
                 return {
                     "payout": self._admin_payout_row_to_dict(p_row),
-                    "summary": self._pg_tutor_summary_on_conn(conn, uid, tutor_id=tid),
+                    "summary": self._pg_tutor_summary_on_conn(conn, uid, tutor_id=sum_tid),
                 }
+
+    @staticmethod
+    def _direction_row_to_dict(row: dict[str, Any]) -> dict[str, Any]:
+        kw_raw = row.get("keywords")
+        if isinstance(kw_raw, str):
+            try:
+                kw_raw = json.loads(kw_raw)
+            except Exception:
+                kw_raw = []
+        keywords = [str(k) for k in (kw_raw or []) if str(k).strip()] if isinstance(kw_raw, list) else []
+        return {
+            "id": str(row["id"]),
+            "name": str(row["name"]),
+            "short": str(row["short"]),
+            "category": str(row.get("category") or "Добавлено оркестратором"),
+            "isExam": bool(row.get("is_exam")),
+            "source": str(row.get("source") or "orchestrator"),
+            "keywords": keywords,
+            "demandCount": int(row.get("demand_count") or 1),
+            "tutorCount": int(row.get("tutor_count") or 0),
+            "autoAdded": True,
+            "addedAt": _iso_utc(row.get("created_at")),
+        }
+
+    def list_market_directions(self, *, limit: int = 200) -> list[dict[str, Any]]:
+        lim = max(1, min(500, int(limit or 200)))
+        with self._pool.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM oltp.market_directions
+                ORDER BY demand_count DESC, updated_at DESC, id ASC
+                LIMIT %s
+                """,
+                (lim,),
+            ).fetchall()
+        return [self._direction_row_to_dict(r) for r in rows]
+
+    def upsert_market_direction(
+        self,
+        payload: dict[str, Any],
+        *,
+        direction_id: str | None = None,
+    ) -> dict[str, Any]:
+        norm = normalize_direction_payload(payload)
+        if direction_id:
+            norm["id"] = str(direction_id).strip()[:36]
+        with self._pool.connection() as conn:
+            with conn.transaction():
+                existing = conn.execute(
+                    """
+                    SELECT * FROM oltp.market_directions
+                    WHERE id = %s OR LOWER(short) = LOWER(%s) OR LOWER(name) = LOWER(%s)
+                    LIMIT 1
+                    FOR UPDATE
+                    """,
+                    (norm["id"], norm["short"], norm["name"]),
+                ).fetchone()
+                if existing is not None:
+                    eid = str(existing["id"])
+                    prev_kw = existing.get("keywords") or []
+                    if isinstance(prev_kw, str):
+                        try:
+                            prev_kw = json.loads(prev_kw)
+                        except Exception:
+                            prev_kw = []
+                    merged_kw = list(dict.fromkeys([*(str(k) for k in prev_kw if str(k).strip()), *norm["keywords"]]))[:12]
+                    next_demand = int(existing.get("demand_count") or 1) + 1
+                    next_tutor_count = max(int(existing.get("tutor_count") or 0), norm["tutor_count"])
+                    next_source = "orchestrator" if norm["source"] == "orchestrator" else str(existing.get("source") or "orchestrator")
+                    updated = conn.execute(
+                        """
+                        UPDATE oltp.market_directions
+                        SET keywords = %s, demand_count = %s, tutor_count = %s, source = %s, updated_at = NOW()
+                        WHERE id = %s
+                        RETURNING *
+                        """,
+                        (Jsonb(merged_kw), next_demand, next_tutor_count, next_source, eid),
+                    ).fetchone()
+                    return {"direction": self._direction_row_to_dict(updated), "created": False}
+
+                created_row = conn.execute(
+                    """
+                    INSERT INTO oltp.market_directions (
+                        id, name, short, category, is_exam, source, keywords, demand_count, tutor_count
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, 1, %s)
+                    RETURNING *
+                    """,
+                    (
+                        norm["id"],
+                        norm["name"],
+                        norm["short"],
+                        norm["category"],
+                        norm["is_exam"],
+                        norm["source"],
+                        Jsonb(norm["keywords"]),
+                        norm["tutor_count"],
+                    ),
+                ).fetchone()
+                return {"direction": self._direction_row_to_dict(created_row), "created": True}
+
+    @staticmethod
+    def _review_row_to_dict(row: dict[str, Any]) -> dict[str, Any]:
+        tags_raw = row.get("tags")
+        if isinstance(tags_raw, str):
+            try:
+                tags_raw = json.loads(tags_raw)
+            except Exception:
+                tags_raw = []
+        tags = [str(t) for t in (tags_raw or []) if str(t).strip()] if isinstance(tags_raw, list) else []
+        return {
+            "id": str(row["id"]),
+            "tutorId": str(row["tutor_id"]),
+            "bookingId": row.get("booking_id"),
+            "studentUserId": int(row["student_user_id"]) if row.get("student_user_id") is not None else None,
+            "studentName": str(row.get("student_name") or "Ученик"),
+            "rating": int(row["rating"]),
+            "comment": str(row.get("comment") or ""),
+            "tags": tags,
+            "verifiedLesson": bool(row.get("verified_lesson")),
+            "createdAt": _iso_utc(row.get("created_at")),
+        }
+
+    def _pg_tutor_review_agg(self, conn: psycopg.Connection[Any], tutor_id: str) -> tuple[float, int]:
+        agg = conn.execute(
+            "SELECT COUNT(*) AS cnt, AVG(rating) AS avg_r FROM oltp.tutor_reviews WHERE tutor_id = %s",
+            (tutor_id,),
+        ).fetchone()
+        cnt = int(agg["cnt"] or 0) if agg else 0
+        if cnt > 0 and agg and agg.get("avg_r") is not None:
+            return round(float(agg["avg_r"]), 1), cnt
+        t_row = conn.execute("SELECT rating, reviews_count FROM oltp.tutors WHERE id = %s", (tutor_id,)).fetchone()
+        if t_row:
+            return round(float(t_row["rating"] or 4.9), 1), int(t_row["reviews_count"] or 0)
+        return 5.0, 0
+
+    def list_tutor_reviews(self, tutor_id: str, *, limit: int = 50) -> dict[str, Any]:
+        tid = clean_direction_label(tutor_id, max_len=64)
+        if not tid:
+            raise StorageError("invalid_tutor", "Не указан преподаватель.", 400)
+        lim = max(1, min(200, int(limit or 50)))
+        with self._pool.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM oltp.tutor_reviews
+                WHERE tutor_id = %s
+                ORDER BY created_at DESC, id DESC
+                LIMIT %s
+                """,
+                (tid, lim),
+            ).fetchall()
+            rating, cnt = self._pg_tutor_review_agg(conn, tid)
+        return {
+            "tutorId": tid,
+            "rating": rating,
+            "reviewsCount": cnt,
+            "reviews": [self._review_row_to_dict(r) for r in rows],
+        }
+
+    def list_tutor_review_summaries(self) -> dict[str, dict[str, Any]]:
+        with self._pool.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT tutor_id, COUNT(*) AS cnt, ROUND(AVG(rating)::numeric, 1) AS avg_r
+                FROM oltp.tutor_reviews
+                GROUP BY tutor_id
+                """
+            ).fetchall()
+        return {
+            str(r["tutor_id"]): {
+                "rating": round(float(r["avg_r"] or 5.0), 1),
+                "reviewsCount": int(r["cnt"] or 0),
+            }
+            for r in rows
+            if int(r["cnt"] or 0) > 0
+        }
+
+    def create_tutor_review(
+        self,
+        student_user_id: int | None,
+        tutor_id: str,
+        payload: dict[str, Any],
+        *,
+        review_id: str | None = None,
+    ) -> dict[str, Any]:
+        tid = clean_direction_label(tutor_id, max_len=64)
+        if not tid:
+            raise StorageError("invalid_tutor", "Не указан преподаватель.", 400)
+        norm = normalize_review_payload(payload)
+        rid = str(review_id or f"rev-{secrets.token_hex(6)}").strip()[:64]
+        uid = int(student_user_id) if student_user_id is not None else None
+        bid = norm["booking_id"]
+
+        with self._pool.connection() as conn:
+            with conn.transaction():
+                if bid:
+                    dup = conn.execute("SELECT id FROM oltp.tutor_reviews WHERE booking_id = %s", (bid,)).fetchone()
+                    if dup is not None:
+                        raise StorageError("review_exists", "Отзыв по этому занятию уже оставлен.", 409)
+                    bk = conn.execute("SELECT * FROM oltp.lesson_requests WHERE id = %s", (bid,)).fetchone()
+                    if bk is not None:
+                        if str(bk["tutor_id"]) != tid:
+                            raise StorageError("invalid_booking", "Заявка относится к другому преподавателю.", 400)
+                        if uid is not None and bk.get("student_user_id") is not None and int(bk["student_user_id"]) != uid:
+                            raise StorageError("forbidden", "Нет прав на оценку чужого занятия.", 403)
+                        if not norm["student_name"]:
+                            norm["student_name"] = str(bk.get("student_name") or "")
+                if not norm["student_name"] and uid is not None:
+                    u_row = conn.execute("SELECT display_name, username FROM oltp.users WHERE id = %s", (uid,)).fetchone()
+                    if u_row:
+                        norm["student_name"] = str(u_row.get("display_name") or u_row["username"] or "Ученик")[:64]
+                if not norm["student_name"]:
+                    norm["student_name"] = "Ученик"
+
+                row = conn.execute(
+                    """
+                    INSERT INTO oltp.tutor_reviews (
+                        id, tutor_id, booking_id, student_user_id, student_name,
+                        rating, comment, tags, verified_lesson
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING *
+                    """,
+                    (
+                        rid,
+                        tid,
+                        bid,
+                        uid,
+                        norm["student_name"],
+                        norm["rating"],
+                        norm["comment"],
+                        Jsonb(norm["tags"]),
+                        bool(bid),
+                    ),
+                ).fetchone()
+                rating, cnt = self._pg_tutor_review_agg(conn, tid)
+                conn.execute(
+                    "UPDATE oltp.tutors SET rating = %s, reviews_count = %s, updated_at = NOW() WHERE id = %s",
+                    (rating, cnt, tid),
+                )
+                self._insert_outbox(
+                    conn,
+                    topic="vektor.market.bids.v1",
+                    partition_key=tid,
+                    event_type="market.review.created",
+                    user_id=uid,
+                    role="student",
+                    view="market",
+                    payload={"reviewId": rid, "tutorId": tid, "bookingId": bid, "rating": norm["rating"], "reviewsCount": cnt},
+                )
+                return {
+                    "review": self._review_row_to_dict(row),
+                    "rating": rating,
+                    "reviewsCount": cnt,
+                }
+
+    @staticmethod
+    def _dispute_row_to_dict(row: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "id": str(row["id"]),
+            "bookingId": str(row["booking_id"]),
+            "tutorId": str(row["tutor_id"]),
+            "tutorName": str(row.get("tutor_name") or row["tutor_id"]),
+            "studentUserId": int(row["student_user_id"]) if row.get("student_user_id") is not None else None,
+            "studentName": str(row.get("student_name") or "Ученик"),
+            "reason": str(row.get("reason") or "first_lesson_guarantee"),
+            "comment": str(row.get("comment") or ""),
+            "amountRub": int(row.get("amount_rub") or 0),
+            "firstLessonGuarantee": bool(row.get("first_lesson_guarantee")),
+            "status": str(row.get("status") or "open"),
+            "resolutionNote": str(row.get("resolution_note") or ""),
+            "createdAt": _iso_utc(row.get("created_at")),
+            "resolvedAt": _iso_utc(row.get("resolved_at")) if row.get("resolved_at") else None,
+        }
+
+    def list_disputes(
+        self,
+        *,
+        student_user_id: int | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        lim = max(1, min(500, int(limit or 100)))
+        with self._pool.connection() as conn:
+            if student_user_id is not None:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM oltp.lesson_disputes
+                    WHERE student_user_id = %s
+                    ORDER BY CASE WHEN status = 'open' THEN 0 ELSE 1 END, created_at DESC, id DESC
+                    LIMIT %s
+                    """,
+                    (int(student_user_id), lim),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM oltp.lesson_disputes
+                    ORDER BY CASE WHEN status = 'open' THEN 0 ELSE 1 END, created_at DESC, id DESC
+                    LIMIT %s
+                    """,
+                    (lim,),
+                ).fetchall()
+        return [self._dispute_row_to_dict(r) for r in rows]
+
+    def open_dispute(
+        self,
+        actor_user_id: int,
+        booking_id: str,
+        payload: dict[str, Any],
+        *,
+        actor_role: str = "student",
+        dispute_id: str | None = None,
+    ) -> dict[str, Any]:
+        uid = int(actor_user_id)
+        bid = clean_direction_label(booking_id, max_len=64)
+        if not bid:
+            raise StorageError("invalid_booking", "Не указана заявка.", 400)
+        norm = normalize_dispute_payload(payload)
+        did = str(dispute_id or f"dsp-{secrets.token_hex(6)}").strip()[:64]
+
+        with self._pool.connection() as conn:
+            with conn.transaction():
+                row = conn.execute(
+                    """
+                    SELECT lr.*, COALESCE(t.full_name, '') AS tutor_name
+                    FROM oltp.lesson_requests lr
+                    LEFT JOIN oltp.tutors t ON t.id = lr.tutor_id
+                    WHERE lr.id = %s
+                    FOR UPDATE OF lr
+                    """,
+                    (bid,),
+                ).fetchone()
+                if not row:
+                    raise StorageError("not_found", "Заявка не найдена.", 404)
+                is_owner = row.get("student_user_id") is not None and int(row["student_user_id"]) == uid
+                if not is_owner and actor_role != "admin":
+                    raise StorageError("forbidden", "Нет прав на открытие спора по этой заявке.", 403)
+                cur_status = _PG_TO_MKT_STATUS.get(str(row["status"]), str(row["status"]))
+                if cur_status not in ("accepted", "completed"):
+                    raise StorageError("invalid_transition", "Спор можно открыть только по подтверждённому или проведённому занятию.", 409)
+                existing = conn.execute("SELECT id FROM oltp.lesson_disputes WHERE booking_id = %s", (bid,)).fetchone()
+                if existing is not None:
+                    raise StorageError("dispute_exists", "Спор по этому занятию уже открыт.", 409)
+
+                amount = int(row.get("final_price_rub") or row.get("counter_price_rub") or row.get("offer_price_rub") or row.get("reserved_rub") or 0)
+                student_uid = int(row["student_user_id"]) if row.get("student_user_id") is not None else uid
+                d_row = conn.execute(
+                    """
+                    INSERT INTO oltp.lesson_disputes (
+                        id, booking_id, tutor_id, tutor_name, student_user_id, student_name,
+                        reason, comment, amount_rub, first_lesson_guarantee, status, resolution_note
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'open', '')
+                    RETURNING *
+                    """,
+                    (
+                        did,
+                        bid,
+                        str(row["tutor_id"]),
+                        str(row.get("tutor_name") or row["tutor_id"]),
+                        student_uid,
+                        str(row.get("student_name") or "Ученик"),
+                        norm["reason"],
+                        norm["comment"],
+                        amount,
+                        bool(row.get("first_lesson_guarantee", True) and norm["first_lesson_guarantee"]),
+                    ),
+                ).fetchone()
+                self._insert_outbox(
+                    conn,
+                    topic="vektor.payments.ledger.v1",
+                    partition_key=did,
+                    event_type="market.dispute.opened",
+                    user_id=student_uid,
+                    role="student",
+                    view="study",
+                    payload={"disputeId": did, "bookingId": bid, "tutorId": str(row["tutor_id"]), "reason": norm["reason"], "amountRub": amount},
+                )
+                return {"dispute": self._dispute_row_to_dict(d_row)}
+
+    def resolve_dispute(
+        self,
+        dispute_id: str,
+        action: str,
+        *,
+        resolution_note: str = "",
+    ) -> dict[str, Any]:
+        did = clean_direction_label(dispute_id, max_len=64)
+        act = str(action or "").strip().lower()
+        if act not in ("refund", "reject"):
+            raise StorageError("invalid_action", "Допустимые решения: refund или reject.", 400)
+        note = clean_direction_label(resolution_note or "", max_len=300)
+
+        with self._pool.connection() as conn:
+            with conn.transaction():
+                d_row = conn.execute("SELECT * FROM oltp.lesson_disputes WHERE id = %s FOR UPDATE", (did,)).fetchone()
+                if not d_row:
+                    raise StorageError("not_found", "Спор не найден.", 404)
+                if str(d_row["status"]) != "open":
+                    raise StorageError("dispute_closed", "Спор уже закрыт.", 409)
+
+                bid = str(d_row["booking_id"])
+                amount = max(0, int(d_row.get("amount_rub") or 0))
+                student_uid = int(d_row["student_user_id"]) if d_row.get("student_user_id") is not None else None
+                refunded_rub = 0
+                wallet_snap = None
+
+                if act == "refund":
+                    next_status = "refunded"
+                    refunded_rub = amount
+                    if student_uid is not None and refunded_rub > 0:
+                        snap = self._pg_wallet_snapshot(conn, student_uid)
+                        new_bal = int(snap["balanceRub"]) + refunded_rub
+                        conn.execute(
+                            "UPDATE oltp.wallets SET balance_rub = %s, updated_at = NOW() WHERE user_id = %s",
+                            (new_bal, student_uid),
+                        )
+                        conn.execute(
+                            """
+                            INSERT INTO oltp.wallet_ledger (
+                                user_id, kind, amount_rub, balance_after_rub, fee_rub, method, ref_type, ref_id, note
+                            ) VALUES (%s, 'dispute_refund', %s, %s, 0, 'escrow', 'dispute', %s, %s)
+                            """,
+                            (student_uid, refunded_rub, new_bal, did, f"Возврат по спору {did} (гарантия 1-го урока)"),
+                        )
+                        wallet_snap = self._pg_wallet_snapshot(conn, student_uid)
+                    conn.execute(
+                        "UPDATE oltp.escrow_holds SET status = 'refunded', settled_at = NOW() WHERE request_id = %s",
+                        (bid,),
+                    )
+                    conn.execute(
+                        "UPDATE oltp.lesson_requests SET status = 'cancelled', reserved_rub = 0, updated_at = NOW() WHERE id = %s",
+                        (bid,),
+                    )
+                else:
+                    next_status = "rejected"
+
+                updated = conn.execute(
+                    """
+                    UPDATE oltp.lesson_disputes
+                    SET status = %s, resolution_note = %s, resolved_at = NOW()
+                    WHERE id = %s
+                    RETURNING *
+                    """,
+                    (next_status, note, did),
+                ).fetchone()
+                self._insert_outbox(
+                    conn,
+                    topic="vektor.payments.ledger.v1",
+                    partition_key=did,
+                    event_type=f"payments.dispute.{next_status}",
+                    user_id=student_uid,
+                    role="admin",
+                    view="admin",
+                    payload={"disputeId": did, "bookingId": bid, "refundedRub": refunded_rub},
+                )
+                out: dict[str, Any] = {
+                    "dispute": self._dispute_row_to_dict(updated),
+                    "refundedRub": refunded_rub,
+                }
+                if wallet_snap is not None:
+                    out["wallet"] = wallet_snap
+                return out
+
+    # ---------- Фоновый планировщик: эскроу и напоминания ----------
+
+    def list_scheduler_bookings(
+        self,
+        *,
+        statuses: tuple[str, ...] = ("pending", "countered", "accepted"),
+        limit: int = 500,
+    ) -> list[dict[str, Any]]:
+        norm: list[str] = []
+        for s in statuses:
+            val = str(s or "").strip().lower()
+            if val == "pending":
+                norm.extend(("offered", "pending"))
+            elif val:
+                norm.append(val)
+        unique_statuses = list(dict.fromkeys(norm))
+        if not unique_statuses:
+            return []
+        lim = max(1, min(int(limit or 500), 2000))
+        with self._pool.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT lr.*,
+                       COALESCE(t.full_name, '') AS tutor_name,
+                       COALESCE(eh.status, 'none') AS escrow_status,
+                       EXISTS (
+                           SELECT 1 FROM oltp.lesson_disputes d
+                           WHERE d.booking_id = lr.id AND d.status IN ('open', 'refunded')
+                       ) AS has_blocking_dispute
+                FROM oltp.lesson_requests lr
+                LEFT JOIN oltp.tutors t ON t.id = lr.tutor_id
+                LEFT JOIN LATERAL (
+                    SELECT status FROM oltp.escrow_holds WHERE request_id = lr.id ORDER BY created_at DESC LIMIT 1
+                ) eh ON TRUE
+                WHERE lr.status = ANY(%s)
+                ORDER BY lr.slot_date ASC, lr.hour_slot ASC, lr.created_at ASC
+                LIMIT %s
+                """,
+                (unique_statuses, lim),
+            ).fetchall()
+        out: list[dict[str, Any]] = []
+        for r in rows:
+            item = self._pg_booking_row_to_dict(r)
+            item["hasBlockingDispute"] = bool(r.get("has_blocking_dispute"))
+            out.append(item)
+        return out
+
+    def auto_capture_booking(
+        self,
+        booking_id: str,
+        *,
+        reason: str = "slot_finished",
+    ) -> dict[str, Any] | None:
+        bid = str(booking_id or "").strip()
+        if not bid:
+            return None
+        with self._pool.connection() as conn:
+            with conn.transaction():
+                row = conn.execute(
+                    "SELECT * FROM oltp.lesson_requests WHERE id = %s FOR UPDATE",
+                    (bid,),
+                ).fetchone()
+                if not row:
+                    return None
+                cur_norm = _PG_TO_MKT_STATUS.get(str(row.get("status") or ""), str(row.get("status") or ""))
+                if cur_norm != "accepted":
+                    return None
+                dispute_row = conn.execute(
+                    """
+                    SELECT 1 FROM oltp.lesson_disputes
+                    WHERE booking_id = %s AND status IN ('open', 'refunded')
+                    LIMIT 1
+                    """,
+                    (bid,),
+                ).fetchone()
+                if dispute_row:
+                    return None
+                esc_row = conn.execute(
+                    "SELECT status FROM oltp.escrow_holds WHERE request_id = %s ORDER BY created_at DESC LIMIT 1 FOR UPDATE",
+                    (bid,),
+                ).fetchone()
+                if not esc_row or str(esc_row.get("status") or "") != "frozen":
+                    return None
+
+                eff_price = int(row.get("final_price_rub") or row.get("counter_price_rub") or row.get("offer_price_rub") or 0)
+                student_uid = int(row["student_user_id"]) if row.get("student_user_id") is not None else None
+                tutor_id = str(row["tutor_id"])
+                cur_reserved = int(row.get("reserved_rub") or 0)
+                fee, payout = calc_fee_split(eff_price)
+                sbp_fee = calc_sbp_fee(eff_price)
+
+                if eff_price > 0:
+                    self._pg_upsert_escrow(
+                        conn, booking_id=bid, tutor_id=tutor_id, student_uid=student_uid, gross_rub=eff_price, status="captured"
+                    )
+                    if student_uid is not None and cur_reserved > 0:
+                        w_snap = self._pg_wallet_snapshot(conn, student_uid)
+                        conn.execute(
+                            """
+                            INSERT INTO oltp.wallet_ledger (
+                                user_id, kind, amount_rub, balance_after_rub, fee_rub, method, ref_type, ref_id, note
+                            ) VALUES (%s, 'escrow_capture', 0, %s, %s, 'escrow', 'booking', %s, %s)
+                            """,
+                            (student_uid, int(w_snap["balanceRub"]), fee, bid, f"Автозавершение урока {bid}: списано {eff_price} ₽"),
+                        )
+                conn.execute(
+                    """
+                    UPDATE oltp.lesson_requests
+                    SET status = 'completed',
+                        final_price_rub = COALESCE(final_price_rub, %s),
+                        reserved_rub = 0,
+                        updated_at = NOW()
+                    WHERE id = %s
+                    """,
+                    (eff_price if eff_price > 0 else None, bid),
+                )
+                self._insert_outbox(
+                    conn,
+                    topic="vektor.payments.ledger.v1",
+                    partition_key=bid,
+                    event_type="payments.escrow.auto_captured",
+                    user_id=student_uid,
+                    role="system",
+                    view="backend",
+                    payload={
+                        "bookingId": bid,
+                        "tutorId": tutor_id,
+                        "grossRub": eff_price,
+                        "feeRub": fee,
+                        "sbpFeeRub": sbp_fee,
+                        "payoutRub": payout,
+                        "reason": reason,
+                    },
+                )
+                updated = conn.execute(
+                    """
+                    SELECT lr.*, COALESCE(t.full_name, '') AS tutor_name, COALESCE(eh.status, 'none') AS escrow_status
+                    FROM oltp.lesson_requests lr
+                    LEFT JOIN oltp.tutors t ON t.id = lr.tutor_id
+                    LEFT JOIN LATERAL (
+                        SELECT status FROM oltp.escrow_holds WHERE request_id = lr.id ORDER BY created_at DESC LIMIT 1
+                    ) eh ON TRUE
+                    WHERE lr.id = %s
+                    """,
+                    (bid,),
+                ).fetchone()
+                return {
+                    "booking": self._pg_booking_row_to_dict(updated),
+                    "grossRub": eff_price,
+                    "feeRub": fee,
+                    "sbpFeeRub": sbp_fee,
+                    "payoutRub": payout,
+                    "reason": reason,
+                }
+
+    def auto_expire_pending_booking(
+        self,
+        booking_id: str,
+        *,
+        reason: str = "expired",
+    ) -> dict[str, Any] | None:
+        bid = str(booking_id or "").strip()
+        if not bid:
+            return None
+        with self._pool.connection() as conn:
+            with conn.transaction():
+                row = conn.execute(
+                    "SELECT * FROM oltp.lesson_requests WHERE id = %s FOR UPDATE",
+                    (bid,),
+                ).fetchone()
+                if not row:
+                    return None
+                cur_norm = _PG_TO_MKT_STATUS.get(str(row.get("status") or ""), str(row.get("status") or ""))
+                if cur_norm not in ("pending", "countered"):
+                    return None
+                student_uid = int(row["student_user_id"]) if row.get("student_user_id") is not None else None
+                cur_reserved = int(row.get("reserved_rub") or 0)
+                if student_uid is not None and cur_reserved > 0:
+                    w_snap = self._pg_wallet_snapshot(conn, student_uid)
+                    new_bal = int(w_snap["balanceRub"]) + cur_reserved
+                    conn.execute(
+                        "UPDATE oltp.wallets SET balance_rub = %s, updated_at = NOW() WHERE user_id = %s",
+                        (new_bal, student_uid),
+                    )
+                    conn.execute(
+                        """
+                        INSERT INTO oltp.wallet_ledger (
+                            user_id, kind, amount_rub, balance_after_rub, fee_rub, method, ref_type, ref_id, note
+                        ) VALUES (%s, 'escrow_refund', %s, %s, 0, 'escrow', 'booking', %s, %s)
+                        """,
+                        (student_uid, cur_reserved, new_bal, bid, f"Автоотмена просроченной заявки {bid}"),
+                    )
+                conn.execute(
+                    "UPDATE oltp.escrow_holds SET status = 'refunded', settled_at = NOW() WHERE request_id = %s",
+                    (bid,),
+                )
+                conn.execute(
+                    "UPDATE oltp.lesson_requests SET status = 'cancelled', reserved_rub = 0, updated_at = NOW() WHERE id = %s",
+                    (bid,),
+                )
+                self._insert_outbox(
+                    conn,
+                    topic="vektor.payments.ledger.v1",
+                    partition_key=bid,
+                    event_type="market.bid.auto_expired",
+                    user_id=student_uid,
+                    role="system",
+                    view="backend",
+                    payload={"bookingId": bid, "refundedRub": cur_reserved, "reason": reason},
+                )
+                updated = conn.execute(
+                    """
+                    SELECT lr.*, COALESCE(t.full_name, '') AS tutor_name, COALESCE(eh.status, 'none') AS escrow_status
+                    FROM oltp.lesson_requests lr
+                    LEFT JOIN oltp.tutors t ON t.id = lr.tutor_id
+                    LEFT JOIN LATERAL (
+                        SELECT status FROM oltp.escrow_holds WHERE request_id = lr.id ORDER BY created_at DESC LIMIT 1
+                    ) eh ON TRUE
+                    WHERE lr.id = %s
+                    """,
+                    (bid,),
+                ).fetchone()
+                return {
+                    "booking": self._pg_booking_row_to_dict(updated),
+                    "refundedRub": cur_reserved,
+                    "reason": reason,
+                }
+
+    def has_lesson_reminder_sent(self, booking_id: str, kind: str, recipient_role: str) -> bool:
+        bid = str(booking_id or "").strip()
+        k = "24h" if str(kind or "").strip() == "24h" else "1h"
+        role_norm = "tutor" if str(recipient_role or "").strip() == "tutor" else "student"
+        if not bid:
+            return False
+        with self._pool.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT 1 FROM oltp.lesson_reminders_sent
+                WHERE booking_id = %s AND kind = %s AND recipient_role = %s
+                LIMIT 1
+                """,
+                (bid, k, role_norm),
+            ).fetchone()
+        return row is not None
+
+    def mark_lesson_reminder_sent(
+        self,
+        booking_id: str,
+        kind: str,
+        recipient_role: str,
+        chat_id: str = "",
+    ) -> bool:
+        bid = str(booking_id or "").strip()
+        k = "24h" if str(kind or "").strip() == "24h" else "1h"
+        role_norm = "tutor" if str(recipient_role or "").strip() == "tutor" else "student"
+        if not bid:
+            return False
+        with self._pool.connection() as conn:
+            with conn.transaction():
+                row = conn.execute(
+                    """
+                    INSERT INTO oltp.lesson_reminders_sent (booking_id, kind, recipient_role, chat_id)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (booking_id, kind, recipient_role) DO NOTHING
+                    RETURNING booking_id
+                    """,
+                    (bid, k, role_norm, str(chat_id or "")),
+                ).fetchone()
+        return row is not None

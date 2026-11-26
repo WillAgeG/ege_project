@@ -26,7 +26,7 @@
       navLabel: "Обзор",
       badge: "Hub",
       eyebrow: "Design Portal · @vektor-ege/ui-kit",
-      title: "Единая дизайн-система и портал Вектор ЕГЭ",
+      title: "Единая дизайн-система и портал Вектор",
       desc: "Навигатор по специализированным подсайтам брендбука: чистое сравнение Desktop и Mobile главной страницы, UI Kit & Токены, Маркетплейс & СБП, DataViz, API-контракты, Admin UI Kit и Data Platform.",
       sections: ["bb-catalog"]
     },
@@ -164,8 +164,8 @@
     { group: "calendar", method: "GET", path: "/api/calendar/{token}.ics", port: ":8771", desc: "Подписная .ics-лента уроков для Apple Calendar и Google Calendar." },
     { group: "calendar", method: "POST", path: "/api/calendar/import-ics", port: ":8771", desc: "Импорт занятых интервалов (UTC Z) из внешнего календаря преподавателя." },
     { group: "admin", method: "GET", path: "/api/admin/overview", port: ":8771", desc: "Сводный реестр пользователей, анкет, заявок, выплат НПД и KPI." },
-    { group: "admin", method: "POST", path: "/api/admin/tutors/{id}/moderate", port: ":8771", desc: "Верификация анкеты, активация «Верхней полосы PRO» (1 490 ₽/мес)." },
-    { group: "admin", method: "POST", path: "/api/admin/payouts/{id}/status", port: ":8771", desc: "Перевод эскроу 95% / 5% в выплату по СБП или удержание в резерве." },
+    { group: "admin", method: "POST", path: "/api/admin/tutors/{id}/moderate", port: ":8771", desc: "Верификация анкеты преподавателя и ручное поднятие в выдаче." },
+    { group: "admin", method: "POST", path: "/api/admin/payouts/{id}/status", port: ":8771", desc: "Перевод эскроу 94% (5% сервис + 1% СБП) в выплату или удержание в резерве." },
     { group: "admin", method: "GET", path: "/api/admin/outbox", port: ":8771", desc: "Мониторинг неотправленных и доставленных событий Envelope v1." }
   ];
 
@@ -241,14 +241,14 @@
     return `<header class="bb-portal-bar" aria-label="Навигация по подсайтам брендбука">
       <div class="bb-portal-toprow">
         <div class="row" style="gap:10px;align-items:center;min-width:0;flex-wrap:wrap">
-          ${brandLockupHTML({ tag: "Brandbook 2.4", sub: "Единая дизайн-система Вектор ЕГЭ" })}
+          ${brandLockupHTML({ tag: "Brandbook 2.4", sub: "Единая дизайн-система Вектор" })}
           <span class="bb-route-badge">${esc(routePath)}</span>
         </div>
         <div class="bb-portal-actions">
           <button type="button" class="btn soft sm" data-a="bb-export-tokens" data-fmt="css">${icon("copy")}<span>CSS токены</span></button>
           <button type="button" class="btn ghost sm" data-a="bb-export-tokens" data-fmt="json">tokens.json</button>
           <button type="button" class="btn ghost sm" data-a="go" data-v="landing">На /landing</button>
-          <button type="button" class="icon-btn sm" data-a="theme-toggle" aria-label="Сменить тему" title="Сменить тему">${icon(dark ? "sun" : "moon")}</button>
+          <button type="button" class="icon-btn sm" data-a="theme-toggle" aria-label="Сменить тему">${icon(dark ? "sun" : "moon")}</button>
           ${inside ? `<button type="button" class="btn sm" data-a="go" data-v="${ui.role === "tutor" ? "cabinet" : "tests"}">В кабинет</button>` : `<button type="button" class="btn sm" data-a="auth-modal-open">Войти</button>`}
         </div>
       </div>
@@ -310,13 +310,13 @@
       <div class="bb-mock-nav">
         <div class="row" style="gap:8px;align-items:center">
           ${renderMark()}
-          <b style="font-size:14px">Вектор ЕГЭ</b>
+          <b style="font-size:14px">Вектор</b>
           <span class="bb-spec-pill">Якутск · 2027</span>
         </div>
         <div class="bb-mock-nav-links small muted">
           <span>Предметы</span>
           <span>СБП 0,8%</span>
-          <span>PRO-акцент</span>
+          <span>Условия оплаты</span>
         </div>
         <div class="row" style="gap:6px">
           <button type="button" class="btn ghost sm" data-a="bb-demo-toast">Войти</button>
@@ -375,11 +375,11 @@
         </article>
 
         <article class="card pad stack" style="gap:8px;box-shadow:none">
-          <span class="eyebrow" style="margin:0">Преподавателям · SaaS</span>
-          <b style="font-size:14px">PRO-акцент · 1 490 ₽/мес</b>
-          <p class="small muted" style="margin:0">Мягкое синее выделение анкеты в каталоге, значок «Проверен» и скидка 50% на сбор подбора.</p>
+          <span class="eyebrow" style="margin:0">Преподавателям · 0 ₽/мес</span>
+          <b style="font-size:14px">94% с площадки · 98% со своих</b>
+          <p class="small muted" style="margin:0">Бесплатное размещение без платных подписок, автоматический чек НПД и вывод по СБП от 500 ₽.</p>
           <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:auto">
-            <span class="bb-spec-pill pro">PRO карусель</span>
+            <span class="bb-spec-pill confirm">Без подписок</span>
             <span class="bb-spec-pill">Учёт доходов и календарь</span>
           </div>
         </article>
@@ -419,7 +419,7 @@
           </div>
           <div class="row between small muted" style="gap:8px;flex-wrap:wrap">
             <span>Сб, 14 нояб. · 16:00 (Онлайн)</span>
-            <span>На руки: ${Math.round(price * 0.95).toLocaleString("ru-RU")} ₽ (95%)</span>
+            <span>На руки: ${Math.round(price * 0.94).toLocaleString("ru-RU")} ₽ (94%)</span>
           </div>
         </div>
       </div>

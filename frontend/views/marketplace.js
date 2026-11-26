@@ -9,12 +9,67 @@
     WEEK_DAYS_RU: WEEK_DAYS_UI, SCHED_HOURS_RU: SCHED_HOURS,
     sortDows, formatDaysShort, formatWeeklyBotPhrase
   } = EGE.utils;
-  const { icon } = EGE.ui;
+  const { icon, brandLockupHTML } = EGE.ui;
   const { isValidHHMM, bidBtnLabelHTML, sakhaBidInnerHTML, priceHeadlineHTML, priceDiffTagsHTML, hhSelectHTML, hhMultiSelectHTML, tutorAvatarHTML } = EGE.hh;
   const MIN_ACTION_BALANCE = 490;
 
   function hasMinBalance(st) {
     return (Number(st && st.balance) || 0) >= MIN_ACTION_BALANCE;
+  }
+
+  function ratingBtnHTML(tutor, labelText) {
+    if (!tutor) return "";
+    const tid = String(tutor.id || "");
+    const score = Number(tutor.rating || 5).toFixed(1);
+    const cnt = Math.max(0, Number(tutor.reviews) || 0);
+    const label = labelText || `★ ${score} (${cnt})`;
+    if (!tid) return `<span class="small muted">${esc(label)}</span>`;
+    return `<button type="button" class="tutor-rating-btn" data-a="reviews-open" data-id="${esc(tid)}" title="Открыть отзывы преподавателя">${esc(label)}</button>`;
+  }
+
+  function findBookingDispute(st, bk) {
+    if (!bk) return null;
+    const disputes = Array.isArray(st && st.disputes) ? st.disputes : [];
+    const hit = disputes.find((d) => d && String(d.bookingId || "") === String(bk.id));
+    return hit || bk.dispute || null;
+  }
+
+  function findMyBookingReview(TDATA, bk) {
+    if (!bk || !TDATA || typeof TDATA.getTutorReviews !== "function") return null;
+    const list = TDATA.getTutorReviews(bk.tutorId) || [];
+    return list.find((r) => r && r.bookingId && String(r.bookingId) === String(bk.id) && r.mine) || null;
+  }
+
+  function bookingTrustActionsHTML(bk, tutor, st) {
+    if (!bk) return "";
+    const TDATA = getTDATA();
+    const acceptedOrDone = bk.status === "accepted" || bk.status === "completed";
+    const dispute = findBookingDispute(st, bk);
+    const myReview = bk.myReviewRating ? { rating: bk.myReviewRating } : findMyBookingReview(TDATA, bk);
+    const gInfo = tutor ? resolveTutorGuarantee(tutor) : { enabled: bk.firstLessonGuarantee !== false };
+
+    const parts = [];
+    if (myReview) {
+      parts.push(`<button type="button" class="chip-btn on bk-reviewed-btn" data-a="reviews-open" data-id="${esc(bk.tutorId)}" title="Посмотреть ваш отзыв">★ Ваша оценка ${Number(myReview.rating || 5)}</button>`);
+    } else if (acceptedOrDone) {
+      parts.push(`<button type="button" class="btn soft sm bk-review-btn" data-a="review-open" data-id="${esc(bk.id)}">★ Оценить урок</button>`);
+    }
+
+    if (dispute) {
+      const dst = String(dispute.status || "open");
+      const amount = Number(dispute.refundAmountRub || bk.reserved || bk.offerPrice || 0);
+      if (dst === "refunded") {
+        parts.push(`<span class="chip confirm">Возврат ${amount > 0 ? amount.toLocaleString("ru-RU") + " ₽" : "проведён"}</span>`);
+      } else if (dst === "rejected") {
+        parts.push(`<span class="chip muted">Спор закрыт</span>`);
+      } else {
+        parts.push(`<span class="chip notif">Спор на проверке</span>`);
+      }
+    } else if (acceptedOrDone) {
+      parts.push(`<button type="button" class="btn ghost sm bk-dispute-btn" data-a="dispute-open" data-id="${esc(bk.id)}">${gInfo.enabled ? "Спор / возврат" : "Открыть спор"}</button>`);
+    }
+
+    return parts.length ? `<div class="bk-trust-actions">${parts.join("")}</div>` : "";
   }
 
   let _ctx = {};
@@ -34,6 +89,14 @@
 
   function getUi() {
     return (_ctx && _ctx.ui) ? _ctx.ui : _localUi;
+  }
+
+  function isDevDemoMode() {
+    if (typeof _ctx.isDevDemoMode === "function") return !!_ctx.isDevDemoMode();
+    const st = _ctx && _ctx.store;
+    if (st && st.demoMode === false) return false;
+    if (root.EGE_HOST && root.EGE_HOST.demoMode === false) return false;
+    return true;
   }
 
   function renderDataTable(opts) {
@@ -255,6 +318,8 @@
 
   function renderHomeScheduleBoxHTML(bk, tutor) {
     const ui = getUi();
+    const isJustAccepted = !!(ui.justAcceptedBookingId && ui.justAcceptedBookingId === bk.id);
+    const isJustConfirmed = !!(ui.justConfirmedSchedId && ui.justConfirmedSchedId === bk.id);
     const plan = bk.schedulePlan || { status: "needs_pick", dows: suggestTwoDows(bk, tutor), hour: bk.hour || "16:00", weekly: true };
     const status = plan.status || "needs_pick";
     const isEditing = ui.schedEditId === bk.id || status === "needs_pick";
@@ -269,7 +334,7 @@
       const countBadge = dows.length === 7
         ? "Все 7 дней"
         : (dows.length ? `${dows.length} ${plural(dows.length, "день", "дня", "дней")}` : "0 дней");
-      return `<div class="bid-sched-card" data-sched-box="${esc(bk.id)}">
+      return `<div class="bid-sched-card${isJustAccepted ? " is-just-revealed" : ""}" data-sched-box="${esc(bk.id)}">
         <div class="bid-sched-head">
           <div>
             <b>Выберите дни и время</b>
@@ -340,7 +405,7 @@
       </div>`;
     }
 
-    return `<div class="bid-sched-confirmed" data-sched-box="${esc(bk.id)}">
+    return `<div class="bid-sched-confirmed${isJustConfirmed ? " is-just-confirmed" : ""}" data-sched-box="${esc(bk.id)}">
       <div style="min-width:0">
         <b>График закреплён${plan.weekly !== false ? " · каждую неделю" : ""}</b>
         <span class="small muted num">${esc(formatDaysShort(plan.dows))} · ${esc(plan.hour || bk.hour)}</span>
@@ -385,13 +450,12 @@
     const hasDraft = cardOffers[t.id] != null && Number.isFinite(Number(cardOffers[t.id]));
     const cardPrice = hasDraft ? Math.max(0, Math.min(99999, Math.round(Number(cardOffers[t.id])))) : Math.max(0, Number(t.price) || 1200);
     const aboveRub = Math.max(0, cardPrice - (Number(t.marketPrice) || cardPrice));
-    const isProCard = !!(t.tier === "pro" || Number(t.price) > (Number(t.marketPrice) || Number(t.price)) || (t.bumpedToday && Number(t.rating) >= 4.9));
     const expandedMap = ui.expandedBios || {};
     const isBioOpen = !!expandedMap[t.id];
     const guaranteeInfo = resolveTutorGuarantee(t);
     const alreadyBooked = Array.isArray(st.bookings) && st.bookings.some((bk) => bk.tutorId === t.id);
 
-    return `<article class="card tutor-card${isProCard ? " is-pro" : ""}" data-tutor-id="${esc(t.id)}">
+    return `<article class="card tutor-card" data-tutor-id="${esc(t.id)}">
       <div class="tutor-card-top">
         <div class="tutor-head">
           <div style="min-width:0">
@@ -415,7 +479,7 @@
               <b class="tutor-person-name">${esc(t.name)}</b>
               ${t.verified ? `<span class="verified-badge" title="Преподаватель лично ведёт кабинет на платформе">${icon("check")}</span>` : ""}
             </div>
-            <span class="small muted">${esc(t.city)} · ${esc(t.exp)} · ★ ${t.rating.toFixed(1)} (${t.reviews})</span>
+            <span class="small muted">${esc(t.city)} · ${esc(t.exp)} · ${ratingBtnHTML(t)}</span>
           </div>
         </div>
 
@@ -547,7 +611,7 @@
             ${h.cols === 3 ? `<span class="bb-tbl-st ${accepted ? "is-confirmed" : "is-pending"}">${accepted ? "Преподаватель подтвердил" : "На рассмотрении · уведомим"}</span>` : ""}
             ${accepted
               ? `${msgHtml}<button type="button" class="btn ghost sm bk-tbl-secondary-btn" data-a="mkt-cancel-book" data-id="${esc(bk.id)}">Сменить репетитора</button>`
-              : `<div class="bk-tbl-pending-btns"><button type="button" class="btn confirm sm" data-a="mkt-sim-accept" data-id="${esc(bk.id)}">${icon("check")}<span>Подтвердить</span></button><button type="button" class="btn ghost sm" data-a="mkt-cancel-book" data-id="${esc(bk.id)}">Отменить</button></div>`}
+              : `<div class="bk-tbl-pending-btns">${isDevDemoMode() ? `<button type="button" class="btn confirm sm" data-a="mkt-sim-accept" data-id="${esc(bk.id)}">${icon("check")}<span>Подтвердить</span></button>` : ""}<button type="button" class="btn ghost sm" data-a="mkt-cancel-book" data-id="${esc(bk.id)}">Отменить</button></div>`}
           </div>`;
         }
       }
@@ -567,7 +631,7 @@
       searchAction: "mkt-bk-q",
       searchId: "mkt-bk-q",
       searchPlaceholder: "Поиск: преподаватель, предмет, слот…",
-      confirmAction: "mkt-sim-accept",
+      confirmAction: isDevDemoMode() ? "mkt-sim-accept" : "",
       filters: [
         { id: "all", label: `Все (${st.bookings.length})`, match: () => true },
         { id: "pending", label: `Ждут ответа (${pendingCnt})`, match: (r) => r.status !== "accepted" },
@@ -590,14 +654,76 @@
   function normalizeTelemostUrl(raw) {
     let val = String(raw == null ? "" : raw).trim();
     if (!val) return { ok: true, url: "" };
-    if (/^(javascript|data|vbscript):/i.test(val)) {
-      return { ok: false, error: "Укажите корректную https-ссылку, например https://telemost.yandex.ru/j/..." };
+    if (val.length > 512 || /[\s<>"']/.test(val)) {
+      return { ok: false, error: "Укажите ссылку Яндекс Телемост или другую https-ссылку (Zoom, Google Meet, VK Звонки и др.)." };
     }
-    if (/^telemost\.yandex\.[a-z]{2,}/i.test(val)) val = "https://" + val;
-    if (!/^https:\/\/telemost\.yandex\.(ru|com)\/[A-Za-z0-9_/?=&.\-%#]+$/i.test(val) || /\s/.test(val) || val.length > 512) {
-      return { ok: false, error: "Укажите корректную ссылку Яндекс Телемост, например https://telemost.yandex.ru/j/..." };
+    if (/^(javascript|data|vbscript|file|http):/i.test(val)) {
+      return { ok: false, error: "Укажите ссылку Яндекс Телемост или другую https-ссылку (Zoom, Google Meet, VK Звонки и др.)." };
+    }
+    if (val.indexOf("://") === -1) {
+      const firstSeg = val.split("/", 1)[0];
+      if (firstSeg.indexOf(":") === -1 && /^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+(?:[/?#].*)?$/.test(val)) {
+        val = "https://" + val;
+      }
+    }
+    const m = /^https:\/\/([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)(?::\d{1,5})?(?:[/?#][^\s<>"']*)?$/i.exec(val);
+    if (!m) {
+      return { ok: false, error: "Укажите ссылку Яндекс Телемост или другую https-ссылку (Zoom, Google Meet, VK Звонки и др.)." };
+    }
+    const host = String(m[1] || "").toLowerCase();
+    const authority = val.slice(8).split(/[/?#]/, 1)[0];
+    const tld = host.split(".").pop() || "";
+    if (
+      !host ||
+      host === "localhost" ||
+      /\.(local|internal|localhost)$/.test(host) ||
+      /^\d+(?:\.\d+){3}$/.test(host) ||
+      authority.indexOf("@") !== -1 ||
+      !/^[a-z]{2,24}$/.test(tld)
+    ) {
+      return { ok: false, error: "Укажите ссылку Яндекс Телемост или другую https-ссылку (Zoom, Google Meet, VK Звонки и др.)." };
     }
     return { ok: true, url: val };
+  }
+
+  function extractVideoHost(rawUrl) {
+    const val = String(rawUrl || "").trim();
+    const m = /^https?:\/\/([^/:?#]+)/i.exec(val);
+    return m ? String(m[1] || "").toLowerCase().replace(/^www\./, "") : "";
+  }
+
+  function videoLinkLabel(rawUrl, opts) {
+    opts = opts || {};
+    const host = extractVideoHost(rawUrl);
+    let short = "Видеозвонок";
+    if (!host || /(?:^|\.)telemost\.yandex\.(ru|com)$/i.test(host) || host === "telemost.360.yandex.ru") {
+      short = "Телемост";
+    } else if (/(?:^|\.)zoom\.(us|com)$/i.test(host)) {
+      short = "Zoom";
+    } else if (host === "meet.google.com") {
+      short = "Google Meet";
+    } else if (/(?:^|\.)vk\.(com|ru)$/i.test(host) || host === "vkvideo.ru") {
+      short = "VK Звонки";
+    } else if (/(?:^|\.)ktalk\.ru$/i.test(host)) {
+      short = "Контур.Толк";
+    } else if (host === "jazz.sber.ru" || /(?:^|\.)salutejazz\.ru$/i.test(host)) {
+      short = "SaluteJazz";
+    } else if (/(?:^|\.)(mts-link|webinar)\.ru$/i.test(host)) {
+      short = "МТС Линк";
+    } else if (host === "jit.si" || host === "meet.jit.si") {
+      short = "Jitsi";
+    } else if (/(?:^|\.)discord\.(gg|com)$/i.test(host)) {
+      short = "Discord";
+    } else if (/^teams\.(microsoft|live)\.com$/i.test(host)) {
+      short = "Teams";
+    } else if (host === "t.me") {
+      short = "Telegram";
+    } else if (/(?:^|\.)max\.ru$/i.test(host)) {
+      short = "MAX";
+    }
+    if (!opts.long) return short;
+    if (short === "Телемост") return opts.telemostLabel || "Яндекс Телемост · Подключиться";
+    return short + " · Подключиться";
   }
 
   /** Возвращает единую постоянную ссылку Телемост ученика, автоматически создавая и синхронизируя её при необходимости. */
@@ -641,8 +767,8 @@
   function telemostBlockHTML(bk, telemostUrl, isEditingTm, ui, joinLabel) {
     if (isEditingTm) {
       return `<form class="bid-telemost-form" data-f="bid-telemost" data-id="${esc(bk.id)}">
-        <label class="small muted" for="tm-inp-${esc(bk.id)}">Единая ссылка Яндекс Телемост (для всех уроков)</label>
-        <input class="input bid-telemost-inp" id="tm-inp-${esc(bk.id)}" name="url" type="url" placeholder="https://telemost.yandex.ru/j/..." value="${esc(telemostUrl)}">
+        <label class="small muted" for="tm-inp-${esc(bk.id)}">Ссылка на видеозвонок (Телемост, Zoom, Google Meet, VK или другая https-ссылка)</label>
+        <input class="input bid-telemost-inp" id="tm-inp-${esc(bk.id)}" name="url" type="url" placeholder="https://telemost.yandex.ru/j/... или https://zoom.us/j/..." value="${esc(telemostUrl)}">
         <span class="small muted">Передаётся преподавателю сама через WhatsApp или Telegram-бот.</span>
         ${ui.telemostError ? `<div class="small" style="color:var(--bad);font-weight:600">${esc(ui.telemostError)}</div>` : ""}
         <div class="bid-telemost-form-actions">
@@ -652,8 +778,9 @@
         </div>
       </form>`;
     }
+    const labelText = videoLinkLabel(telemostUrl, { long: true, telemostLabel: joinLabel || "Яндекс Телемост · Подключиться" });
     return `<div class="bid-telemost-saved">
-      <a class="btn soft sm bid-telemost-join" href="${esc(telemostUrl)}" target="_blank" rel="noopener noreferrer">${icon("video")}<span>${esc(joinLabel || "Яндекс Телемост · Подключиться")}</span></a>
+      <a class="btn soft sm bid-telemost-join" href="${esc(telemostUrl)}" target="_blank" rel="noopener noreferrer">${icon("video")}<span>${esc(labelText)}</span></a>
       <div class="bid-telemost-auto-note">Единая постоянная ссылка · будет передана преподавателю сама (WhatsApp или Telegram-бот)</div>
       <button type="button" class="btn ghost sm bid-telemost-edit" data-a="bid-telemost-edit" data-id="${esc(bk.id)}">Изменить ссылку</button>
     </div>`;
@@ -666,22 +793,37 @@
     if (!bk) return { ok: false, error: "Заявка не найдена." };
     const parsed = normalizeTelemostUrl(rawUrl);
     if (!parsed.ok || !parsed.url) {
-      ui.telemostError = parsed.error || "Укажите ссылку Яндекс Телемост (https://telemost.yandex.ru/j/...) или нажмите «Создать новую».";
+      ui.telemostError = (parsed.ok && !parsed.url)
+        ? "Укажите ссылку Яндекс Телемост или другую https-ссылку (Zoom, Google Meet, VK) — либо нажмите «Создать новую»."
+        : (parsed.error || "Укажите ссылку Яндекс Телемост или другую https-ссылку (Zoom, Google Meet, VK) — либо нажмите «Создать новую».");
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       return { ok: false, error: ui.telemostError };
     }
     st.telemostUrl = parsed.url;
     (st.bookings || []).forEach((b) => { if (b) b.telemostUrl = parsed.url; });
+    if (EGE.views && EGE.views.messenger && typeof EGE.views.messenger.syncTelemostUrl === "function") {
+      EGE.views.messenger.syncTelemostUrl(parsed.url);
+    }
     ui.telemostEditId = "";
     ui.telemostError = "";
     if (typeof _ctx.saveMkt === "function") _ctx.saveMkt();
     if (_ctx.store && _ctx.store.backend && _ctx.store.user && EGE.api && EGE.api.bookings && bk.serverSynced) {
-      EGE.api.bookings.updateTelemost(bk.id, parsed.url).catch(() => {});
+      EGE.api.bookings.updateTelemost(bk.id, parsed.url, "student").catch(() => {});
     }
     if (typeof _ctx.notifySide === "function") {
+      const shortLbl = videoLinkLabel(parsed.url, { long: false });
       _ctx.notifySide(
-        "Яндекс Телемост",
-        "Единая ссылка обновлена — будет передана преподавателю сама (WhatsApp или Telegram-бот)"
+        shortLbl,
+        "Ссылка встречи обновлена — уведомление со ссылкой отправлено преподавателю",
+        {
+          inbox: true,
+          kind: "telemost",
+          bookingId: bk.id,
+          threadId: bk.serverSynced ? ("booking:" + bk.id) : "",
+          actionUrl: parsed.url,
+          actionLabel: "Войти в " + shortLbl,
+          duration: 5600
+        }
       );
     }
     if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
@@ -698,10 +840,7 @@
     if (!all.length) {
       return `<section class="stack home-bids-wrap" id="home-bids-section" style="gap:12px" aria-label="Мои отклики преподавателям">
         <div class="home-bids-head">
-          <div>
-            <div class="eyebrow">Отклики и ответы</div>
-            <h2 class="h2">Мои отклики преподавателям</h2>
-          </div>
+          <h2 class="h2">Мои отклики преподавателям</h2>
           <button type="button" class="btn soft sm" data-a="go" data-v="market">Поиск</button>
         </div>
         <div class="card pad-lg stack" style="gap:12px">
@@ -721,8 +860,21 @@
       ? all.filter((b) => b.status !== "accepted")
       : (flt === "accepted" ? all.filter((b) => b.status === "accepted") : all);
     const expandedMap = ui.expandedBios || {};
+    const hlBidId = String(ui.highlightBidId || "");
+    const hlTutorId = String(ui.highlightBidTutorId || "");
+    let hlConsumed = false;
     const cardsHTML = rows.length
       ? `<div class="tutor-grid home-bid-grid">${rows.map((bk) => {
+          let isBidHighlighted = false;
+          if (!hlConsumed) {
+            if (hlBidId && String(bk.id) === hlBidId) {
+              isBidHighlighted = true;
+              hlConsumed = true;
+            } else if (!hlBidId && hlTutorId && String(bk.tutorId || "") === hlTutorId) {
+              isBidHighlighted = true;
+              hlConsumed = true;
+            }
+          }
           const accepted = bk.status === "accepted";
           const tutor = TDATA.LIST.find((x) => x.id === bk.tutorId) || {
             id: bk.tutorId,
@@ -744,7 +896,6 @@
           const isTrial = !!bk.isTrial;
           const trialRub = bk.offerPrice != null && Number.isFinite(Number(bk.offerPrice)) ? Number(bk.offerPrice) : trialDefault;
           const offerNum = isTrial ? trialRub : Math.max(0, Number(bk.offerPrice || tutor.price || 1200));
-          const isProCard = !!(tutor.tier === "pro" || Number(tutor.price) > (Number(tutor.marketPrice) || Number(tutor.price)) || (tutor.bumpedToday && Number(tutor.rating) >= 4.9));
           const priceBlockHTML = isTrial
             ? `<div class="tutor-rate num">${trialRub === 0 ? "Пробный · 0 ₽" : `Пробный · ${trialRub.toLocaleString("ru-RU")} ₽`}</div>`
             : `${tutor.marketPrice && offerNum < tutor.marketPrice ? `<s class="hh-price-old num">${tutor.marketPrice.toLocaleString("ru-RU")} ₽</s>` : ""}<div class="tutor-rate num">${offerNum.toLocaleString("ru-RU")} ₽/ч</div>`;
@@ -755,7 +906,9 @@
           const msgTxt = `Здравствуйте, ${bk.tutorName}! Напоминаю про занятие (${bk.subjectName}, ${bk.dayLabel} в ${bk.hour}, ${isTrial ? "пробный урок" : "ставка " + bk.offerPrice + " ₽/ч"}).${telemostUrl ? " Ссылка на Яндекс Телемост: " + telemostUrl : ""}`;
           const waHref = TDATA.whatsappUrl(resolvedTutor, msgTxt);
           const chAvail = tutorChannels(resolvedTutor);
-          return `<article class="card tutor-card${isProCard ? " is-pro" : ""} is-home-bid" data-tutor-id="${esc(tutor.id)}" data-booking-id="${esc(bk.id)}">
+          const isJustSent = !!(ui.lastSentBookingId && ui.lastSentBookingId === bk.id);
+          const isJustAccepted = !!(ui.justAcceptedBookingId && ui.justAcceptedBookingId === bk.id);
+          return `<article class="card tutor-card is-home-bid${isJustSent ? " is-just-sent" : ""}${isJustAccepted ? " is-just-accepted" : ""}${isBidHighlighted ? " is-bid-highlighted" : ""}" data-tutor-id="${esc(tutor.id)}" data-booking-id="${esc(bk.id)}">
             <div class="tutor-card-top">
               <div class="tutor-head">
                 <div style="min-width:0">
@@ -772,7 +925,7 @@
                     <b class="tutor-person-name">${esc(tutor.name || bk.tutorName)}</b>
                     ${tutor.verified !== false ? `<span class="verified-badge" title="Преподаватель лично ведёт кабинет на платформе">${icon("check")}</span>` : ""}
                   </div>
-                  <span class="small muted">${esc(tutor.city || "Онлайн")} · ${esc(tutor.exp || "Репетитор")} · ★ ${Number(tutor.rating || 5).toFixed(1)} (${Number(tutor.reviews || 0)})</span>
+                  <span class="small muted">${esc(tutor.city || "Онлайн")} · ${esc(tutor.exp || "Репетитор")} · ${ratingBtnHTML(tutor)}</span>
                 </div>
               </div>
               ${tutor.bio ? `<div class="tutor-bio-wrap${isBioOpen ? " is-open" : ""}">
@@ -791,26 +944,34 @@
               ${(() => {
                 const schedStatus = bk.schedulePlan && bk.schedulePlan.status;
                 const acceptedHint = schedStatus === "confirmed"
-                  ? `Написали вам в СМС${vc ? ` (${esc(vc)})` : ""} · график закреплён в «Учёбе»`
+                  ? `Написали вам в СМС${vc ? ` (${esc(vc)})` : ""} · график закреплён в «Календаре»`
                   : schedStatus === "tutor_proposed"
                     ? "Преподаватель предложил другие даты · посмотрите ниже"
                     : `Написали вам в СМС${vc ? ` (${esc(vc)})` : ""} · выберите дни ниже`;
-                return `<div class="home-bid-status ${accepted ? "is-accepted" : "is-pending"}">
-                  <b>${accepted ? "Преподаватель ответил · подтверждено" : "Ожидаем ответ преподавателя"}</b>
-                  <span>${accepted
-                    ? acceptedHint
-                    : `Придёт СМС${vc ? ` на ${esc(vc)}` : ""} · затем выберите дни`}</span>
-                </div>`;
+                return accepted
+                  ? `<div class="home-bid-status is-accepted${isJustAccepted ? " is-just-accepted" : ""}">
+                      <span class="home-bid-status-ico" aria-hidden="true">${icon("check")}</span>
+                      <div class="home-bid-status-copy">
+                        <b>Преподаватель ответил · подтверждено</b>
+                        <span>${acceptedHint}</span>
+                      </div>
+                    </div>`
+                  : `<div class="home-bid-status is-pending">
+                      <b>Ожидаем ответ преподавателя</b>
+                      <span>Придёт СМС${vc ? ` на ${esc(vc)}` : ""} · затем выберите дни</span>
+                    </div>`;
               })()}
               ${accepted ? renderHomeScheduleBoxHTML(bk, tutor) : ""}
               <div class="bid-telemost-box">${tmHTML}</div>
               ${accepted ? ((EGE.kit && typeof EGE.kit.messengerLinksHTML === "function")
                 ? `${EGE.kit.messengerLinksHTML({ entity: resolvedTutor, available: chAvail, allowHoldAdd: true, message: msgTxt, primaryLabel: "WhatsApp", compact: true })}<span class="study-hold-hint">Удерживайте WhatsApp, Telegram или MAX, чтобы указать или изменить контакт</span>`
                 : `<a class="btn confirm sm" href="${esc(waHref)}" target="_blank" rel="noopener">${icon("msg")}<span>WhatsApp</span></a>`) : ""}
+              ${bookingTrustActionsHTML(bk, tutor, st)}
               <div class="home-bid-actions">
+                <button type="button" class="btn soft sm" data-a="mc-open-thread" data-booking-id="${esc(bk.id)}" data-tutor-id="${esc(tutor.id)}">${icon("chat")}<span>Написать в чат</span></button>
                 ${accepted
-                  ? `<button type="button" class="btn soft sm" data-a="go" data-v="study">Открыть «Учёбу»</button><button type="button" class="btn ghost sm" data-a="mkt-cancel-book" data-id="${esc(bk.id)}">Отменить</button>`
-                  : `<button type="button" class="btn confirm sm" data-a="mkt-sim-accept" data-id="${esc(bk.id)}">${icon("check")}<span>Подтвердить</span></button><button type="button" class="btn ghost sm" data-a="mkt-cancel-book" data-id="${esc(bk.id)}">Отменить</button>`}
+                  ? `<button type="button" class="btn soft sm" data-a="go" data-v="study">Открыть «Календарь»</button><button type="button" class="btn ghost sm" data-a="mkt-cancel-book" data-id="${esc(bk.id)}">Отменить</button>`
+                  : `${isDevDemoMode() ? `<button type="button" class="btn confirm sm" data-a="mkt-sim-accept" data-id="${esc(bk.id)}">${icon("check")}<span>Подтвердить</span></button>` : ""}<button type="button" class="btn ghost sm" data-a="mkt-cancel-book" data-id="${esc(bk.id)}">Отменить</button>`}
               </div>
             </div>
           </article>`;
@@ -818,10 +979,7 @@
       : `<div class="empty home-bid-empty"><b>В этом фильтре откликов пока нет</b><span>Переключите вкладку выше или отправьте новый отклик преподавателю в «Поиске».</span></div>`;
     return `<section class="stack home-bids-wrap" id="home-bids-section" style="gap:12px" aria-label="Мои отклики преподавателям">
       <div class="home-bids-head">
-        <div>
-          <div class="eyebrow">Отклики и ответы</div>
-          <h2 class="h2">Мои отклики преподавателям</h2>
-        </div>
+        <h2 class="h2">Мои отклики преподавателям</h2>
         <button type="button" class="btn soft sm" data-a="go" data-v="market">Найти ещё</button>
       </div>
       <div class="hh-seg home-bid-seg" role="group" aria-label="Фильтр откликов">
@@ -869,9 +1027,10 @@
                 <b id="book-modal-title">${esc(tutor.name)}</b>
                 ${tutor.verified ? `<span class="verified-badge" title="Преподаватель лично ведёт кабинет на платформе">${icon("check")}</span>` : ""}
               </div>
-              <span class="small muted">${esc(tutor.subjectName)} · ${esc(tutor.city)} · ★ ${tutor.rating.toFixed(1)} (${tutor.reviews})</span>
+              <span class="small muted">${esc(tutor.subjectName)} · ${esc(tutor.city)} · ${ratingBtnHTML(tutor)}</span>
             </div>
           </div>
+          <button type="button" class="icon-btn sm sheet-close-btn" data-a="book-close" aria-label="Закрыть окно">${icon("x")}</button>
         </div>
 
         <div class="sheet-body">
@@ -972,6 +1131,99 @@
     return raw.filter((t) => t && !bookedIds.has(String(t.id)));
   }
 
+  function renderDirectionChipHTML(sb, isOn, opts) {
+    if (!sb) return "";
+    const isOrch = !!(sb.autoAdded || sb.source === "orchestrator");
+    const prefix = opts && opts.plus ? "+ " : "";
+    const cls = "chip-btn" + (isOn ? " on" : "") + (isOrch ? " is-orch" : "");
+    const titleAttr = isOrch ? ' title="Добавлено системой (оркестратор)"' : "";
+    const dot = isOrch ? '<span class="orch-dot" aria-hidden="true"></span>' : "";
+    return `<button type="button" class="${cls}" data-a="mkt-subj" data-v="${esc(sb.id)}"${titleAttr}>${dot}<span>${prefix}${esc(sb.short)}</span></button>`;
+  }
+
+  function filterSubjPreviewSubjects(visibleSubjects, st, TDATA) {
+    const baseList = Array.isArray(visibleSubjects) ? visibleSubjects : [];
+    const byId = new Map();
+    baseList.forEach((s) => { if (s && s.id) byId.set(s.id, s); });
+    const out = [];
+    const seen = new Set();
+    const pushItem = (s) => {
+      if (!s || !s.id || seen.has(s.id)) return;
+      seen.add(s.id);
+      out.push(s);
+    };
+    const previewIds = (TDATA && Array.isArray(TDATA.PREVIEW_SUBJECT_IDS)) ? TDATA.PREVIEW_SUBJECT_IDS : [];
+    previewIds.forEach((id) => pushItem(byId.get(id)));
+    if (st && st.subject && st.subject !== "all") pushItem(byId.get(st.subject));
+    const orch = baseList.filter((s) => s && (s.autoAdded || s.source === "orchestrator"));
+    orch.slice(-2).forEach(pushItem);
+    baseList.forEach((s) => {
+      if (out.length < 12) pushItem(s);
+    });
+    return out;
+  }
+
+  function filterSubjListHTML() {
+    const ui = getUi();
+    const TDATA = getTDATA();
+    if (!TDATA) return "";
+    const st = getMkt();
+    const query = String(ui.filterSubjQ || "");
+    const searchRes = typeof TDATA.searchDirections === "function"
+      ? TDATA.searchDirections(query, st.exam)
+      : { items: TDATA.SUBJECTS || [], exactMatch: null, normalizedQuery: query.trim().toLowerCase(), rawQuery: query.trim() };
+    const matched = searchRes.items || [];
+    const qNorm = searchRes.normalizedQuery || "";
+    const qRaw = searchRes.rawQuery || "";
+    const allChip = `<button type="button" class="chip-btn${st.subject === "all" ? " on" : ""}" data-a="mkt-subj" data-v="all">Все</button>`;
+
+    let bodyHTML = "";
+    if (!qNorm && st.exam === "all" && Array.isArray(TDATA.DIRECTION_CATEGORIES)) {
+      const catOrder = TDATA.DIRECTION_CATEGORIES.slice();
+      const grouped = new Map();
+      catOrder.forEach((c) => grouped.set(c, []));
+      matched.forEach((sb) => {
+        const cat = sb.category || (sb.autoAdded ? "Добавлено оркестратором" : "Школа и экзамены");
+        if (!grouped.has(cat)) {
+          grouped.set(cat, []);
+          catOrder.push(cat);
+        }
+        grouped.get(cat).push(sb);
+      });
+      bodyHTML = `<div class="mkt-subj-groups">
+        <div class="chip-rail">${allChip}</div>
+        ${catOrder.map((cat) => {
+          const items = grouped.get(cat) || [];
+          if (!items.length) return "";
+          return `<div class="mkt-subj-cat">
+            <div class="mkt-subj-cat-title">${esc(cat)} · <span class="num">${items.length}</span></div>
+            <div class="chip-rail">${items.map((sb) => renderDirectionChipHTML(sb, st.subject === sb.id)).join("")}</div>
+          </div>`;
+        }).join("")}
+      </div>`;
+    } else if (matched.length) {
+      bodyHTML = `<div class="chip-rail">
+        ${!qNorm ? allChip : ""}
+        ${matched.map((sb) => renderDirectionChipHTML(sb, st.subject === sb.id)).join("")}
+      </div>`;
+    } else {
+      bodyHTML = `<div class="small muted">В каталоге пока нет совпадений для «${esc(qRaw)}».</div>`;
+    }
+
+    const canOfferAdaptiveAdd = qNorm.length >= 2 && !searchRes.exactMatch && st.exam === "all";
+    const addHTML = canOfferAdaptiveAdd
+      ? `<div class="mkt-subj-add-card">
+          <div class="stack" style="gap:3px">
+            <b>Не нашли «${esc(qRaw)}» в списке?</b>
+            <span class="small muted">Добавим направление в каталог — ИИ-оркестратор начнёт находить преподавателей и адаптировать подборку.</span>
+          </div>
+          <button type="button" class="btn sm" data-a="mkt-subj-add">+ Выбрать и добавить «${esc(qRaw)}»</button>
+        </div>`
+      : "";
+
+    return bodyHTML + addHTML;
+  }
+
   function filterModalHTML() {
     const ui = getUi();
     const TDATA = getTDATA();
@@ -981,6 +1233,35 @@
     const list = filterAvailableTutors(st, days, TDATA);
     const totalWord = plural(list.length, "репетитора", "репетиторов", "репетиторов");
     const visibleSubjects = typeof TDATA.subjectsForExam === "function" ? TDATA.subjectsForExam(st.exam) : TDATA.SUBJECTS;
+    const canExpandSubj = st.exam === "all" && visibleSubjects.length > 12;
+    const isSubjExpanded = canExpandSubj && !!ui.filterSubjExpanded;
+    const previewSubjects = canExpandSubj ? filterSubjPreviewSubjects(visibleSubjects, st, TDATA) : visibleSubjects;
+    const hiddenSubjCount = Math.max(0, visibleSubjects.length - previewSubjects.length);
+    const subjTitle = (st.exam === "ЕГЭ" || st.exam === "ОГЭ") ? `Предметы (${esc(st.exam)})` : "Предмет и направление";
+    const subjSectionHTML = isSubjExpanded
+      ? `<div class="stack" style="gap:10px">
+          <div class="row between mkt-subj-head">
+            <span class="small muted">${subjTitle} · <b class="num">${visibleSubjects.length}</b></span>
+            <button type="button" class="link-btn small" data-a="mkt-subj-more">Свернуть</button>
+          </div>
+          <div class="hh-search-box mkt-subj-finder">
+            <span class="hh-search-ico">${icon("search")}</span>
+            <input class="hh-search-input" id="mkt-subj-q" type="search" autocomplete="off" spellcheck="false" value="${esc(ui.filterSubjQ || "")}" placeholder="Найти предмет или направление…">
+            <button type="button" class="search-clear" id="mkt-subj-q-clear" data-a="mkt-subj-q-clear" aria-label="Очистить поиск направления"${ui.filterSubjQ ? "" : ' hidden aria-hidden="true"'}>${icon("x")}</button>
+          </div>
+          <div id="mkt-subj-picker-list">${filterSubjListHTML()}</div>
+        </div>`
+      : `<div class="stack" style="gap:8px">
+          <div class="row between mkt-subj-head">
+            <span class="small muted">${subjTitle}</span>
+            ${canExpandSubj ? `<span class="small muted num">${visibleSubjects.length} направлений</span>` : ""}
+          </div>
+          <div class="chip-rail">
+            <button type="button" class="chip-btn${st.subject === "all" ? " on" : ""}" data-a="mkt-subj" data-v="all">Все</button>
+            ${previewSubjects.map((sb) => renderDirectionChipHTML(sb, st.subject === sb.id)).join("")}
+            ${canExpandSubj && hiddenSubjCount > 0 ? `<button type="button" class="chip-btn mkt-subj-more-btn" data-a="mkt-subj-more">Подробнее (+${hiddenSubjCount})</button>` : ""}
+          </div>
+        </div>`;
     const pricePresets = [
       [0, "Любая"],
       [800, "до 800 ₽"],
@@ -996,15 +1277,14 @@
     const isCustomPrice = !!(st.priceCustom || !isPresetMax);
     const priceReadout = priceFilterLabel(st);
 
-    return `<div class="modal-back is-sheet-back" role="dialog" aria-modal="true" aria-labelledby="filter-modal-title">
-      <div class="modal-card sheet-modal is-fullscreen-sheet" data-sheet-kind="filter">
+    return `<div class="modal-back is-sheet-back is-filter-back" role="dialog" aria-modal="true" aria-labelledby="filter-modal-title">
+      <div class="modal-card sheet-modal is-fullscreen-sheet is-filter-drawer" data-sheet-kind="filter">
         <div class="sheet-grabber-zone" data-sheet-drag="1" role="button" tabindex="0" data-a="filter-close" aria-label="Свернуть фильтры">
           <span class="sheet-grabber"></span>
         </div>
         <div class="sheet-head is-filter-head">
-          <span aria-hidden="true"></span>
-          <b id="filter-modal-title" style="text-align:center;font-size:17px">Фильтры</b>
-          <button type="button" class="link-btn small" data-a="mkt-reset">Сбросить</button>
+          <b id="filter-modal-title">Фильтры</b>
+          <button type="button" class="icon-btn sm filter-close-btn" data-a="filter-close" aria-label="Закрыть фильтры">${icon("x")}</button>
         </div>
         <div class="sheet-body">
           <div class="hh-search-box">
@@ -1024,13 +1304,7 @@
               <button type="button" class="chip-btn${st.onlyBumped ? " on" : ""}" data-a="mkt-bumped-set" data-v="1">Подняты за последнюю неделю</button>
             </div>
           </div>
-          <div class="stack" style="gap:8px">
-            <div class="small muted">${(st.exam === "ЕГЭ" || st.exam === "ОГЭ") ? `Предметы (${esc(st.exam)})` : "Предмет и направление"}</div>
-            <div class="chip-rail">
-              <button type="button" class="chip-btn${st.subject === "all" ? " on" : ""}" data-a="mkt-subj" data-v="all">Все</button>
-              ${visibleSubjects.map((sb) => `<button type="button" class="chip-btn${st.subject === sb.id ? " on" : ""}" data-a="mkt-subj" data-v="${sb.id}">${esc(sb.short)}</button>`).join("")}
-            </div>
-          </div>
+          ${subjSectionHTML}
           <div class="stack" style="gap:8px">
             <div class="small muted">Формат</div>
             <div class="chip-rail">
@@ -1063,8 +1337,9 @@
             </div>` : ""}
           </div>
         </div>
-        <div class="sheet-foot">
-          <button type="button" class="btn" id="filter-submit-btn" style="width:100%" data-a="filter-close">Показать ${list.length} ${totalWord}</button>
+        <div class="sheet-foot filter-sheet-foot">
+          <button type="button" class="btn ghost filter-reset-btn" data-a="mkt-reset">Сбросить</button>
+          <button type="button" class="btn filter-apply-btn" id="filter-submit-btn" data-a="filter-close">Показать ${list.length} ${totalWord}</button>
         </div>
       </div>
     </div>`;
@@ -1086,7 +1361,8 @@
     const visibleLimit = isLanding ? Math.max(pageSize, Number(ui.mktVisibleCount) || pageSize) : list.length;
     const visibleList = isLanding ? list.slice(0, visibleLimit) : list;
     const hasMore = isLanding && visibleList.length < list.length;
-    const totalCatalog = Number(TDATA.CATALOG_TOTAL) || 2480;
+    const demo = isDevDemoMode();
+    const totalCatalog = demo ? (Number(TDATA.CATALOG_TOTAL) || 2480) : (Array.isArray(TDATA.LIST) ? TDATA.LIST.length : 0);
     const visibleSubjects = typeof TDATA.subjectsForExam === "function" ? TDATA.subjectsForExam(st.exam) : TDATA.SUBJECTS;
 
     const activeChips = [];
@@ -1117,12 +1393,41 @@
               <button type="button" class="btn soft sm" data-a="mkt-reset">Сбросить фильтры</button>
             </div>
           </div>`
-        : `<div class="empty">
-            <b>По выбранным фильтрам пока никого нет.</b>
-            <span>Попробуй расширить бюджет или сбросить фильтры.</span>
-            <button type="button" class="btn soft sm" data-a="mkt-reset">Сбросить фильтры</button>
-          </div>`;
-    const bottomBalanceBar = (!st.bookings.length && Number(st.balance) > 0)
+        : (!demo && TDATA.serverLoading && !TDATA.serverLoaded)
+          ? `<div class="empty" id="mkt-prod-loading">
+              <b>Загружаем анкеты преподавателей…</b>
+              <span>Получаем актуальный список из каталога Вектор.</span>
+            </div>`
+          : (!demo && (!Array.isArray(TDATA.LIST) || TDATA.LIST.length === 0))
+            ? `<div class="empty" id="mkt-prod-empty">
+                <b>Анкет преподавателей пока нет</b>
+                <span>Оставьте заявку «Ищу преподавателя» — мы подберём специалиста под ваш бюджет, или подайте анкету репетитора.</span>
+                <div class="row" style="gap:8px;flex-wrap:wrap;justify-content:center">
+                  <button type="button" class="btn sm" data-a="go-student-lead">Оставить заявку «Ищу преподавателя»</button>
+                  <button type="button" class="btn soft sm" data-a="go" data-v="landing">Стать репетитором</button>
+                </div>
+              </div>`
+            : (() => {
+                const activeSubjObj = st.subject && st.subject !== "all"
+                  ? (TDATA.SUBJECTS || []).find((x) => x.id === st.subject)
+                  : null;
+                if (activeSubjObj) {
+                  return `<div class="empty">
+                    <b>По направлению «${esc(activeSubjObj.short)}» оркестратор ещё подбирает преподавателей</b>
+                    <span>Оставьте заявку — система найдёт специалиста в базах и пришлёт вам отклики с вашей ценой.</span>
+                    <div class="row" style="gap:8px;flex-wrap:wrap;justify-content:center">
+                      <button type="button" class="btn sm" data-a="mkt-lead-for-subj" data-v="${esc(activeSubjObj.id)}">Оставить заявку «Ищу преподавателя»</button>
+                      <button type="button" class="btn soft sm" data-a="mkt-reset">Сбросить фильтры</button>
+                    </div>
+                  </div>`;
+                }
+                return `<div class="empty">
+                  <b>По выбранным фильтрам пока никого нет.</b>
+                  <span>Попробуй расширить бюджет или сбросить фильтры.</span>
+                  <button type="button" class="btn soft sm" data-a="mkt-reset">Сбросить фильтры</button>
+                </div>`;
+              })();
+    const bottomBalanceBar = (!isLanding && !st.bookings.length && Number(st.balance) > 0)
       ? `<div class="row between small muted mkt-foot-bal" style="padding:10px 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface)">
           <span>Доступно на балансе СБП: <b class="num" style="color:var(--ink)">${Number(st.balance).toLocaleString("ru-RU")} ₽</b></span>
           <div class="row" style="gap:6px;flex-wrap:wrap">
@@ -1132,13 +1437,17 @@
         </div>`
       : "";
 
+    const eyebrowHTML = demo
+      ? `Огромная база · <span class="num" data-countup="${totalCatalog}">${totalCatalog.toLocaleString("ru-RU")}</span>+ анкет`
+      : `Реальная база преподавателей · <span class="num">${totalCatalog.toLocaleString("ru-RU")}</span> ${plural(totalCatalog, "анкета", "анкеты", "анкет")}`;
+
     return `<section class="land-sec" id="land-market" aria-label="Маркетплейс репетиторов">
-      <div class="land-sec-head">
+      ${isLanding ? `<div class="land-sec-head">
         <div>
-          <div class="eyebrow">Огромная база · <span class="num" data-countup="${totalCatalog}">${totalCatalog.toLocaleString("ru-RU")}</span>+ анкет</div>
+          <div class="eyebrow">${eyebrowHTML}</div>
           <h2 class="h2">Ищи репетиторов ниже рынка для любой задачи</h2>
         </div>
-      </div>
+      </div>` : ""}
       <div class="hh-seg" role="group" aria-label="Цель подготовки">
         ${[["all", "Все"], ["ЕГЭ", "ЕГЭ"], ["ОГЭ", "ОГЭ"]].map(([v, l]) => `<button type="button" data-a="mkt-exam" data-v="${v}" aria-pressed="${st.exam === v}">${l}</button>`).join("")}
       </div>
@@ -1156,7 +1465,8 @@
         ${!st.onlyBumped ? `<button type="button" class="chip-btn" data-a="mkt-bumped">+ Подняты за неделю</button>` : ""}
         ${!(Number(st.maxPrice) > 0 || Number(st.minPrice) > 0) ? `<button type="button" class="chip-btn" data-a="mkt-price" data-v="1200">+ До 1 200 ₽</button>` : ""}
         <button type="button" class="chip-btn" data-a="mkt-preset">+ Английский ЕГЭ</button>
-        ${visibleSubjects.filter((sb) => sb.id !== st.subject).map((sb) => `<button type="button" class="chip-btn" data-a="mkt-subj" data-v="${sb.id}">+ ${esc(sb.short)}</button>`).join("")}
+        ${(st.exam === "all" ? filterSubjPreviewSubjects(visibleSubjects, st, TDATA).slice(0, 10) : visibleSubjects).filter((sb) => sb.id !== st.subject).map((sb) => renderDirectionChipHTML(sb, false, { plus: true })).join("")}
+        ${(st.exam === "all" && visibleSubjects.length > 10) ? `<button type="button" class="chip-btn mkt-subj-more-btn" data-a="mkt-subj-open-more">+ Ещё направления</button>` : ""}
       </div>
 
       <div class="hh-sort-row">
@@ -1169,14 +1479,50 @@
       </div>
 
       ${cardsHTML}
-      ${bookingsStripHTML(st)}
-      ${bottomBalanceBar}
+      ${isLanding ? "" : bottomBalanceBar}
     </section>`;
   }
 
-  function viewMarket() {
-    return `<div class="head"><div class="row between" style="flex-wrap:wrap;gap:10px"><div><div class="eyebrow">Поиск</div><h1 class="h1">Поиск репетитора</h1></div><button type="button" class="btn ghost sm" data-a="go" data-v="landing">Витрина</button></div></div>
-      ${marketSectionHTML()}`;
+  function viewMarket(opts) {
+    opts = opts || {};
+    if (opts.inside === false) {
+      const dark = opts.dark != null
+        ? !!opts.dark
+        : (typeof _ctx.effectiveDark === "function" ? !!_ctx.effectiveDark() : false);
+      const lockup = typeof brandLockupHTML === "function" ? brandLockupHTML({}) : "<b>Вектор</b>";
+      return `<div class="land-page is-market-page" id="market-page" data-inside="0">
+        <header class="land-top is-scrolled-light">
+          <a href="/" class="brand-home-link" data-a="go" data-v="landing" aria-label="Вектор — на главную">${lockup}</a>
+          <nav class="land-links" aria-label="Разделы сайта">
+            <a href="/market" data-a="go" data-v="market" aria-current="page">Репетиторы</a>
+            <a href="/student?auth=register" data-a="auth-register-open" data-role="student">Для ученика</a>
+            <a href="/tutor?auth=register" data-a="auth-register-open" data-role="tutor">Для преподавателя</a>
+            <a href="/fees" data-a="go" data-v="fees">Условия оплаты</a>
+          </nav>
+          <div class="land-top-actions">
+            <button type="button" class="icon-btn sm" data-a="theme-toggle" aria-label="Сменить тему">${icon(dark ? "sun" : "moon")}</button>
+            <button type="button" class="btn sm" data-a="auth-modal-open">Войти</button>
+          </div>
+        </header>
+
+        ${marketSectionHTML({ landing: true })}
+
+        <hr class="land-plain-line" aria-hidden="true">
+
+        <footer class="land-footer is-minimal small muted">
+          <div class="land-footer-links is-plain">
+            <button type="button" class="land-foot-plain" data-a="bug-site">Сообщить о баге</button>
+            <button type="button" class="land-foot-plain" data-a="coop-open">Сотрудничество</button>
+            <a href="/fees" class="land-foot-plain" data-a="go" data-v="fees">Условия оплаты</a>
+            <a href="/terms" class="land-foot-plain">Публичная оферта</a>
+            <a href="/refunds" class="land-foot-plain">Возврат и эскроу</a>
+            <a href="/privacy" class="land-foot-plain">Политика конфиденциальности</a>
+            <button type="button" class="land-foot-plain" data-a="cookie-settings">Настройки cookies</button>
+          </div>
+        </footer>
+      </div>`;
+    }
+    return marketSectionHTML();
   }
 
   function studentLeadCardHTML(TDATA, ui) {
@@ -1476,9 +1822,7 @@
       bookedList.push({ tutor: t, booking: bk });
     });
 
-    const header = `<div class="head">
-        <div><div class="eyebrow">Учёба</div><h1 class="h1">Мои преподаватели и расписание</h1></div>
-      </div>`;
+    const header = "";
 
     if (tab === "tests") {
       return `${header}<div class="row" style="margin-bottom:8px"><button type="button" class="btn ghost sm" data-a="study-tab" data-tab="week">← Расписание</button></div>${typeof _ctx.viewTests === "function" ? _ctx.viewTests({ embedded: true }) : ""}`;
@@ -1718,7 +2062,7 @@
                       ${tutorAvatarHTML(row.tutor)}
                       <div class="tutor-person-meta">
                         <div class="tutor-title-inline">
-                          <b class="tutor-person-name">${esc(row.tutorName)}</b>
+                          <button type="button" class="tutor-profile-jump-btn" data-a="mc-open-bid-profile" data-booking-id="${esc(bk.id)}" data-tutor-id="${esc(bk.tutorId || "")}" title="Открыть в «Откликах»"><b class="tutor-person-name">${esc(row.tutorName)}</b></button>
                         </div>
                         <span class="small muted">${esc(bk.exam || "ЕГЭ")} · ${esc(row.subjectName)} · ${row.isTrial ? `Пробный ${row.offerPrice.toLocaleString("ru-RU")} ₽` : `${row.offerPrice.toLocaleString("ru-RU")} ₽/ч`}</span>
                       </div>
@@ -1753,15 +2097,16 @@
                     ${tutorAvatarHTML(row.tutor)}
                     <div class="tutor-person-meta">
                       <div class="tutor-title-inline">
-                        <b class="tutor-person-name">${esc(row.tutorName)}</b>
+                        <button type="button" class="tutor-profile-jump-btn" data-a="mc-open-bid-profile" data-booking-id="${esc(bk.id)}" data-tutor-id="${esc(bk.tutorId || "")}" title="Открыть в «Откликах»"><b class="tutor-person-name">${esc(row.tutorName)}</b></button>
                         ${row.tutor.verified !== false ? `<span class="verified-badge">${icon("check")}</span>` : ""}
                       </div>
-                      <span class="small muted">${esc(bk.exam || "ЕГЭ")} · ${esc(row.subjectName)} · ${row.isTrial ? `Пробный ${row.offerPrice.toLocaleString("ru-RU")} ₽` : `${row.offerPrice.toLocaleString("ru-RU")} ₽/ч`}</span>
+                      <span class="small muted">${esc(bk.exam || "ЕГЭ")} · ${esc(row.subjectName)} · ${row.isTrial ? `Пробный ${row.offerPrice.toLocaleString("ru-RU")} ₽` : `${row.offerPrice.toLocaleString("ru-RU")} ₽/ч`}${row.tutor && row.tutor.id ? ` · ${ratingBtnHTML(row.tutor)}` : ""}</span>
                     </div>
                   </div>
                   <div class="bid-telemost-box">${tmBlock}</div>
                   ${msgBar}
                   <span class="study-hold-hint">Удерживайте WhatsApp, Telegram или MAX, чтобы указать или изменить контакт</span>
+                  ${bookingTrustActionsHTML(bk, row.tutor, st)}
                   <button type="button" class="btn ghost sm study-cancel-btn" data-a="mkt-cancel-book" data-id="${esc(bk.id)}">Отменить занятие</button>
                 </article>`;
               }).join("")}</div>`
@@ -1772,9 +2117,6 @@
 
           return `${billingBannerHTML}
           <section class="stack study-cal-card" id="study-week-strip">
-            <div class="row between" style="gap:8px;flex-wrap:wrap">
-              <h2 class="h2">Календарь ваших уроков: ${esc(weekRange)}</h2>
-            </div>
             ${weekPicker}
             ${daysStripHTML}
             <div class="study-day-panel${isPastWeek ? " is-past-week" : ""}">
@@ -1792,9 +2134,7 @@
 
     return `${header}
       ${enrolledSection}
-      ${bookingsStripHTML(st)}
-      ${studentLeadCardHTML(TDATA, ui)}
-      ${EGE.views && EGE.views.trainer && typeof EGE.views.trainer.studyOverviewCardsHTML === "function" ? EGE.views.trainer.studyOverviewCardsHTML() : ""}`;
+      ${studentLeadCardHTML(TDATA, ui)}`;
   }
 
   function publishStudentBid(booking, tutor) {
@@ -1816,6 +2156,27 @@
         studentName: booking.studentName || "Заявка ученика (из /market)"
       }, booking)
     });
+  }
+
+  function markJustConfirmedSched(bkId) {
+    const ui = getUi();
+    const idStr = String(bkId || "");
+    if (!idStr) return;
+    ui.justConfirmedSchedId = idStr;
+    const seq = (ui.justConfirmedSchedSeq || 0) + 1;
+    ui.justConfirmedSchedSeq = seq;
+    if (typeof setTimeout === "function") {
+      setTimeout(() => {
+        if (ui.justConfirmedSchedSeq !== seq) return;
+        ui.justConfirmedSchedId = "";
+        if (typeof document === "undefined" || typeof document.querySelectorAll !== "function") return;
+        try {
+          document.querySelectorAll("#home-bids-section .bid-sched-confirmed.is-just-confirmed").forEach((node) => {
+            if (node && node.classList) node.classList.remove("is-just-confirmed");
+          });
+        } catch (e) { /* игнор */ }
+      }, 2000);
+    }
   }
 
   function handleAction(act, el) {
@@ -1846,13 +2207,30 @@
       const nextUrl = generateTelemostUrl();
       st.telemostUrl = nextUrl;
       (st.bookings || []).forEach((b) => { if (b) b.telemostUrl = nextUrl; });
+      if (EGE.views && EGE.views.messenger && typeof EGE.views.messenger.syncTelemostUrl === "function") {
+        EGE.views.messenger.syncTelemostUrl(nextUrl);
+      }
       ui.telemostEditId = "";
       ui.telemostError = "";
       if (typeof _ctx.saveMkt === "function") _ctx.saveMkt();
       if (_ctx.store && _ctx.store.backend && _ctx.store.user && EGE.api && EGE.api.bookings && bk.serverSynced) {
-        EGE.api.bookings.updateTelemost(bk.id, nextUrl).catch(() => {});
+        EGE.api.bookings.updateTelemost(bk.id, nextUrl, "student").catch(() => {});
       }
-      if (typeof _ctx.notifySide === "function") _ctx.notifySide("Яндекс Телемост", "Создана новая единая ссылка — будет передана преподавателю сама (WhatsApp или Telegram-бот)");
+      if (typeof _ctx.notifySide === "function") {
+        _ctx.notifySide(
+          "Яндекс Телемост",
+          "Создана новая ссылка встречи — уведомление со ссылкой отправлено преподавателю",
+          {
+            inbox: true,
+            kind: "telemost",
+            bookingId: bk.id,
+            threadId: bk.serverSynced ? ("booking:" + bk.id) : "",
+            actionUrl: nextUrl,
+            actionLabel: "Войти в Телемост",
+            duration: 5600
+          }
+        );
+      }
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       return true;
     }
@@ -1949,8 +2327,9 @@
           payload: { bookingId: bk.id, schedulePlan: bk.schedulePlan }
         });
       }
-      if (typeof _ctx.notifySide === "function") {
-        _ctx.notifySide("График закреплён в «Учёбе»", `${bk.dayLabel} · ${hour} · бот уведомил преподавателя`);
+      markJustConfirmedSched(bk.id);
+      if (typeof _ctx.toast === "function") {
+        _ctx.toast(`График закреплён в «Календаре» · ${bk.dayLabel}, ${hour}`);
       }
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       return true;
@@ -1968,7 +2347,8 @@
       if (_ctx.store && _ctx.store.backend && _ctx.store.user && EGE.api && EGE.api.bookings && bk.serverSynced) {
         EGE.api.bookings.updateSchedule(bk.id, bk.schedulePlan).catch(() => {});
       }
-      if (typeof _ctx.notifySide === "function") _ctx.notifySide("График закреплён в «Учёбе»", `${bk.dayLabel} · ${bk.hour}`);
+      markJustConfirmedSched(bk.id);
+      if (typeof _ctx.toast === "function") _ctx.toast(`График закреплён в «Календаре» · ${bk.dayLabel}, ${bk.hour}`);
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       return true;
     }
@@ -1987,7 +2367,7 @@
       bk.schedulePlan = plan;
       if (typeof _ctx.saveMkt === "function") _ctx.saveMkt();
       if (typeof _ctx.notifySide === "function") {
-        _ctx.notifySide("Преподаватель предложил другие даты", `${formatDaysShort(alt.dows)} · ${alt.hour}`);
+        _ctx.notifySide("Преподаватель предложил другие даты", `${formatDaysShort(alt.dows)} · ${alt.hour}`, { inbox: false });
       }
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       return true;
@@ -2009,7 +2389,8 @@
       if (_ctx.store && _ctx.store.backend && _ctx.store.user && EGE.api && EGE.api.bookings && bk.serverSynced) {
         EGE.api.bookings.updateSchedule(bk.id, bk.schedulePlan).catch(() => {});
       }
-      if (typeof _ctx.notifySide === "function") _ctx.notifySide("Новые даты закреплены в «Учёбе»", `${bk.dayLabel} · ${bk.hour}`);
+      markJustConfirmedSched(bk.id);
+      if (typeof _ctx.toast === "function") _ctx.toast(`Новые даты закреплены в «Календаре» · ${bk.dayLabel}, ${bk.hour}`);
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender();
       return true;
     }
@@ -2086,6 +2467,236 @@
     });
   }
 
+  function reviewsModalHTML() {
+    const ui = getUi();
+    const TDATA = getTDATA();
+    if (!ui.reviewsModal || !ui.reviewsModal.tutorId || !TDATA) return "";
+    const tutor = TDATA.LIST.find((x) => x.id === ui.reviewsModal.tutorId);
+    if (!tutor) return "";
+    const st = getMkt();
+    const reviews = typeof TDATA.getTutorReviews === "function" ? TDATA.getTutorReviews(tutor.id) : [];
+    const totalShown = Math.max(1, reviews.length);
+    const counts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+    reviews.forEach((r) => {
+      const k = Math.max(1, Math.min(5, Math.round(Number(r.rating) || 5)));
+      counts[k] = (counts[k] || 0) + 1;
+    });
+    const totalReviewsNum = Math.max(reviews.length, Number(tutor.reviews) || 0);
+    const eligibleBk = (st.bookings || []).find((b) =>
+      b && String(b.tutorId) === String(tutor.id)
+      && (b.status === "accepted" || b.status === "completed")
+      && !b.myReviewRating
+      && !findMyBookingReview(TDATA, b)
+    );
+    const barsHTML = [5, 4, 3, 2, 1].map((star) => {
+      const c = counts[star] || 0;
+      const pct = Math.round((c / totalShown) * 100);
+      return `<div class="rev-bar-row">
+        <span class="small num muted">${star} ★</span>
+        <span class="rev-bar-track"><span class="rev-bar-fill" style="width:${pct}%"></span></span>
+        <span class="small num muted">${c}</span>
+      </div>`;
+    }).join("");
+
+    const cardsHTML = reviews.length
+      ? reviews.map((r) => `<article class="rev-card${r.mine ? " is-mine" : ""}">
+          <div class="row between" style="gap:8px;align-items:center">
+            <div class="row" style="gap:8px;align-items:center;min-width:0">
+              <b>${esc(r.studentName || "Ученик")}</b>
+              ${r.mine ? `<span class="chip accent">Ваш отзыв</span>` : ""}
+            </div>
+            <div class="row" style="gap:6px;align-items:center;flex:none">
+              <span class="rev-stars-pill num">★ ${Number(r.rating || 5)}</span>
+              <span class="small muted">${esc(r.createdAt || "")}</span>
+            </div>
+          </div>
+          ${Array.isArray(r.tags) && r.tags.length ? `<div class="rev-card-tags">${r.tags.map((tg) => `<span class="chip">${esc(tg)}</span>`).join("")}</div>` : ""}
+          ${r.comment ? `<p class="small ink2" style="margin:0;line-height:1.45">${esc(r.comment)}</p>` : ""}
+        </article>`).join("")
+      : `<div class="empty"><b>Отзывов пока нет</b><span>Станьте первым учеником, кто оценит урок с преподавателем.</span></div>`;
+
+    return `<div class="modal-back is-sheet-back" role="dialog" aria-modal="true" aria-labelledby="reviews-modal-title">
+      <div class="modal-card sheet-modal" data-sheet-kind="reviews">
+        <div class="sheet-grabber-zone" data-sheet-drag="1" role="button" tabindex="0" data-a="reviews-close" aria-label="Свернуть окно отзывов">
+          <span class="sheet-grabber"></span>
+        </div>
+        <div class="sheet-head is-booking-head">
+          <div class="row between" style="gap:10px;width:100%;align-items:center">
+            <b id="reviews-modal-title">Отзывы · ${esc(tutor.name)}</b>
+            <button type="button" class="icon-btn" data-a="reviews-close" aria-label="Закрыть">${icon("x")}</button>
+          </div>
+        </div>
+        <div class="sheet-body">
+          <div class="tutor-name-line">
+            ${tutorAvatarHTML(tutor)}
+            <div class="tutor-person-meta">
+              <div class="tutor-title-inline">
+                <b class="tutor-person-name">${esc(tutor.name)}</b>
+                ${tutor.verified !== false ? `<span class="verified-badge">${icon("check")}</span>` : ""}
+              </div>
+              <span class="small muted">${esc(tutor.subjectName)} · ${esc(tutor.city)} · ${esc(tutor.exp || "")}</span>
+            </div>
+          </div>
+          <div class="rev-summary-head">
+            <div class="rev-summary-left">
+              <b class="rev-score num">${Number(tutor.rating || 5).toFixed(1)}</b>
+              <span class="rev-score-stars" aria-hidden="true">★★★★★</span>
+              <span class="small muted">${totalReviewsNum} ${plural(totalReviewsNum, "отзыв", "отзыва", "отзывов")}</span>
+            </div>
+            <div class="rev-bars">${barsHTML}</div>
+          </div>
+          ${ui.reviewsModal.loading ? `<div class="small muted">Загружаем актуальные отзывы…</div>` : ""}
+          <div class="rev-list">${cardsHTML}</div>
+        </div>
+        <div class="sheet-foot is-centered" style="gap:8px;flex-wrap:wrap">
+          ${eligibleBk
+            ? `<button type="button" class="btn" data-a="review-open" data-id="${esc(eligibleBk.id)}">★ Оставить отзыв</button>`
+            : `<button type="button" class="btn" data-a="book-open" data-id="${esc(tutor.id)}">Выбрать время · ${Number(tutor.price || 1200).toLocaleString("ru-RU")} ₽/ч</button>`}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function reviewModalHTML() {
+    const ui = getUi();
+    const TDATA = getTDATA();
+    if (!ui.reviewModal || !TDATA) return "";
+    const rm = ui.reviewModal;
+    const st = getMkt();
+    const bk = (st.bookings || []).find((x) => x && String(x.id) === String(rm.bookingId || "")) || null;
+    const tutorId = (bk && bk.tutorId) || rm.tutorId || "";
+    const tutor = TDATA.LIST.find((x) => x.id === tutorId) || {
+      id: tutorId,
+      name: (bk && bk.tutorName) || "Преподаватель",
+      subjectName: (bk && bk.subjectName) || "Занятие",
+      verified: true
+    };
+    const rating = Math.max(1, Math.min(5, Math.round(Number(rm.rating) || 5)));
+    const ratingLabels = {
+      1: "1 ★ — Не подошло",
+      2: "2 ★ — Были сложности",
+      3: "3 ★ — Нормально",
+      4: "4 ★ — Хороший урок",
+      5: "5 ★ — Отлично!"
+    };
+    const pickedTags = Array.isArray(rm.tags) ? rm.tags : [];
+    const tags = Array.isArray(TDATA.REVIEW_TAGS) ? TDATA.REVIEW_TAGS : [];
+
+    return `<div class="modal-back is-sheet-back" role="dialog" aria-modal="true" aria-labelledby="review-modal-title">
+      <div class="modal-card sheet-modal" data-sheet-kind="review">
+        <div class="sheet-grabber-zone" data-sheet-drag="1" role="button" tabindex="0" data-a="review-close" aria-label="Свернуть форму оценки">
+          <span class="sheet-grabber"></span>
+        </div>
+        <div class="sheet-head is-booking-head">
+          <div class="row between" style="gap:10px;width:100%;align-items:center">
+            <b id="review-modal-title">Оценить урок</b>
+            <button type="button" class="icon-btn" data-a="review-close" aria-label="Закрыть">${icon("x")}</button>
+          </div>
+        </div>
+        <div class="sheet-body">
+          <div class="tutor-name-line">
+            ${tutorAvatarHTML(tutor)}
+            <div class="tutor-person-meta">
+              <div class="tutor-title-inline">
+                <b class="tutor-person-name">${esc(tutor.name)}</b>
+                ${tutor.verified !== false ? `<span class="verified-badge">${icon("check")}</span>` : ""}
+              </div>
+              <span class="small muted">${esc(tutor.subjectName || "")}${bk ? ` · ${esc(bk.dayLabel || "")} в ${esc(bk.hour || "")}` : ""}</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Ваша оценка</label>
+            <div class="rev-stars-pick" role="group" aria-label="Оценка от 1 до 5 звёзд">
+              ${[1, 2, 3, 4, 5].map((s) => `<button type="button" class="rev-star-btn${s <= rating ? " on" : ""}" data-a="review-star" data-star="${s}" aria-pressed="${s <= rating ? "true" : "false"}" aria-label="${s} звёзд">★</button>`).join("")}
+            </div>
+            <span class="small muted" id="review-star-caption">${esc(ratingLabels[rating] || "")}</span>
+          </div>
+
+          <div class="field">
+            <label>Что отметить</label>
+            <div class="chip-rail">
+              ${tags.map((tg) => `<button type="button" class="chip-btn${pickedTags.includes(tg) ? " on" : ""}" data-a="review-tag" data-tag="${esc(tg)}" aria-pressed="${pickedTags.includes(tg) ? "true" : "false"}">${esc(tg)}</button>`).join("")}
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="review-comment">Отзыв о преподавателе</label>
+            <textarea class="input" id="review-comment" rows="3" maxlength="600" placeholder="Расскажите, как прошёл урок, насколько понятна подача и помог ли разбор…">${esc(rm.comment || "")}</textarea>
+          </div>
+          ${rm.error ? `<div class="auth-err" role="alert">${esc(rm.error)}</div>` : ""}
+        </div>
+        <div class="sheet-foot is-centered" style="gap:8px;flex-wrap:wrap">
+          <button type="button" class="btn ghost" data-a="review-close">Отмена</button>
+          <button type="button" class="btn" data-a="review-submit" ${rm.busy ? "disabled" : ""}>${rm.busy ? "Сохраняем…" : "Опубликовать отзыв"}</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function disputeModalHTML() {
+    const ui = getUi();
+    const TDATA = getTDATA();
+    if (!ui.disputeModal || !TDATA) return "";
+    const dm = ui.disputeModal;
+    const st = getMkt();
+    const bk = (st.bookings || []).find((x) => x && String(x.id) === String(dm.bookingId || "")) || null;
+    if (!bk) return "";
+    const tutor = TDATA.LIST.find((x) => x.id === bk.tutorId) || {
+      id: bk.tutorId,
+      name: bk.tutorName || "Преподаватель",
+      subjectName: bk.subjectName || "Занятие",
+      firstLessonGuarantee: bk.firstLessonGuarantee !== false
+    };
+    const gInfo = resolveTutorGuarantee(tutor);
+    const amountRub = Math.max(0, Number(bk.reserved || bk.offerPrice || 0));
+    const reasons = Array.isArray(TDATA.DISPUTE_REASONS) ? TDATA.DISPUTE_REASONS : [];
+    const pickedReason = String(dm.reason || (gInfo.enabled ? "first_lesson_guarantee" : "quality"));
+
+    return `<div class="modal-back is-sheet-back" role="dialog" aria-modal="true" aria-labelledby="dispute-modal-title">
+      <div class="modal-card sheet-modal" data-sheet-kind="dispute">
+        <div class="sheet-grabber-zone" data-sheet-drag="1" role="button" tabindex="0" data-a="dispute-close" aria-label="Свернуть окно спора">
+          <span class="sheet-grabber"></span>
+        </div>
+        <div class="sheet-head is-booking-head">
+          <div class="row between" style="gap:10px;width:100%;align-items:center">
+            <b id="dispute-modal-title">Открыть спор и вернуть оплату</b>
+            <button type="button" class="icon-btn" data-a="dispute-close" aria-label="Закрыть">${icon("x")}</button>
+          </div>
+        </div>
+        <div class="sheet-body">
+          <div class="dsp-guar-banner ${gInfo.enabled ? "is-guar" : ""}">
+            ${icon("shield")}
+            <div class="stack" style="gap:2px;min-width:0">
+              <b>${gInfo.enabled ? "Гарантия первого урока · защита эскроу" : "Защита оплаты на эскроу"} · ${amountRub.toLocaleString("ru-RU")} ₽</b>
+              <span class="small">${gInfo.enabled
+                ? "Средства заморожены платформой. Если первый урок не подошёл или не состоялся, вернём 100% на ваш баланс после проверки."
+                : "Модератор разберёт обращение по уроку и при подтверждении вернёт оплату на баланс."}</span>
+              <a href="/refunds" target="_blank" rel="noopener" class="small" style="width:fit-content">Полные правила возврата и эскроу →</a>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Причина обращения</label>
+            <div class="dsp-reasons">
+              ${reasons.map((r) => `<button type="button" class="dsp-reason-btn${pickedReason === r.id ? " on" : ""}" data-a="dispute-reason" data-reason="${esc(r.id)}" aria-pressed="${pickedReason === r.id ? "true" : "false"}">${esc(r.label)}</button>`).join("")}
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="dispute-comment">Подробности для модератора</label>
+            <textarea class="input" id="dispute-comment" rows="3" maxlength="600" placeholder="Опишите ситуацию: например, репетитор не подключился или методика не подошла (минимум 4 символа)…">${esc(dm.comment || "")}</textarea>
+          </div>
+          ${dm.error ? `<div class="auth-err" role="alert">${esc(dm.error)}</div>` : ""}
+        </div>
+        <div class="sheet-foot is-centered" style="gap:8px;flex-wrap:wrap">
+          <button type="button" class="btn ghost" data-a="dispute-close">Отмена</button>
+          <button type="button" class="btn" data-a="dispute-submit" ${dm.busy ? "disabled" : ""}>${dm.busy ? "Отправляем…" : (amountRub > 0 ? `Вернуть ${amountRub.toLocaleString("ru-RU")} ₽ по спору` : "Отправить спор")}</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
   EGE.views = EGE.views || {};
   EGE.views.marketplace = {
     configure,
@@ -2101,8 +2712,12 @@
     formatWeeklyBotPhrase,
     cardDiffTagsHTML,
     bookingModalHTML,
+    reviewsModalHTML,
+    reviewModalHTML,
+    disputeModalHTML,
     activeFilterCount,
     filterAvailableTutors,
+    filterSubjListHTML,
     filterModalHTML,
     plansSectionHTML,
     tutorCardHTML,
@@ -2111,6 +2726,8 @@
     computeStudyWeekBilling,
     studyBillingNoticeHTML,
     generateTelemostUrl,
+    normalizeTelemostUrl,
+    videoLinkLabel,
     ensureUnifiedTelemostUrl,
     saveTelemostForBooking,
     marketSectionHTML,

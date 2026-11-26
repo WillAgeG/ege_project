@@ -7,6 +7,7 @@ import threading
 from .admin import SqliteAdminMixin
 from .auth_docs import SqliteAuthDocsMixin
 from .calendar_realtime import SqliteCalendarRealtimeMixin
+from .chat import SqliteChatMixin
 from .common import (
     DOC_NAME_RE,
     EMAIL_RE,
@@ -19,6 +20,7 @@ from .common import (
     _normalize_tz,
     _row_to_user,
     calc_fee_split,
+    calc_sbp_fee,
     deep_merge,
     format_days_short,
     format_weekly_bot_phrase,
@@ -40,7 +42,11 @@ from .common import (
     verify_password,
 )
 from .marketplace import SqliteMarketplaceMixin
+from .media import SqliteMediaMixin
+from .payments import SqlitePaymentsMixin
+from .payouts import SqlitePayoutsMixin
 from .schema import SqliteSchemaMixin
+from .telegram import SqliteTelegramMixin
 
 
 class Database(
@@ -49,9 +55,15 @@ class Database(
     SqliteCalendarRealtimeMixin,
     SqliteAdminMixin,
     SqliteMarketplaceMixin,
+    SqliteChatMixin,
+    SqliteTelegramMixin,
+    SqliteMediaMixin,
+    SqlitePaymentsMixin,
+    SqlitePayoutsMixin,
 ):
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, *, seed_demo: bool = True) -> None:
         self.path = path
+        self._seed_demo = bool(seed_demo)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
         self._conn = sqlite3.connect(str(path), check_same_thread=False)
@@ -68,8 +80,10 @@ __all__ = [
     "SqliteAdminMixin",
     "SqliteAuthDocsMixin",
     "SqliteCalendarRealtimeMixin",
+    "SqliteChatMixin",
     "SqliteMarketplaceMixin",
     "SqliteSchemaMixin",
+    "SqliteTelegramMixin",
     "StorageError",
     "User",
     "_iso_utc_now",
@@ -77,6 +91,7 @@ __all__ = [
     "_normalize_tz",
     "_row_to_user",
     "calc_fee_split",
+    "calc_sbp_fee",
     "deep_merge",
     "format_days_short",
     "format_weekly_bot_phrase",

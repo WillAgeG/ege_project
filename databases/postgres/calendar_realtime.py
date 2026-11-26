@@ -65,6 +65,7 @@ class PgCalendarRealtimeMixin:
         return {
             "feedToken": str(row["feed_token"]),
             "tutorSlug": slug,
+            "userId": int(row["user_id"]) if row["user_id"] is not None else None,
             "tutorName": str(row["tutor_name"]),
             "city": str(row["city"]),
             "timezone": str(row["timezone"]),
@@ -81,7 +82,7 @@ class PgCalendarRealtimeMixin:
         *,
         tutor_slug: str,
         user_id: int | None = None,
-        tutor_name: str = "Преподаватель Вектор ЕГЭ",
+        tutor_name: str = "Преподаватель Вектор",
         city: str = "Якутск",
         timezone: str = "UTC+9",
         open_slots: dict[str, list[str]] | None = None,
@@ -106,7 +107,7 @@ class PgCalendarRealtimeMixin:
                     or (str(existing["feed_token"]) if existing else secrets.token_urlsafe(24))
                 )
                 eff_user_id = user_id if user_id is not None else (existing["user_id"] if existing else None)
-                eff_name = (tutor_name or "").strip() or (str(existing["tutor_name"]) if existing else "Преподаватель Вектор ЕГЭ")
+                eff_name = (tutor_name or "").strip() or (str(existing["tutor_name"]) if existing else "Преподаватель Вектор")
                 eff_city = (city or "").strip() or (str(existing["city"]) if existing else ("Москва" if tz == "UTC+3" else "Якутск"))
                 eff_open_slots = (
                     open_slots
@@ -362,6 +363,20 @@ class PgCalendarRealtimeMixin:
                     ).fetchone()
                 return self._realtime_row_to_dict(row)
 
+    def get_realtime_event(self, event_row_id: int) -> dict[str, Any] | None:
+        with self._pool.connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM oltp.realtime_notifications WHERE id = %s",
+                (int(event_row_id),),
+            ).fetchone()
+            return self._realtime_row_to_dict(row) if row else None
+
+    def notify_realtime_event(self, pg_channel: str, payload_json: str) -> None:
+        ch = re.sub(r"[^A-Za-z0-9_]", "_", str(pg_channel or "vektor_realtime_events"))[:63] or "vektor_realtime_events"
+        with self._pool.connection() as conn:
+            with conn.transaction():
+                conn.execute("SELECT pg_notify(%s, %s)", (ch, str(payload_json or "")))
+
     def list_realtime_events(
         self,
         *,
@@ -377,7 +392,7 @@ class PgCalendarRealtimeMixin:
             clauses.append("(channel = %s OR channel = 'all')")
             params.append(channel)
         if tutor_slug:
-            clauses.append("tutor_slug = %s")
+            clauses.append("(tutor_slug = %s OR event_type LIKE 'chat.%%' OR event_type LIKE 'lesson.reminder.%%')")
             params.append(tutor_slug)
         if since_id > 0:
             clauses.append("id > %s")

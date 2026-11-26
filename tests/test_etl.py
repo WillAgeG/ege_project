@@ -127,9 +127,9 @@ def test_polars_pipeline_silver_dedup_and_gold_mart(tmp_path: Path) -> None:
 
 def test_sales_commission_split_and_summary() -> None:
     assert COMMISSION_PCT == 5
-    assert TUTOR_PAYOUT_PCT == 95
-    assert commission_split(800) == {"total": 800, "payout": 760, "fee": 40, "pct": 5}
-    assert commission_split(2000) == {"total": 2000, "payout": 1900, "fee": 100, "pct": 5}
+    assert TUTOR_PAYOUT_PCT == 94
+    assert commission_split(800) == {"total": 800, "payout": 752, "fee": 40, "sbp_fee": 8, "pct": 5, "sbp_pct": 1}
+    assert commission_split(2000) == {"total": 2000, "payout": 1880, "fee": 100, "sbp_fee": 20, "pct": 5, "sbp_pct": 1}
 
     summary = summarize_sales(
         [
@@ -142,7 +142,7 @@ def test_sales_commission_split_and_summary() -> None:
     assert summary["confirmed_count"] == 2
     assert summary["gmv_rub"] == 2800
     assert summary["platform_fee_rub"] == 140
-    assert summary["tutor_payout_rub"] == 2660
+    assert summary["tutor_payout_rub"] == 2632
     assert summary["avg_confirmed_check_rub"] == 1400.0
     assert summary["by_tariff"]["free"]["fee_rub"] == 40
     assert summary["by_tariff"]["trial5k"]["gmv_rub"] == 2000

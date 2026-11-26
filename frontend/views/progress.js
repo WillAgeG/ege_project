@@ -8,13 +8,35 @@
     $, addDays, byDue, dateDay, dateLong, dateShort, days, daysUntil, esc, initials, isObj,
     isoDate, minutesText, pad, parseISO, plural, range, readResizedPhotoFile, todayISO, validISO
   } = EGE.utils;
-  const { icon } = EGE.ui;
+  const { icon, GOOGLE_SVG, TELEGRAM_SVG } = EGE.ui;
+  const { hhSelectHTML } = EGE.hh || {};
 
-  let CONTENT, DIAG_PLAN_ID, QUIZ_SIZE, SUBJ, SUBJECT_META, SUBJECT_NAME, TOPIC_QUIZ, TOPICS, QS;
+  const CITY_TIMEZONES = [
+    ["Якутск", "UTC+9"],
+    ["Москва", "UTC+3"],
+    ["Санкт-Петербург", "UTC+3"],
+    ["Новосибирск", "UTC+7"],
+    ["Екатеринбург", "UTC+5"],
+    ["Казань", "UTC+3"],
+    ["Иркутск", "UTC+8"],
+    ["Красноярск", "UTC+7"],
+    ["Владивосток", "UTC+10"],
+    ["Хабаровск", "UTC+10"],
+    ["Калининград", "UTC+2"]
+  ];
+
+  function resolveCityTimezone(city) {
+    const clean = String(city || "").trim().toLowerCase();
+    if (!clean) return "UTC+9";
+    const hit = CITY_TIMEZONES.find(([name]) => name.toLowerCase() === clean || clean.indexOf(name.toLowerCase()) >= 0);
+    return hit ? hit[1] : "UTC+9";
+  }
+
+  let CONTENT, DIAG_PLAN_ID, QUIZ_SIZE, SUBJ, SUBJECT_META, SUBJECT_NAME, ALL_STUDY_SUBJECTS, STUDY_SUBJ_MAP, TOPIC_QUIZ, TOPICS, QS;
   let ai, caps, cloud, mkt, store, ui;
   let accountCard, avatarHTML, defaultName, draft, dueQs, findPlanItem, formatAvg, getThemeMode, go;
   let isUserAuthenticated, localNotice, minutesByDay, mistakeQs, mocks, needsPrepSetup, patchDoc, phoneFieldHTML, planDoc, planItems, profile;
-  let prog, questionAttemptBreakdown, replaceDoc, scheduleRender, sessions, staleNotice;
+  let prog, questionAttemptBreakdown, replaceDoc, scheduleRender, selectedStudySubjects, sessions, staleNotice;
   let subjSelect, subjectAccuracy, subjectReadCount, subjectStats, tile, toast, todoItem;
   let topicRef, topicStats, totals;
 
@@ -25,11 +47,11 @@
 
   function configure(ctx) {
     ({
-      CONTENT, DIAG_PLAN_ID, QUIZ_SIZE, SUBJ, SUBJECT_META, SUBJECT_NAME, TOPIC_QUIZ, TOPICS, QS,
+      CONTENT, DIAG_PLAN_ID, QUIZ_SIZE, SUBJ, SUBJECT_META, SUBJECT_NAME, ALL_STUDY_SUBJECTS, STUDY_SUBJ_MAP, TOPIC_QUIZ, TOPICS, QS,
       ai, caps, cloud, mkt, store, ui,
       accountCard, avatarHTML, defaultName, draft, dueQs, findPlanItem, formatAvg, getThemeMode, go,
       isUserAuthenticated, localNotice, minutesByDay, mistakeQs, mocks, needsPrepSetup, patchDoc, phoneFieldHTML, planDoc, planItems, profile,
-      prog, questionAttemptBreakdown, replaceDoc, scheduleRender, sessions, staleNotice,
+      prog, questionAttemptBreakdown, replaceDoc, scheduleRender, selectedStudySubjects, sessions, staleNotice,
       subjSelect, subjectAccuracy, subjectReadCount, subjectStats, tile, toast, todoItem,
       topicRef, topicStats, totals
     } = ctx || {});
@@ -91,7 +113,6 @@
   function toggleTodo(id, custom, checked) {
     if (custom) patchDoc("plan", { custom: { [id]: { done: checked ? Date.now() : null } } });
     else patchDoc("plan", { done: { [id]: checked ? Date.now() : null } });
-    if (checked) toast("Отмечено");
   }
 
   // ---------- показатели ----------
@@ -354,12 +375,11 @@
   function viewProfile() {
     const prof = profile();
     const isTutor = ui.role === "tutor";
-    const isAdmin = ui.role === "admin";
     const authed = typeof isUserAuthenticated === "function" ? isUserAuthenticated() : Boolean(store.user || ui.demoAuthed);
     const isDemo = Boolean(!store.user && (ui.demoAuthed || ui.guest));
     const showSetupNotif = typeof needsPrepSetup === "function"
       ? needsPrepSetup()
-      : Boolean(!isTutor && !isAdmin && store.ready && (!prof.exists || prof.prepSetupPending) && store.error !== "readonly" && (!store.backend || store.user || ui.guest));
+      : Boolean(!isTutor && store.ready && (!prof.exists || prof.prepSetupPending) && store.error !== "readonly" && (!store.backend || store.user || ui.guest));
     const setupNotifHTML = showSetupNotif
       ? `<section class="card profile-setup-notif${ui.prepSetupOpen ? " is-open" : ""}" id="profile-setup-notif" aria-label="Настройка подготовки">
           <div class="profile-setup-bar">
@@ -368,7 +388,7 @@
                 <span class="chip notif num">+1</span>
                 <b>Давай настроим подготовку</b>
               </div>
-              <span class="small muted">Укажите целевые баллы — план и отсчёты подстроятся под вас</span>
+              <span class="small muted">Выберите предметы и целевые баллы — раздел «Учёба» и отсчёты подстроятся под вас</span>
             </div>
             <button type="button" class="btn soft sm profile-setup-btn" data-a="prep-setup-toggle" aria-expanded="${ui.prepSetupOpen ? "true" : "false"}">${ui.prepSetupOpen ? "Свернуть" : "Настроить"}</button>
           </div>
@@ -378,21 +398,47 @@
         </section>`
       : "";
     const vc = typeof mkt === "function" && mkt() && mkt().verifiedContact;
-    const displayName = String(draft("pf.name", prof.name || defaultName()) || "Ученик");
-    const curPhoto = prof.photo || (store.user && store.user.avatarUrl) || "";
+    const tcAcc = (isTutor && EGE._tutorCab && typeof EGE._tutorCab.tState === "function")
+      ? (EGE._tutorCab.tState().account || null)
+      : null;
+    const displayName = String(draft("pf.name", (tcAcc && tcAcc.name) || prof.name || defaultName()) || (isTutor ? "Преподаватель" : "Ученик"));
+    const curPhoto = (tcAcc && tcAcc.hasPhoto !== false && tcAcc.photo)
+      ? tcAcc.photo
+      : (prof.photo || (store.user && store.user.avatarUrl) || "");
     const curGrade = String(draft("pf.grade", prof.grade || ""));
-    const curCity = String(draft("pf.city", prof.city || ""));
+    const curCity = String(draft("pf.city", (tcAcc && tcAcc.city) || prof.city || "Якутск") || "Якутск").trim() || "Якутск";
+    const curTz = resolveCityTimezone(curCity);
+    const cityOptions = CITY_TIMEZONES.map(([name]) => name);
+    if (!cityOptions.includes(curCity)) cityOptions.unshift(curCity);
     const curPhone = String(draft("pf.phone", prof.phone || (vc && vc.value) || ""));
     const curPhoneCountry = String(draft("pf.phoneCountry", prof.phoneCountry || (vc && vc.country) || "RU"));
     const curGoal = String(draft("pf.goal", prof.goal || ""));
+    const googleLinked = Boolean((store.user && store.user.authProvider === "google") || (prof.linkedGoogle && prof.linkedGoogle.connected));
+    const googleEmail = String((prof.linkedGoogle && prof.linkedGoogle.email) || (store.user && store.user.email) || "").trim();
+    const canUnlinkGoogle = googleLinked && !(store.user && store.user.authProvider === "google");
+    const tgBot = store.telegramBinding && store.telegramBinding.chatId ? store.telegramBinding : null;
+    const tgBotConnected = Boolean(tgBot);
+    const tgLinked = Boolean(tgBotConnected || (store.user && store.user.authProvider === "telegram") || (prof.linkedTelegram && prof.linkedTelegram.connected));
+    const tgHandleRaw = String(
+      (tgBot && tgBot.telegramUsername ? "@" + tgBot.telegramUsername : "") ||
+      (prof.linkedTelegram && prof.linkedTelegram.handle) ||
+      (store.user && store.user.authProvider === "telegram" && store.user.username ? "@" + store.user.username : "")
+    ).trim();
+    const accPhone = String((tcAcc && tcAcc.whatsapp) || curPhone || "");
+    const accTg = String((tcAcc && tcAcc.telegram) || tgHandleRaw || prof.telegram || "");
+    const accMax = String((tcAcc && tcAcc.maxHandle) || prof.maxHandle || "");
+    const accVk = String((tcAcc && tcAcc.vk) || prof.vk || "");
+    const canUnlinkTg = tgLinked && (tgBotConnected || !(store.user && store.user.authProvider === "telegram"));
+    const tgBotUsername = String(store.telegramBotUsername || "").trim().replace(/^@+/, "");
+    const canLinkTgBot = Boolean(store.backend && store.user && tgBotUsername && EGE.api && EGE.api.telegram);
+    const hasServerGoogle = Boolean(store.authProviders && store.authProviders.google);
+    const linkOpen = String(ui.pfLinkOpen || "");
     const avatarEl = curPhoto
       ? `<img class="stu-profile-avatar" src="${esc(curPhoto)}" alt="Фото профиля">`
       : `<span class="stu-profile-avatar is-fallback" aria-hidden="true">${esc(initials(displayName || "У"))}</span>`;
-    const roleChip = isAdmin
-      ? `<span class="chip pro">Администратор</span>`
-      : isTutor
-        ? `<span class="chip gold">Преподаватель</span>`
-        : `<span class="chip accent">${isDemo ? "Демо-ученик" : "Ученик"}</span>`;
+    const roleChip = isTutor
+      ? `<span class="chip gold">Преподаватель</span>`
+      : `<span class="chip accent">${isDemo ? "Демо-ученик" : "Ученик"}</span>`;
     const heroSubParts = [curGrade, curCity].filter(Boolean);
     const heroSub = heroSubParts.length
       ? heroSubParts.join(" · ")
@@ -413,61 +459,192 @@
         </div>
       </div>
       <div class="stu-hero-foot">
-        <label class="btn soft sm stu-photo-btn" for="pf-photo-file" style="cursor:pointer">${icon("upload")}<span>${prof.photo ? "Изменить фото" : "Добавить фото"}</span></label>
+        <label class="btn soft sm stu-photo-btn" for="pf-photo-file" style="cursor:pointer">${icon("upload")}<span>${curPhoto ? "Изменить фото" : "Добавить фото"}</span></label>
         <input type="file" id="pf-photo-file" accept="image/*" hidden>
-        ${prof.photo ? `<button type="button" class="btn ghost sm" data-a="pf-photo-clear">Удалить фото</button>` : ""}
+        <button type="button" class="btn ${ui.pfAccountEditOpen ? "ghost" : ""} sm stu-edit-acc-btn" data-a="pf-account-edit" aria-expanded="${ui.pfAccountEditOpen ? "true" : "false"}">${icon("sliders")}<span>${ui.pfAccountEditOpen ? "Свернуть" : "Редактировать"}</span></button>
+        ${curPhoto ? `<button type="button" class="btn ghost sm" data-a="pf-photo-clear">Удалить фото</button>` : ""}
+        ${authed ? `<button type="button" class="btn ghost sm stu-hero-logout-btn" data-a="auth-logout">${icon("logout")}<span>Выйти</span></button>` : ""}
       </div>
+      ${ui.pfAccountEditOpen ? `<form class="stu-acc-edit-form" id="pf-account-edit-form" data-f="pf-account-edit">
+        <fieldset class="stu-notch-field">
+          <legend><label for="pf-name">Имя и фамилия</label></legend>
+          <input class="stu-notch-input" id="pf-name" name="name" data-d="pf.name" value="${esc(displayName)}" maxlength="48" required placeholder="Как к тебе обращаться">
+        </fieldset>
+        <div class="stu-pf-pair">
+          ${!isTutor ? `<fieldset class="stu-notch-field is-select">
+            <legend>Класс или цель</legend>
+            ${typeof hhSelectHTML === "function"
+              ? hhSelectHTML({
+                  id: "pf-grade",
+                  options: GRADE_OPTIONS.map((opt) => ({ id: opt, label: opt || "Не указано" })),
+                  value: curGrade,
+                  open: !!ui.pfGradeMenuOpen,
+                  toggleAction: "pf-grade-toggle",
+                  pickAction: "pf-grade-pick",
+                  ariaLabel: "Класс или цель"
+                })
+              : ""}
+            <select class="select" name="grade" hidden tabindex="-1" aria-hidden="true">
+              ${GRADE_OPTIONS.map((opt) => `<option value="${esc(opt)}"${curGrade === opt ? " selected" : ""}>${esc(opt || "Не указано")}</option>`).join("")}
+            </select>
+          </fieldset>` : ""}
+          <fieldset class="stu-notch-field is-select"${isTutor ? ' style="grid-column:1 / -1"' : ""}>
+            <legend>Город</legend>
+            ${typeof hhSelectHTML === "function"
+              ? hhSelectHTML({
+                  id: "pf-city",
+                  options: cityOptions.map((c) => ({ id: c, label: c, meta: resolveCityTimezone(c) })),
+                  value: curCity,
+                  open: !!ui.pfCityMenuOpen,
+                  toggleAction: "pf-city-toggle",
+                  pickAction: "pf-city-pick",
+                  ariaLabel: "Город"
+                })
+              : ""}
+            <select class="select" name="city" hidden tabindex="-1" aria-hidden="true">
+              ${cityOptions.map((c) => `<option value="${esc(c)}"${curCity === c ? " selected" : ""}>${esc(c)}</option>`).join("")}
+            </select>
+          </fieldset>
+          <div class="small muted stu-city-tz-note" id="pf-city-tz-note">Автоматически меняем ваш часовой пояс к этому городу · <span class="num">${esc(curTz)}</span></div>
+        </div>
+        ${typeof phoneFieldHTML === "function"
+          ? phoneFieldHTML({ scope: "pf-phone", id: "pf-phone", name: "phone", label: "Телефон для СМС и мессенджеров", value: accPhone, country: curPhoneCountry, dataD: "pf.phone", compact: true, notched: true })
+          : `<fieldset class="stu-notch-field">
+              <legend><label for="pf-phone">Телефон для СМС и мессенджеров</label></legend>
+              <input class="stu-notch-input num" id="pf-phone" name="phone" type="tel" data-d="pf.phone" value="${esc(accPhone || "+7 ")}" maxlength="28" placeholder="+7 (914) 000-00-00">
+            </fieldset>`}
+        <div class="stu-acc-edit-grid">
+          <fieldset class="stu-notch-field"${!isTutor ? ' style="grid-column:1 / -1"' : ""}>
+            <legend><label for="pf-acc-tg">Telegram</label></legend>
+            <input class="stu-notch-input" id="pf-acc-tg" name="telegram" value="${esc(accTg)}" maxlength="36" placeholder="@username или +7...">
+          </fieldset>
+          ${isTutor ? `<fieldset class="stu-notch-field">
+            <legend><label for="pf-acc-max">MAX</label></legend>
+            <input class="stu-notch-input" id="pf-acc-max" name="maxHandle" value="${esc(accMax)}" maxlength="48" placeholder="@username или max.ru/...">
+          </fieldset>
+          <fieldset class="stu-notch-field" style="grid-column:1 / -1">
+            <legend><label for="pf-acc-vk">ВКонтакте</label></legend>
+            <input class="stu-notch-input" id="pf-acc-vk" name="vk" value="${esc(accVk)}" maxlength="64" placeholder="vk.com/username">
+          </fieldset>` : ""}
+        </div>
+        ${!isTutor ? `<fieldset class="stu-notch-field is-textarea">
+          <legend><label for="pf-goal">О себе и цели подготовки</label></legend>
+          <textarea class="stu-notch-textarea" id="pf-goal" name="goal" rows="2" maxlength="200" data-d="pf.goal" placeholder="Например: ЕГЭ по профилю и физике на 85+, удобны занятия вечером">${esc(curGoal)}</textarea>
+        </fieldset>` : ""}
+        <div class="stu-acc-edit-actions">
+          <button type="submit" class="btn sm">${icon("check")}<span>Сохранить аккаунт</span></button>
+          <button type="button" class="btn ghost sm" data-a="pf-account-edit-cancel">Отмена</button>
+        </div>
+      </form>` : ""}
     </section>`;
-    const topActionBtn = authed
-      ? `<button type="button" class="btn ghost sm" data-a="auth-logout">${icon("logout")}<span>Выйти</span></button>`
-      : (store.backend ? `<button type="button" class="btn soft sm" data-a="auth-modal-open">Войти в аккаунт</button>` : "");
-    return `<div class="head stu-page-head">
-        <div><div class="eyebrow">Профиль</div><h1 class="h1">Личный профиль</h1></div>
-        ${topActionBtn}
-      </div>
+    const topActionBtn = (!authed && store.backend)
+      ? `<button type="button" class="btn soft sm" data-a="auth-modal-open">Войти в аккаунт</button>`
+      : "";
+    return `${topActionBtn ? `<div class="head stu-page-head">${topActionBtn}</div>` : ""}
       ${heroCardHTML}
       ${setupNotifHTML}
       ${store.backend && store.user ? accountCard() : ""}
-      <form class="card pad-lg form stu-profile-form" data-f="profile">
-        <div class="stu-sec-head">
-          <div class="eyebrow">Анкета ученика</div>
-          <h2 class="h2">Личные данные</h2>
-        </div>
-        <div class="field">
-          <label for="pf-name">Имя и фамилия</label>
-          <input class="input" id="pf-name" name="name" data-d="pf.name" value="${esc(draft("pf.name", prof.name || defaultName()))}" maxlength="40" placeholder="Как к тебе обращаться">
-        </div>
-        <div class="fields">
-          <div class="field">
-            <label for="pf-grade">Класс или цель</label>
-            <select class="input" id="pf-grade" name="grade" data-d="pf.grade">
-              ${GRADE_OPTIONS.map((opt) => `<option value="${esc(opt)}"${curGrade === opt ? " selected" : ""}>${esc(opt || "Не указано")}</option>`).join("")}
-            </select>
+      <form class="card pad form stu-profile-form" data-f="profile">
+        ${(() => {
+          const pfCatalog = ALL_STUDY_SUBJECTS || SUBJECT_META;
+          const pfPickedIds = Array.isArray(ui.drafts && ui.drafts["pf.subjects"]) && ui.drafts["pf.subjects"].length
+            ? ui.drafts["pf.subjects"]
+            : (Array.isArray(prof.subjects) && prof.subjects.length ? prof.subjects : SUBJECT_META.map((s) => s.id));
+          const pfPickedMeta = pfPickedIds.map((id) => (STUDY_SUBJ_MAP && STUDY_SUBJ_MAP[id]) || pfCatalog.find((s) => s.id === id)).filter(Boolean);
+          return `<div class="label">Предметы в разделе «Учёба»</div>
+          <div class="chip-rail prep-subj-picker" role="group" aria-label="Предметы в разделе Учёба">
+            ${pfCatalog.map((s) => {
+              const on = pfPickedIds.includes(s.id);
+              return `<button type="button" class="chip-btn prep-subj-chip${on ? " on" : ""}" data-a="pf-subj-toggle" data-sid="${s.id}" aria-pressed="${on}"><i class="dot" style="background:${s.color || `var(--c-${s.id})`}"></i><span>${esc(s.name)}</span></button>`;
+            }).join("")}
           </div>
-          <div class="field">
-            <label for="pf-city">Город</label>
-            <input class="input" id="pf-city" name="city" data-d="pf.city" value="${esc(curCity)}" maxlength="40" placeholder="Якутск, Москва…">
+          <div class="stu-notch-group">
+            <div class="label">Целевые баллы</div>
+            <div class="stu-notch-grid">${pfPickedMeta.map((s) => {
+              const fbT = (prof.targets && prof.targets[s.id] != null) ? prof.targets[s.id] : (s.target || 80);
+              return `<fieldset class="stu-notch-field"><legend><label for="pf-t-${s.id}">${esc(s.name)}</label></legend><input class="stu-notch-input num" type="number" min="0" max="100" inputmode="numeric" id="pf-t-${s.id}" data-d="pf.t.${s.id}" value="${esc(draft("pf.t." + s.id, fbT))}"></fieldset>`;
+            }).join("")}</div>
           </div>
-        </div>
-        ${typeof phoneFieldHTML === "function"
-          ? phoneFieldHTML({ scope: "pf-phone", id: "pf-phone", name: "phone", label: "Телефон для СМС и мессенджеров", value: curPhone, country: curPhoneCountry, dataD: "pf.phone", compact: true })
-          : `<div class="field">
-              <label for="pf-phone">Телефон для СМС и мессенджеров</label>
-              <input class="input num" id="pf-phone" name="phone" type="tel" data-d="pf.phone" value="${esc(curPhone || "+7 ")}" maxlength="28" placeholder="+7 (914) 000-00-00">
-            </div>`}
-        <div class="field">
-          <label for="pf-goal">О себе и цели подготовки</label>
-          <textarea class="textarea" id="pf-goal" name="goal" rows="2" maxlength="200" data-d="pf.goal" placeholder="Например: ЕГЭ по профилю и физике на 85+, удобны занятия вечером">${esc(curGoal)}</textarea>
-        </div>
-        <hr class="stu-form-divider" aria-hidden="true">
-        <div class="label">Целевые баллы</div>
-        <div class="fields">${SUBJECT_META.map((s) => `<div class="field"><label for="pf-t-${s.id}">${esc(s.name)}</label><input class="input num" type="number" min="0" max="100" inputmode="numeric" id="pf-t-${s.id}" data-d="pf.t.${s.id}" value="${esc(draft("pf.t." + s.id, prof.targets[s.id]))}"></div>`).join("")}</div>
-        <div class="label">Даты экзаменов</div>
-        <div class="fields">${SUBJECT_META.map((s) => `<div class="field"><label for="pf-e-${s.id}">${esc(s.name)}</label><input class="input" type="date" id="pf-e-${s.id}" data-d="pf.e.${s.id}" value="${esc(draft("pf.e." + s.id, prof.exams[s.id]))}"></div>`).join("")}</div>
+          <div class="stu-notch-group">
+            <div class="label">Даты экзаменов</div>
+            <div class="stu-notch-grid is-dates">${pfPickedMeta.map((s) => {
+              const fbE = (prof.exams && prof.exams[s.id]) || s.examDate || "";
+              return `<fieldset class="stu-notch-field"><legend><label for="pf-e-${s.id}">${esc(s.name)}</label></legend><input class="stu-notch-input is-date num" type="date" id="pf-e-${s.id}" data-d="pf.e.${s.id}" value="${esc(draft("pf.e." + s.id, fbE))}"></fieldset>`;
+            }).join("")}</div>
+          </div>`;
+        })()}
         <p class="hint">Сейчас стоят даты из проекта расписания ЕГЭ-2027. Когда расписание утвердят, поправь их здесь — план и отсчёты обновятся.</p>
         <div><button class="btn stu-save-btn" type="submit">Сохранить профиль</button></div>
       </form>
-      <section class="card pad-lg stu-stats-card">
+      <section class="card pad stu-linked-card" id="stu-linked-accounts" aria-label="Привязанные аккаунты">
+        <h2 class="h2">Привязанные аккаунты</h2>
+        <div class="stu-link-list">
+          <div class="stu-link-row${googleLinked ? " is-linked" : ""}">
+            <div class="stu-link-brand">
+              <span class="stu-link-icon" aria-hidden="true">${GOOGLE_SVG || icon("user")}</span>
+              <div class="stu-link-copy">
+                <div class="stu-link-title">
+                  <b>Google</b>
+                  ${googleLinked ? `<span class="chip good stu-link-badge">Привязан ✓</span>` : ""}
+                </div>
+                ${googleLinked ? `<span class="small muted">${esc(googleEmail || "Подключён")}</span>` : ""}
+              </div>
+            </div>
+            ${googleLinked
+              ? (canUnlinkGoogle ? `<div class="stu-link-act"><button type="button" class="btn ghost sm" data-a="pf-unlink-google">Отвязать</button></div>` : "")
+              : `<div class="stu-link-act">${linkOpen === "google"
+                  ? `<div class="stu-link-inline">
+                      <input class="input" id="pf-link-google-inp" type="email" data-d="pf.linkGoogle" value="${esc(draft("pf.linkGoogle", ""))}" placeholder="name@gmail.com">
+                      <button type="button" class="btn sm" data-a="pf-link-google-save">Привязать</button>
+                      <button type="button" class="btn ghost sm" data-a="pf-link-cancel">Отмена</button>
+                    </div>`
+                  : (hasServerGoogle
+                      ? `<a class="btn soft sm" href="/api/auth/google/start?role=${encodeURIComponent(ui.role === "tutor" ? "tutor" : "student")}&next=${encodeURIComponent(((typeof location !== "undefined" && location.pathname) || "/") + "#profile")}" data-a="pf-link-google">Привязать Google</a>`
+                      : `<button type="button" class="btn soft sm" data-a="pf-link-google">Привязать Google</button>`)}</div>`}
+          </div>
+          <div class="stu-link-row${tgLinked ? " is-linked" : ""}${tgBotConnected ? " is-bot" : ""}">
+            <div class="stu-link-brand">
+              <span class="stu-link-icon" aria-hidden="true">${TELEGRAM_SVG || icon("send")}</span>
+              <div class="stu-link-copy">
+                <div class="stu-link-title">
+                  <b>Telegram</b>
+                  ${tgBotConnected
+                    ? `<span class="chip good stu-link-badge">Бот активен ✓</span>`
+                    : (tgLinked ? `<span class="chip good stu-link-badge">Привязан ✓</span>` : "")}
+                </div>
+                ${(tgBotConnected || tgLinked) ? `<span class="small muted">${tgBotConnected
+                  ? `${tgHandleRaw ? esc(tgHandleRaw) + " · " : ""}${tgBot.notificationsEnabled !== false ? "Уведомления включены" : "Уведомления выключены"}`
+                  : esc(tgHandleRaw || "Подключён")}</span>` : ""}
+              </div>
+            </div>
+            ${tgLinked
+              ? ((tgBotConnected || canUnlinkTg)
+                  ? `<div class="stu-link-act">${tgBotConnected ? `<button type="button" class="btn soft sm" data-a="pf-tg-notify-toggle">${tgBot.notificationsEnabled !== false ? "Уведомления: Вкл" : "Уведомления: Выкл"}</button>` : ""}${canUnlinkTg ? `<button type="button" class="btn ghost sm" data-a="pf-unlink-tg">Отвязать</button>` : ""}</div>`
+                  : "")
+              : `<div class="stu-link-act">${linkOpen === "tg"
+                  ? `<div class="stu-link-inline">
+                      <input class="input" id="pf-link-tg-inp" type="text" data-d="pf.linkTg" value="${esc(draft("pf.linkTg", ""))}" placeholder="@username">
+                      <button type="button" class="btn sm" data-a="pf-link-tg-save">Привязать</button>
+                      <button type="button" class="btn ghost sm" data-a="pf-link-cancel">Отмена</button>
+                    </div>`
+                  : `<div class="row" style="gap:6px;flex-wrap:wrap">
+                      ${canLinkTgBot ? `<button type="button" class="btn soft sm" data-a="pf-link-tg-bot"${ui.tgLinkBusy ? " disabled" : ""}>${ui.tgLinkBusy ? "Создаём ссылку…" : "Подключить бота"}</button>` : ""}
+                      <button type="button" class="btn ${canLinkTgBot ? "ghost" : "soft"} sm" data-a="pf-link-tg">${canLinkTgBot ? "Указать @username" : "Привязать Telegram"}</button>
+                    </div>`}</div>`}
+          </div>
+          ${!tgBotConnected && ui.tgLinkDeepUrl ? `<div class="stu-tg-bot-box" id="pf-tg-bot-link-box">
+            <div class="stack" style="gap:3px">
+              <b>Откройте Telegram и нажмите «Запустить» (Start)</b>
+              <span class="small muted">Ссылка одноразовая и действует 15 минут.</span>
+            </div>
+            <div class="row" style="gap:8px;flex-wrap:wrap">
+              <a class="btn sm" href="${esc(ui.tgLinkDeepUrl)}" target="_blank" rel="noopener">Открыть @${esc(tgBotUsername || "vektor_bot")}</a>
+              <button type="button" class="btn soft sm" data-a="pf-tg-check">Проверить привязку</button>
+            </div>
+          </div>` : ""}
+        </div>
+      </section>
+      <section class="card pad stu-stats-card">
         <div class="stack" style="gap:2px">
           <b>Статистика и показатели</b>
           <span class="small muted">Графики активности, точность и повторяемость тем</span>
@@ -478,30 +655,54 @@
   }
   function dataCard() {
     const isDemo = Boolean(!store.user && (ui.demoAuthed || ui.guest));
-    const where = store.mode === "cloud"
-      ? (store.backend
-          ? "Прогресс хранится на сервере в базе данных и привязан к твоему аккаунту. Войди под тем же логином на любом устройстве — ответы, отметки и записи будут на месте."
-          : "Прогресс хранится в облаке claude.ai и привязан к твоему аккаунту. Открой эту страницу на любом компьютере под тем же аккаунтом — ответы, отметки и записи будут на месте.")
+    const whereShort = store.mode === "cloud"
+      ? (store.backend ? "Сохраняются в аккаунте" : "Сохраняются в облаке")
       : store.mode === "local"
-        ? (isDemo
-            ? "Вы в демо-режиме — фото, данные профиля и учебный прогресс сохраняются локально в этом браузере."
-            : (store.backend
-                ? "Сервер базы данных подключён — для облачной синхронизации войдите в аккаунт в правом верхнем углу."
-                : "Данные профиля и учебный прогресс хранятся локально в этом браузере."))
-        : "Подключаюсь к хранилищу…";
+        ? (isDemo ? "Демо · локально в браузере" : (store.backend ? "Локально до входа" : "Локально в браузере"))
+        : "Подключение…";
     const cf = ui.confirm;
-    return `<section class="card pad-lg stack">
-      <h2 class="h2">Данные</h2>
-      <p class="ink2">${where}</p>
-      <div class="row">
-        <button type="button" class="btn ghost" data-a="export">${icon("download")}Скачать резервную копию</button>
-        <button type="button" class="btn ghost" data-a="import">${icon("upload")}Восстановить из копии</button>
+    return `<section class="card pad stu-data-card">
+      <div class="stu-data-head">
+        <h2 class="h2">Данные</h2>
+        <span class="small muted">${whereShort}</span>
+      </div>
+      <div class="stu-data-backup-row">
+        <button type="button" class="btn ghost sm" data-a="export">${icon("download")}<span>Скачать копию</span></button>
+        <button type="button" class="btn ghost sm" data-a="import">${icon("upload")}<span>Восстановить</span></button>
         <input type="file" id="import-file" accept=".json,application/json" hidden>
       </div>
       ${ui.exportText ? `<div class="field"><label for="export-text">Скопируй текст и сохрани его в файл с расширением .json</label><textarea class="textarea" id="export-text" rows="6" readonly>${esc(ui.exportText)}</textarea><div><button type="button" class="btn soft sm" data-a="copy-export">Скопировать</button></div></div>` : ""}
       ${cf && cf.kind === "import" ? `<div class="confirm"><b>Заменить данные копией от ${esc(cf.date)}?</b><span class="small">Прогресс, план и записи заменятся данными из файла.</span><div class="row"><button type="button" class="btn danger sm" data-a="import-do">Заменить</button><button type="button" class="btn ghost sm" data-a="confirm-cancel">Отмена</button></div></div>` : ""}
-      <div class="row">${CONTENT.map((s) => `<button type="button" class="btn ghost" data-a="reset-ask" data-sid="${s.id}">${icon("trash")}Сбросить прогресс ${esc(SUBJ[s.id].po)}</button>`).join("")}</div>
+      <div class="stu-data-reset-row">
+        <span class="small muted stu-data-reset-lbl">${icon("trash")}<span>Сброс прогресса:</span></span>
+        <div class="stu-data-reset-chips">${CONTENT.map((s) => `<button type="button" class="btn ghost sm stu-data-reset-btn" data-a="reset-ask" data-sid="${s.id}" aria-label="Сбросить прогресс ${esc(SUBJ[s.id].po)}">${esc(s.id === "rus" ? "Русский" : s.name)}</button>`).join("")}</div>
+      </div>
       ${cf && cf.kind === "reset" ? `<div class="confirm"><b>Сбросить все ответы и отметки ${esc(SUBJ[cf.sid].po)}?</b><span class="small">План, пробники и журнал занятий останутся. Отменить сброс нельзя, поэтому сначала можно скачать резервную копию.</span><div class="row"><button type="button" class="btn danger sm" data-a="reset-do">Сбросить</button><button type="button" class="btn ghost sm" data-a="confirm-cancel">Отмена</button></div></div>` : ""}
+    </section>
+    <section class="card stack" id="stu-legal-card" aria-label="Юридические документы и cookies">
+      <div class="row between" style="gap:10px;flex-wrap:wrap;align-items:center">
+        <div class="stack" style="gap:2px">
+          <h2 class="h2">Юридические документы и cookies</h2>
+          <span class="small muted">${(() => {
+            const c = EGE.legal && typeof EGE.legal.getConsent === "function" ? EGE.legal.getConsent() : null;
+            if (!c) return "Выбор согласия на cookies ещё не задан";
+            return c.analytics ? "Cookies: необходимые + аналитика включена" : "Cookies: только необходимые";
+          })()}</span>
+        </div>
+        <button type="button" class="btn soft sm" data-a="cookie-settings">Настройки cookies</button>
+      </div>
+      <div class="stu-legal-links small">
+        <a href="/terms" target="_blank" rel="noopener">Публичная оферта</a>
+        <span>·</span>
+        <a href="/refunds" target="_blank" rel="noopener">Правила возврата и эскроу</a>
+        <span>·</span>
+        <a href="/privacy" target="_blank" rel="noopener">Политика конфиденциальности (152-ФЗ)</a>
+      </div>
+      <div class="row stu-legal-pd-row">
+        <button type="button" class="btn ghost sm" data-a="account-export">${icon("download")}<span>Выгрузить ПДн (JSON)</span></button>
+        <button type="button" class="btn ghost sm stu-danger-link" data-a="account-delete-ask">${icon("trash")}<span>Удалить аккаунт</span></button>
+      </div>
+      ${cf && cf.kind === "delete-account" ? `<div class="confirm" id="stu-delete-account-confirm"><b>Удалить аккаунт и персональные данные?</b><span class="small">Профиль, документы прогресса, сессии и сохранённые настройки будут удалены без возможности восстановления по требованиям 152-ФЗ.</span><div class="row"><button type="button" class="btn danger sm" data-a="account-delete-do"${ui.accountDeleteBusy ? " disabled" : ""}>${ui.accountDeleteBusy ? "Удаляем…" : "Удалить навсегда"}</button><button type="button" class="btn ghost sm" data-a="confirm-cancel">Отмена</button></div></div>` : ""}
     </section>
     <section class="card stack"><h2 class="h2">Откуда сроки</h2><p class="ink2 small">Даты собраны ${EGE.plan ? dateLong(EGE.plan.checked) : ""}: проект расписания ЕГЭ-2027 (Минпросвещения и Рособрнадзор, обсуждение до 10 ноября 2026 года) и сроки приёмной кампании 2026 года. Официальные документы смотри на сайтах ниже.</p>
       <div class="stack small"><a href="https://obrnadzor.gov.ru/" target="_blank" rel="noopener">Рособрнадзор</a><a href="https://fipi.ru/" target="_blank" rel="noopener">ФИПИ</a><a href="https://www.gosuslugi.ru/vuzonline" target="_blank" rel="noopener">Поступление в вуз онлайн (Госуслуги)</a></div>
@@ -538,7 +739,7 @@
         ui.confirm = { kind: "import", data: obj.docs, date: obj.exported ? dateLong(String(obj.exported).slice(0, 10)) : "неизвестной даты" };
       } catch (e) {
         ui.confirm = null;
-        toast("Это не резервная копия «Вектора ЕГЭ».");
+        toast("Это не резервная копия «Вектора».");
       }
       scheduleRender();
     };
@@ -558,16 +759,31 @@
   }
   function handleProfilePhotoFile(el) {
     if (!el || !el.files || !el.files[0]) return false;
+    const file = el.files[0];
+    const applyAvatarUrl = (url) => {
+      const hadDoc = Boolean(store.docs && store.docs.profile);
+      const pendingFlag = hadDoc ? Boolean(store.docs.profile.prepSetupPending) : true;
+      if (store.user) store.user.avatarUrl = url;
+      patchDoc("profile", { photo: url, prepSetupPending: pendingFlag });
+      scheduleRender();
+    };
+    if (store && store.backend && store.user && EGE.api && EGE.api.media && typeof EGE.api.media.uploadAvatar === "function") {
+      EGE.api.media.uploadAvatar(file, "profile").then((res) => {
+        if (res && res.url) {
+          applyAvatarUrl(res.url);
+          toast("Фото загружено в объектное хранилище");
+        }
+      }).catch((err) => {
+        toast((err && err.message) || "Не удалось загрузить фото");
+      });
+      return true;
+    }
     if (typeof readResizedPhotoFile !== "function") return false;
     readResizedPhotoFile(
-      el.files[0],
+      file,
       { maxDim: 240, quality: 0.84, maxLen: 350000 },
       (url) => {
-        const hadDoc = Boolean(store.docs && store.docs.profile);
-        const pendingFlag = hadDoc ? Boolean(store.docs.profile.prepSetupPending) : true;
-        patchDoc("profile", { photo: url, prepSetupPending: pendingFlag });
-        scheduleRender();
-        toast("Фото профиля обновлено");
+        applyAvatarUrl(url);
       },
       () => { toast("Выберите изображение (JPG, PNG, WebP)"); }
     );
@@ -596,9 +812,9 @@
     },
     "ask-del": (el) => { ui.confirmDel = el.dataset.k; scheduleRender(); },
     "cancel-del": () => { ui.confirmDel = null; scheduleRender(); },
-    "del-log": (el) => { patchDoc(el.dataset.doc, { s: { [el.dataset.id]: null } }); ui.confirmDel = null; toast("Запись удалена"); },
-    "del-mock": (el) => { patchDoc("mocks", { m: { [el.dataset.id]: null } }); ui.confirmDel = null; toast("Пробник удалён"); },
-    "del-todo": (el) => { patchDoc("plan", { custom: { [el.dataset.id]: null } }); ui.confirmDel = null; toast("Дело удалено"); },
+    "del-log": (el) => { patchDoc(el.dataset.doc, { s: { [el.dataset.id]: null } }); ui.confirmDel = null; },
+    "del-mock": (el) => { patchDoc("mocks", { m: { [el.dataset.id]: null } }); ui.confirmDel = null; },
+    "del-todo": (el) => { patchDoc("plan", { custom: { [el.dataset.id]: null } }); ui.confirmDel = null; },
     export: () => doExport(),
     "copy-export": () => copyText(ui.exportText, "#export-text"),
     import: () => { const f = document.getElementById("import-file"); if (f) f.click(); },
@@ -616,7 +832,129 @@
     "pf-photo-clear": () => {
       patchDoc("profile", { photo: "" });
       scheduleRender();
-      toast("Фото профиля удалено");
+    },
+    "pf-grade-toggle": () => {
+      ui.pfGradeMenuOpen = !ui.pfGradeMenuOpen;
+      ui.pfCityMenuOpen = false;
+      scheduleRender();
+    },
+    "pf-grade-pick": (el) => {
+      if (!ui.drafts) ui.drafts = {};
+      ui.drafts["pf.grade"] = String((el && el.dataset && el.dataset.v) != null ? el.dataset.v : "");
+      ui.pfGradeMenuOpen = false;
+      scheduleRender();
+    },
+    "pf-city-toggle": () => {
+      ui.pfCityMenuOpen = !ui.pfCityMenuOpen;
+      ui.pfGradeMenuOpen = false;
+      scheduleRender();
+    },
+    "pf-city-pick": (el) => {
+      if (!ui.drafts) ui.drafts = {};
+      const city = String((el && el.dataset && el.dataset.v) || "Якутск").trim() || "Якутск";
+      ui.drafts["pf.city"] = city;
+      ui.pfCityMenuOpen = false;
+      scheduleRender();
+    },
+    "pf-link-google": () => {
+      if (store.authProviders && store.authProviders.google) return;
+      ui.pfLinkOpen = "google";
+      ui.focusNext = "pf-link-google-inp";
+      scheduleRender();
+    },
+    "pf-link-tg": () => {
+      ui.pfLinkOpen = "tg";
+      ui.focusNext = "pf-link-tg-inp";
+      scheduleRender();
+    },
+    "pf-link-cancel": () => {
+      ui.pfLinkOpen = "";
+      scheduleRender();
+    },
+    "pf-link-google-save": () => {
+      const inp = typeof document !== "undefined" && typeof document.getElementById === "function" ? document.getElementById("pf-link-google-inp") : null;
+      const email = String((inp && inp.value != null ? inp.value : draft("pf.linkGoogle", "")) || "").trim().slice(0, 80);
+      if (email.length < 5 || email.indexOf("@") < 1 || email.indexOf(".", email.indexOf("@")) < 0) {
+        toast("Укажите корректный email Google (например name@gmail.com)");
+        return;
+      }
+      patchDoc("profile", { linkedGoogle: { connected: true, email } });
+      ui.pfLinkOpen = "";
+      if (ui.drafts) delete ui.drafts["pf.linkGoogle"];
+      scheduleRender();
+    },
+    "pf-link-tg-save": () => {
+      const inp = typeof document !== "undefined" && typeof document.getElementById === "function" ? document.getElementById("pf-link-tg-inp") : null;
+      const raw = String((inp && inp.value != null ? inp.value : draft("pf.linkTg", "")) || "").trim().replace(/^@+/, "");
+      if (!/^[a-zA-Z0-9_]{3,32}$/.test(raw)) {
+        toast("Укажите корректный Telegram-логин (@username, от 3 символов)");
+        return;
+      }
+      const handle = "@" + raw;
+      patchDoc("profile", { linkedTelegram: { connected: true, handle } });
+      ui.pfLinkOpen = "";
+      if (ui.drafts) delete ui.drafts["pf.linkTg"];
+      scheduleRender();
+    },
+    "pf-unlink-google": () => {
+      patchDoc("profile", { linkedGoogle: { connected: false, email: "" } });
+      scheduleRender();
+    },
+    "pf-link-tg-bot": async () => {
+      if (!store.backend || !store.user || !EGE.api || !EGE.api.telegram || ui.tgLinkBusy) return;
+      ui.tgLinkBusy = true;
+      scheduleRender();
+      try {
+        const res = await EGE.api.telegram.linkToken();
+        ui.tgLinkBusy = false;
+        if (res && res.botUsername) store.telegramBotUsername = String(res.botUsername);
+        ui.tgLinkDeepUrl = (res && res.deepLink) || "";
+        if (!ui.tgLinkDeepUrl) toast("Telegram-бот не настроен на сервере");
+      } catch (e) {
+        ui.tgLinkBusy = false;
+        toast((e && e.message) || "Не удалось создать ссылку для бота");
+      }
+      scheduleRender();
+    },
+    "pf-tg-check": async () => {
+      if (!store.backend || !store.user || !EGE.api || !EGE.api.telegram) return;
+      try {
+        const res = await EGE.api.telegram.status();
+        if (res && res.linked && res.binding) {
+          store.telegramBinding = res.binding;
+          ui.tgLinkDeepUrl = "";
+          if (res.binding.telegramUsername) {
+            patchDoc("profile", { linkedTelegram: { connected: true, handle: "@" + res.binding.telegramUsername } });
+          }
+          toast("Telegram-бот подключён");
+        } else {
+          toast("Бот ещё не получил команду /start — откройте ссылку и нажмите «Запустить»");
+        }
+      } catch (e) {
+        toast((e && e.message) || "Не удалось проверить статус Telegram");
+      }
+      scheduleRender();
+    },
+    "pf-tg-notify-toggle": async () => {
+      if (!store.backend || !store.user || !EGE.api || !EGE.api.telegram || !store.telegramBinding) return;
+      const next = store.telegramBinding.notificationsEnabled === false;
+      try {
+        const res = await EGE.api.telegram.setNotifications(next);
+        if (res && res.binding) store.telegramBinding = res.binding;
+        toast(next ? "Уведомления в Telegram включены" : "Уведомления в Telegram выключены");
+      } catch (e) {
+        toast((e && e.message) || "Не удалось обновить настройки уведомлений");
+      }
+      scheduleRender();
+    },
+    "pf-unlink-tg": async () => {
+      if (store.backend && store.user && EGE.api && EGE.api.telegram && store.telegramBinding) {
+        try { await EGE.api.telegram.unlink(); } catch (e) { /* обновим локально */ }
+        store.telegramBinding = null;
+      }
+      ui.tgLinkDeepUrl = "";
+      patchDoc("profile", { linkedTelegram: { connected: false, handle: "" } });
+      scheduleRender();
     },
     });
   }
@@ -632,6 +970,7 @@
     drawCharts,
     handleProfilePhotoFile,
     readImport,
+    resolveCityTimezone,
     toggleTodo,
     viewPlan,
     viewProfile,

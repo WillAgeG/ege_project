@@ -44,9 +44,12 @@ class SqliteSchemaMixin:
                     provider TEXT NOT NULL,
                     code_verifier TEXT NOT NULL,
                     redirect_uri TEXT NOT NULL,
+                    role TEXT NOT NULL DEFAULT 'student',
+                    next_url TEXT NOT NULL DEFAULT '/',
                     created_at INTEGER NOT NULL,
                     expires_at INTEGER NOT NULL
                 );
+                CREATE INDEX IF NOT EXISTS idx_oauth_states_expires ON oauth_states(expires_at);
                 CREATE TABLE IF NOT EXISTS sessions (
                     token_hash TEXT PRIMARY KEY,
                     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -54,6 +57,29 @@ class SqliteSchemaMixin:
                     expires_at INTEGER NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+                CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
+                CREATE TABLE IF NOT EXISTS rate_limit_hits (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    bucket_key TEXT NOT NULL,
+                    created_at REAL NOT NULL,
+                    expires_at REAL NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_rate_limit_hits_key_created
+                    ON rate_limit_hits(bucket_key, created_at);
+                CREATE INDEX IF NOT EXISTS idx_rate_limit_hits_expires
+                    ON rate_limit_hits(expires_at);
+                CREATE TABLE IF NOT EXISTS phone_otp_codes (
+                    phone_digits TEXT PRIMARY KEY,
+                    code_hash TEXT NOT NULL,
+                    channel TEXT NOT NULL DEFAULT 'wa' CHECK (channel IN ('wa', 'tg', 'sms')),
+                    mode TEXT NOT NULL DEFAULT 'login' CHECK (mode IN ('login', 'register')),
+                    invite_ok INTEGER NOT NULL DEFAULT 0,
+                    attempts INTEGER NOT NULL DEFAULT 0,
+                    created_at REAL NOT NULL,
+                    expires_at REAL NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_phone_otp_codes_expires
+                    ON phone_otp_codes(expires_at);
                 CREATE TABLE IF NOT EXISTS docs (
                     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                     name TEXT NOT NULL,
@@ -65,7 +91,7 @@ class SqliteSchemaMixin:
                     feed_token TEXT PRIMARY KEY,
                     user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
                     tutor_slug TEXT NOT NULL UNIQUE,
-                    tutor_name TEXT NOT NULL DEFAULT 'Преподаватель Вектор ЕГЭ',
+                    tutor_name TEXT NOT NULL DEFAULT 'Преподаватель Вектор',
                     city TEXT NOT NULL DEFAULT 'Якутск',
                     timezone TEXT NOT NULL DEFAULT 'UTC+9' CHECK (timezone IN ('UTC+9', 'UTC+3')),
                     external_ics_url TEXT,
@@ -107,6 +133,8 @@ class SqliteSchemaMixin:
                 );
                 CREATE INDEX IF NOT EXISTS idx_realtime_notifications_channel_id
                     ON realtime_notifications(channel, id DESC);
+                CREATE INDEX IF NOT EXISTS idx_realtime_notifications_created
+                    ON realtime_notifications(created_at);
                 CREATE TABLE IF NOT EXISTS admin_tutors (
                     id TEXT PRIMARY KEY,
                     user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
@@ -151,6 +179,10 @@ class SqliteSchemaMixin:
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
+                CREATE INDEX IF NOT EXISTS idx_admin_lesson_requests_student_created
+                    ON admin_lesson_requests(student_user_id, created_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_admin_lesson_requests_tutor_status_created
+                    ON admin_lesson_requests(tutor_id, status, created_at DESC);
                 CREATE TABLE IF NOT EXISTS admin_payout_requests (
                     id TEXT PRIMARY KEY,
                     tutor_id TEXT NOT NULL,
@@ -179,8 +211,8 @@ class SqliteSchemaMixin:
                     tutor_id TEXT NOT NULL,
                     student_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
                     gross_rub INTEGER NOT NULL CHECK (gross_rub > 0),
-                    platform_fee_rub INTEGER NOT NULL CHECK (platform_fee_rub >= 0),
-                    tutor_payout_rub INTEGER NOT NULL CHECK (tutor_payout_rub >= 0),
+                    platform_fee_rub INTEGER NOT NULL CHECK (platform_fee_rub >= 0 AND platform_fee_rub <= gross_rub),
+                    tutor_payout_rub INTEGER NOT NULL CHECK (tutor_payout_rub >= 0 AND tutor_payout_rub <= gross_rub - platform_fee_rub),
                     status TEXT NOT NULL CHECK (status IN ('frozen', 'captured', 'refunded')),
                     created_at TEXT NOT NULL,
                     settled_at TEXT
@@ -232,6 +264,277 @@ class SqliteSchemaMixin:
                     updated_at TEXT NOT NULL,
                     PRIMARY KEY (user_id, tutor_id)
                 );
+                CREATE TABLE IF NOT EXISTS market_directions (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    short TEXT NOT NULL,
+                    category TEXT NOT NULL DEFAULT 'Добавлено оркестратором',
+                    is_exam INTEGER NOT NULL DEFAULT 0,
+                    source TEXT NOT NULL DEFAULT 'orchestrator',
+                    keywords_json TEXT NOT NULL DEFAULT '[]',
+                    demand_count INTEGER NOT NULL DEFAULT 1,
+                    tutor_count INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS tutor_reviews (
+                    id TEXT PRIMARY KEY,
+                    tutor_id TEXT NOT NULL,
+                    booking_id TEXT,
+                    student_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    student_name TEXT NOT NULL DEFAULT 'Ученик',
+                    rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+                    comment TEXT NOT NULL DEFAULT '',
+                    tags_json TEXT NOT NULL DEFAULT '[]',
+                    verified_lesson INTEGER NOT NULL DEFAULT 1,
+                    created_at TEXT NOT NULL
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_tutor_reviews_booking
+                    ON tutor_reviews(booking_id)
+                    WHERE booking_id IS NOT NULL AND booking_id != '';
+                CREATE TABLE IF NOT EXISTS lesson_disputes (
+                    id TEXT PRIMARY KEY,
+                    booking_id TEXT NOT NULL UNIQUE,
+                    tutor_id TEXT NOT NULL,
+                    tutor_name TEXT NOT NULL DEFAULT '',
+                    student_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    student_name TEXT NOT NULL DEFAULT 'Ученик',
+                    reason TEXT NOT NULL,
+                    comment TEXT NOT NULL DEFAULT '',
+                    amount_rub INTEGER NOT NULL DEFAULT 0,
+                    first_lesson_guarantee INTEGER NOT NULL DEFAULT 1,
+                    status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'refunded', 'rejected', 'resolved')),
+                    resolution_note TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    resolved_at TEXT
+                );
+                CREATE TABLE IF NOT EXISTS telegram_bindings (
+                    chat_id TEXT PRIMARY KEY,
+                    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                    telegram_user_id TEXT NOT NULL DEFAULT '',
+                    telegram_username TEXT NOT NULL DEFAULT '',
+                    phone_digits TEXT NOT NULL DEFAULT '',
+                    first_name TEXT NOT NULL DEFAULT '',
+                    notifications_enabled INTEGER NOT NULL DEFAULT 1,
+                    linked_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_tg_bindings_user ON telegram_bindings(user_id);
+                CREATE INDEX IF NOT EXISTS idx_tg_bindings_phone ON telegram_bindings(phone_digits);
+                CREATE TABLE IF NOT EXISTS telegram_link_tokens (
+                    token_hash TEXT PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    created_at INTEGER NOT NULL,
+                    expires_at INTEGER NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_telegram_link_tokens_expires
+                    ON telegram_link_tokens(expires_at);
+                CREATE TABLE IF NOT EXISTS lesson_reminders_sent (
+                    booking_id TEXT NOT NULL,
+                    kind TEXT NOT NULL CHECK (kind IN ('24h', '1h')),
+                    recipient_role TEXT NOT NULL CHECK (recipient_role IN ('student', 'tutor')),
+                    chat_id TEXT NOT NULL DEFAULT '',
+                    sent_at TEXT NOT NULL,
+                    PRIMARY KEY (booking_id, kind, recipient_role)
+                );
+                CREATE TABLE IF NOT EXISTS media_assets (
+                    id TEXT PRIMARY KEY,
+                    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                    kind TEXT NOT NULL CHECK (kind IN ('avatar', 'diploma', 'feedback', 'chat')),
+                    storage_driver TEXT NOT NULL DEFAULT 'local',
+                    bucket TEXT NOT NULL,
+                    object_key TEXT NOT NULL,
+                    content_type TEXT NOT NULL,
+                    size_bytes INTEGER NOT NULL CHECK (size_bytes >= 0),
+                    sha256 TEXT NOT NULL DEFAULT '',
+                    original_filename TEXT NOT NULL DEFAULT '',
+                    public_url TEXT,
+                    created_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_media_assets_user_kind
+                    ON media_assets(user_id, kind, created_at DESC);
+                CREATE TABLE IF NOT EXISTS tutor_verifications (
+                    id TEXT PRIMARY KEY,
+                    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                    tutor_id TEXT NOT NULL DEFAULT '',
+                    asset_id TEXT NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE,
+                    doc_type TEXT NOT NULL DEFAULT 'diploma' CHECK (doc_type IN ('diploma', 'ege_expert', 'certificate', 'other')),
+                    title TEXT NOT NULL DEFAULT '',
+                    comment TEXT NOT NULL DEFAULT '',
+                    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+                    review_note TEXT NOT NULL DEFAULT '',
+                    reviewed_by TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    reviewed_at TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_tutor_verifications_status_created
+                    ON tutor_verifications(status, created_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_tutor_verifications_user
+                    ON tutor_verifications(user_id, created_at DESC);
+                CREATE TABLE IF NOT EXISTS payment_intents (
+                    id TEXT PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    provider TEXT NOT NULL DEFAULT 'yookassa',
+                    idempotency_key TEXT NOT NULL UNIQUE,
+                    provider_payment_id TEXT UNIQUE,
+                    method TEXT NOT NULL CHECK (method IN ('sbp', 'card')),
+                    plan_id TEXT NOT NULL DEFAULT 'trial5k',
+                    amount_rub INTEGER NOT NULL CHECK (amount_rub > 0),
+                    fee_rub INTEGER NOT NULL DEFAULT 0 CHECK (fee_rub >= 0),
+                    total_rub INTEGER NOT NULL CHECK (total_rub > 0),
+                    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'waiting_for_capture', 'succeeded', 'canceled')),
+                    credited INTEGER NOT NULL DEFAULT 0,
+                    receipt_email TEXT NOT NULL DEFAULT '',
+                    receipt_phone TEXT NOT NULL DEFAULT '',
+                    confirmation_url TEXT NOT NULL DEFAULT '',
+                    return_url TEXT NOT NULL DEFAULT '',
+                    error_message TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    paid_at TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_payment_intents_user_created
+                    ON payment_intents(user_id, created_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_payment_intents_status_created
+                    ON payment_intents(status, created_at DESC);
+                CREATE TABLE IF NOT EXISTS payment_refunds (
+                    id TEXT PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    payment_intent_id TEXT REFERENCES payment_intents(id) ON DELETE SET NULL,
+                    provider TEXT NOT NULL DEFAULT 'yookassa',
+                    idempotency_key TEXT NOT NULL UNIQUE,
+                    provider_payment_id TEXT,
+                    provider_refund_id TEXT UNIQUE,
+                    method TEXT NOT NULL DEFAULT 'sbp' CHECK (method IN ('sbp', 'card')),
+                    amount_rub INTEGER NOT NULL CHECK (amount_rub > 0),
+                    reason TEXT NOT NULL DEFAULT '',
+                    status TEXT NOT NULL DEFAULT 'requested' CHECK (status IN ('requested', 'pending', 'succeeded', 'canceled', 'rejected')),
+                    balance_reverted INTEGER NOT NULL DEFAULT 0,
+                    review_note TEXT NOT NULL DEFAULT '',
+                    reviewed_by TEXT NOT NULL DEFAULT '',
+                    error_message TEXT NOT NULL DEFAULT '',
+                    receipt_email TEXT NOT NULL DEFAULT '',
+                    receipt_phone TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    refunded_at TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_payment_refunds_user_created
+                    ON payment_refunds(user_id, created_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_payment_refunds_intent_status
+                    ON payment_refunds(payment_intent_id, status);
+                CREATE INDEX IF NOT EXISTS idx_payment_refunds_status_created
+                    ON payment_refunds(status, created_at DESC);
+                CREATE TABLE IF NOT EXISTS npd_receipts (
+                    id TEXT PRIMARY KEY,
+                    payout_id TEXT NOT NULL UNIQUE REFERENCES admin_payout_requests(id) ON DELETE CASCADE,
+                    tutor_id TEXT NOT NULL,
+                    tutor_inn TEXT NOT NULL DEFAULT '',
+                    provider TEXT NOT NULL DEFAULT 'demo',
+                    receipt_uuid TEXT NOT NULL DEFAULT '',
+                    receipt_url TEXT NOT NULL DEFAULT '',
+                    receipt_json_url TEXT NOT NULL DEFAULT '',
+                    service_name TEXT NOT NULL DEFAULT '',
+                    amount_rub INTEGER NOT NULL CHECK (amount_rub >= 0),
+                    status TEXT NOT NULL DEFAULT 'demo' CHECK (status IN ('demo', 'pending', 'registered', 'failed', 'canceled')),
+                    error_message TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    canceled_at TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_npd_receipts_tutor_created
+                    ON npd_receipts(tutor_id, created_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_npd_receipts_status_created
+                    ON npd_receipts(status, created_at DESC);
+                CREATE TABLE IF NOT EXISTS tutor_applications (
+                    id TEXT PRIMARY KEY,
+                    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    full_name TEXT NOT NULL,
+                    subject_id TEXT NOT NULL DEFAULT 'eng',
+                    subject_name TEXT NOT NULL DEFAULT '',
+                    desired_rate_rub INTEGER NOT NULL DEFAULT 1100 CHECK (desired_rate_rub >= 0 AND desired_rate_rub <= 99999),
+                    contact TEXT NOT NULL,
+                    source TEXT NOT NULL DEFAULT 'landing',
+                    status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'contacted', 'approved', 'rejected')),
+                    review_note TEXT NOT NULL DEFAULT '',
+                    created_tutor_id TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    reviewed_at TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_tutor_applications_status_created
+                    ON tutor_applications(status, created_at DESC);
+                CREATE TABLE IF NOT EXISTS feedback_tickets (
+                    id TEXT PRIMARY KEY,
+                    kind TEXT NOT NULL CHECK (kind IN ('bug', 'cooperation')),
+                    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    author_name TEXT NOT NULL DEFAULT '',
+                    contact TEXT NOT NULL DEFAULT '',
+                    subject TEXT NOT NULL DEFAULT '',
+                    message TEXT NOT NULL,
+                    page_url TEXT NOT NULL DEFAULT '',
+                    context_json TEXT NOT NULL DEFAULT '{}',
+                    status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'in_progress', 'resolved', 'closed')),
+                    review_note TEXT NOT NULL DEFAULT '',
+                    reviewed_by TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    reviewed_at TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_feedback_tickets_status_created
+                    ON feedback_tickets(status, created_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_feedback_tickets_kind_created
+                    ON feedback_tickets(kind, created_at DESC);
+                CREATE TABLE IF NOT EXISTS feedback_attachments (
+                    id TEXT PRIMARY KEY,
+                    ticket_id TEXT NOT NULL REFERENCES feedback_tickets(id) ON DELETE CASCADE,
+                    asset_id TEXT NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE,
+                    created_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_feedback_attachments_ticket
+                    ON feedback_attachments(ticket_id);
+                CREATE TABLE IF NOT EXISTS chat_messages (
+                    id TEXT PRIMARY KEY,
+                    thread_id TEXT NOT NULL,
+                    booking_id TEXT,
+                    tutor_id TEXT NOT NULL DEFAULT '',
+                    student_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    tutor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    sender_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    sender_role TEXT NOT NULL DEFAULT 'student' CHECK (sender_role IN ('student', 'tutor', 'system')),
+                    sender_name TEXT NOT NULL DEFAULT '',
+                    body TEXT NOT NULL,
+                    read_by_student INTEGER NOT NULL DEFAULT 0,
+                    read_by_tutor INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_chat_messages_thread_created
+                    ON chat_messages(thread_id, created_at);
+                CREATE INDEX IF NOT EXISTS idx_chat_messages_student_created
+                    ON chat_messages(student_user_id, created_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_chat_messages_tutor_created
+                    ON chat_messages(tutor_user_id, created_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_chat_messages_booking
+                    ON chat_messages(booking_id);
+                CREATE TABLE IF NOT EXISTS chat_message_attachments (
+                    id TEXT PRIMARY KEY,
+                    message_id TEXT NOT NULL REFERENCES chat_messages(id) ON DELETE CASCADE,
+                    asset_id TEXT NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE,
+                    created_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_chat_msg_attachments_message
+                    ON chat_message_attachments(message_id);
+                CREATE TABLE IF NOT EXISTS chat_unanswered_notifications (
+                    thread_id TEXT NOT NULL,
+                    anchor_message_id TEXT NOT NULL,
+                    recipient_role TEXT NOT NULL CHECK (recipient_role IN ('student', 'tutor')),
+                    latest_message_id TEXT NOT NULL DEFAULT '',
+                    channels TEXT NOT NULL DEFAULT '',
+                    sent_at TEXT NOT NULL,
+                    PRIMARY KEY (thread_id, anchor_message_id, recipient_role)
+                );
+                CREATE INDEX IF NOT EXISTS idx_chat_unanswered_notif_sent
+                    ON chat_unanswered_notifications(sent_at DESC);
                 """
             )
             existing_cols = {
@@ -270,9 +573,54 @@ class SqliteSchemaMixin:
                 ("formats_json", 'TEXT NOT NULL DEFAULT \'["Онлайн"]\''),
                 ("custom_skills", "TEXT NOT NULL DEFAULT ''"),
                 ("first_lesson_guarantee", "INTEGER NOT NULL DEFAULT 1"),
+                ("inn", "TEXT NOT NULL DEFAULT ''"),
+                ("npd_verified", "INTEGER NOT NULL DEFAULT 0"),
+                ("npd_checked_at", "TEXT"),
+                ("slots_json", "TEXT NOT NULL DEFAULT '{}'"),
+                ("is_published", "INTEGER NOT NULL DEFAULT 1"),
+                ("custom_badges_json", "TEXT NOT NULL DEFAULT '[]'"),
+                ("min_fair_rub", "INTEGER NOT NULL DEFAULT 0"),
             ):
                 if col_name not in tutor_cols:
                     self._conn.execute(f"ALTER TABLE admin_tutors ADD COLUMN {col_name} {col_def}")
+
+            payout_cols = {
+                str(r["name"]) for r in self._conn.execute("PRAGMA table_info(admin_payout_requests)").fetchall()
+            }
+            for col_name, col_def in (
+                ("idempotency_key", "TEXT"),
+                ("provider", "TEXT NOT NULL DEFAULT 'manual'"),
+                ("provider_payout_id", "TEXT"),
+                ("provider_status", "TEXT NOT NULL DEFAULT ''"),
+                ("sbp_bank_id", "TEXT NOT NULL DEFAULT ''"),
+                ("sbp_phone", "TEXT NOT NULL DEFAULT ''"),
+                ("payout_token", "TEXT NOT NULL DEFAULT ''"),
+                ("tutor_inn", "TEXT NOT NULL DEFAULT ''"),
+                ("antifraud_hold", "INTEGER NOT NULL DEFAULT 0"),
+                ("antifraud_reason", "TEXT NOT NULL DEFAULT ''"),
+                ("npd_requested", "INTEGER NOT NULL DEFAULT 1"),
+                ("npd_status", "TEXT NOT NULL DEFAULT 'none'"),
+                ("npd_receipt_url", "TEXT NOT NULL DEFAULT ''"),
+                ("error_message", "TEXT NOT NULL DEFAULT ''"),
+                ("updated_at", "TEXT"),
+            ):
+                if col_name not in payout_cols:
+                    self._conn.execute(f"ALTER TABLE admin_payout_requests ADD COLUMN {col_name} {col_def}")
+
+            self._conn.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_payout_requests_idempotency
+                ON admin_payout_requests(idempotency_key)
+                WHERE idempotency_key IS NOT NULL AND idempotency_key != ''
+                """
+            )
+            self._conn.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_payout_requests_provider_id
+                ON admin_payout_requests(provider_payout_id)
+                WHERE provider_payout_id IS NOT NULL AND provider_payout_id != ''
+                """
+            )
 
             req_cols = {
                 str(r["name"]) for r in self._conn.execute("PRAGMA table_info(admin_lesson_requests)").fetchall()
@@ -291,6 +639,16 @@ class SqliteSchemaMixin:
             ):
                 if col_name not in req_cols:
                     self._conn.execute(f"ALTER TABLE admin_lesson_requests ADD COLUMN {col_name} {col_def}")
+
+            oauth_cols = {
+                str(r["name"]) for r in self._conn.execute("PRAGMA table_info(oauth_states)").fetchall()
+            }
+            for col_name, col_def in (
+                ("role", "TEXT NOT NULL DEFAULT 'student'"),
+                ("next_url", "TEXT NOT NULL DEFAULT '/'"),
+            ):
+                if col_name not in oauth_cols:
+                    self._conn.execute(f"ALTER TABLE oauth_states ADD COLUMN {col_name} {col_def}")
             self._conn.execute(
                 """
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower
@@ -306,7 +664,70 @@ class SqliteSchemaMixin:
             )
             self._conn.execute("DELETE FROM sessions WHERE expires_at <= ?", (now,))
             self._conn.execute("DELETE FROM oauth_states WHERE expires_at <= ?", (now,))
-            self._seed_admin_tables()
+            otp_ddl_row = self._conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='phone_otp_codes'"
+            ).fetchone()
+            otp_ddl = str(otp_ddl_row[0] or "") if otp_ddl_row else ""
+            if otp_ddl and "'sms'" not in otp_ddl:
+                self._conn.executescript(
+                    """
+                    CREATE TABLE IF NOT EXISTS phone_otp_codes_v2 (
+                        phone_digits TEXT PRIMARY KEY,
+                        code_hash TEXT NOT NULL,
+                        channel TEXT NOT NULL DEFAULT 'wa' CHECK (channel IN ('wa', 'tg', 'sms')),
+                        mode TEXT NOT NULL DEFAULT 'login' CHECK (mode IN ('login', 'register')),
+                        invite_ok INTEGER NOT NULL DEFAULT 0,
+                        attempts INTEGER NOT NULL DEFAULT 0,
+                        created_at REAL NOT NULL,
+                        expires_at REAL NOT NULL
+                    );
+                    INSERT OR IGNORE INTO phone_otp_codes_v2
+                        (phone_digits, code_hash, channel, mode, invite_ok, attempts, created_at, expires_at)
+                    SELECT phone_digits, code_hash, channel, mode, invite_ok, attempts, created_at, expires_at
+                    FROM phone_otp_codes;
+                    DROP TABLE phone_otp_codes;
+                    ALTER TABLE phone_otp_codes_v2 RENAME TO phone_otp_codes;
+                    CREATE INDEX IF NOT EXISTS idx_phone_otp_codes_expires ON phone_otp_codes(expires_at);
+                    """
+                )
+            media_ddl_row = self._conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='media_assets'"
+            ).fetchone()
+            media_ddl = str(media_ddl_row[0] or "") if media_ddl_row else ""
+            if media_ddl and "'chat'" not in media_ddl:
+                self._conn.commit()
+                self._conn.execute("PRAGMA foreign_keys = OFF")
+                try:
+                    self._conn.executescript(
+                        """
+                        CREATE TABLE media_assets_v3 (
+                            id TEXT PRIMARY KEY,
+                            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                            kind TEXT NOT NULL CHECK (kind IN ('avatar', 'diploma', 'feedback', 'chat')),
+                            storage_driver TEXT NOT NULL DEFAULT 'local',
+                            bucket TEXT NOT NULL,
+                            object_key TEXT NOT NULL,
+                            content_type TEXT NOT NULL,
+                            size_bytes INTEGER NOT NULL CHECK (size_bytes >= 0),
+                            sha256 TEXT NOT NULL DEFAULT '',
+                            original_filename TEXT NOT NULL DEFAULT '',
+                            public_url TEXT,
+                            created_at TEXT NOT NULL
+                        );
+                        INSERT OR IGNORE INTO media_assets_v3
+                            (id, user_id, kind, storage_driver, bucket, object_key, content_type, size_bytes, sha256, original_filename, public_url, created_at)
+                        SELECT id, user_id, kind, storage_driver, bucket, object_key, content_type, size_bytes, sha256, original_filename, public_url, created_at
+                        FROM media_assets;
+                        DROP TABLE media_assets;
+                        ALTER TABLE media_assets_v3 RENAME TO media_assets;
+                        CREATE INDEX IF NOT EXISTS idx_media_assets_user_kind
+                            ON media_assets(user_id, kind, created_at DESC);
+                        """
+                    )
+                finally:
+                    self._conn.execute("PRAGMA foreign_keys = ON")
+            if getattr(self, "_seed_demo", True):
+                self._seed_admin_tables()
             self._conn.commit()
 
     def close(self) -> None:

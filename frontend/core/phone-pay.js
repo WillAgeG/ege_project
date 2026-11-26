@@ -15,14 +15,24 @@
   }
   function getUi() { return _ctx.ui || _fallbackUi; }
   function getStore() { return _ctx.store || {}; }
+  function isDevDemoMode() {
+    if (typeof _ctx.isDevDemoMode === "function") return !!_ctx.isDevDemoMode();
+    const st = getStore();
+    if (st && st.demoMode === false) return false;
+    if (root.EGE_HOST && root.EGE_HOST.demoMode === false) return false;
+    return true;
+  }
+  function getBackendReq() { return _ctx.backendReq || null; }
   function getTDATA() { return _ctx.TDATA || EGE.tutors || null; }
+  const whatsappSvg = () => (EGE.ui && EGE.ui.WHATSAPP_SVG) || "";
+  const telegramSvg = () => (EGE.ui && EGE.ui.TELEGRAM_SVG) || "";
   function getMkt() { return typeof _ctx.mkt === "function" ? _ctx.mkt() : {}; }
   function saveMkt() { if (typeof _ctx.saveMkt === "function") _ctx.saveMkt(); }
   function getProfile() { return typeof _ctx.profile === "function" ? _ctx.profile() : { phone: "", phoneCountry: "RU" }; }
   function getDraft(k, fb) { return typeof _ctx.draft === "function" ? _ctx.draft(k, fb) : fb; }
   function renderModal() { if (typeof _ctx.renderModal === "function") _ctx.renderModal(); }
   function scheduleRender(top) { if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender(top); }
-  function notifySide(t, m) { if (typeof _ctx.notifySide === "function") _ctx.notifySide(t, m); }
+  function notifySide(t, m, o) { if (typeof _ctx.notifySide === "function") _ctx.notifySide(t, m, o); }
   function toast(m, o) { if (typeof _ctx.toast === "function") _ctx.toast(m, o); }
 
   const PHONE_COUNTRIES = [
@@ -148,7 +158,12 @@
   function syncPhoneScopeState(scope, formatted, countryCode) {
     const ui = getUi();
     const s = String(scope || "");
-    if (s === "pf-phone") {
+    if (s === "auth-phone") {
+      if (!ui.drafts) ui.drafts = {};
+      ui.drafts["auth.phone"] = formatted;
+      ui.drafts["auth.phoneCountry"] = countryCode;
+      if (ui.auth) ui.auth.error = "";
+    } else if (s === "pf-phone") {
       if (!ui.drafts) ui.drafts = {};
       ui.drafts["pf.phone"] = formatted;
       ui.drafts["pf.phoneCountry"] = countryCode;
@@ -173,6 +188,7 @@
     const parsed = rawVal.trim() ? formatPhoneForCountry(rawVal, country.code) : null;
     const displayVal = (parsed && parsed.formatted) ? parsed.formatted : (country.dial ? ("+" + country.dial + " ") : "+");
     const compactCls = opts.compact === false ? "" : " is-compact";
+    const isNotched = !!opts.notched;
     const dataDAttr = opts.dataD ? ` data-d="${esc(opts.dataD)}"` : "";
     const extraAttrs = opts.extraAttrs ? (" " + opts.extraAttrs) : "";
     const menuHTML = st.menuOpen
@@ -187,16 +203,26 @@
           }).join("")}
         </div>`
       : "";
-    return `<div class="field cv-phone-field${compactCls}" id="phone-field-${esc(scope)}">
-      ${opts.label ? `<label for="${esc(id)}">${esc(opts.label)} (${esc(country.name)})</label>` : ""}
-      <div class="cv-phone-wrap">
+    const wrapHTML = `<div class="cv-phone-wrap">
         <button type="button" class="cv-country-btn" data-a="phone-country-toggle" data-scope="${esc(scope)}" aria-expanded="${st.menuOpen ? "true" : "false"}" aria-label="Выбрать регион: ${esc(country.name)}">
           <span>${country.flag}</span>
           <span>${esc(country.code === "OTHER" ? "Мир" : country.code)}</span>
           ${icon("chevDown")}
         </button>
         <input class="cv-phone-inp num" id="${esc(id)}" name="${esc(name)}" type="tel" inputmode="tel" autocomplete="tel" data-phone-scope="${esc(scope)}"${dataDAttr}${extraAttrs} maxlength="28" placeholder="${esc(country.placeholder)}" value="${esc(displayVal)}">
-      </div>
+      </div>`;
+    if (isNotched) {
+      return `<div class="cv-phone-field${compactCls} is-notched" id="phone-field-${esc(scope)}">
+        <fieldset class="stu-notch-field is-phone">
+          ${opts.label ? `<legend><label for="${esc(id)}">${esc(opts.label)} (${esc(country.name)})</label></legend>` : ""}
+          ${wrapHTML}
+        </fieldset>
+        ${menuHTML}
+      </div>`;
+    }
+    return `<div class="field cv-phone-field${compactCls}" id="phone-field-${esc(scope)}">
+      ${opts.label ? `<label for="${esc(id)}">${esc(opts.label)} (${esc(country.name)})</label>` : ""}
+      ${wrapHTML}
       ${menuHTML}
     </div>`;
   }
@@ -297,6 +323,16 @@
     const activeCardId = bm.selectedCardId || (cards[0] && cards[0].id) || "";
     const customVal = bm.customAmount != null ? String(bm.customAmount) : String(minTopup);
     const meta = calcBalanceTopupMeta(customVal, method);
+    const stObj = getStore();
+    const u = (stObj && stObj.user) || {};
+    const prof = getProfile();
+    const ykActive = Boolean(stObj && stObj.payments && stObj.payments.yookassaEnabled);
+    const ykReceiptOn = !stObj.payments || stObj.payments.receiptEnabled !== false;
+    const hasReceiptContact = Boolean(
+      String(u.email || "").trim() ||
+      String(prof.phone || "").trim() ||
+      String((st.verifiedContact && st.verifiedContact.value) || "").trim()
+    );
     const chipVals = st.initialPaid ? [500, 1000, 1500, 3000] : [trialRub, 1000, 2150, 4590];
     if (meta.amt >= minTopup && !chipVals.includes(meta.amt)) chipVals.unshift(meta.amt);
     const sbpMark = (EGE.ui && typeof EGE.ui.sbpLogoSVG === "function")
@@ -327,13 +363,61 @@
         </div>
         <div class="sheet-head is-booking-head">
           <div class="row" style="gap:8px">${icon("wallet")}<b id="bal-modal-title">Баланс и пополнение</b></div>
+          <button type="button" class="icon-btn sm sheet-close-btn" data-a="bal-close" aria-label="Закрыть окно баланса">${icon("x")}</button>
         </div>
         <div class="sheet-body">
           <div class="bal-flat-sec">
             <span class="small muted">Баланс ученика</span>
             <strong class="bal-flat-amount num">${(Number(st.balance) || 0).toLocaleString("ru-RU")} ₽</strong>
             ${bm.reason ? `<span class="bal-flat-need">${esc(bm.reason)}</span>` : ""}
+            ${(stObj && stObj.backend && stObj.user && ((Number(st.balance) || 0) > 0 || bm.refundOpen || (Array.isArray(bm.refunds) && bm.refunds.length)))
+              ? `<div class="bal-refund-bar"><button type="button" class="btn ghost small bal-refund-toggle" data-a="bal-refund-toggle">${bm.refundOpen ? "Скрыть возврат на карту / СБП" : "↩️ Вернуть остаток на карту / СБП"}</button></div>`
+              : ""}
           </div>
+          ${bm.refundOpen ? (() => {
+            const availBal = Math.max(0, Number(st.balance) || 0);
+            const refList = Array.isArray(bm.refunds) ? bm.refunds : [];
+            const refMax = bm.refundableRub != null ? Math.max(0, Math.min(availBal, Number(bm.refundableRub) || 0)) : availBal;
+            const refAmt = bm.refundAmount != null ? String(bm.refundAmount) : String(refMax > 0 ? refMax : availBal);
+            const stBadge = {
+              requested: "Заявка",
+              pending: "В банке",
+              succeeded: "Возвращено ✓",
+              canceled: "Отменён",
+              rejected: "Отклонён"
+            };
+            const listHtml = refList.length
+              ? `<div class="bal-refund-list">${refList.slice(0, 4).map((rf) => {
+                  const s = String(rf.status || "requested");
+                  const rAmt = Number(rf.amountRub || 0).toLocaleString("ru-RU");
+                  return `<div class="bal-refund-row">
+                    <span class="num"><b>${rAmt} ₽</b> · ${rf.method === "card" ? "Карта" : "СБП"}</span>
+                    <span class="bal-refund-st is-${esc(s)}">${esc(stBadge[s] || s)}</span>
+                  </div>`;
+                }).join("")}</div>`
+              : "";
+            return `<div class="bal-refund-box">
+              <div class="row" style="justify-content:space-between;gap:8px;flex-wrap:wrap">
+                <b class="small">Возврат неиспользованного остатка через ЮKassa</b>
+                ${bm.refundableRub != null ? `<span class="small muted num">К возврату по пополнениям: ${Number(bm.refundableRub).toLocaleString("ru-RU")} ₽</span>` : ""}
+              </div>
+              <form class="stack" style="gap:8px" data-f="bal-refund">
+                <div class="field">
+                  <label for="bal-refund-amount">Сумма возврата (₽)</label>
+                  <input class="input num" id="bal-refund-amount" name="refundAmount" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" value="${esc(refAmt)}" placeholder="${String(refMax || 100)}">
+                </div>
+                <div class="field">
+                  <label for="bal-refund-reason">Причина (необязательно)</label>
+                  <input class="input" id="bal-refund-reason" name="refundReason" type="text" maxlength="250" value="${esc(bm.refundReason || "")}" placeholder="Например, завершил подготовку или поменялись планы">
+                </div>
+                <p class="small muted" style="margin:0;line-height:1.4">Средства списываются в резерв возврата и отправляются в ЮKassa на исходный счёт СБП (1–3 раб. дня) или карту РФ (3–10 дней).</p>
+                ${bm.refundError ? `<div class="small" style="color:var(--bad);font-weight:600">${esc(bm.refundError)}</div>` : ""}
+                ${bm.refundSuccess ? `<div class="small" style="color:var(--confirm);font-weight:600">${esc(bm.refundSuccess)}</div>` : ""}
+                <button type="submit" class="btn soft" id="bal-refund-submit"${bm.refundBusy || availBal <= 0 ? " disabled" : ""}>${bm.refundBusy ? "Отправляем заявку…" : "Запросить возврат на карту / СБП"}</button>
+              </form>
+              ${listHtml}
+            </div>`;
+          })() : ""}
           <div class="bal-flat-sec">
             <b class="small">Как работает оплата и защита счёта</b>
             <p class="bal-flat-copy">Деньги хранятся на защищённом счёте и переводятся преподавателю только после проведения урока. Контакты в WhatsApp, Telegram и MAX открываются сразу после отправки заявки.</p>
@@ -375,8 +459,11 @@
               <span class="bal-amount-cur">₽</span>
             </div>
             <div class="bal-fee-line" id="bal-fee-line">${esc(meta.feeText)}</div>
+            ${ykActive ? `<div class="small muted">Оплата через ЮKassa (СБП 0% / карта РФ +3%)${ykReceiptOn ? " · электронный чек по 54-ФЗ" : ""}</div>` : ""}
+            ${(ykActive && ykReceiptOn && !hasReceiptContact) ? `<div class="field"><label for="bal-receipt-email">Email для чека 54-ФЗ</label><input class="input" id="bal-receipt-email" name="receiptEmail" type="email" autocomplete="email" maxlength="254" value="${esc(bm.receiptEmail || "")}" placeholder="name@example.ru" required></div>` : ""}
             ${bm.error ? `<div class="small" style="color:var(--bad);font-weight:600">${esc(bm.error)}</div>` : ""}
-            <button type="submit" class="btn bal-submit-btn" id="bal-submit-btn">${esc(meta.btnText)}</button>
+            <button type="submit" class="btn bal-submit-btn" id="bal-submit-btn"${bm.busy ? " disabled" : ""}>${bm.busy ? "Переходим в ЮKassa…" : esc(meta.btnText)}</button>
+            <p class="bal-legal-note small muted">Нажимая «${esc(meta.btnText)}», вы принимаете <a href="/terms" target="_blank" rel="noopener">Публичную оферту</a>, <a href="/refunds" target="_blank" rel="noopener">Правила возврата и эскроу</a> и <a href="/privacy" target="_blank" rel="noopener">Политику 152-ФЗ</a>.</p>
           </form>
         </div>
       </div>
@@ -397,7 +484,7 @@
         <div class="sheet-head is-booking-head">
           <button type="button" class="sheet-back-btn" data-a="bal-card-close">${icon("back")}<span>Назад</span></button>
           <b id="card-bind-title">Добавить карту</b>
-          <span style="width:64px" aria-hidden="true"></span>
+          <button type="button" class="icon-btn sm sheet-close-btn" data-a="bal-card-close" aria-label="Закрыть добавление карты">${icon("x")}</button>
         </div>
         <div class="sheet-body">
           <form class="stack" style="gap:14px" data-f="bal-card-bind">
@@ -437,8 +524,69 @@
     </div>`;
   }
 
+  let _cvResendTimer = null;
+
+  function stopCvResendTimer() {
+    if (_cvResendTimer && typeof clearInterval === "function") {
+      clearInterval(_cvResendTimer);
+    }
+    _cvResendTimer = null;
+  }
+
+  function cvResendCooldownSec(cv) {
+    if (!cv || !cv.resendUntil) return 0;
+    return Math.max(0, Math.ceil((Number(cv.resendUntil) - Date.now()) / 1000));
+  }
+
+  function formatCvTimer(sec) {
+    const s = Math.max(0, Math.floor(Number(sec) || 0));
+    const m = Math.floor(s / 60);
+    const rem = s % 60;
+    return `${m}:${rem < 10 ? "0" : ""}${rem}`;
+  }
+
+  function ensureCvResendTimer() {
+    stopCvResendTimer();
+    if (typeof setInterval !== "function") return;
+    _cvResendTimer = setInterval(() => {
+      const cv = getUi().contactVerifyModal;
+      if (!cv || cv.step !== "otp") {
+        stopCvResendTimer();
+        return;
+      }
+      const rem = cvResendCooldownSec(cv);
+      if (rem <= 0) {
+        cv.resendUntil = 0;
+        stopCvResendTimer();
+        renderModal();
+        return;
+      }
+      const timerTxt = formatCvTimer(rem);
+      if (typeof document !== "undefined" && typeof document.getElementById === "function") {
+        const btnTimerEl = document.getElementById("cv-btn-timer");
+        if (btnTimerEl) btnTimerEl.textContent = timerTxt;
+        const waitEl = document.getElementById("cv-resend-wait");
+        if (waitEl) waitEl.textContent = `Повтор через ${timerTxt}`;
+      }
+    }, 250);
+  }
+
+  function normalizeOtpChannel(raw) {
+    const ch = String(raw || "wa").trim().toLowerCase();
+    if (ch === "tg" || ch === "telegram") return "tg";
+    if (ch === "sms" || ch === "phone") return "sms";
+    return "wa";
+  }
+
+  function otpChannelName(ch) {
+    if (ch === "tg") return "Telegram";
+    if (ch === "sms") return "SMS";
+    return "WhatsApp";
+  }
+
   function openContactVerifyModal(opts) {
     opts = opts || {};
+    stopCvResendTimer();
     const ui = getUi();
     const existing = getMkt().verifiedContact;
     const countryCode = (opts.country && phoneCountryByCode(opts.country).code)
@@ -446,15 +594,32 @@
       || "RU";
     const defCountry = phoneCountryByCode(countryCode);
     const seedContact = opts.contact || (existing && existing.value) || (defCountry.dial ? ("+" + defCountry.dial + " ") : "");
+    const ch = normalizeOtpChannel(opts.deliveredChannel || opts.channel || "wa");
     ui.contactVerifyModal = {
-      step: "input",
+      step: opts.step === "otp" ? "otp" : "input",
+      channel: ch,
+      deliveredChannel: opts.deliveredChannel ? normalizeOtpChannel(opts.deliveredChannel) : ch,
+      fallbackUsed: !!opts.fallbackUsed,
+      deliveryProvider: opts.deliveryProvider || null,
       country: defCountry.code,
       countryMenuOpen: false,
       contact: seedContact,
       digits: ["", "", "", ""],
-      expectedCode: "4829",
+      expectedCode: typeof opts.expectedCode === "string"
+        ? opts.expectedCode
+        : (isDevDemoMode() ? "4829" : ""),
+      resendCount: 0,
+      resendUntil: 0,
       required: opts.required !== false,
       fromGoogleDemo: !!opts.fromGoogleDemo,
+      fromTelegramDemo: !!opts.fromTelegramDemo,
+      fromSocialDemo: !!(opts.fromSocialDemo || opts.fromGoogleDemo || opts.fromTelegramDemo),
+      fromPhoneAuth: !!opts.fromPhoneAuth,
+      authProvider: opts.authProvider || "phone",
+      authMode: opts.authMode || "login",
+      inviteCode: opts.inviteCode || "",
+      doMigrate: !!opts.doMigrate,
+      busy: false,
       error: ""
     };
     renderModal();
@@ -465,8 +630,22 @@
     if (!cv) return "";
     const store = getStore();
     const isOtp = cv.step === "otp";
+    const ch = normalizeOtpChannel(cv.channel || "wa");
+    const chName = otpChannelName(ch);
+    const otherToggleCh = ch === "tg" ? "wa" : "tg";
+    const otherChName = otpChannelName(otherToggleCh);
+    const otpSentDesc = ch === "tg"
+      ? `Мы отправили код из 4 цифр в чат Telegram «Verification Codes» на номер <b>${esc(cv.contact)}</b>. Введите код из сообщения, чтобы продолжить.`
+      : (ch === "sms"
+        ? (cv.fallbackUsed
+          ? `Мессенджер оказался недоступен — мы отправили <b>SMS с кодом</b> из 4 цифр на номер <b>${esc(cv.contact)}</b>.`
+          : `Мы отправили <b>SMS с кодом</b> из 4 цифр на номер <b>${esc(cv.contact)}</b>. Введите код из сообщения, чтобы продолжить.`)
+        : `Мы отправили код из 4 цифр в ваш <b>WhatsApp</b> на номер <b>${esc(cv.contact)}</b>. Введите код из сообщения, чтобы продолжить.`);
     const country = phoneCountryByCode(cv.country || "RU");
     const digits = Array.isArray(cv.digits) ? cv.digits : ["", "", "", ""];
+    const canBackToAuth = Boolean(cv.fromSocialDemo || cv.fromPhoneAuth || cv.fromGoogleDemo);
+    const resendRem = cvResendCooldownSec(cv);
+    const resendTimerText = resendRem > 0 ? formatCvTimer(resendRem) : "";
     const countryMenuHTML = cv.countryMenuOpen
       ? `<div class="cv-country-menu" role="listbox" aria-label="Выбор страны">
           ${PHONE_COUNTRIES.map((c) => {
@@ -487,13 +666,13 @@
         <div class="sheet-head is-booking-head">
           ${isOtp
             ? `<button type="button" class="sheet-back-btn" data-a="cv-back">${icon("back")}<span>Номер</span></button>`
-            : `<span style="width:64px" aria-hidden="true"></span>`}
-          <b id="cv-modal-title">${isOtp ? "Код из СМС" : "Подтвердите номер телефона"}</b>
-          <span style="width:64px" aria-hidden="true"></span>
+            : `<span style="width:32px" aria-hidden="true"></span>`}
+          <b id="cv-modal-title">${isOtp ? (ch === "sms" ? "Код в SMS" : `Код в ${chName}`) : "Подтвердите номер телефона"}</b>
+          <button type="button" class="icon-btn sm sheet-close-btn" data-a="cv-close" aria-label="Закрыть подтверждение номера">${icon("x")}</button>
         </div>
         <div class="sheet-body">
           ${!isOtp ? `
-            <p class="small ink2" style="margin:0;line-height:1.48">Обязательный шаг: введите номер телефона — мы отправим обычное СМС с кодом из 4 цифр для подтверждения аккаунта.</p>
+            <p class="small ink2" style="margin:0;line-height:1.48">Введите номер телефона и выберите способ доставки — код из 4 цифр придёт в WhatsApp, Telegram или по SMS.</p>
             <form class="stack" style="gap:12px" data-f="contact-verify-send">
               <div class="cv-phone-field" id="cv-phone-field">
                 <label for="cv-contact-inp">Номер телефона (${esc(country.name)})</label>
@@ -507,32 +686,46 @@
                 </div>
                 ${countryMenuHTML}
               </div>
+              <div class="field">
+                <span class="label">Куда отправить код</span>
+                <div class="hh-seg equal auth-channel-seg" role="group" aria-label="Способ получения кода">
+                  <button type="button" data-a="cv-channel" data-v="wa" aria-pressed="${ch === "wa"}">${whatsappSvg()}<span>WhatsApp</span></button>
+                  <button type="button" data-a="cv-channel" data-v="tg" aria-pressed="${ch === "tg"}">${telegramSvg()}<span>Telegram</span></button>
+                  <button type="button" data-a="cv-channel" data-v="sms" aria-pressed="${ch === "sms"}">${icon("msg")}<span>SMS</span></button>
+                </div>
+                ${ch === "tg" ? `<span class="hint">Код придёт в бот или чат Telegram «Verification Codes» на указанный номер.</span>` : (ch === "sms" ? `<span class="hint">Код придёт в обычном SMS — подходит даже если на номере нет мессенджеров.</span>` : "")}
+              </div>
               ${cv.error ? `<div class="small" style="color:var(--bad);font-weight:600">${esc(cv.error)}</div>` : ""}
-              <button type="submit" class="btn bal-submit-btn" id="cv-send-btn">Получить СМС с кодом</button>
+              <button type="submit" class="btn bal-submit-btn" id="cv-send-btn"${cv.busy ? " disabled" : ""}>${cv.busy ? "Отправляем…" : (ch === "sms" ? "Получить код по SMS" : `Получить код в ${chName}`)}</button>
               <div class="row center" style="gap:12px">
-                ${cv.fromGoogleDemo
+                ${canBackToAuth
                   ? `<button type="button" class="link-btn small" data-a="cv-close">Назад ко входу</button>`
                   : (store.user ? `<button type="button" class="link-btn small" data-a="auth-logout">Выйти из аккаунта</button>` : "")}
               </div>
             </form>
           ` : `
-            <p class="small ink2" style="margin:0;line-height:1.48">Мы отправили СМС с 4-значным кодом на номер <b>${esc(cv.contact)}</b>. Введите код из сообщения, чтобы подтвердить аккаунт.</p>
-            <div class="cv-demo-push">
+            <p class="small ink2" style="margin:0;line-height:1.48">${otpSentDesc}</p>
+            ${(isDevDemoMode() && cv.expectedCode) ? `<div class="cv-demo-push">
               <div class="cv-demo-push-copy">
-                <b>СМС · Вектор</b>
-                <span>Код подтверждения аккаунта: <b class="num">${esc(cv.expectedCode)}</b></span>
+                <b>${chName} · Вектор</b>
+                <span>Код подтверждения: <b class="num">${esc(cv.expectedCode)}</b></span>
               </div>
               <button type="button" class="chip-btn" data-a="cv-autofill">Подставить</button>
-            </div>
+            </div>` : ""}
             <form class="stack" style="gap:14px" data-f="contact-verify-check">
-              <div class="otp-4-grid" aria-label="Код из СМС (4 цифры)">
+              <div class="otp-4-grid" aria-label="Код (${esc(chName)}, 4 цифры)">
                 ${[0, 1, 2, 3].map((idx) => `<input class="otp-digit-box" id="cv-d${idx}" data-otp-idx="${idx}" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="${idx === 0 ? "one-time-code" : "off"}" value="${esc(digits[idx] || "")}" aria-label="Цифра ${idx + 1}">`).join("")}
               </div>
               ${cv.error ? `<div class="small" style="color:var(--bad);font-weight:600;text-align:center">${esc(cv.error)}</div>` : ""}
-              <button type="submit" class="btn bal-submit-btn" id="cv-check-btn">Подтвердить аккаунт</button>
-              <div class="row center small" style="gap:8px">
-                <span class="muted">Не пришло СМС?</span>
-                <button type="button" class="link-btn small" data-a="cv-resend">Отправить снова</button>
+              <button type="submit" class="btn bal-submit-btn cv-check-btn" id="cv-check-btn"${cv.busy ? " disabled" : ""}><span>${cv.busy ? "Проверяем…" : (store.user ? "Подтвердить аккаунт" : "Подтвердить и войти")}</span>${resendRem > 0 ? `<span class="cv-btn-timer num" id="cv-btn-timer" aria-live="polite">${resendTimerText}</span>` : ""}</button>
+              <div class="cv-channel-switch small">
+                <span class="muted">Не пришёл код?</span>
+                ${resendRem > 0
+                  ? `<button type="button" class="link-btn small is-wait" id="cv-resend-wait" data-a="cv-resend" disabled>Повтор через ${resendTimerText}</button>`
+                  : `<button type="button" class="link-btn small" data-a="cv-resend">Отправить снова</button>`}
+                <span class="muted">·</span>
+                <button type="button" class="link-btn small" data-a="cv-switch-channel" data-v="${otherToggleCh}">${ch === "sms" ? `В ${otherChName}` : `Отправить в ${otherChName}`}</button>
+                ${ch !== "sms" ? `<span class="muted">·</span><button type="button" class="link-btn small" data-a="cv-switch-channel" data-v="sms">По SMS</button>` : ""}
               </div>
             </form>
           `}
@@ -603,6 +796,7 @@
         </div>
         <div class="sheet-head is-booking-head">
           <div class="row" style="gap:8px">${icon("msg")}<b id="tcm-modal-title">${titlePrefix} ${chName} ${roleGen}</b></div>
+          <button type="button" class="icon-btn sm sheet-close-btn" data-a="tutor-contact-close" aria-label="Закрыть окно">${icon("x")}</button>
         </div>
         <div class="sheet-body">
           <p class="small ink2" style="margin:0;line-height:1.45">${desc}</p>
@@ -634,6 +828,23 @@
         ui.balanceModal.customAmount = digits;
         ui.balanceModal.error = "";
         updateBalanceModalLive();
+      }
+      return true;
+    }
+    if (el.id === "bal-refund-amount") {
+      const digits = String(el.value || "").replace(/\D+/g, "").slice(0, 6);
+      if (el.value !== digits) el.value = digits;
+      if (ui.balanceModal) {
+        ui.balanceModal.refundAmount = digits;
+        ui.balanceModal.refundError = "";
+        ui.balanceModal.refundSuccess = "";
+      }
+      return true;
+    }
+    if (el.id === "bal-refund-reason") {
+      if (ui.balanceModal) {
+        ui.balanceModal.refundReason = String(el.value || "").slice(0, 250);
+        ui.balanceModal.refundError = "";
       }
       return true;
     }
@@ -768,7 +979,7 @@
     syncPhoneScopeState(scope, parsed.formatted, st.country);
     if (countryChanged) {
       st.userPicked = true;
-      if (scope === "tc-contact" && ui.tutorContactModal) renderModal();
+      if ((scope === "tc-contact" && ui.tutorContactModal) || (scope === "auth-phone" && ui.authModal)) renderModal();
       else scheduleRender();
     }
     return !el.dataset.tc;
@@ -787,7 +998,7 @@
         const ps = ui.phoneFields[scope];
         if (ps && ps.menuOpen && (!target || typeof target.closest !== "function" || !target.closest("#phone-field-" + scope))) {
           ps.menuOpen = false;
-          if (scope === "tc-contact") phoneModalChanged = true;
+          if ((scope === "tc-contact" && ui.tutorContactModal) || (scope === "auth-phone" && ui.authModal)) phoneModalChanged = true;
           else changed = true;
         }
       });
@@ -846,7 +1057,7 @@
         const nextOpen = !st.menuOpen;
         Object.keys(map).forEach((k) => { if (map[k]) map[k].menuOpen = false; });
         st.menuOpen = nextOpen;
-        if (scope === "tc-contact" && ui.tutorContactModal) renderModal();
+        if ((scope === "tc-contact" && ui.tutorContactModal) || (scope === "auth-phone" && ui.authModal)) renderModal();
         else scheduleRender();
       },
       "phone-country-pick": (el) => {
@@ -858,9 +1069,11 @@
         const inpNode = typeof document !== "undefined" && document.getElementById ? document.getElementById(inputId) : null;
         const prevVal = inpNode && inpNode.value != null
           ? inpNode.value
-          : (scope === "pf-phone"
-              ? getDraft("pf.phone", getProfile().phone || "")
-              : (scope === "tc-contact" && ui.tutorContactModal ? (ui.tutorContactModal.value || "") : (scope === "lead-wa" && ui.leadDraft ? (ui.leadDraft.whatsapp || "") : "")));
+          : (scope === "auth-phone"
+              ? getDraft("auth.phone", "")
+              : (scope === "pf-phone"
+                  ? getDraft("pf.phone", getProfile().phone || "")
+                  : (scope === "tc-contact" && ui.tutorContactModal ? (ui.tutorContactModal.value || "") : (scope === "lead-wa" && ui.leadDraft ? (ui.leadDraft.whatsapp || "") : ""))));
         const prevParsed = formatPhoneForCountry(prevVal, st.country || "RU");
         const nextCountry = phoneCountryByCode(nextCode);
         st.country = nextCountry.code;
@@ -874,7 +1087,7 @@
           EGE.views.tutorCabinet.handleInput({ dataset: { tc: "whatsapp", phoneScope: scope }, value: nextFormatted });
         }
         ui.focusNext = inputId;
-        if (scope === "tc-contact" && ui.tutorContactModal) {
+        if ((scope === "tc-contact" && ui.tutorContactModal) || (scope === "auth-phone" && ui.authModal)) {
           renderModal();
           const inp = typeof document !== "undefined" && document.getElementById ? document.getElementById(inputId) : null;
           if (inp && typeof inp.focus === "function") inp.focus();
@@ -882,28 +1095,130 @@
           scheduleRender();
         }
       },
+      "cv-channel": (el) => {
+        const cv = getUi().contactVerifyModal;
+        if (!cv) return;
+        cv.channel = normalizeOtpChannel(el && el.dataset && el.dataset.v);
+        cv.error = "";
+        renderModal();
+      },
       "cv-back": () => {
         const cv = getUi().contactVerifyModal;
         if (!cv) return;
+        stopCvResendTimer();
+        cv.resendUntil = 0;
         cv.step = "input";
         cv.countryMenuOpen = false;
         cv.digits = ["", "", "", ""];
         cv.error = "";
         renderModal();
       },
-      "cv-resend": () => {
+      "cv-resend": async () => {
         const cv = getUi().contactVerifyModal;
-        if (!cv) return;
-        cv.expectedCode = cv.expectedCode === "4829" ? "7391" : "4829";
+        if (!cv || cvResendCooldownSec(cv) > 0) return;
+        let ch = normalizeOtpChannel(cv.channel || "wa");
+        let chName = otpChannelName(ch);
+        let fallbackUsed = false;
+        const req = getBackendReq();
+        const store = getStore();
+        if (store.backend && !store.user && typeof req === "function") {
+          try {
+            const res = await req("/api/auth/phone/send", {
+              method: "POST",
+              body: JSON.stringify({
+                phone: cv.contact,
+                country: cv.country || "RU",
+                channel: ch,
+                mode: cv.authMode || "login",
+                inviteCode: cv.inviteCode || "",
+                resend: true
+              })
+            });
+            if (res && typeof res.demoMode === "boolean") store.demoMode = res.demoMode;
+            cv.expectedCode = (res && typeof res.demoCode === "string" && res.demoCode) ? res.demoCode : "";
+            if (res && res.deliveredChannel) ch = normalizeOtpChannel(res.deliveredChannel);
+            fallbackUsed = !!(res && res.fallbackUsed);
+            cv.deliveryProvider = (res && res.deliveryProvider) || null;
+          } catch (e) {
+            cv.error = (e && e.message) || "Не удалось отправить код повторно.";
+            renderModal();
+            return;
+          }
+        } else {
+          cv.expectedCode = isDevDemoMode() ? (cv.expectedCode === "4829" ? "7391" : "4829") : "";
+        }
+        cv.channel = ch;
+        cv.deliveredChannel = ch;
+        cv.fallbackUsed = fallbackUsed;
+        chName = otpChannelName(ch);
+        cv.resendCount = (Number(cv.resendCount) || 0) + 1;
+        const waitSec = cv.resendCount <= 1 ? 20 : 60;
+        cv.resendUntil = Date.now() + waitSec * 1000;
         cv.digits = ["", "", "", ""];
         cv.error = "";
         renderModal();
-        notifySide("Повторное СМС · Вектор", `Отправили код ${cv.expectedCode} на ${cv.contact}`);
+        ensureCvResendTimer();
+        notifySide(
+          `Повторный код в ${chName} · Вектор`,
+          cv.expectedCode
+            ? `Отправили код ${cv.expectedCode} (${chName}) на ${cv.contact}`
+            : `Отправили 4-значный код (${chName}) на ${cv.contact}`,
+          { inbox: true }
+        );
+      },
+      "cv-switch-channel": async (el) => {
+        const cv = getUi().contactVerifyModal;
+        if (!cv) return;
+        const explicitTarget = el && el.dataset && el.dataset.v ? normalizeOtpChannel(el.dataset.v) : "";
+        let nextCh = explicitTarget || (normalizeOtpChannel(cv.channel) === "tg" ? "wa" : "tg");
+        let fallbackUsed = false;
+        const req = getBackendReq();
+        const store = getStore();
+        if (store.backend && !store.user && typeof req === "function") {
+          try {
+            const res = await req("/api/auth/phone/send", {
+              method: "POST",
+              body: JSON.stringify({
+                phone: cv.contact,
+                country: cv.country || "RU",
+                channel: nextCh,
+                mode: cv.authMode || "login",
+                inviteCode: cv.inviteCode || "",
+                resend: true
+              })
+            });
+            if (res && typeof res.demoMode === "boolean") store.demoMode = res.demoMode;
+            cv.expectedCode = (res && typeof res.demoCode === "string" && res.demoCode) ? res.demoCode : "";
+            if (res && res.deliveredChannel) nextCh = normalizeOtpChannel(res.deliveredChannel);
+            fallbackUsed = !!(res && res.fallbackUsed);
+            cv.deliveryProvider = (res && res.deliveryProvider) || null;
+          } catch (e) {
+            cv.error = (e && e.message) || "Не удалось переключить способ доставки.";
+            renderModal();
+            return;
+          }
+        } else {
+          cv.expectedCode = isDevDemoMode() ? (cv.expectedCode === "4829" ? "7391" : "4829") : "";
+        }
+        const chName = otpChannelName(nextCh);
+        cv.channel = nextCh;
+        cv.deliveredChannel = nextCh;
+        cv.fallbackUsed = fallbackUsed;
+        cv.digits = ["", "", "", ""];
+        cv.error = "";
+        renderModal();
+        notifySide(
+          `Код в ${chName} · Вектор`,
+          cv.expectedCode
+            ? `Отправили код ${cv.expectedCode} (${chName}) на ${cv.contact}`
+            : `Отправили 4-значный код (${chName}) на ${cv.contact}`,
+          { inbox: true }
+        );
       },
       "cv-autofill": () => {
         const cv = getUi().contactVerifyModal;
-        if (!cv) return;
-        const code = String(cv.expectedCode || "4829").padStart(4, "0").slice(0, 4);
+        if (!cv || !isDevDemoMode() || !cv.expectedCode) return;
+        const code = String(cv.expectedCode).padStart(4, "0").slice(0, 4);
         cv.digits = code.split("");
         cv.error = "";
         renderModal();
@@ -914,13 +1229,15 @@
         const ui = getUi();
         const cv = ui.contactVerifyModal;
         if (!cv) return;
-        if (cv.fromGoogleDemo || !cv.required) {
+        if (cv.fromSocialDemo || cv.fromPhoneAuth || cv.fromGoogleDemo || !cv.required) {
+          stopCvResendTimer();
+          const backToAuth = Boolean(cv.fromSocialDemo || cv.fromPhoneAuth || cv.fromGoogleDemo);
           ui.contactVerifyModal = null;
-          if (cv.fromGoogleDemo) ui.authModal = true;
+          if (backToAuth) ui.authModal = true;
           renderModal();
           return;
         }
-        cv.error = "Обязательный шаг: подтвердите номер телефона кодом из СМС.";
+        cv.error = "Обязательный шаг: подтвердите номер телефона кодом из WhatsApp или Telegram.";
         renderModal();
       }
     });
@@ -1049,6 +1366,7 @@
     cardBindModalHTML,
     openContactVerifyModal,
     contactVerifyModalHTML,
+    stopCvResendTimer,
     openTutorContactModal,
     tutorContactModalHTML,
     handleBalanceFieldInput,

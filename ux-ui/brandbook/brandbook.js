@@ -385,7 +385,7 @@
         </div>
       </article>
 
-      ${sakhaOhyorHTML("Вектор ЕГЭ · Саха", { goldLogo: true })}
+      ${sakhaOhyorHTML("Вектор · Саха", { goldLogo: true })}
 
       <div class="stack" style="gap:8px;padding-top:4px">
         <div class="hh-price-stepper compact">
@@ -409,9 +409,9 @@
 
   function logoSectionHTML() {
     const surfaces = [
-      ["light", "01 · Белый фон (#FFFFFF)", "background:#ffffff;color:#0e1116", "Подготовка и репетиторы", "6-лучевая цветная звезда в стиле Gemini (#4285F4 · #EA4335 · #FBBC04 · #34A853) + чистый шрифт «Вектор ЕГЭ». При наведении плавно вращается."],
+      ["light", "01 · Белый фон (#FFFFFF)", "background:#ffffff;color:#0e1116", "Подготовка и репетиторы", "6-лучевая цветная звезда в стиле Gemini (#4285F4 · #EA4335 · #FBBC04 · #34A853) + чистый шрифт «Вектор». При наведении плавно вращается."],
       ["dark", "02 · Тёмный OLED фон (#06070A / #000)", "background:#06070a;color:#ffffff", "Dark OLED · Gemini-палитра", "Цветная 6-лучевая звезда на глубоком чёрном OLED фоне без круглой рамки, вращение 360° на :hover."],
-      ["blue", "03 · На синем фоне (#0070FF)", "", "Фирменный синий фон", "На сплошном синем фоне 6-лучевая звезда и надпись «Вектор ЕГЭ» автоматически становятся чисто-белыми."]
+      ["blue", "03 · На синем фоне (#0070FF)", "", "Фирменный синий фон", "На сплошном синем фоне 6-лучевая звезда и надпись «Вектор» автоматически становятся чисто-белыми."]
     ];
     const assetBase = (typeof root.EGE_HOST === "object" && root.EGE_HOST && root.EGE_HOST.uikitStandalone)
       ? "assets/"
@@ -856,7 +856,7 @@
           <div class="row" style="gap:8px;flex-wrap:wrap">
             <b>Айтал Никифоров · 11 класс</b>
             <span class="chip">Биология · ЕГЭ 2027</span>
-            <span class="chip ${accepted ? "confirm" : "gold"}">${accepted ? "✓ Вы подтвердили" : "Новая заявка · 95% на руки"}</span>
+            <span class="chip ${accepted ? "confirm" : "gold"}">${accepted ? "✓ Вы подтвердили" : "Новая заявка · 94% на руки"}</span>
           </div>
           <span class="small muted num">Суббота · ${pickedHour} · Онлайн</span>
         </div>
@@ -864,7 +864,7 @@
         <div class="row between" style="gap:10px;flex-wrap:wrap">
           <div class="row" style="gap:8px;flex-wrap:wrap">
             <b class="num" style="font-size:17px">${bb.price.toLocaleString("ru-RU")} ₽/ч</b>
-            <span class="small muted">(на руки 95%: <b class="num">${Math.round(bb.price * 0.95).toLocaleString("ru-RU")} ₽</b>)</span>
+            <span class="small muted">(на руки 94%: <b class="num">${Math.max(0, bb.price - Math.round(bb.price * 0.05) - Math.round(bb.price * 0.01)).toLocaleString("ru-RU")} ₽</b>)</span>
           </div>
           <div class="row" style="gap:8px;flex-wrap:wrap">
             <button type="button" class="btn gold sm" data-a="bb-demo-toast">${icon("spark")} Поднять анкету (раз в 4 ч)</button>
@@ -983,7 +983,7 @@
         ${messengerLinksHTML
           ? messengerLinksHTML({
               entity: { id: "sakha-demo", name: "Айтал Николаев", whatsapp: "79142100100", telegram: "aytal_ege", maxHandle: "aytal_sakha" },
-              message: "Здравствуйте! Пишу с платформы Вектор ЕГЭ.",
+              message: "Здравствуйте! Пишу с платформы Вектор.",
               primaryLabel: "Написать · WA",
               compact: true
             })
@@ -1031,7 +1031,7 @@
             <b>Единый золотой разделитель с лого по центру (.sakha-divider.is-gold-logo)</b>
             <span class="bb-spec-pill">1 золотая линия · без двойных полос</span>
           </div>
-          ${sakhaOhyorHTML("Вектор ЕГЭ · Саха", { goldLogo: true })}
+          ${sakhaOhyorHTML("Вектор · Саха", { goldLogo: true })}
           <span class="small muted">Используется в подвале лендинга, под фильтрами и для отделения блоков — строго одна линия градиента Саха (#C59B5F) и золотой знак Саха по центру без круглой рамки.</span>
         </div>
       </section>`;
@@ -1093,7 +1093,7 @@
                 </div>
               </div>
               <div class="bb-mob-topbal-demo" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex:1 1 190px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:7px 10px">
-                <span class="brand-name-txt" style="font-size:13px">Вектор ЕГЭ</span>
+                <span class="brand-name-txt" style="font-size:13px">Вектор</span>
                 <div class="top-bal-slot">
                   <div class="top-bal-wrap" style="gap:4px">
                     <button type="button" class="top-bal-pill${bb.balFunded !== false ? " is-funded" : ""}" style="min-height:28px;padding:0 8px;font-size:11.5px;gap:4px" data-a="bb-bal-toggle">
@@ -1235,7 +1235,7 @@
             </div>
             <div class="tc-req-quote">Нужна системная подготовка к медуниверситету по биологии и органической химии, старт с мая.</div>
             <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
-              <span class="small muted">Бюджет: <b class="num" style="color:var(--ink)">1 100 ₽/ч</b> (на руки 95% · <b class="num savings-gold-txt">1 045 ₽</b>)</span>
+              <span class="small muted">Бюджет: <b class="num" style="color:var(--ink)">1 100 ₽/ч</b> (на руки 94% · <b class="num savings-gold-txt">1 034 ₽</b>)</span>
               <button type="button" class="btn sm" data-a="bb-demo-toast">Предложить урок</button>
             </div>
           </article>
@@ -1261,7 +1261,7 @@
       <div class="bb-forms-grid" style="margin-top:14px">
         <div class="card pad stack" style="gap:10px">
           <div class="row between" style="gap:8px;flex-wrap:wrap">
-            <b>05 · Выплаты 95%, график с палочками (.tc-bar-chart) и Профиль</b>
+            <b>05 · Выплаты 94%, график с палочками (.tc-bar-chart) и Профиль</b>
             <span class="bb-spec-pill num">34 200 ₽/мес</span>
           </div>
           <div class="row" style="gap:6px;flex-wrap:wrap">
@@ -1381,7 +1381,7 @@
             telegram: formattedTg || tgRaw || "@aytal_bio",
             maxHandle: maxRaw || "aytal_ege"
           };
-          const msgText = "Здравствуйте! Проверяю живую маску контактов в Вектор ЕГЭ.";
+          const msgText = "Здравствуйте! Проверяю живую маску контактов в Вектор.";
           const urlsFn = resolveMessengerUrls || (EGE.kit && EGE.kit.resolveMessengerUrls);
           const urls = typeof urlsFn === "function"
             ? urlsFn(entity, msgText)
@@ -1586,8 +1586,9 @@
     const minTopup = initialDone ? 100 : 490;
     const topupSample = initialDone ? 1200 : 4590;
     const lessonAmount = 1200;
-    const tutorNet = Math.round(lessonAmount * 0.95);
-    const serviceFee = lessonAmount - tutorNet;
+    const serviceFee = Math.round(lessonAmount * 0.05);
+    const sbpFee = Math.round(lessonAmount * 0.01);
+    const tutorNet = Math.max(0, lessonAmount - serviceFee - sbpFee);
 
     const stateMeta = {
       frozen: {
@@ -1597,8 +1598,8 @@
       },
       captured: {
         cls: "is-confirmed",
-        badge: "Проведено · 95% / 5%",
-        desc: "Урок подтверждён: базовый расчёт 95% / 5% (1 140 ₽ база выплаты и 60 ₽ сервис платформы) + 1% шлюз СБП-сплита при выводе с авточеком НПД без карточных 3,42%."
+        badge: "Проведено · 94% / 5% + 1%",
+        desc: "Урок подтверждён: преподавателю начисляется 94% (1 128 ₽), удерживается 5% сервис платформы (60 ₽) и 1% шлюз СБП (12 ₽) с авточеком НПД."
       },
       refunded: {
         cls: "is-refund",
@@ -1621,7 +1622,7 @@
       <div class="land-sec-head">
         <div>
           <div class="eyebrow">09 · Эквайринг СБП-only · Эскроу · Выплаты (EGE.payments)</div>
-          <h2 class="h2">СБП-пополнение от 490 ₽, статусы удержания 95% / 5% и вывод с авточеком НПД</h2>
+          <h2 class="h2">СБП-пополнение от 490 ₽, статусы удержания 94% / 5% + 1% и вывод с авточеком НПД</h2>
         </div>
         <button type="button" class="bb-spec-pill" data-a="bb-copy-token" data-copy="EGE.payments.createTopupIntent">Копировать EGE.payments</button>
       </div>
@@ -1650,7 +1651,7 @@
               <span class="bb-tbl-st ${stateMeta.cls}">${esc(stateMeta.badge)}</span>
               <div class="row" style="gap:5px;flex-wrap:wrap" role="group" aria-label="Состояние эскроу">
                 <button type="button" class="chip-btn${payState === "frozen" ? " on" : ""}" data-a="bb-pay-state" data-v="frozen">Frozen</button>
-                <button type="button" class="chip-btn${payState === "captured" ? " on" : ""}" data-a="bb-pay-state" data-v="captured">Captured (95% / 5%)</button>
+                <button type="button" class="chip-btn${payState === "captured" ? " on" : ""}" data-a="bb-pay-state" data-v="captured">Captured (94% / 5% + 1%)</button>
                 <button type="button" class="chip-btn${payState === "refunded" ? " on" : ""}" data-a="bb-pay-state" data-v="refunded">Refunded (100%)</button>
               </div>
             </div>
@@ -1663,12 +1664,12 @@
               <b class="num">${lessonAmount.toLocaleString("ru-RU")} ₽</b>
             </div>
             <div class="bb-pay-split-cell">
-              <span class="small muted">На руки репетитору (95%)</span>
+              <span class="small muted">На руки репетитору (94%)</span>
               <b class="num" style="color:var(--confirm)">${tutorNet.toLocaleString("ru-RU")} ₽</b>
             </div>
             <div class="bb-pay-split-cell">
               <span class="small muted">Сервис 5% + СБП 1%</span>
-              <b class="num">${serviceFee.toLocaleString("ru-RU")} ₽ + ${Math.round(lessonAmount * 0.01)} ₽</b>
+              <b class="num">${serviceFee.toLocaleString("ru-RU")} ₽ + ${sbpFee.toLocaleString("ru-RU")} ₽</b>
             </div>
           </div>
 
@@ -1705,7 +1706,7 @@
 
           <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
             <code class="small">EGE.payments.createPayoutIntent({ channel: "${payMethod === "card" ? "card" : "sbp"}", min: 500, receipt: "npd" })</code>
-            <span class="bb-spec-pill pro">95% / 5% · НПД</span>
+            <span class="bb-spec-pill pro">94% / 5% + 1% · НПД</span>
           </div>
         </div>
       </div>
@@ -1718,15 +1719,15 @@
     const topBalHtml = topBalanceWidgetHTML
       ? topBalanceWidgetHTML({
           role,
-          amountRub: isTutor ? 11400 : 5000,
+          amountRub: isTutor ? 11280 : 5000,
           pillAction: "bb-demo-toast",
           btnAction: "bb-demo-toast"
         })
       : "";
     const dockHtml = tutorBalanceDockHTML
       ? tutorBalanceDockHTML({
-          availableRub: 11400,
-          escrowRub: 1140,
+          availableRub: 11280,
+          escrowRub: 1128,
           action: "bb-demo-toast",
           inlinePreview: true
         })
@@ -1737,11 +1738,11 @@
             ? {
                 extraClass: "tc-payout-wallet",
                 label: "Доступно к выводу",
-                amountRub: 11400,
+                amountRub: 11280,
                 amountClass: "num",
                 amountStyle: "font-size:22px;line-height:1.15;font-weight:700;color:var(--ink)",
-                subNote: "95% после 5% комиссии сервиса · СБП / Мир",
-                badge: { text: "В резерве: 1 140 ₽", cls: "confirm num" }
+                subNote: "94% после 5% сервиса и 1% СБП · СБП / Мир",
+                badge: { text: "В резерве: 1 128 ₽", cls: "confirm num" }
               }
             : {
                 label: "Текущий баланс ученика",
@@ -1859,7 +1860,7 @@
         throughput: "1 850 rows/s",
         freshness: "< 1 s",
         target: "oltp.lesson_requests · outbox.kafka_outbox",
-        notes: "Транзакционное ядро анкет, торгов ±50 ₽, эскроу 95%/5% и outbox-таблица."
+        notes: "Транзакционное ядро анкет, торгов ±50 ₽, эскроу 94%/5%+1% и outbox-таблица."
       },
       {
         engine: "polars",
@@ -1950,9 +1951,9 @@
       : (typeof adminPreset.getColumns === "function" ? adminPreset.getColumns(tblCols) : null);
 
     const kpiItems = [
-      { label: "Оборот (GMV 30 дн)", value: "184 500 ₽", delta: "+18%", tone: "accent", note: "Подтверждённые уроки 95% / 5%", action: "bb-admin-tab", actionVal: "payouts" },
+      { label: "Оборот (GMV 30 дн)", value: "184 500 ₽", delta: "+18%", tone: "accent", note: "Подтверждённые уроки 94% / 5% + 1%", action: "bb-admin-tab", actionVal: "payouts" },
       { label: "На проверке анкет", value: "4", delta: "SLA 15 мин", tone: "notif", note: "Ожидают модерации и диплома", action: "bb-admin-tab", actionVal: "moderation" },
-      { label: "Выплаты НПД (95%)", value: "175 275 ₽", delta: "СБП / Мир", tone: "confirm", note: "Авточеки НПД сформированы", action: "bb-admin-tab", actionVal: "payouts" },
+      { label: "Выплаты НПД (94%)", value: "173 430 ₽", delta: "СБП / Мир", tone: "confirm", note: "Авточеки НПД сформированы", action: "bb-admin-tab", actionVal: "payouts" },
       { label: "Outbox → Kafka", value: "0", delta: "100% synced", tone: "pro", note: "outbox.kafka_outbox · 0.8 ms", action: "bb-admin-tab", actionVal: "system" }
     ];
 
@@ -2070,7 +2071,7 @@
         repo: "vektor-postgres · polars · airflow · grafana",
         summary: "Dual-Write PostgreSQL 17 + outbox.kafka_outbox → Polars Medallion ETL → Airflow DAG → Grafana BI.",
         endpoints: ["oltp.* + outbox.kafka_outbox", "Polars gold/*.parquet", "Airflow :8085 · Grafana :3000"],
-        note: "Сквозная наблюдаемость и расчёты 95% / 5%."
+        note: "Сквозная наблюдаемость и расчёты 94% / 5% + 1%."
       }
     ];
 
@@ -2390,7 +2391,7 @@
             ${messengerLinksHTML
               ? messengerLinksHTML({
                   entity: { id: "kit-demo", name: "Анна Соколова", whatsapp: "79142100101", telegram: "anna_bio_ege", maxHandle: "anna_bio" },
-                  message: "Здравствуйте! Забронировал(а) занятие через Вектор ЕГЭ.",
+                  message: "Здравствуйте! Забронировал(а) занятие через Вектор.",
                   primaryLabel: "WhatsApp",
                   compact: true
                 })
@@ -2416,9 +2417,9 @@
         </div>
 
         <div class="card pad stack" style="gap:10px">
-          <div class="row between"><b>06 · Полупрозрачный градиент Саха (#C59B5F) · «Вектор ЕГЭ · твоя ставка» и «Бета-тест»</b><span class="bb-spec-pill">.btn.gold / --gold-glass / --gold-grad</span></div>
+          <div class="row between"><b>06 · Полупрозрачный градиент Саха (#C59B5F) · «Вектор · твоя ставка» и «Бета-тест»</b><span class="bb-spec-pill">.btn.gold / --gold-glass / --gold-grad</span></div>
           <div class="stack" style="gap:6px">
-            <div class="row between small"><span class="savings-gold-label">${icon("spark")} <span>Вектор ЕГЭ · твоя ставка</span></span><b class="num savings-gold-txt">27 000 ₽/мес</b></div>
+            <div class="row between small"><span class="savings-gold-label">${icon("spark")} <span>Вектор · твоя ставка</span></span><b class="num savings-gold-txt">27 000 ₽/мес</b></div>
             <div class="savings-bar-track"><div class="savings-bar-fill gold-fill" style="width:78%"></div></div>
           </div>
           <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
@@ -2499,7 +2500,7 @@
     const wcagPairs = [
       ["Синий CTA", "#FFFFFF", "#0070FF", "4.68:1", "AA · UI", "aa"],
       ["Золотой стекло-CTA (Hero / Card)", "#4A310A", "#E9CFA2", "8.65:1", "AAA · Полупрозрачный градиент", "aaa"],
-      ["Золотой градиент ставок", "#8C6327", "#FFFFFF", "4.92:1", "AA · Вектор ЕГЭ ставка", "aa"],
+      ["Золотой градиент ставок", "#8C6327", "#FFFFFF", "4.92:1", "AA · Вектор ставка", "aa"],
       ["Основной текст", "#141517", "#FFFFFF", "18.1:1", "AAA", "aaa"],
       ["Ночной OLED", "#FFFFFF", "#16181D", "17.7:1", "AAA", "aaa"],
       ["Подтверждено", "#FFFFFF", "#16A34A", "3.30:1", "AA Large · CTA bold", "aa"],
@@ -2586,7 +2587,7 @@
       ${subApi && typeof subApi.portalHeaderHTML === "function"
         ? subApi.portalHeaderHTML(bb, { dark, inside, ui: ctx.ui || {} })
         : `<header class="land-top">
-            ${brandLockupHTML({ tag: "Брендбук", sub: "UX/UI дизайн-система Вектор ЕГЭ" })}
+            ${brandLockupHTML({ tag: "Брендбук", sub: "UX/UI дизайн-система Вектор" })}
             <div class="land-top-actions">
               <button type="button" class="btn ghost sm" data-a="go" data-v="landing">На /landing</button>
               <button type="button" class="icon-btn sm" data-a="theme-toggle" aria-label="Сменить тему">${icon(dark ? "sun" : "moon")}</button>
@@ -2596,7 +2597,7 @@
 
       ${subApi && typeof subApi.subsiteHeroHTML === "function"
         ? subApi.subsiteHeroHTML(bb, anchorLinks)
-        : `<section class="card pad-lg stack" style="gap:14px"><h1 class="h1">Дизайн-система Вектор ЕГЭ</h1></section>`}
+        : `<section class="card pad-lg stack" style="gap:14px"><h1 class="h1">Дизайн-система Вектор</h1></section>`}
 
       ${showDeviceStage && subApi && typeof subApi.deviceShowcaseSectionHTML === "function"
         ? subApi.deviceShowcaseSectionHTML(bb)
@@ -2736,7 +2737,7 @@
               ${messengerLinksHTML
                 ? messengerLinksHTML({
                     entity: { id: "btn-demo", name: "Анна Соколова", whatsapp: "79142100101", telegram: "anna_bio_ege", maxHandle: "anna_bio" },
-                    message: "Здравствуйте! Пишу через Вектор ЕГЭ.",
+                    message: "Здравствуйте! Пишу через Вектор.",
                     primaryLabel: "WhatsApp",
                     compact: false
                   })
@@ -3010,7 +3011,7 @@
             <span class="small muted">Живой макет «Как на мобилке · <span data-bb="phone-w">${Math.min(410, vpW)}</span> px» · нажимай дни Сб / Вс / Пн</span>
             <div class="bb-phone-frame" style="max-width:${Math.min(410, vpW)}px" aria-label="Предпросмотр мобильной версии ${Math.min(410, vpW)} px">
               <div class="bb-phone-status">
-                <span class="num" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">09:41 · Вектор ЕГЭ · <span data-bb="day-label">${curDay.full}</span></span>
+                <span class="num" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">09:41 · Вектор · <span data-bb="day-label">${curDay.full}</span></span>
                 <span class="top-bal-wrap" style="gap:4px">
                   <span class="top-bal-pill${bb.balFunded !== false ? " is-funded" : ""}" style="min-height:26px;padding:0 7px;font-size:11px;gap:4px">${icon("wallet")}<span class="num">${bb.balFunded !== false ? "5 000 ₽" : "0 ₽"}</span></span>
                   <span class="top-bal-btn" style="width:28px;min-height:28px;padding:0;justify-content:center" aria-hidden="true">${icon("plus")}</span>
@@ -3198,100 +3199,277 @@
     const inside = !!opts.inside;
     const dark = !!ctx.dark;
     const ui = ctx.ui || {};
-    const rate = Math.max(600, Math.min(3500, Number(ui.feesRate) || 800));
-    const presets = [800, 1000, 1200, 1500, 2000];
-    const sbpGatewayRub = Math.round(rate * 0.01);
-    return `<div class="land-page" id="fees-page">
-      <header class="land-top">
-        ${brandLockupHTML({ tag: "Оплата · СБП", sub: "Только СБП · эскроу-защита и сервисный сбор" })}
+    const rawRate = ui.feesRate != null ? Number(ui.feesRate) : 800;
+    const rate = Math.max(0, Math.min(99999, Number.isFinite(rawRate) ? Math.round(rawRate) : 800));
+    const source = ui.feesSource === "own" ? "own" : "platform";
+    const method = ui.feesMethod === "card" ? "card" : "sbp";
+    const presets = [800, 1000, 1200, 1500, 2000, 3000];
+    const platformPct = source === "own" ? 1 : 5;
+    const sbpPct = 1;
+    const netPct = source === "own" ? 98 : 94;
+    const sp = source === "own"
+      ? {
+          total: rate,
+          fee: Math.round(rate * 0.01),
+          sbpFee: Math.round(rate * 0.01),
+          payout: Math.max(0, rate - Math.round(rate * 0.01) * 2),
+          pct: 1
+        }
+      : (ctx.TDATA && typeof ctx.TDATA.commissionSplit === "function"
+          ? ctx.TDATA.commissionSplit(rate)
+          : {
+              total: rate,
+              fee: Math.round(rate * 0.05),
+              sbpFee: Math.round(rate * 0.01),
+              payout: Math.max(0, rate - Math.round(rate * 0.05) - Math.round(rate * 0.01)),
+              pct: 5
+            });
+    const platformFee = sp.fee;
+    const sbpFee = sp.sbpFee != null ? sp.sbpFee : Math.round(rate * 0.01);
+    const tutorGets = Math.max(0, rate - platformFee - sbpFee);
+    const cardFee = method === "card" ? Math.round(rate * 0.03) : 0;
+    const studentPays = rate + cardFee;
+    const tutorWidthPct = rate > 0 ? netPct : 94;
+    const feeWidthPct = rate > 0 ? platformPct : 5;
+    const sbpWidthPct = Math.max(0, 100 - tutorWidthPct - feeWidthPct);
+    const homeTarget = inside ? "market" : "landing";
+    const roleDash = (ctx.ui && ctx.ui.role === "tutor") ? "cabinet" : "home";
+    const faqItems = [
+      {
+        q: "Почему пополнение по СБП 0%, а картой РФ +3%?",
+        a: "По СБП платёж проходит напрямую через банк без карточного эквайринга, поэтому зачисление на баланс идёт без комиссии (0%). При оплате картой МИР, Visa или Mastercard платёжный шлюз удерживает эквайринговый сбор +3%, который заранее показан в окне пополнения."
+      },
+      {
+        q: "Когда списываются деньги за урок с баланса?",
+        a: "При отправке заявки со своей ставкой деньги остаются доступными на вашем счёте. Сумма ровно одного занятия замораживается на защищённом эскроу (статус frozen) только после подтверждения времени преподавателем и переводится ему после проведения урока."
+      },
+      {
+        q: "Как работают гарантия первого урока и возврат средств?",
+        a: "Отмена заявки до начала согласованного слота мгновенно возвращает 100% суммы на баланс. Если первый урок у преподавателя с бейджем гарантии не подошёл или произошёл срыв/неявка более 15 минут, откройте спор в карточке урока — разбор занимает до 24 часов.",
+        linkHref: "/refunds",
+        linkLabel: "Правила возврата и эскроу →"
+      },
+      {
+        q: "Сколько составляет комиссия сервиса и как вывести деньги преподавателю?",
+        a: "С учеников с площадки преподаватель получает 94% (5% — сервис платформы и 1% — шлюз СБП), а со своих учеников из раздела «Ученики» — 98% (1% сервис + 1% СБП). Вывод доступен от 500 ₽ по СБП с автоматическим чеком НПД («Мой налог», 422-ФЗ).",
+        linkHref: "/terms",
+        linkLabel: "Публичная оферта →"
+      }
+    ];
+
+    return `<div class="land-page is-fees-page" id="fees-page" data-inside="${inside ? 1 : 0}">
+      <header class="land-top is-scrolled-light">
+        <a href="/" class="brand-home-link" data-a="go" data-v="${homeTarget}" aria-label="Вектор — на главную">${brandLockupHTML({})}</a>
+        <nav class="land-links" aria-label="Разделы сайта">
+          <a href="/" data-a="go" data-v="${homeTarget}">Репетиторы</a>
+          <a href="/student?auth=register" data-a="auth-register-open" data-role="student">Для ученика</a>
+          <a href="/tutor?auth=register" data-a="auth-register-open" data-role="tutor">Для преподавателя</a>
+          <a href="/fees" data-a="go" data-v="fees" aria-current="page">Условия оплаты</a>
+        </nav>
         <div class="land-top-actions">
-          <button type="button" class="btn ghost sm" data-a="go" data-v="${inside ? "market" : "landing"}">${inside ? "← К репетиторам" : "← На главную"}</button>
-          <button type="button" class="icon-btn sm" data-a="theme-toggle" aria-label="Сменить тему" title="Сменить тему">${icon(dark ? "sun" : "moon")}</button>
-          ${inside ? `<button type="button" class="btn sm" data-a="go" data-v="${ctx.ui && ctx.ui.role === "tutor" ? "cabinet" : "tests"}">В кабинет</button>` : `<button type="button" class="btn sm" data-a="auth-modal-open">Войти</button>`}
+          <button type="button" class="icon-btn sm" data-a="theme-toggle" aria-label="Сменить тему">${icon(dark ? "sun" : "moon")}</button>
+          ${inside
+            ? `<button type="button" class="btn sm" data-a="go" data-v="${roleDash}">В кабинет</button>`
+            : `<button type="button" class="btn sm" data-a="auth-modal-open">Войти</button>`}
         </div>
       </header>
 
-      <section class="card pad-lg stack" style="gap:18px">
-        <div class="stack" style="gap:8px">
+      <section class="fees-hero" aria-label="Условия оплаты и эскроу">
+        <div class="stack" style="gap:10px">
           <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
-            <span class="chip confirm">Только СБП · 0% за карты</span>
-            <span class="chip">АЭБ · СберБанк · Т-Банк · ВТБ</span>
+            <span class="chip confirm">СБП 0% · Карта РФ +3%</span>
+            <span class="chip accent">Поурочный эскроу</span>
             <span class="chip pro">Авточек НПД · Вывод от 500 ₽</span>
           </div>
-          <div class="eyebrow">Оплата занятий · СБП-сплит и эскроу</div>
-          <h1 class="h1">Как устроена СБП-платёжка, эскроу-защита и сервисный сбор</h1>
-          <p class="lead">Мы отказались от дорогого карточного эквайринга (3,42%) и работаем <b>только через СБП</b> — по QR-коду или кнопке вашего банка за 5 секунд. Базовый расчёт индивидуального урока фиксированный (5% сервис системы + 1% шлюз СБП-сплита с авточеком «Мой налог»), без скрытых доплат сверх ставки ученика.</p>
+          <div class="eyebrow">Правила расчётов · Эскроу и 422-ФЗ</div>
+          <h1 class="fees-hero-h1">Условия оплаты, защита эскроу и честная комиссия</h1>
+          <p class="lead fees-hero-lead">Пополнение баланса по СБП без комиссии (<b>0%</b>) или картой РФ МИР / Visa / Mastercard (<b>+3%</b>). Деньги резервируются на эскроу только на один подтверждённый урок и распределяются автоматически: <b>94% преподавателю / 5% сервис + 1% СБП</b> (или <b>98% / 1% + 1%</b> для своих учеников).</p>
         </div>
 
-        <div class="grid-2" style="gap:12px">
-          <div class="card pad stack" style="gap:6px;box-shadow:none">
-            <span class="chip confirm" style="justify-self:start">01 · Только СБП без наценок</span>
-            <b>Прямая оплата по СБП вместо карт (3,42%)</b>
-            <p class="small ink2">Принимаем оплату напрямую через Систему быстрых платежей (АЭБ, СберБанк, Т-Банк, ВТБ). Ученик и родитель платят ровно по тарифу или выбранной ставке — никаких скрытых комиссий сверху.</p>
+        <div class="fees-kpis" role="region" aria-label="Ключевые условия расчётов">
+          <div class="fees-kpi">
+            <span class="fees-kpi-val num">0%</span>
+            <b>Пополнение по СБП</b>
+            <span class="small muted">Карта РФ +3% · старт от 490 ₽, далее от 100 ₽</span>
           </div>
-          <div class="card pad stack" style="gap:6px;box-shadow:none">
-            <span class="chip accent" style="justify-self:start">02 · Пробный от 0 до 490 ₽ или 390 ₽ ИИ</span>
-            <b>Пробный 60 мин с гарантией замены (по умолч. 490 ₽)</b>
-            <p class="small ink2">Старт занятий с репетитором — от <b>0 ₽</b> (бесплатно) или <b>490 ₽</b> за пробный урок 60 минут по СБП. Преподаватель сам задаёт формат пробного (бесплатно, 490 ₽ или без пробного), а после старта любые доплаты открыты от <b>100 ₽</b>.</p>
+          <div class="fees-kpi">
+            <span class="fees-kpi-val num">94% / 98%</span>
+            <b>Преподавателю на руки</b>
+            <span class="small muted">5% + 1% СБП с площадки · 1% + 1% СБП со своих</span>
           </div>
-          <div class="card pad stack" style="gap:6px;box-shadow:none">
-            <span class="chip gold" style="justify-self:start">03 · Эскроу и шлюз контактов</span>
-            <b>Поурочный холд + открытие WA / TG / MAX</b>
-            <p class="small ink2">Деньги замораживаются на счёте и списываются только после подтверждённого урока. Сразу после бронирования слота в «Учёбе» открываются прямые чаты WhatsApp, Telegram и MAX. Отмена за ≥ 4 ч или замена преподавателя возвращают 100% на баланс.</p>
+          <div class="fees-kpi">
+            <span class="fees-kpi-val num">100%</span>
+            <b>Возврат по эскроу</b>
+            <span class="small muted">Отмена до урока или Гарантия 1-го урока</span>
           </div>
-          <div class="card pad stack" style="gap:6px;box-shadow:none">
-            <span class="chip pro" style="justify-self:start">04 · Прозрачный сбор 5% + 1% СБП</span>
-            <b>Низкий сбор 5% сервис + 1% шлюз СБП (8% группы)</b>
-            <p class="small ink2">С каждого индивидуального урока 95% составляет базовая выплата (5% — сервис платформы и +1% — банковский шлюз СБП-сплита с авточеком НПД «Мой налог»). Для «Мини-групп 3–5 чел.» действует единый мягкий сбор 8%.</p>
-          </div>
-        </div>
-
-        <div class="grid-2" style="gap:12px">
-          <div class="card pad stack" style="gap:8px;box-shadow:none;background:var(--surface-2)">
-            <div class="row between" style="gap:6px;flex-wrap:wrap">
-              <b>Тарифы для учеников и родителей (СБП)</b>
-              <span class="chip accent">От 390 до 8 900 ₽</span>
-            </div>
-            <ul class="plan-feats">
-              <li><span><b>ИИ-Старт ЕГЭ — 390 ₽/мес</b> · безлимитный тренажёр ЕГЭ-2027 и ИИ-сочинения К1–К12</span></li>
-              <li><span><b>Пробный урок — 490 ₽ (или бесплатно)</b> · диагностика 60 мин + 100% гарантия бесплатной замены</span></li>
-              <li><span><b>Мини-группа Саха (3–5 чел.) — 2 190 ₽</b> · 4 живых урока (~548 ₽/урок) + ИИ-Старт бесплатно</span></li>
-              <li><span><b>Стандарт 1-на-1 (4 урока) — 4 590 ₽</b> · эскроу по урокам + автоотчёт родителю + доплаты от 100 ₽</span></li>
-              <li><span><b>Интенсив (8 уроков под ключ) — 8 900 ₽</b> · замена за 15 мин, фиксация ставки и кэшбэк 2%</span></li>
-            </ul>
-          </div>
-          <div class="card pad stack" style="gap:8px;box-shadow:none;background:var(--surface-2)">
-            <div class="row between" style="gap:6px;flex-wrap:wrap">
-              <b>Тарифы и выплаты для преподавателей</b>
-              <span class="chip pro">PRO 1 490 ₽/мес</span>
-            </div>
-            <ul class="plan-feats">
-              <li><span><b>Свободный старт — 0 ₽/мес</b> · готовые ученики с оплаченным пробным 490 ₽ и выбор «Бесплатно / 490 ₽ / Без пробного»</span></li>
-              <li><span><b>Продвижение PRO — 1 490 ₽/мес (3 900 ₽ / 3 мес.)</b> · выделение анкеты мягким синим свечением в выдаче и скидка 50% на сбор подбора</span></li>
-              <li><span><b>Мини-группы 3–5 чел.</b> · доступно на PRO: 4–5 учеников в одном слоте дают до ~2 015 ₽/ч чистыми под сбор 8%</span></li>
-              <li><span><b>Быстрый вывод на СБП</b> · мгновенно от 500 ₽ с автоматической фискализацией чека НПД</span></li>
-            </ul>
-          </div>
-        </div>
-
-        <div class="card pad-lg stack" style="gap:12px;background:var(--surface-2);box-shadow:none">
-          <div class="row between" style="gap:10px;flex-wrap:wrap;align-items:center">
-            <div class="stack" style="gap:2px">
-              <b>Калькулятор расчёта урока (индивидуальный формат · 5% сервис + 1% шлюз СБП)</b>
-              <span class="small muted">Выбери стоимость часа для точного расчёта:</span>
-            </div>
-            <div class="row" style="gap:6px;flex-wrap:wrap">
-              ${presets.map((p) => `<button type="button" class="chip-btn${rate === p ? " on" : ""}" data-a="fees-rate" data-rate="${p}">${p.toLocaleString("ru-RU")} ₽</button>`).join("")}
-            </div>
-          </div>
-          <div class="bid-fee-row">${feeSplitHTML(rate, ctx.TDATA)}</div>
-          <p class="small muted">При ставке <b class="num">${rate.toLocaleString("ru-RU")} ₽/ч</b> расчёт 95%/5% (сервис 5%) формируется автоматически, а банковский шлюз СБП-сплита с авточеком НПД добавляет лишь 1% (<b class="num">${sbpGatewayRub.toLocaleString("ru-RU")} ₽</b>) вместо 3,42% у обычных карт.</p>
-        </div>
-
-        <div class="row" style="gap:10px;flex-wrap:wrap">
-          <button type="button" class="btn" data-a="go" data-v="${inside ? "market" : "landing"}">${inside ? "Выбрать репетитора" : "Перейти к подбору репетиторов"}</button>
         </div>
       </section>
+
+      <section class="fees-steps-sec stack" style="gap:14px" aria-label="Как проходят оплата и защита">
+        <div class="stack" style="gap:4px">
+          <div class="eyebrow">4 шага сделки</div>
+          <h2 class="h2">Как проходят отклик, защита эскроу и выплата</h2>
+        </div>
+        <div class="fees-steps">
+          <article class="fees-step-card">
+            <div class="row" style="gap:10px;align-items:center">
+              <span class="how-num">01</span>
+              <span class="chip accent">Свободный выбор цены</span>
+            </div>
+            <b>Своя ставка ±50 ₽</b>
+            <p class="small ink2">Выбираете любой предмет (ЕГЭ/ОГЭ, Python и IT, UX/UI, языки, музыку и др.), удобный час 10:00–20:00 и ставку от 0 ₽/ч без списания до ответа преподавателя. Тренажёр ЕГЭ-2027 бесплатен (0 ₽).</p>
+          </article>
+          <article class="fees-step-card">
+            <div class="row" style="gap:10px;align-items:center">
+              <span class="how-num">02</span>
+              <span class="chip">Только 1 урок в резерве</span>
+            </div>
+            <b>Поурочный эскроу-холд</b>
+            <p class="small ink2">После подтверждения времени преподавателем на балансе замораживается сумма только одного ближайшего урока (frozen) — без обязательных абонементов и авансов на месяц.</p>
+          </article>
+          <article class="fees-step-card">
+            <div class="row" style="gap:10px;align-items:center">
+              <span class="how-num">03</span>
+              <span class="chip gold">WA · TG · MAX</span>
+            </div>
+            <b>Прямые контакты и Telegram-бот</b>
+            <p class="small ink2">Сразу открываются прямые чаты в WhatsApp, Telegram и MAX для связи и созвонов, а Telegram-бот мгновенно уведомляет о статусах заявок и предстоящих занятиях.</p>
+          </article>
+          <article class="fees-step-card">
+            <div class="row" style="gap:10px;align-items:center">
+              <span class="how-num">04</span>
+              <span class="chip confirm">Разбор споров до 24 ч</span>
+            </div>
+            <b>Гарантия 1-го урока 100%</b>
+            <p class="small ink2">Отмена до слота мгновенно размораживает сумму на баланс. При срыве, неявке &gt; 15 мин или по бейджу «Возврат за 1-й урок» спор в карточке урока возвращает 100% оплаты.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="fees-calc" id="fees-calculator" aria-label="Интерактивный калькулятор комиссии и оплаты">
+        <div class="fees-calc-top">
+          <div class="stack" style="gap:3px">
+            <div class="eyebrow">Калькулятор урока</div>
+            <h2 class="h2">Точный расчёт списания и выплаты за 1 занятие</h2>
+            <p class="small muted">Выберите стоимость часа, источник ученика и способ пополнения:</p>
+          </div>
+          <div class="fees-seg-controls">
+            <div class="fees-seg" role="group" aria-label="Источник ученика">
+              <button type="button" class="fees-seg-btn${source === "platform" ? " on" : ""}" data-a="fees-source" data-v="platform" aria-pressed="${source === "platform" ? "true" : "false"}">Ученик с площадки (5% + 1%)</button>
+              <button type="button" class="fees-seg-btn${source === "own" ? " on" : ""}" data-a="fees-source" data-v="own" aria-pressed="${source === "own" ? "true" : "false"}">Свой ученик (1% + 1%)</button>
+            </div>
+            <div class="fees-seg" role="group" aria-label="Способ оплаты">
+              <button type="button" class="fees-seg-btn${method === "sbp" ? " on" : ""}" data-a="fees-method" data-v="sbp" aria-pressed="${method === "sbp" ? "true" : "false"}">СБП (0%)</button>
+              <button type="button" class="fees-seg-btn${method === "card" ? " on" : ""}" data-a="fees-method" data-v="card" aria-pressed="${method === "card" ? "true" : "false"}">Карта РФ (+3%)</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="chip-rail" role="group" aria-label="Пресеты ставки урока">
+          ${presets.map((p) => `<button type="button" class="chip-btn num${rate === p ? " on" : ""}" data-a="fees-rate" data-rate="${p}">${p.toLocaleString("ru-RU")} ₽</button>`).join("")}
+        </div>
+
+        <div class="stack" style="gap:6px">
+          <div class="fees-split-bar" aria-hidden="true">
+            <div class="fees-split-tutor" style="width:${tutorWidthPct}%"></div>
+            <div class="fees-split-fee" style="width:${feeWidthPct}%"></div>
+            <div class="fees-split-sbp" style="width:${sbpWidthPct}%"></div>
+          </div>
+          <div class="row between small muted num" style="gap:10px;flex-wrap:wrap">
+            <span>Преподавателю: <b style="color:var(--confirm)">${netPct}%</b> (${tutorGets.toLocaleString("ru-RU")} ₽)</span>
+            <span>Сервис: <b style="color:var(--accent)">${platformPct}%</b> (${platformFee.toLocaleString("ru-RU")} ₽) · Шлюз СБП: <b style="color:var(--pro)">${sbpPct}%</b> (${sbpFee.toLocaleString("ru-RU")} ₽)</span>
+          </div>
+        </div>
+
+        <div class="fees-calc-grid is-4">
+          <div class="fees-calc-tile">
+            <span class="small muted">Ученик оплачивает</span>
+            <b class="num">${studentPays.toLocaleString("ru-RU")} ₽</b>
+            <span class="small muted">${method === "card" ? `Ставка ${rate.toLocaleString("ru-RU")} ₽ + ${cardFee.toLocaleString("ru-RU")} ₽ эквайринг 3%` : "СБП · комиссия 0%"}</span>
+          </div>
+          <div class="fees-calc-tile is-payout">
+            <span class="small muted">Преподавателю (${netPct}%)</span>
+            <b class="num">${tutorGets.toLocaleString("ru-RU")} ₽</b>
+            <span class="small muted">${source === "own" ? "Льготная ставка для своих учеников" : "На баланс сразу после урока"}</span>
+          </div>
+          <div class="fees-calc-tile">
+            <span class="small muted">Сервис платформы (${platformPct}%)</span>
+            <b class="num">${platformFee.toLocaleString("ru-RU")} ₽</b>
+            <span class="small muted">Эскроу-защита, бот и расписание</span>
+          </div>
+          <div class="fees-calc-tile">
+            <span class="small muted">Шлюз СБП (${sbpPct}%)</span>
+            <b class="num">${sbpFee.toLocaleString("ru-RU")} ₽</b>
+            <span class="small muted">Платёжный шлюз и авточек НПД</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="fees-roles" aria-label="Условия для учеников и преподавателей">
+        <article class="fees-role-card">
+          <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
+            <h2 class="h2">Для учеников и родителей</h2>
+            <span class="chip confirm">СБП 0% · Карта +3%</span>
+          </div>
+          <ul class="plan-feats">
+            <li><span><b>Тренажёр ЕГЭ-2027 — бесплатно (0 ₽)</b> · тесты, варианты КИМ и теория открыты без подписок</span></li>
+            <li><span><b>Своя ставка ±50 ₽ без наценок</b> · от 0 ₽/ч с прямой отправкой заявки преподавателю</span></li>
+            <li><span><b>Пополнение по СБП 0% или картой РФ +3%</b> · первый платёж от 490 ₽, дальнейшие от 100 ₽</span></li>
+            <li><span><b>Поурочный эскроу</b> · замораживается только один подтверждённый урок, без авансов за месяц</span></li>
+            <li><span><b>100% возврат</b> · при отмене до начала слота или по Гарантии 1-го урока через спор</span></li>
+          </ul>
+        </article>
+        <article class="fees-role-card">
+          <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
+            <h2 class="h2">Для преподавателей</h2>
+            <span class="chip pro">94% на руки · 98% свои</span>
+          </div>
+          <ul class="plan-feats">
+            <li><span><b>Бесплатная анкета 0 ₽/мес</b> · публикация в каталоге, удобные часы и свой порог торга</span></li>
+            <li><span><b>94% на руки с учеников площадки</b> · удерживается 5% сервис + 1% шлюз СБП</span></li>
+            <li><span><b>98% на руки со своих учеников</b> · льготные расчёты в разделе «Ученики» (1% сервис + 1% СБП)</span></li>
+            <li><span><b>Быстрый вывод на СБП от 500 ₽</b> · автоматическая фискализация чека НПД («Мой налог», 422-ФЗ)</span></li>
+            <li><span><b>Без платных подписок и скрытых доплат</b> · равные условия выдачи, верификация и бесплатное поднятие анкеты</span></li>
+          </ul>
+        </article>
+      </section>
+
+      <section class="fees-faq stack" style="gap:12px" aria-label="Частые вопросы об оплате">
+        <div class="stack" style="gap:4px">
+          <div class="eyebrow">Ответы на частые вопросы</div>
+          <h2 class="h2">Всё про СБП, эскроу, комиссию и чеки НПД</h2>
+        </div>
+        ${faqItems.map((item, idx) => `<details class="fees-faq-item"${idx === 0 ? " open" : ""}>
+          <summary>${esc(item.q)}</summary>
+          <p class="small ink2">${esc(item.a)}${item.linkHref ? ` <a href="${item.linkHref}">${esc(item.linkLabel)}</a>` : ""}</p>
+        </details>`).join("")}
+      </section>
+
+      <section class="fees-cta-band" aria-label="Переход к подбору и документам">
+        <div class="stack" style="gap:4px">
+          <b>Готовы подобрать преподавателя или изучить документы?</b>
+          <span class="small muted">Все расчёты видны до подтверждения и защищены эскроу на каждом уроке.</span>
+        </div>
+        <div class="row" style="gap:10px;flex-wrap:wrap">
+          <button type="button" class="btn" data-a="go" data-v="${homeTarget}">${inside ? "Выбрать репетитора" : "Перейти к подбору репетиторов"}</button>
+          <a href="/refunds" class="btn ghost">Правила возврата и эскроу</a>
+          <a href="/terms" class="btn ghost">Публичная оферта</a>
+        </div>
+      </section>
+
+      <hr class="land-plain-line" aria-hidden="true">
+
+      <footer class="land-footer is-minimal small muted">
+        <div class="land-footer-links is-plain">
+          <button type="button" class="land-foot-plain" data-a="bug-site">Сообщить о баге</button>
+          <button type="button" class="land-foot-plain" data-a="coop-open">Сотрудничество</button>
+          <a href="/fees" class="land-foot-plain" data-a="go" data-v="fees">Условия оплаты</a>
+          <a href="/terms" class="land-foot-plain">Публичная оферта</a>
+          <a href="/refunds" class="land-foot-plain">Возврат и эскроу</a>
+          <a href="/privacy" class="land-foot-plain">Политика конфиденциальности</a>
+          <button type="button" class="land-foot-plain" data-a="cookie-settings">Настройки cookies</button>
+        </div>
+      </footer>
     </div>`;
   }
 
@@ -3739,6 +3917,22 @@
     }
     if (act === "bb-dual-role") {
       bb.dualRole = ds.v === "tutor" ? "tutor" : "student";
+      render();
+      return true;
+    }
+    if (act === "fees-rate" && ui) {
+      const r = Number(ds.rate);
+      ui.feesRate = Math.max(0, Math.min(99999, Number.isFinite(r) ? r : 800));
+      render();
+      return true;
+    }
+    if (act === "fees-source" && ui) {
+      ui.feesSource = ds.v === "own" ? "own" : "platform";
+      render();
+      return true;
+    }
+    if (act === "fees-method" && ui) {
+      ui.feesMethod = ds.v === "card" ? "card" : "sbp";
       render();
       return true;
     }

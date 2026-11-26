@@ -1,10 +1,11 @@
-"""Расчёт unit-экономики, GMV, 5% комиссии платформы и воронки тарифов."""
+"""Расчёт unit-экономики, GMV, 5% комиссии платформы + 1% шлюза СБП и воронки тарифов."""
 
 from dataclasses import dataclass
 from typing import Any
 
 COMMISSION_PCT = 5
-TUTOR_PAYOUT_PCT = 95
+SBP_FEE_PCT = 1
+TUTOR_PAYOUT_PCT = 94
 TARIFF_PRICES_RUB: dict[str, int] = {
     "free": 0,
     "trial5k": 5000,
@@ -29,22 +30,25 @@ class SalesEvent:
 
 
 def commission_split(price_rub: int) -> dict[str, int]:
-    """Делит ставку на выплату преподавателю (95%) и системный сбор (5%).
+    """Делит ставку на выплату преподавателю (94%), сбор сервиса (5%) и шлюз СБП (1%).
 
     Формула синхронизирована с frontend/data/tutors.js (EGE.tutors.commissionSplit).
     """
     total = max(0, round(int(price_rub)))
     fee = round(total * COMMISSION_PCT / 100)
+    sbp_fee = round(total * SBP_FEE_PCT / 100)
     return {
         "total": total,
-        "payout": total - fee,
+        "payout": max(0, total - fee - sbp_fee),
         "fee": fee,
+        "sbp_fee": sbp_fee,
         "pct": COMMISSION_PCT,
+        "sbp_pct": SBP_FEE_PCT,
     }
 
 
 def summarize_sales(events: list[SalesEvent | dict[str, Any]]) -> dict[str, Any]:
-    """Считает GMV, комиссию платформы 5%, выплату преподавателям 95% и конверсию."""
+    """Считает GMV, комиссию платформы 5% + 1% СБП, выплату преподавателям 94% и конверсию."""
     normalized: list[dict[str, Any]] = []
     for item in events:
         raw = item.__dict__ if isinstance(item, SalesEvent) else dict(item)

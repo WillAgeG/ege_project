@@ -1,32 +1,241 @@
-/* Данные и логика маркетплейса репетиторов «Вектор ЕГЭ»:
+/* Данные и логика маркетплейса репетиторов «Вектор»:
    анкеты, свободные окна по дням и часам, тарифы подписок и предпросмотр торга (inDrive-формат). */
 (function () {
   var EGE = (window.EGE = window.EGE || {});
 
-  var SUBJECTS = [
-    { id: "rus", name: "Русский язык", short: "Русский", isExam: true },
-    { id: "math", name: "Математика", short: "Математика", isExam: true },
-    { id: "soc", name: "Обществознание", short: "Обществознание", isExam: true },
-    { id: "eng", name: "Английский язык", short: "Английский", isExam: true },
-    { id: "inf", name: "Информатика", short: "Информатика", isExam: true },
-    { id: "bio", name: "Биология", short: "Биология", isExam: true },
-    { id: "chem", name: "Химия", short: "Химия", isExam: true },
-    { id: "phys", name: "Физика", short: "Физика", isExam: true },
-    { id: "hist", name: "История", short: "История", isExam: true },
-    { id: "lit", name: "Литература", short: "Литература", isExam: true },
-    { id: "geo", name: "География", short: "География", isExam: true },
-    { id: "prog", name: "Программирование и Python", short: "Программирование", isExam: false },
-    { id: "design", name: "UX/UI и Figma", short: "Дизайн UX/UI", isExam: false },
-    { id: "music", name: "Вокал, гитара и музыка", short: "Вокал / Гитара", isExam: false },
-    { id: "judo", name: "Дзюдо и ОФП", short: "Дзюдо", isExam: false },
-    { id: "chess", name: "Шахматы и логика", short: "Шахматы", isExam: false }
+  var LS_DIRECTIONS_KEY = "vektor-ege:directions:v1";
+
+  var DIRECTION_CATEGORIES = [
+    "Школа и экзамены",
+    "Спорт и движение",
+    "IT и диджитал",
+    "Творчество и музыка",
+    "Языки",
+    "Дети и навыки",
+    "Добавлено оркестратором"
   ];
+
+  var PREVIEW_SUBJECT_IDS = [
+    "rus", "math", "soc", "eng", "inf", "bio", "chem",
+    "prog", "design", "music", "judo", "chess"
+  ];
+
+  var SUBJECTS = [
+    { id: "rus", name: "Русский язык", short: "Русский", isExam: true, category: "Школа и экзамены", source: "base", keywords: ["сочинение", "орфография", "пунктуация", "грамотность"] },
+    { id: "math", name: "Математика", short: "Математика", isExam: true, category: "Школа и экзамены", source: "base", keywords: ["профиль", "алгебра", "геометрия", "высшая математика"] },
+    { id: "soc", name: "Обществознание", short: "Обществознание", isExam: true, category: "Школа и экзамены", source: "base", keywords: ["право", "экономика", "социология", "политика"] },
+    { id: "eng", name: "Английский язык", short: "Английский", isExam: true, category: "Языки", source: "base", keywords: ["ielts", "toefl", "разговорный", "grammar", "speaking"] },
+    { id: "inf", name: "Информатика", short: "Информатика", isExam: true, category: "Школа и экзамены", source: "base", keywords: ["кегэ", "python", "алгоритмы", "егэ информатика"] },
+    { id: "bio", name: "Биология", short: "Биология", isExam: true, category: "Школа и экзамены", source: "base", keywords: ["генетика", "анатомия", "медвуз", "ботаника"] },
+    { id: "chem", name: "Химия", short: "Химия", isExam: true, category: "Школа и экзамены", source: "base", keywords: ["органика", "неорганика", "медвуз", "задача 34"] },
+    { id: "phys", name: "Физика", short: "Физика", isExam: true, category: "Школа и экзамены", source: "base", keywords: ["механика", "оптика", "электричество", "физтех"] },
+    { id: "hist", name: "История", short: "История", isExam: true, category: "Школа и экзамены", source: "base", keywords: ["история россии", "всеобщая", "даты", "карты"] },
+    { id: "lit", name: "Литература", short: "Литература", isExam: true, category: "Школа и экзамены", source: "base", keywords: ["анализ текста", "сочинение", "поэзия", "классика"] },
+    { id: "geo", name: "География", short: "География", isExam: true, category: "Школа и экзамены", source: "base", keywords: ["топография", "карты", "климат", "природопользование"] },
+    { id: "prog", name: "Программирование и Python", short: "Программирование", isExam: false, category: "IT и диджитал", source: "base", keywords: ["python", "javascript", "frontend", "backend", "разработка", "код"] },
+    { id: "design", name: "UX/UI и Figma", short: "Дизайн UX/UI", isExam: false, category: "IT и диджитал", source: "base", keywords: ["figma", "веб-дизайн", "интерфейсы", "графический дизайн", "tilda"] },
+    { id: "robotics", name: "Робототехника и Arduino", short: "Робототехника", isExam: false, category: "IT и диджитал", source: "base", keywords: ["arduino", "лего", "lego", "роботы", "электроника", "инженерия"] },
+    { id: "video", name: "Видеомонтаж и 3D", short: "Видеомонтаж и 3D", isExam: false, category: "IT и диджитал", source: "base", keywords: ["blender", "монтаж", "premiere", "after effects", "3d", "анимация"] },
+    { id: "music", name: "Вокал, гитара и музыка", short: "Вокал / Гитара", isExam: false, category: "Творчество и музыка", source: "base", keywords: ["пение", "акустика", "электрогитара", "укулеле", "сольфеджио"] },
+    { id: "piano", name: "Фортепиано и сольфеджио", short: "Фортепиано", isExam: false, category: "Творчество и музыка", source: "base", keywords: ["пианино", "синтезатор", "клавиши", "ноты", "музыкальная школа"] },
+    { id: "art", name: "Рисование и скетчинг", short: "Рисование", isExam: false, category: "Творчество и музыка", source: "base", keywords: ["живопись", "графика", "акварель", "академический рисунок", "иллюстрация"] },
+    { id: "photo", name: "Фотография и ретушь", short: "Фотография", isExam: false, category: "Творчество и музыка", source: "base", keywords: ["фото", "съемка", "lightroom", "photoshop", "обработка"] },
+    { id: "judo", name: "Дзюдо и ОФП", short: "Дзюдо", isExam: false, category: "Спорт и движение", source: "base", keywords: ["единоборства", "борьба", "броски", "офп", "татами"] },
+    { id: "boxing", name: "Бокс, самбо и единоборства", short: "Бокс / Самбо", isExam: false, category: "Спорт и движение", source: "base", keywords: ["бокс", "самбо", "мма", "кикбоксинг", "борьба", "спарринг"] },
+    { id: "swim", name: "Плавание и техника кроля", short: "Плавание", isExam: false, category: "Спорт и движение", source: "base", keywords: ["бассейн", "кроль", "брасс", "тренер по плаванию", "вода"] },
+    { id: "fitness", name: "Фитнес, йога и растяжка", short: "Фитнес и йога", isExam: false, category: "Спорт и движение", source: "base", keywords: ["йога", "растяжка", "пилатес", "стретчинг", "лфк", "спина"] },
+    { id: "dance", name: "Танцы и хореография", short: "Танцы", isExam: false, category: "Спорт и движение", source: "base", keywords: ["хореография", "хип-хоп", "бальные", "брейк", "современные"] },
+    { id: "tennis", name: "Теннис и бадминтон", short: "Теннис / Бадминтон", isExam: false, category: "Спорт и движение", source: "base", keywords: ["большой теннис", "настольный теннис", "пинг-понг", "бадминтон", "корт"] },
+    { id: "chess", name: "Шахматы и логика", short: "Шахматы", isExam: false, category: "Творчество и музыка", source: "base", keywords: ["дебюты", "тактика", "эндшпиль", "турнир", "шашки"] },
+    { id: "chinese", name: "Китайский язык и HSK", short: "Китайский язык", isExam: false, category: "Языки", source: "base", keywords: ["hsk", "иероглифы", "китай", "пиньинь", "мандарин"] },
+    { id: "korean", name: "Корейский и японский языки", short: "Корейский / Японский", isExam: false, category: "Языки", source: "base", keywords: ["topik", "jlpt", "корейский", "японский", "каллиграфия"] },
+    { id: "yakut", name: "Якутский язык (Саха тыла)", short: "Якутский язык", isExam: false, category: "Языки", source: "base", keywords: ["саха", "саха тыла", "якутия", "разговорный"] },
+    { id: "speech", name: "Логопед и постановка речи", short: "Логопед", isExam: false, category: "Дети и навыки", source: "base", keywords: ["логопед", "дикция", "дефектолог", "звуки", "речь"] },
+    { id: "primary", name: "Начальная школа (1–4 класс)", short: "Начальная школа", isExam: false, category: "Дети и навыки", source: "base", keywords: ["чтение", "скорочтение", "подготовка к школе", "впр", "каллиграфия"] },
+    { id: "oratory", name: "Ораторское искусство и риторика", short: "Ораторское искусство", isExam: false, category: "Дети и навыки", source: "base", keywords: ["риторика", "презентации", "дебаты", "публичные выступления", "актерское"] }
+  ];
+
+  var _TRANSLIT_RU = {
+    "а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ё": "e",
+    "ж": "zh", "з": "z", "и": "i", "й": "y", "к": "k", "л": "l", "м": "m",
+    "н": "n", "о": "o", "п": "p", "р": "r", "с": "s", "т": "t", "у": "u",
+    "ф": "f", "х": "h", "ц": "ts", "ч": "ch", "ш": "sh", "щ": "sch", "ъ": "",
+    "ы": "y", "ь": "", "э": "e", "ю": "yu", "я": "ya"
+  };
+
+  function slugifyDirection(label) {
+    var src = String(label || "").trim().toLowerCase();
+    var out = "";
+    for (var i = 0; i < src.length; i++) {
+      var ch = src.charAt(i);
+      if (_TRANSLIT_RU[ch] !== undefined) out += _TRANSLIT_RU[ch];
+      else if (/[a-z0-9]/.test(ch)) out += ch;
+      else out += "-";
+    }
+    out = out.replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 36);
+    if (!out || /^\d+$/.test(out)) out = "dir-" + (out || "custom");
+    return out;
+  }
+
+  function cleanDirectionLabel(raw) {
+    return String(raw || "").replace(/[<>]/g, "").replace(/\s+/g, " ").trim().slice(0, 60);
+  }
+
+  function findDirectionMatch(queryOrId) {
+    var clean = cleanDirectionLabel(queryOrId).toLowerCase();
+    if (!clean) return null;
+    for (var i = 0; i < SUBJECTS.length; i++) {
+      var sb = SUBJECTS[i];
+      if (String(sb.id || "").toLowerCase() === clean ||
+          String(sb.short || "").toLowerCase() === clean ||
+          String(sb.name || "").toLowerCase() === clean) {
+        return sb;
+      }
+    }
+    return null;
+  }
+
+  function persistAutoDirections() {
+    try {
+      if (typeof window === "undefined" || !window.localStorage) return;
+      var autoOnly = SUBJECTS.filter(function (s) { return !!(s && s.autoAdded); }).map(function (s) {
+        return {
+          id: s.id,
+          name: s.name,
+          short: s.short,
+          isExam: false,
+          category: s.category || "Добавлено оркестратором",
+          source: s.source || "orchestrator",
+          keywords: Array.isArray(s.keywords) ? s.keywords : [],
+          demandCount: Number(s.demandCount) || 1,
+          tutorCount: Number(s.tutorCount) || 0,
+          autoAdded: true,
+          addedAt: s.addedAt || ""
+        };
+      });
+      window.localStorage.setItem(LS_DIRECTIONS_KEY, JSON.stringify(autoOnly));
+    } catch (e) { /* игнор недоступного localStorage */ }
+  }
+
+  function registerDirection(raw, opts) {
+    var obj = (raw && typeof raw === "object") ? raw : { name: String(raw || ""), short: String(raw || "") };
+    var label = cleanDirectionLabel(obj.short || obj.name || obj.id || "");
+    if (label.length < 2) return null;
+    var fullName = cleanDirectionLabel(obj.name || label);
+    if (fullName.length < 2) fullName = label;
+    var shortLabel = label.length > 34 ? (label.slice(0, 33).trim() + "…") : label;
+    var incomingSource = String(obj.source || "orchestrator").trim() || "orchestrator";
+    var incomingKw = Array.isArray(obj.keywords)
+      ? obj.keywords.map(function (k) { return cleanDirectionLabel(k).toLowerCase(); }).filter(Boolean)
+      : [];
+
+    var existing = findDirectionMatch(obj.id) || findDirectionMatch(shortLabel) || findDirectionMatch(fullName);
+    if (existing) {
+      if (existing.autoAdded) {
+        existing.demandCount = Math.max(Number(existing.demandCount) || 1, Number(obj.demandCount) || 1);
+        if (!(opts && opts.fromSync)) existing.demandCount += 1;
+        existing.tutorCount = Math.max(Number(existing.tutorCount) || 0, Number(obj.tutorCount) || 0);
+        if (incomingSource === "orchestrator") existing.source = "orchestrator";
+        if (incomingKw.length) {
+          var kwSet = {};
+          (existing.keywords || []).concat(incomingKw).forEach(function (k) { kwSet[k] = 1; });
+          existing.keywords = Object.keys(kwSet).slice(0, 12);
+        }
+        if (!(opts && opts.skipPersist)) persistAutoDirections();
+      }
+      return { direction: existing, created: false };
+    }
+
+    var baseId = cleanDirectionLabel(obj.id || "").toLowerCase().replace(/[^a-z0-9_-]/g, "");
+    if (!baseId || baseId.length < 2) baseId = slugifyDirection(shortLabel);
+    var id = baseId;
+    var suffix = 2;
+    while (SUBJECTS.some(function (s) { return s.id === id; })) {
+      id = baseId.slice(0, 32) + "-" + suffix;
+      suffix++;
+    }
+
+    var entry = {
+      id: id,
+      name: fullName,
+      short: shortLabel,
+      isExam: false,
+      category: cleanDirectionLabel(obj.category || "") || "Добавлено оркестратором",
+      source: incomingSource,
+      keywords: incomingKw,
+      autoAdded: true,
+      demandCount: Math.max(1, Number(obj.demandCount) || 1),
+      tutorCount: Math.max(0, Number(obj.tutorCount) || 0),
+      addedAt: String(obj.addedAt || new Date().toISOString())
+    };
+    SUBJECTS.push(entry);
+    if (!(opts && opts.skipPersist)) persistAutoDirections();
+    return { direction: entry, created: true };
+  }
+
+  function syncDirections(items) {
+    if (!Array.isArray(items) || !items.length) return 0;
+    var added = 0;
+    items.forEach(function (it) {
+      if (!it || typeof it !== "object") return;
+      var res = registerDirection(it, { fromSync: true, skipPersist: true });
+      if (res && res.created) added++;
+    });
+    if (added > 0) persistAutoDirections();
+    return added;
+  }
+
+  function loadPersistedDirections() {
+    try {
+      if (typeof window === "undefined" || !window.localStorage) return;
+      var raw = window.localStorage.getItem(LS_DIRECTIONS_KEY);
+      if (!raw) return;
+      var parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) syncDirections(parsed);
+    } catch (e) { /* игнор битого JSON */ }
+  }
+
+  loadPersistedDirections();
 
   function subjectsForExam(exam) {
     if (exam === "ЕГЭ" || exam === "ОГЭ") {
       return SUBJECTS.filter(function (s) { return !!s.isExam; });
     }
     return SUBJECTS.slice();
+  }
+
+  function searchDirections(query, exam) {
+    var list = subjectsForExam(exam);
+    var rawQ = cleanDirectionLabel(query);
+    var q = rawQ.toLowerCase();
+    if (!q) {
+      return { items: list, exactMatch: null, normalizedQuery: "", rawQuery: "" };
+    }
+    var tokens = q.split(/\s+/).filter(Boolean);
+    var exact = null;
+    var scored = [];
+    list.forEach(function (sb) {
+      var shortL = String(sb.short || "").toLowerCase();
+      var nameL = String(sb.name || "").toLowerCase();
+      var catL = String(sb.category || "").toLowerCase();
+      var kwL = Array.isArray(sb.keywords) ? sb.keywords.join(" ").toLowerCase() : "";
+      if (shortL === q || nameL === q || String(sb.id || "").toLowerCase() === q) {
+        exact = sb;
+      }
+      var hay = [shortL, nameL, catL, kwL].join(" ");
+      var allMatch = tokens.every(function (t) { return hay.indexOf(t) >= 0; });
+      if (allMatch) {
+        var score = shortL.indexOf(q) === 0 ? 3 : (nameL.indexOf(q) === 0 ? 2 : 1);
+        scored.push({ sb: sb, score: score });
+      }
+    });
+    scored.sort(function (a, b) { return b.score - a.score; });
+    return {
+      items: scored.map(function (x) { return x.sb; }),
+      exactMatch: exact,
+      normalizedQuery: q,
+      rawQuery: rawQ
+    };
   }
 
   var PREP_UNIVERSE = [
@@ -71,15 +280,18 @@
     var total = Math.max(0, Math.round(Number(price) || 0));
     var fee = Math.round(total * COMMISSION_PCT / 100);
     var sbpFee = Math.round(total * SBP_PCT / 100);
+    var net = Math.max(0, total - fee - sbpFee);
     var miniGroupFee = Math.round(total * MINIGROUP_PCT / 100);
     return {
       total: total,
       fee: fee,
-      payout: total - fee,
+      sbpFee: sbpFee,
+      totalFee: fee + sbpFee,
+      payout: net,
       pct: COMMISSION_PCT,
       sbpPct: SBP_PCT,
-      sbpFee: sbpFee,
-      tutorSbpNet: Math.max(0, total - fee - sbpFee),
+      netPct: 100 - COMMISSION_PCT - SBP_PCT,
+      tutorSbpNet: net,
       miniGroupPct: MINIGROUP_PCT,
       miniGroupFee: miniGroupFee
     };
@@ -190,29 +402,15 @@
     {
       id: "tutor-free",
       name: "Свободный старт",
-      badge: "Базовый",
+      badge: "Единый бесплатный тариф",
       pro: false,
       price: 0,
       priceLabel: "0 ₽/мес",
-      subLabel: "бесплатное размещение анкеты",
+      subLabel: "без платных подписок и скрытых доплат",
       features: [
-        "Выбор формата пробного: бесплатно (0 ₽), 490 ₽ или без пробного",
-        "Готовые ученики с подтверждённой ставкой и безопасным эскроу через СБП",
+        "Равные условия выдачи в каталоге и выбор формата пробного: 0 ₽, 490 ₽ или без пробного",
+        "94% с учеников площадки (5% сервис + 1% СБП) и 98% со своих учеников (1% + 1% СБП)",
         "Автоматический чек НПД («Мой налог») и вывод на СБП от 500 ₽"
-      ]
-    },
-    {
-      id: "tutor-pro",
-      name: "PRO-акцент в каталоге",
-      badge: "Топ выдачи",
-      pro: true,
-      price: 1490,
-      priceLabel: "1 490 ₽/мес",
-      subLabel: "или 3 900 ₽ за 3 месяца",
-      features: [
-        "Мягкое синее выделение анкеты в общем каталоге без лишних баннеров",
-        "Значок «Проверенный эксперт», приоритет заявок и скидка 50% на сбор подбора",
-        "Право набирать мини-группы 3–5 чел. с чистым доходом до ~2 015 ₽/ч"
       ]
     }
   ];
@@ -1054,6 +1252,150 @@
       bumpText: "В сети 2 недели назад",
       bio: "Учимся видеть тактические удары, планировать миттельшпиль и спокойно доводить перевес до победы без зевков.",
       slots: { 2: ["15:00", "19:00"], 6: ["11:00", "15:00"], 0: ["13:00", "17:00"] }
+    },
+    {
+      id: "tut-tarasov-box",
+      name: "Тимур Тарасов",
+      subject: "boxing",
+      subjectName: "Бокс, самбо и единоборства",
+      exams: ["Навыки", "Спорт"],
+      price: 1000,
+      marketPrice: 1350,
+      minFair: 850,
+      verified: true,
+      firstLessonGuarantee: true,
+      formats: ["Очно", "Онлайн"],
+      city: "Якутск",
+      timezone: "UTC+9",
+      rating: 4.9,
+      reviews: 19,
+      exp: "9 лет · МС по боевому самбо и боксу",
+      tag: "Техника ударов, самооборона и постановка дыхания",
+      bumpedToday: true,
+      bumpedWeek: true,
+      bumpText: "Обновил окна вчера",
+      bio: "Индивидуальные тренировки по боксу и самбо с нуля или к соревнованиям: стойка, передвижения, защита и ОФП.",
+      slots: { 1: ["18:00", "20:00"], 3: ["18:00", "20:00"], 5: ["18:00", "20:00"] }
+    },
+    {
+      id: "tut-kovaleva-swim",
+      name: "Мария Ковалёва",
+      subject: "swim",
+      subjectName: "Плавание и техника кроля",
+      exams: ["Навыки", "Спорт"],
+      price: 1100,
+      marketPrice: 1500,
+      minFair: 900,
+      verified: true,
+      firstLessonGuarantee: true,
+      formats: ["Очно"],
+      city: "Москва",
+      timezone: "UTC+3",
+      rating: 4.9,
+      reviews: 27,
+      exp: "7 лет · КМС по плаванию, дети и взрослые",
+      tag: "Кроль, брасс, снятие страха воды и ГТО",
+      bumpedToday: true,
+      bumpedWeek: true,
+      bumpText: "Есть окна на этой неделе",
+      bio: "Учимся плавать красиво и без одышки: ставим дыхание, скольжение и все 4 спортивных стиля в удобном бассейне.",
+      slots: { 2: ["10:00", "19:00"], 4: ["10:00", "19:00"], 6: ["11:00", "15:00"] }
+    },
+    {
+      id: "tut-li-chinese",
+      name: "Анна Ли",
+      subject: "chinese",
+      subjectName: "Китайский язык и HSK",
+      exams: ["Навыки", "ВУЗ"],
+      price: 1050,
+      marketPrice: 1400,
+      minFair: 850,
+      verified: true,
+      firstLessonGuarantee: true,
+      formats: ["Онлайн"],
+      city: "Москва",
+      timezone: "UTC+3",
+      rating: 5.0,
+      reviews: 31,
+      exp: "6 лет · стажировка в Пекине, HSK 1–5",
+      tag: "Тоны с нуля, иероглифы и живой китайский",
+      bumpedToday: true,
+      bumpedWeek: true,
+      bumpText: "В сети сегодня",
+      bio: "Ставим чистое произношение и 4 тона с первого урока, разбираем логику ключей и уверенно готовимся к HSK и переезду.",
+      slots: { 1: ["14:00", "18:00"], 3: ["14:00", "18:00"], 6: ["12:00", "16:00"] }
+    },
+    {
+      id: "tut-safonova-speech",
+      name: "Наталья Сафонова",
+      subject: "speech",
+      subjectName: "Логопед и постановка речи",
+      exams: ["Навыки"],
+      price: 950,
+      marketPrice: 1300,
+      minFair: 800,
+      verified: true,
+      firstLessonGuarantee: true,
+      formats: ["Онлайн", "Очно"],
+      city: "Якутск",
+      timezone: "UTC+9",
+      rating: 4.9,
+      reviews: 23,
+      exp: "10 лет · логопед-дефектолог высшей категории",
+      tag: "Звуки Р/Л/шипящие, запуск речи и чтение",
+      bumpedToday: false,
+      bumpedWeek: true,
+      bumpText: "Обновила анкету 2 дня назад",
+      bio: "Игровые логопедические занятия для детей и коррекция дикции для взрослых: артикуляционная гимнастика и чёткая речь.",
+      slots: { 1: ["11:00", "15:00"], 2: ["11:00", "15:00"], 4: ["11:00", "15:00"] }
+    },
+    {
+      id: "tut-nefedova-art",
+      name: "Олеся Нефёдова",
+      subject: "art",
+      subjectName: "Рисование и скетчинг",
+      exams: ["Навыки", "Портфолио"],
+      price: 900,
+      marketPrice: 1250,
+      minFair: 750,
+      verified: true,
+      firstLessonGuarantee: false,
+      formats: ["Онлайн", "Очно"],
+      city: "Якутск",
+      timezone: "UTC+9",
+      rating: 4.8,
+      reviews: 18,
+      exp: "5 лет · СХУ, иллюстрация и композиция",
+      tag: "Академический рисунок, акварель и Procreate",
+      bumpedToday: true,
+      bumpedWeek: true,
+      bumpText: "Окна на выходные",
+      bio: "Осваиваем перспективу, светотень и цвет с нуля, собираем творческое портфолио для поступления или рисования для души.",
+      slots: { 3: ["16:00", "19:00"], 6: ["12:00", "16:00"], 0: ["12:00", "16:00"] }
+    },
+    {
+      id: "tut-zaitsev-piano",
+      name: "Павел Зайцев",
+      subject: "piano",
+      subjectName: "Фортепиано и сольфеджио",
+      exams: ["Навыки"],
+      price: 1000,
+      marketPrice: 1350,
+      minFair: 800,
+      verified: true,
+      firstLessonGuarantee: true,
+      formats: ["Онлайн", "Очно"],
+      city: "Москва",
+      timezone: "UTC+3",
+      rating: 4.9,
+      reviews: 20,
+      exp: "8 лет · выпускник РАМ им. Гнесиных",
+      tag: "Чтение с листа, аккомпанемент и слух",
+      bumpedToday: false,
+      bumpedWeek: true,
+      bumpText: "Свободно вечером в будни",
+      bio: "Учим любимые мелодии с первых занятий, без скучной зубрёжки — постановка рук, гармония и разбор по аккордам и нотам.",
+      slots: { 2: ["17:00", "20:00"], 4: ["17:00", "20:00"], 5: ["16:00", "19:00"] }
     }
   ];
 
@@ -1080,8 +1422,8 @@
   }
 
   function normalizeTutor(t, idx) {
-    t.whatsapp = t.whatsapp || WA_PHONES[t.id] || ("791421001" + String(10 + (idx || 0)));
-    t.verified = t.verified !== false;
+    t.whatsapp = t.whatsapp || (t.fromServer ? "" : (WA_PHONES[t.id] || ("791421001" + String(10 + (idx || 0)))));
+    t.verified = t.fromServer ? !!t.verified : (t.verified !== false);
     t.bumpedWeek = t.bumpedWeek != null ? !!t.bumpedWeek : true;
     t.firstLessonGuarantee = t.firstLessonGuarantee != null
       ? !!t.firstLessonGuarantee
@@ -1136,8 +1478,21 @@
   function upsertCustomTutor(raw) {
     if (!raw || !raw.id) return null;
     var subjList = Array.isArray(raw.subjects) && raw.subjects.length ? raw.subjects.slice() : [raw.subject || "bio"];
-    var subjNames = subjList.map(function (id) {
+    var subjNames = subjList.map(function (id, sIdx) {
       var found = SUBJECTS.find(function (s) { return s.id === id; });
+      if (!found && sIdx === 0 && (raw.subjectName || raw.subjectShort || raw.subject)) {
+        var reg = registerDirection({
+          id: id,
+          name: raw.subjectName || raw.subjectShort || id,
+          short: raw.subjectShort || raw.subjectName || id,
+          source: raw.isParsed ? "orchestrator" : "user",
+          tutorCount: 1
+        });
+        if (reg && reg.direction) {
+          subjList[0] = reg.direction.id;
+          found = reg.direction;
+        }
+      }
       return found ? found.name : "";
     }).filter(Boolean);
     var clean = Object.assign({
@@ -1165,12 +1520,222 @@
     var idx = LIST.findIndex(function (x) { return x.id === clean.id; });
     if (idx >= 0) LIST[idx] = clean;
     else LIST.unshift(clean);
+    CATALOG_TOTAL = _demoMode ? Math.max(DEMO_CATALOG_TOTAL, LIST.length) : LIST.length;
+    if (EGE.tutors) EGE.tutors.CATALOG_TOTAL = CATALOG_TOTAL;
     return clean;
+  }
+
+  function removeCustomTutor(tutorId) {
+    var tid = String(tutorId || "").trim();
+    if (!tid) return false;
+    var removed = false;
+    for (var i = LIST.length - 1; i >= 0; i--) {
+      if (LIST[i] && LIST[i].id === tid) {
+        LIST.splice(i, 1);
+        removed = true;
+      }
+    }
+    if (removed) {
+      CATALOG_TOTAL = _demoMode ? Math.max(DEMO_CATALOG_TOTAL, LIST.length) : LIST.length;
+      if (EGE.tutors) EGE.tutors.CATALOG_TOTAL = CATALOG_TOTAL;
+    }
+    return removed;
   }
 
   LIST.forEach(function (t, idx) {
     normalizeTutor(t, idx);
   });
+
+  var DEMO_LIST = LIST.slice();
+  var DEMO_CATALOG_TOTAL = CATALOG_TOTAL;
+  var _demoMode = !(typeof window !== "undefined" && window.EGE_HOST && window.EGE_HOST.demoMode === false);
+  var _serverTutorsLoaded = false;
+  var _serverTutorsLoading = !_demoMode;
+  var _serverLeads = null;
+
+  if (!_demoMode) {
+    LIST.splice(0, LIST.length);
+    CATALOG_TOTAL = 0;
+  }
+
+  var SOURCE_CHANNEL_MAP = {
+    platform: "Вектор",
+    doska_ykt: "Доска Ykt",
+    telegram: "Telegram",
+    whatsapp: "WhatsApp",
+    max: "MAX",
+    landing: "Заявка с сайта"
+  };
+
+  function resolveServerSubjectIds(raw) {
+    var out = [];
+    function pushMatch(val) {
+      var txt = String(val || "").trim();
+      if (!txt) return;
+      var low = txt.toLowerCase();
+      var exact = SUBJECTS.find(function (s) {
+        return String(s.id || "").toLowerCase() === low ||
+          String(s.name || "").toLowerCase() === low ||
+          String(s.short || "").toLowerCase() === low;
+      });
+      if (exact) {
+        if (out.indexOf(exact.id) < 0) out.push(exact.id);
+        return;
+      }
+      if (typeof findDirectionMatch === "function") {
+        var hit = findDirectionMatch(txt);
+        if (hit && hit.id) {
+          if (out.indexOf(hit.id) < 0) out.push(hit.id);
+          return;
+        }
+      }
+      var reg = registerDirection({
+        name: txt,
+        short: txt.slice(0, 28),
+        source: "platform",
+        tutorCount: 1
+      });
+      if (reg && reg.direction && reg.direction.id && out.indexOf(reg.direction.id) < 0) {
+        out.push(reg.direction.id);
+      }
+    }
+    if (Array.isArray(raw && raw.subjects)) {
+      raw.subjects.forEach(pushMatch);
+    }
+    if (!out.length && raw && raw.subject) {
+      pushMatch(raw.subject);
+    }
+    if (!out.length) out.push("bio");
+    return out;
+  }
+
+  function serverTutorToCard(raw) {
+    raw = raw || {};
+    var subjIds = resolveServerSubjectIds(raw);
+    var subjNames = subjIds.map(function (id) {
+      var found = SUBJECTS.find(function (s) { return s.id === id; });
+      return found ? found.name : "";
+    }).filter(Boolean);
+    var price = Math.max(100, Number(raw.price != null ? raw.price : raw.baseRateRub) || 1200);
+    var marketPrice = Math.max(
+      price,
+      Number(raw.marketPrice != null ? raw.marketPrice : raw.marketRateRub) || Math.round((price * 1.28) / 50) * 50
+    );
+    var minFair = Number(raw.minFair) > 0
+      ? Math.max(400, Number(raw.minFair))
+      : Math.max(400, Math.round((price * 0.85) / 50) * 50);
+    var rawSlots = raw.slots && typeof raw.slots === "object" ? raw.slots : null;
+    var cleanSlots = {};
+    if (rawSlots) {
+      Object.keys(rawSlots).forEach(function (k) {
+        var d = parseInt(k, 10);
+        if (!Number.isFinite(d) || d < 0 || d > 6) return;
+        if (Array.isArray(rawSlots[k]) && rawSlots[k].length) {
+          var hrs = rawSlots[k].map(function (h) { return String(h || "").trim(); }).filter(Boolean);
+          if (hrs.length) cleanSlots[d] = hrs;
+        }
+      });
+    }
+    if (!Object.keys(cleanSlots).length) {
+      cleanSlots = { 1: ["16:00", "18:00"], 3: ["16:00", "18:00"], 6: ["10:00", "14:00"] };
+    }
+    var srcKey = String(raw.sourceChannel || "platform").trim().toLowerCase();
+    var expYears = Math.max(1, Number(raw.expYears) || 3);
+    var revCnt = Math.max(0, Number(raw.reviewsCount != null ? raw.reviewsCount : raw.reviews) || 0);
+    var customSkillsText = String(raw.customSkills || "").trim();
+    return {
+      id: String(raw.id),
+      userId: raw.userId != null ? raw.userId : null,
+      name: String(raw.name || raw.fullName || "Преподаватель Вектор"),
+      photo: String(raw.photoUrl || raw.photo || "").trim(),
+      subject: subjIds[0] || "bio",
+      subjects: subjIds,
+      subjectName: subjNames.length ? subjNames.join(" · ") : String(raw.subject || "Подготовка"),
+      customSkillsText: customSkillsText,
+      exams: Array.isArray(raw.exams) && raw.exams.length ? raw.exams.slice() : ["ЕГЭ"],
+      formats: Array.isArray(raw.formats) && raw.formats.length ? raw.formats.slice() : ["Онлайн"],
+      city: String(raw.city || "Якутск"),
+      timezone: String(raw.timezone || "UTC+9"),
+      price: price,
+      marketPrice: marketPrice,
+      minFair: minFair,
+      firstLessonGuarantee: raw.firstLessonGuarantee !== false,
+      rating: Math.max(1, Math.min(5, Number(raw.rating) || 4.9)),
+      reviews: revCnt,
+      exp: "Стаж " + expYears + " " + (expYears === 1 ? "год" : (expYears < 5 ? "года" : "лет")),
+      tag: String(raw.headline || customSkillsText || "Подготовка ЕГЭ и ОГЭ").trim(),
+      source: SOURCE_CHANNEL_MAP[srcKey] || "Вектор",
+      fromServer: true,
+      fromCabinet: srcKey === "platform",
+      whatsapp: String(raw.whatsappPhone || raw.whatsapp || "").trim(),
+      telegram: String(raw.telegramHandle || raw.telegram || "").trim(),
+      maxHandle: String(raw.maxHandle || "").trim(),
+      verified: !!raw.verified,
+      published: raw.published !== false,
+      lastBumpedAt: String(raw.lastBumpedAt || ""),
+      customBadges: Array.isArray(raw.customBadges) ? raw.customBadges.slice(0, 2) : [],
+      bumpedToday: !!raw.bumpedToday,
+      bumpedWeek: true,
+      bumpText: raw.bumpedToday ? "Поднята сегодня" : "Активная анкета",
+      bio: String(raw.bio || raw.education || "Индивидуальная программа и проверка пробников.").trim(),
+      slots: cleanSlots
+    };
+  }
+
+  function setDemoMode(enabled) {
+    var next = !!enabled;
+    var prev = _demoMode;
+    _demoMode = next;
+    if (EGE.tutors) EGE.tutors.DEMO_MODE = next;
+    if (!next) {
+      for (var i = LIST.length - 1; i >= 0; i--) {
+        if (!LIST[i] || !LIST[i].fromServer) LIST.splice(i, 1);
+      }
+      CATALOG_TOTAL = LIST.length;
+      _serverTutorsLoading = !_serverTutorsLoaded;
+      if (EGE.tutors) {
+        EGE.tutors.CATALOG_TOTAL = CATALOG_TOTAL;
+        EGE.tutors.serverLoading = _serverTutorsLoading;
+        EGE.tutors.serverLoaded = _serverTutorsLoaded;
+      }
+    } else if (next && !prev && !_serverTutorsLoaded && !LIST.length) {
+      DEMO_LIST.forEach(function (item) { LIST.push(item); });
+      CATALOG_TOTAL = DEMO_CATALOG_TOTAL;
+      if (EGE.tutors) EGE.tutors.CATALOG_TOTAL = CATALOG_TOTAL;
+    }
+    return _demoMode;
+  }
+
+  function syncServerTutors(rawList, opts) {
+    opts = opts || {};
+    var replace = opts.replace != null ? !!opts.replace : !_demoMode;
+    var incoming = Array.isArray(rawList) ? rawList.filter(function (x) { return x && x.id; }) : [];
+    var mapped = incoming.map(function (item, idx) {
+      return normalizeTutor(serverTutorToCard(item), idx);
+    });
+    if (replace) {
+      LIST.splice(0, LIST.length);
+      mapped.forEach(function (card) { LIST.push(card); });
+      CATALOG_TOTAL = LIST.length;
+    } else {
+      for (var i = mapped.length - 1; i >= 0; i--) {
+        var card = mapped[i];
+        var existIdx = LIST.findIndex(function (x) { return x && x.id === card.id; });
+        if (existIdx >= 0) LIST[existIdx] = card;
+        else LIST.unshift(card);
+      }
+      CATALOG_TOTAL = Math.max(DEMO_CATALOG_TOTAL, LIST.length);
+    }
+    _serverTutorsLoaded = true;
+    _serverTutorsLoading = false;
+    if (EGE.tutors) {
+      EGE.tutors.CATALOG_TOTAL = CATALOG_TOTAL;
+      EGE.tutors.serverLoaded = true;
+      EGE.tutors.serverLoading = false;
+    }
+    if (typeof applyAllLocalReviews === "function") applyAllLocalReviews();
+    return LIST.length;
+  }
 
   function toISODate(d) {
     var y = d.getFullYear();
@@ -1219,6 +1784,16 @@
     if (filters.exam && filters.exam !== "all" && tutor.exams.indexOf(filters.exam) < 0) return false;
     if (filters.subject && filters.subject !== "all") {
       var matchesSubj = tutor.subject === filters.subject || (Array.isArray(tutor.subjects) && tutor.subjects.indexOf(filters.subject) >= 0);
+      if (!matchesSubj) {
+        var dirMeta = SUBJECTS.find(function (s) { return s.id === filters.subject; });
+        if (dirMeta && (dirMeta.autoAdded || (Array.isArray(dirMeta.keywords) && dirMeta.keywords.length))) {
+          var subHay = [tutor.subjectName, tutor.tag, tutor.bio, tutor.customSkillsText || ""].join(" ").toLowerCase();
+          var terms = [dirMeta.short, dirMeta.name].concat(Array.isArray(dirMeta.keywords) ? dirMeta.keywords : [])
+            .map(function (t) { return String(t || "").trim().toLowerCase(); })
+            .filter(function (t) { return t.length >= 3; });
+          matchesSubj = terms.some(function (t) { return subHay.indexOf(t) >= 0; });
+        }
+      }
       if (!matchesSubj) return false;
     }
     if (filters.format && filters.format !== "all" && tutor.formats.indexOf(filters.format) < 0) return false;
@@ -1356,14 +1931,14 @@
     var k = kitRef();
     if (k && typeof k.whatsappUrl === "function") return k.whatsappUrl(tutor, message);
     var phone = normalizePhoneDigits((tutor && (tutor.whatsapp || tutor.phone)) || "79142100100") || "79142100100";
-    var text = message || ("Здравствуйте, " + ((tutor && tutor.name) || "") + "! Пишу с платформы Вектор ЕГЭ по поводу занятий (" + ((tutor && tutor.subjectName) || "подготовка") + ").");
+    var text = message || ("Здравствуйте, " + ((tutor && tutor.name) || "") + "! Пишу с платформы Вектор по поводу занятий (" + ((tutor && tutor.subjectName) || "подготовка") + ").");
     return "https://wa.me/" + phone + "?text=" + encodeURIComponent(text);
   }
 
   function telegramUrl(entity, message) {
     var k = kitRef();
     if (k && typeof k.telegramUrl === "function") return k.telegramUrl(entity, message);
-    var text = message || ("Здравствуйте" + (entity && entity.name ? (", " + entity.name) : "") + "! Пишу с платформы Вектор ЕГЭ по поводу занятий.");
+    var text = message || ("Здравствуйте" + (entity && entity.name ? (", " + entity.name) : "") + "! Пишу с платформы Вектор по поводу занятий.");
     return "https://t.me/" + encodeURIComponent(entitySlug(entity)) + "?text=" + encodeURIComponent(text);
   }
 
@@ -1371,7 +1946,7 @@
     var k = kitRef();
     if (k && typeof k.maxUrl === "function") return k.maxUrl(entity, message);
     var slug = String((entity && entity.maxHandle) || entitySlug(entity)).replace(/^@/, "");
-    var text = message || ("Здравствуйте" + (entity && entity.name ? (", " + entity.name) : "") + "! Пишу с платформы Вектор ЕГЭ.");
+    var text = message || ("Здравствуйте" + (entity && entity.name ? (", " + entity.name) : "") + "! Пишу с платформы Вектор.");
     return "https://max.ru/" + encodeURIComponent(slug) + "?text=" + encodeURIComponent(text);
   }
 
@@ -1448,21 +2023,61 @@
   }
 
   function getStudentLeads() {
-    if (_leadsCache) return _leadsCache;
+    if (Array.isArray(_serverLeads)) {
+      var localMine = [];
+      try {
+        var rawLocal = _leadsCache || JSON.parse(localStorage.getItem(LEADS_LS_KEY) || "[]");
+        if (Array.isArray(rawLocal)) {
+          localMine = rawLocal.filter(function (x) {
+            return x && x.mine && !_serverLeads.some(function (s) { return s && s.id === x.id; });
+          });
+        }
+      } catch (e) { /* игнор */ }
+      return localMine.concat(_serverLeads);
+    }
+    if (_leadsCache) {
+      return _demoMode ? _leadsCache : _leadsCache.filter(function (x) { return x && x.mine; });
+    }
     try {
       var raw = localStorage.getItem(LEADS_LS_KEY);
       if (raw) {
         var parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
           _leadsCache = parsed;
-          return _leadsCache;
+          return _demoMode ? _leadsCache : _leadsCache.filter(function (x) { return x && x.mine; });
         }
       }
     } catch (e) { /* игнор */ }
+    if (!_demoMode) return [];
     _leadsCache = DEFAULT_STUDENT_LEADS.map(function (item) {
       return Object.assign({}, item, { subjects: item.subjects.slice() });
     });
     return _leadsCache;
+  }
+
+  function syncStudentLeads(rawList, opts) {
+    opts = opts || {};
+    var list = Array.isArray(rawList) ? rawList : [];
+    var mapped = list.filter(function (x) { return x && x.id; }).map(function (item) {
+      var subjs = Array.isArray(item.subjects) ? item.subjects.slice() : ["bio"];
+      return {
+        id: String(item.id),
+        studentName: String(item.studentName || "Ученик"),
+        subjects: subjs.length ? subjs : ["bio"],
+        exam: String(item.exam || "ЕГЭ"),
+        format: String(item.format || "Онлайн"),
+        targetPrice: Math.max(0, Number(item.targetPrice != null ? item.targetPrice : item.targetPriceRub) || 1000),
+        scheduleNote: String(item.scheduleNote || ""),
+        comment: String(item.comment || ""),
+        whatsapp: String(item.whatsapp || ""),
+        createdAt: String(item.createdAt || "Недавно"),
+        responded: item.status === "matched" || !!item.responded,
+        mine: !!item.mine,
+        fromServer: true
+      };
+    });
+    _serverLeads = opts.replace ? mapped : mapped;
+    return getStudentLeads();
   }
 
   function subjectNamesForIds(ids) {
@@ -1523,16 +2138,371 @@
     var rawPhone = lead && lead.whatsapp;
     if (rawPhone && !normalizePhoneDigits(rawPhone)) return "";
     var subjs = subjectNamesForIds(lead && lead.subjects).join(", ") || "подготовке";
-    var text = message || ("Здравствуйте, " + ((lead && lead.studentName) || "") + "! Вижу вашу заявку («" + subjs + "») на Вектор ЕГЭ — готов(а) провести занятие.");
+    var text = message || ("Здравствуйте, " + ((lead && lead.studentName) || "") + "! Вижу вашу заявку («" + subjs + "») на Вектор — готов(а) провести занятие.");
     return whatsappUrl({ whatsapp: rawPhone || "79142100500", name: lead && lead.studentName }, text);
   }
 
+  var LS_REVIEWS_KEY = "vektor-ege:reviews:v1";
+
+  var REVIEW_TAGS = [
+    "Понятно объясняет",
+    "Много практики",
+    "Дал план до экзамена",
+    "Проверка ДЗ",
+    "Спокойная атмосфера",
+    "Пунктуально и по делу"
+  ];
+
+  var DISPUTE_REASONS = [
+    { id: "first_lesson_guarantee", label: "Не подошёл 1-й урок (гарантия 100%)" },
+    { id: "no_show", label: "Репетитор не вышел на связь" },
+    { id: "quality", label: "Низкое качество / урок не по запросу" },
+    { id: "tech_issue", label: "Технический сбой / урок сорвался" },
+    { id: "other", label: "Другая причина" }
+  ];
+
+  var SEED_REVIEWS = {
+    "tut-sokolova": [
+      {
+        id: "rev-seed-sok-1",
+        tutorId: "tut-sokolova",
+        studentName: "Алина С. · 11 класс",
+        rating: 5,
+        tags: ["Понятно объясняет", "Много практики", "Дал план до экзамена"],
+        comment: "За два месяца ушёл страх перед устной частью и аудированием. Письма и эссе теперь укладываются в максимум баллов.",
+        createdAt: "4 дня назад"
+      },
+      {
+        id: "rev-seed-sok-2",
+        tutorId: "tut-sokolova",
+        studentName: "Михаил В. · ОГЭ",
+        rating: 5,
+        tags: ["Проверка ДЗ", "Спокойная атмосфера"],
+        comment: "Очень структурная подача грамматики 19–36, после каждого урока остаётся понятный конспект.",
+        createdAt: "2 недели назад"
+      },
+      {
+        id: "rev-seed-sok-3",
+        tutorId: "tut-sokolova",
+        studentName: "Екатерина П. · ЕГЭ 89",
+        rating: 4,
+        tags: ["Пунктуально и по делу"],
+        comment: "Много разговорной практики в формате реального экзамена, домашние задания проверяет подробно.",
+        createdAt: "месяц назад"
+      }
+    ],
+    "tut-kim": [
+      {
+        id: "rev-seed-kim-1",
+        tutorId: "tut-kim",
+        studentName: "Дмитрий Л. · 10 класс",
+        rating: 5,
+        tags: ["Понятно объясняет", "Пунктуально и по делу"],
+        comment: "Сразу подобрали комфортную ставку, урок прошёл живо и без воды — составили расписание до мая.",
+        createdAt: "5 дней назад"
+      },
+      {
+        id: "rev-seed-kim-2",
+        tutorId: "tut-kim",
+        studentName: "София Т. · Разговорный",
+        rating: 5,
+        tags: ["Спокойная атмосфера", "Много практики"],
+        comment: "Отличный контакт с первой минуты, помогает разговориться и не бояться ошибок.",
+        createdAt: "3 недели назад"
+      }
+    ],
+    "tut-ykt-bio-2": [
+      {
+        id: "rev-seed-bio-1",
+        tutorId: "tut-ykt-bio-2",
+        studentName: "Тимур К. · Медвуз",
+        rating: 5,
+        tags: ["Дал план до экзамена", "Много практики"],
+        comment: "Разобрали всю генетику и 27–28 задания на реальных бланках, пробники выросли с 61 до 84.",
+        createdAt: "неделю назад"
+      }
+    ],
+    "tut-msk-rus-1": [
+      {
+        id: "rev-seed-rus-1",
+        tutorId: "tut-msk-rus-1",
+        studentName: "Дарья В. · ЕГЭ 94",
+        rating: 5,
+        tags: ["Проверка ДЗ", "Понятно объясняет"],
+        comment: "Проверка сочинения по всем критериям К1–К12 экономит уйму времени. Лучший преподаватель по русскому!",
+        createdAt: "6 дней назад"
+      }
+    ]
+  };
+
+  var _reviewsCache = null;
+
+  function loadReviewsStore() {
+    if (_reviewsCache) return _reviewsCache;
+    var empty = { userByTutor: {}, remoteByTutor: {} };
+    try {
+      if (typeof localStorage !== "undefined") {
+        var raw = localStorage.getItem(LS_REVIEWS_KEY);
+        if (raw) {
+          var parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === "object") {
+            _reviewsCache = {
+              userByTutor: parsed.userByTutor && typeof parsed.userByTutor === "object" ? parsed.userByTutor : {},
+              remoteByTutor: parsed.remoteByTutor && typeof parsed.remoteByTutor === "object" ? parsed.remoteByTutor : {}
+            };
+            return _reviewsCache;
+          }
+        }
+      }
+    } catch (e) { /* игнор */ }
+    _reviewsCache = empty;
+    return _reviewsCache;
+  }
+
+  function saveReviewsStore(st) {
+    _reviewsCache = st || { userByTutor: {}, remoteByTutor: {} };
+    try {
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem(LS_REVIEWS_KEY, JSON.stringify({ userByTutor: _reviewsCache.userByTutor }));
+      }
+    } catch (e) { /* игнор */ }
+  }
+
+  function formatReviewDate(rawDate) {
+    if (!rawDate) return "Недавно";
+    var s = String(rawDate).trim();
+    if (!/^\d{4}-\d{2}-\d{2}/.test(s)) return s;
+    try {
+      var dt = new Date(s);
+      if (!Number.isFinite(dt.getTime())) return s;
+      return dt.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+    } catch (e) {
+      return s;
+    }
+  }
+
+  function fallbackSeedReviewsForTutor(tutor) {
+    if (!tutor) return [];
+    var subj = tutor.subjectName || "предмету";
+    return [
+      {
+        id: "rev-gen-1-" + tutor.id,
+        tutorId: tutor.id,
+        studentName: "Артём Г. · 11 класс",
+        rating: 5,
+        tags: ["Понятно объясняет", "Дал план до экзамена"],
+        comment: "Пробное занятие по «" + subj + "» прошло максимально продуктивно: сразу выявили пробелы и согласовали график.",
+        createdAt: "неделю назад"
+      },
+      {
+        id: "rev-gen-2-" + tutor.id,
+        tutorId: tutor.id,
+        studentName: "Мария Н.",
+        rating: (Number(tutor.rating) || 4.9) >= 4.9 ? 5 : 4,
+        tags: ["Проверка ДЗ", "Пунктуально и по делу"],
+        comment: "Хороший темп урока и понятные разборы задач без лишней теории.",
+        createdAt: "3 недели назад"
+      }
+    ];
+  }
+
+  function snapshotTutorBase(tutor) {
+    if (!tutor) return;
+    if (tutor._baseRating == null) tutor._baseRating = Number(tutor.rating) || 4.9;
+    if (tutor._baseReviews == null) tutor._baseReviews = Math.max(0, Number(tutor.reviews) || 0);
+  }
+
+  function recomputeTutorRatingLocal(tutorId) {
+    var tutor = LIST.find(function (t) { return t.id === tutorId; });
+    if (!tutor) return null;
+    snapshotTutorBase(tutor);
+    var st = loadReviewsStore();
+    var userList = Array.isArray(st.userByTutor[tutorId]) ? st.userByTutor[tutorId] : [];
+    var baseCount = Number(tutor._baseReviews) || 0;
+    var baseRating = Number(tutor._baseRating) || 5.0;
+    if (!userList.length && !tutor._serverSummary) {
+      tutor.rating = baseRating;
+      tutor.reviews = baseCount;
+      return tutor;
+    }
+    if (tutor._serverSummary && !userList.some(function (r) { return r && !r.synced; })) {
+      tutor.rating = Number(tutor._serverSummary.rating) || baseRating;
+      tutor.reviews = Math.max(0, Number(tutor._serverSummary.reviewsCount) || 0);
+      return tutor;
+    }
+    var sum = baseRating * baseCount;
+    var totalCount = baseCount + userList.length;
+    userList.forEach(function (r) { sum += Math.max(1, Math.min(5, Number(r.rating) || 5)); });
+    tutor.reviews = totalCount;
+    tutor.rating = totalCount > 0 ? Math.round((sum / totalCount) * 10) / 10 : baseRating;
+    return tutor;
+  }
+
+  function applyAllLocalReviews() {
+    var st = loadReviewsStore();
+    Object.keys(st.userByTutor || {}).forEach(function (tid) {
+      recomputeTutorRatingLocal(tid);
+    });
+  }
+
+  function getTutorReviews(tutorId) {
+    var tid = String(tutorId || "").trim();
+    if (!tid) return [];
+    var tutor = LIST.find(function (t) { return t.id === tid; }) || null;
+    var st = loadReviewsStore();
+    var userRows = Array.isArray(st.userByTutor[tid]) ? st.userByTutor[tid] : [];
+    var remoteRows = Array.isArray(st.remoteByTutor[tid]) ? st.remoteByTutor[tid] : [];
+    var seeds = _demoMode
+      ? (Array.isArray(SEED_REVIEWS[tid]) ? SEED_REVIEWS[tid] : fallbackSeedReviewsForTutor(tutor))
+      : [];
+
+    var out = [];
+    var seen = {};
+    var seenBookings = {};
+
+    function pushRow(r, isMine) {
+      if (!r) return;
+      var rid = String(r.id || "");
+      var bkId = r.bookingId ? String(r.bookingId) : "";
+      if (rid && seen[rid]) return;
+      if (bkId && seenBookings[bkId]) return;
+      if (rid) seen[rid] = true;
+      if (bkId) seenBookings[bkId] = true;
+      out.push({
+        id: rid || ("rev-" + out.length),
+        tutorId: tid,
+        bookingId: bkId || null,
+        studentName: String(r.studentName || "Ученик"),
+        rating: Math.max(1, Math.min(5, Math.round(Number(r.rating) || 5))),
+        tags: Array.isArray(r.tags) ? r.tags.slice(0, 4) : [],
+        comment: String(r.comment || ""),
+        createdAt: formatReviewDate(r.createdAt),
+        mine: !!(r.mine || isMine)
+      });
+    }
+
+    userRows.forEach(function (r) { pushRow(r, true); });
+    remoteRows.forEach(function (r) { pushRow(r, false); });
+    seeds.forEach(function (r) { pushRow(r, false); });
+    return out;
+  }
+
+  function addTutorReview(raw) {
+    raw = raw || {};
+    var tid = String(raw.tutorId || "").trim();
+    if (!tid) return null;
+    var st = loadReviewsStore();
+    var list = Array.isArray(st.userByTutor[tid]) ? st.userByTutor[tid].slice() : [];
+    var bkId = raw.bookingId ? String(raw.bookingId) : null;
+    var item = {
+      id: String(raw.id || ("rev-" + Date.now() + "-" + Math.random().toString(36).slice(2, 5))),
+      tutorId: tid,
+      bookingId: bkId,
+      studentName: String(raw.studentName || "Вы (ученик)").trim().slice(0, 48) || "Ученик",
+      rating: Math.max(1, Math.min(5, Math.round(Number(raw.rating) || 5))),
+      tags: Array.isArray(raw.tags) ? raw.tags.slice(0, 4) : [],
+      comment: String(raw.comment || "").trim().slice(0, 600),
+      createdAt: raw.createdAt || "Только что",
+      mine: true,
+      synced: !!raw.synced
+    };
+    if (bkId) {
+      list = list.filter(function (x) { return String(x.bookingId || "") !== bkId; });
+    }
+    list.unshift(item);
+    st.userByTutor[tid] = list;
+    saveReviewsStore(st);
+    var tutor = recomputeTutorRatingLocal(tid);
+    if (raw.serverRating != null && tutor) {
+      tutor._serverSummary = {
+        rating: Number(raw.serverRating),
+        reviewsCount: Math.max(0, Number(raw.serverReviewsCount) || 0)
+      };
+      tutor.rating = tutor._serverSummary.rating;
+      tutor.reviews = tutor._serverSummary.reviewsCount;
+    }
+    return {
+      review: item,
+      tutor: tutor,
+      rating: tutor ? tutor.rating : item.rating,
+      reviewsCount: tutor ? tutor.reviews : 1
+    };
+  }
+
+  function syncTutorReviews(tutorId, list, summary) {
+    var tid = String(tutorId || "").trim();
+    if (!tid) return [];
+    var st = loadReviewsStore();
+    var remote = Array.isArray(list) ? list : [];
+    st.remoteByTutor[tid] = remote;
+    var remoteIds = {};
+    var remoteBookings = {};
+    remote.forEach(function (r) {
+      if (r && r.id) remoteIds[String(r.id)] = true;
+      if (r && r.bookingId) remoteBookings[String(r.bookingId)] = true;
+    });
+    if (Array.isArray(st.userByTutor[tid])) {
+      st.userByTutor[tid] = st.userByTutor[tid].filter(function (u) {
+        if (u && u.id && remoteIds[String(u.id)]) return false;
+        if (u && u.bookingId && remoteBookings[String(u.bookingId)]) return false;
+        return true;
+      });
+    }
+    saveReviewsStore(st);
+    if (summary && Number(summary.reviewsCount) > 0) {
+      var tutor = LIST.find(function (t) { return t.id === tid; });
+      if (tutor) {
+        snapshotTutorBase(tutor);
+        tutor._serverSummary = {
+          rating: Number(summary.rating) || tutor._baseRating,
+          reviewsCount: Math.max(0, Number(summary.reviewsCount) || 0)
+        };
+        recomputeTutorRatingLocal(tid);
+      }
+    }
+    return getTutorReviews(tid);
+  }
+
+  function applyReviewSummaries(summaryMap) {
+    if (!summaryMap || typeof summaryMap !== "object") return;
+    LIST.forEach(function (tutor) {
+      var row = summaryMap[tutor.id];
+      if (!row || typeof row !== "object") return;
+      var cnt = Number(row.reviewsCount != null ? row.reviewsCount : row.reviews_count);
+      var rt = Number(row.rating);
+      if (Number.isFinite(cnt) && cnt > 0 && Number.isFinite(rt) && rt > 0) {
+        snapshotTutorBase(tutor);
+        tutor._serverSummary = { rating: Math.round(rt * 10) / 10, reviewsCount: Math.round(cnt) };
+        recomputeTutorRatingLocal(tutor.id);
+      }
+    });
+  }
+
+  applyAllLocalReviews();
+
   EGE.tutors = {
     SUBJECTS: SUBJECTS,
+    DIRECTION_CATEGORIES: DIRECTION_CATEGORIES,
+    PREVIEW_SUBJECT_IDS: PREVIEW_SUBJECT_IDS,
+    REVIEW_TAGS: REVIEW_TAGS,
+    DISPUTE_REASONS: DISPUTE_REASONS,
     subjectsForExam: subjectsForExam,
+    slugifyDirection: slugifyDirection,
+    findDirectionMatch: findDirectionMatch,
+    registerDirection: registerDirection,
+    syncDirections: syncDirections,
+    searchDirections: searchDirections,
     PREP_UNIVERSE: PREP_UNIVERSE,
     LIVE_DEALS: LIVE_DEALS,
     CATALOG_TOTAL: CATALOG_TOTAL,
+    DEMO_MODE: _demoMode,
+    serverLoaded: _serverTutorsLoaded,
+    serverLoading: _serverTutorsLoading,
+    isDemoMode: function () { return _demoMode; },
+    setDemoMode: setDemoMode,
+    syncServerTutors: syncServerTutors,
+    syncStudentLeads: syncStudentLeads,
+    serverTutorToCard: serverTutorToCard,
     CITIES: CITIES,
     TIMEZONES: TIMEZONES,
     HOURS: HOURS,
@@ -1545,6 +2515,7 @@
     LIST: LIST,
     COMMISSION_PCT: COMMISSION_PCT,
     upsertCustomTutor: upsertCustomTutor,
+    removeCustomTutor: removeCustomTutor,
     commissionSplit: commissionSplit,
     tutorInWindow: tutorInWindow,
     buildCalendarDays: buildCalendarDays,
@@ -1568,6 +2539,10 @@
     removeStudentLead: removeStudentLead,
     markStudentLeadResponded: markStudentLeadResponded,
     resetStudentLeads: resetStudentLeads,
-    studentLeadWhatsappUrl: studentLeadWhatsappUrl
+    studentLeadWhatsappUrl: studentLeadWhatsappUrl,
+    getTutorReviews: getTutorReviews,
+    addTutorReview: addTutorReview,
+    syncTutorReviews: syncTutorReviews,
+    applyReviewSummaries: applyReviewSummaries
   };
 })();

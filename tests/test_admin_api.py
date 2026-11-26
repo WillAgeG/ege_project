@@ -58,6 +58,8 @@ def test_headless_api_app_isolation_and_cors(tmp_path: Path) -> None:
         assert client.get("/").status_code == 404
         assert client.get("/brandbook").status_code == 404
         assert client.get("/admin").status_code == 404
+        assert client.get("/terms").status_code == 404
+        assert client.get("/refunds").status_code == 404
         assert client.get("/app.js").status_code == 404
         assert client.get("/ux-ui/styles/base.css").status_code == 404
 
@@ -65,7 +67,9 @@ def test_headless_api_app_isolation_and_cors(tmp_path: Path) -> None:
 def test_admin_api_sqlite_full_flow(tmp_path: Path) -> None:
     app = create_app(_sqlite_settings(tmp_path))
     with TestClient(app) as client:
-        assert client.get("/admin").status_code == 200
+        assert client.get("/admin").status_code == 404
+        assert client.get("/views/admin.js").status_code == 404
+        assert client.get("/api/admin/ping").json() == {"ok": True, "authMode": "open"}
         assert client.get("/api/health").json() == {
             "ok": True,
             "db": "ok",
@@ -277,3 +281,36 @@ def test_admin_api_pg17_dualwrite_and_outbox(tmp_path: Path) -> None:
                         """,
                         (orig_payout["status"], orig_payout["paid_at"]),
                     )
+
+
+def test_admin_api_token_auth_and_limit_clamp(tmp_path: Path) -> None:
+    secret = "streamlit-secret-token-2027"
+    settings = Settings(
+        db_path=tmp_path / "admin_token.db",
+        admin_api_token=secret,
+        ai=AIConfig(None, None, None, None, None),
+        google=GoogleOAuthConfig(None, None),
+    )
+    app = create_api_app(settings)
+    with TestClient(app) as c_anon, TestClient(app) as c_stu, TestClient(app) as c_adm:
+        assert c_anon.get("/api/admin/ping").status_code == 401
+        assert c_anon.get("/api/admin/overview").status_code == 401
+        assert c_anon.get("/api/admin/ping", headers={"X-Admin-Token": "wrong"}).status_code == 403
+
+        r_tok = c_anon.get("/api/admin/ping", headers={"X-Admin-Token": secret})
+        assert r_tok.status_code == 200 and r_tok.json() == {"ok": True, "authMode": "token"}
+
+        r_bearer = c_anon.get("/api/admin/overview", headers={"Authorization": f"Bearer {secret}"})
+        assert r_bearer.status_code == 200 and r_bearer.json()["ok"] is True
+
+        r_users = c_anon.get("/api/admin/users?limit=99999", headers={"X-Admin-Token": secret})
+        assert r_users.status_code == 200 and r_users.json()["ok"] is True
+
+        assert c_stu.post("/api/auth/register", json={"username": "stu_tok", "password": "secret123"}).status_code == 200
+        assert c_stu.get("/api/admin/overview").status_code == 403
+
+        assert c_adm.post("/api/auth/register", json={"username": "adm_tok", "password": "secret123"}).status_code == 200
+        adm_uid = c_adm.get("/api/me").json()["user"]["id"]
+        app.state.db.admin_set_user_role(adm_uid, "admin")
+        r_sess = c_adm.get("/api/admin/ping")
+        assert r_sess.status_code == 200 and r_sess.json() == {"ok": True, "authMode": "session"}

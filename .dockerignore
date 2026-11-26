@@ -15,6 +15,7 @@ __pycache__/
 tools/
 bank/
 etl/
+admin_streamlit/
 README.md
 ARCHITECTURE.md
 ux-ui/README.md
@@ -24,3 +25,7 @@ databases/README.md
 tests/
 docs/
 .agents/
+deploy/
+backups/
+docker-compose*.yml
+.env.*

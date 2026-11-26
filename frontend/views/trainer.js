@@ -12,21 +12,21 @@
   const { icon } = EGE.ui;
 
   let CONTENT, DEFAULT_TARGETS, DIAG_PLAN_ID, INTERVALS, LETTERS, MAX_Q_MS, QUIZ_SIZE;
-  let SUBJ, SUBJECTS, SUBJECT_META, SUBJECT_NAME, TOPIC_QUIZ, TOPICS, QS;
+  let SUBJ, SUBJECTS, SUBJECT_META, SUBJECT_NAME, ALL_STUDY_SUBJECTS, STUDY_SUBJ_MAP, TOPIC_QUIZ, TOPICS, QS;
   let ai, cloud, mkt, store, ui;
   let clearActiveQuiz, codeLabel, completePlanFromQuiz, defaultName, draft, dueQs;
   let firstSubject, go, localNotice, markPlanPrep, mistakeQs, mocks, nextExam;
-  let patchDoc, planDoc, planItems, profile, prog, saveActiveQuiz, scheduleRender;
+  let patchDoc, planDoc, planItems, profile, prog, saveActiveQuiz, scheduleRender, selectedStudySubjects, selectedContentSubjects;
   let staleNotice, stepBtn, subjectStats, tile, toast, todoItem, topicRef, topicStats, totals;
 
   function configure(ctx) {
     ({
       CONTENT, DEFAULT_TARGETS, DIAG_PLAN_ID, INTERVALS, LETTERS, MAX_Q_MS, QUIZ_SIZE,
-      SUBJ, SUBJECTS, SUBJECT_META, SUBJECT_NAME, TOPIC_QUIZ, TOPICS, QS,
+      SUBJ, SUBJECTS, SUBJECT_META, SUBJECT_NAME, ALL_STUDY_SUBJECTS, STUDY_SUBJ_MAP, TOPIC_QUIZ, TOPICS, QS,
       ai, cloud, mkt, store, ui,
       clearActiveQuiz, codeLabel, completePlanFromQuiz, defaultName, draft, dueQs,
       firstSubject, go, localNotice, markPlanPrep, mistakeQs, mocks, nextExam,
-      patchDoc, planDoc, planItems, profile, prog, saveActiveQuiz, scheduleRender,
+      patchDoc, planDoc, planItems, profile, prog, saveActiveQuiz, scheduleRender, selectedStudySubjects, selectedContentSubjects,
       staleNotice, stepBtn, subjectStats, tile, toast, todoItem, topicRef, topicStats, totals
     } = ctx || {});
   }
@@ -34,25 +34,52 @@
   function viewTests(opts) {
     const embedded = !!(opts && opts.embedded);
     const prof = profile();
-    const name = prof.name || (store.ready ? defaultName() : "");
     const parts = [];
+    const activeLearnTab = ui.learnTab === "guide" ? "guide" : "subjects";
     if (embedded) {
       parts.push(`<div class="row between" style="gap:8px;flex-wrap:wrap"><h2 class="h2">Тесты ЕГЭ</h2><span class="small muted">3 предмета · ФИПИ и КИМ</span></div>`);
     } else {
-      parts.push(`<div class="head"><div><div class="eyebrow">${name ? `Привет, ${esc(name)}! · ` : ""}ЕГЭ 2027 · Тренажёр</div><h1 class="h1">Тесты ЕГЭ</h1></div><p class="lead">Отработка заданий ФИПИ по трём предметам, полные варианты КИМ и быстрый поиск по правилам без нейросети.</p></div>`);
+      parts.push(`<div class="hh-seg learn-head-seg" role="group" aria-label="Раздел учёбы">
+        <button type="button" data-a="learn-tab" data-tab="subjects" aria-pressed="${activeLearnTab === "subjects"}">Предметы и тесты</button>
+        <button type="button" data-a="learn-tab" data-tab="guide" aria-pressed="${activeLearnTab === "guide"}">Справочник</button>
+      </div>`);
       if (store.backend && store.ready && !store.user && !ui.demoAuthed) parts.push(`<div class="notice"><b>Гостевой режим.</b><span>Прогресс хранится в этом браузере. <button type="button" class="link-btn" data-a="auth-modal-open">Войти или создать аккаунт</button>, чтобы синхронизировать.</span></div>`);
       if (store.mode === "local" && !store.backend) parts.push(localNotice());
       parts.push(staleNotice());
+      if (activeLearnTab === "guide" && EGE.views.essayGuide && typeof EGE.views.essayGuide.viewTutor === "function") {
+        parts.push(EGE.views.essayGuide.viewTutor({ embedded: true }));
+        return parts.join("");
+      }
     }
 
-    const subjCards = CONTENT.map((s) => {
+    const picked = typeof selectedStudySubjects === "function" ? selectedStudySubjects(prof) : CONTENT;
+    if (!embedded) {
+      parts.push(`<div class="row between" style="gap:8px;flex-wrap:wrap"><span class="small muted">Выбранные предметы (${picked.length})</span><button type="button" class="link-btn small" data-a="go" data-v="profile">Изменить предметы</button></div>`);
+    }
+    const subjCards = picked.map((s) => {
+      const target = (prof.targets && prof.targets[s.id]) || s.target || 80;
+      const dotColor = s.color || `var(--c-${s.id})`;
+      if (!s.content) {
+        return `<article class="card stack" style="gap:12px">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <div class="row" style="gap:8px"><i class="dot" style="background:${dotColor}"></i><h2 class="h2">${esc(s.name)}</h2></div>
+            <span class="chip num">цель ${target}</span>
+          </div>
+          <div class="row between small muted" style="flex-wrap:wrap;gap:6px">
+            <span class="chip">Тренажёр скоро</span>
+          </div>
+          <p class="small ink2 prep-soon-note" style="margin:0">Задания ФИПИ по предмету в разработке — уже можно заниматься с преподавателем и отслеживать цель.</p>
+          <div class="tutor-actions">
+            <button type="button" class="btn soft" data-a="learn-find-tutor" data-sid="${s.id}">Найти репетитора</button>
+          </div>
+        </article>`;
+      }
       const st = subjectStats(s.id);
       const mis = store.ready ? mistakeQs(s.id).length : 0;
       const due = store.ready ? dueQs(s.id).length : 0;
-      const target = (prof.targets && prof.targets[s.id]) || 80;
       return `<article class="card stack" style="gap:12px">
         <div class="row between" style="gap:8px;flex-wrap:wrap">
-          <div class="row" style="gap:8px"><i class="dot" style="background:var(--c-${s.id})"></i><h2 class="h2">${esc(s.name)}</h2></div>
+          <div class="row" style="gap:8px"><i class="dot" style="background:${dotColor}"></i><h2 class="h2">${esc(s.name)}</h2></div>
           <span class="chip num">готовность ${store.ready ? st.pct + "%" : "—"} · цель ${target}</span>
         </div>
         <div class="meter"><i style="width:${st.pct}%"></i></div>
@@ -69,38 +96,42 @@
     }).join("");
     parts.push(`<div class="grid-3">${subjCards}</div>`);
 
-    parts.push(`<section class="card stack" style="gap:10px">
-      <div class="row between" style="gap:8px;flex-wrap:wrap">
-        <div>
-          <div class="eyebrow">Офлайн без нейросети</div>
-          <h2 class="h2">Справочник, формулы и сочинение</h2>
-        </div>
-        <div class="row" style="gap:8px;flex-wrap:wrap">
-          ${EGE.essay ? `<button type="button" class="btn soft sm" data-a="go" data-v="essay">Сочинение №27</button>` : ""}
-          <button type="button" class="btn sm" data-a="go" data-v="tutor">Открыть справочник</button>
-        </div>
-      </div>
-      <div class="chip-rail">
-        ${["митоз", "гидролиз", "задание 8", "клише"].map((q) => `<button type="button" class="chip-btn" data-a="tests-guide-chip" data-q="${esc(q)}">${esc(q)}</button>`).join("")}
-      </div>
-    </section>`);
-
-    parts.push(`<section class="section"><div class="section-head"><h2 class="h2">Рекомендуем сейчас</h2><button type="button" class="link-btn small" data-a="go" data-v="market">Нужен репетитор?</button></div><div class="steps">${nextSteps().map(stepBtn).join("")}</div></section>`);
+    const steps = nextSteps();
+    if (steps.length) {
+      parts.push(`<section class="section"><div class="section-head"><h2 class="h2">Рекомендуем сейчас</h2><button type="button" class="link-btn small" data-a="go" data-v="market">Нужен репетитор?</button></div><div class="steps">${steps.map(stepBtn).join("")}</div></section>`);
+    }
     parts.push(`<div class="grid-hero">${heroCard(prof)}${examsCard(prof)}</div>`);
     return parts.join("");
   }
 
-  // ---------- главная ----------
+  // ---------- общение (чаты и отклики) ----------
   function viewHome() {
-    const prof = profile();
-    const name = prof.name || (store.ready ? defaultName() : "");
     const parts = [];
-    parts.push(`<div class="head"><div class="eyebrow">Главная · ${esc(capitalize(fmtWeekday.format(new Date())))}</div><h1 class="h1">${name ? "Привет, " + esc(name) + "!" : "Главная"}</h1><p class="lead">Отклики преподавателям, статусы ответов (СМС и мессенджер) и ссылка на Яндекс Телемост.</p></div>`);
     if (store.backend && store.ready && !store.user && !ui.demoAuthed) parts.push(`<div class="notice"><b>Гостевой режим.</b><span>Прогресс сохраняется только в этом браузере. <button type="button" class="link-btn" data-a="auth-modal-open">Войти или создать аккаунт</button>, чтобы синхронизировать с сервером.</span></div>`);
     if (store.mode === "local" && !store.backend) parts.push(localNotice());
     parts.push(staleNotice());
-    if (EGE.views.marketplace && typeof EGE.views.marketplace.studentHomeBidsHTML === "function") {
-      parts.push(EGE.views.marketplace.studentHomeBidsHTML());
+    const activeCommTab = ui.commTab === "bids" ? "bids" : "chats";
+    const mApi = EGE.views.messenger;
+    const mktApi = EGE.views.marketplace;
+    const commCounts = mApi && typeof mApi.commBadgeCounts === "function"
+      ? mApi.commBadgeCounts()
+      : {
+          chats: mApi && typeof mApi.totalUnreadCount === "function" ? Math.max(0, Number(mApi.totalUnreadCount()) || 0) : 0,
+          bids: (Array.isArray(mkt().bookings) ? mkt().bookings : []).filter((b) => b && !["cancelled", "declined"].includes(String(b.status || "").toLowerCase())).length
+        };
+    const chatsCnt = Math.max(0, Number(commCounts.chats) || 0);
+    const bidsCnt = Math.max(0, Number(commCounts.bids) || 0);
+    const fmtPlus = (n) => (n > 99 ? "99+" : "+" + n);
+    parts.push(`<div class="hh-seg comm-head-seg" role="group" aria-label="Раздел общения">
+      <button type="button" data-a="comm-tab" data-tab="chats" aria-pressed="${activeCommTab === "chats"}"><span>Чаты</span>${chatsCnt > 0 ? `<span class="comm-seg-badge num" aria-label="${chatsCnt} новых в чатах">${fmtPlus(chatsCnt)}</span>` : ""}</button>
+      <button type="button" data-a="comm-tab" data-tab="bids" aria-pressed="${activeCommTab === "bids"}"><span>Отклики</span>${bidsCnt > 0 ? `<span class="comm-seg-badge num" aria-label="${bidsCnt} откликов">${fmtPlus(bidsCnt)}</span>` : ""}</button>
+    </div>`);
+    if (activeCommTab === "bids") {
+      if (mktApi && typeof mktApi.studentHomeBidsHTML === "function") {
+        parts.push(mktApi.studentHomeBidsHTML());
+      }
+    } else if (mApi && typeof mApi.renderCommWorkspaceHTML === "function") {
+      parts.push(mApi.renderCommWorkspaceHTML({ compact: false }));
     }
     return parts.join("");
   }
@@ -121,6 +152,12 @@
     return `<div class="grid-hero" id="study-overview-cards">${heroCard(prof)}${quickNavCard}</div>`;
   }
   function onboardingCard() {
+    const prof = profile();
+    const pickedIds = Array.isArray(ui.drafts && ui.drafts["ob.subjects"]) && ui.drafts["ob.subjects"].length
+      ? ui.drafts["ob.subjects"]
+      : (Array.isArray(prof.subjects) && prof.subjects.length ? prof.subjects : SUBJECT_META.map((s) => s.id));
+    const catalog = ALL_STUDY_SUBJECTS || SUBJECTS;
+    const pickedMeta = pickedIds.map((id) => (STUDY_SUBJ_MAP && STUDY_SUBJ_MAP[id]) || catalog.find((s) => s.id === id)).filter(Boolean);
     const cloudText = store.mode === "cloud"
       ? (store.backend
           ? "Прогресс сохраняется на сервере и привязан к твоему аккаунту: открой сайт с любого устройства под своим логином, и всё будет на месте."
@@ -131,9 +168,22 @@
       <h2 class="h2">Давай настроим подготовку</h2>
       <p class="ink2">${cloudText}</p>
       ${store.user ? "" : `<div class="field"><label for="ob-name">Как к тебе обращаться</label><input class="input" id="ob-name" data-d="ob.name" value="${esc(draft("ob.name", defaultName()))}" maxlength="40"></div>`}
-      <div class="label">Целевые баллы ЕГЭ</div>
-      <div class="fields">${SUBJECT_META.map((s) => `<div class="field"><label for="ob-${s.id}">${esc(s.name)}</label><input class="input num" type="number" min="0" max="100" inputmode="numeric" id="ob-${s.id}" data-d="ob.${s.id}" value="${esc(draft("ob." + s.id, DEFAULT_TARGETS[s.id]))}"></div>`).join("")}</div>
-      <p class="hint">Ориентир: сумма по трём предметам — до 300 баллов (обычно цель ставят от 220+). Целевые баллы можно поменять позже в настройках.</p>
+      <div class="label">Выбери предметы для подготовки</div>
+      <div class="chip-rail prep-subj-picker" role="group" aria-label="Предметы для подготовки">
+        ${catalog.map((s) => {
+          const on = pickedIds.includes(s.id);
+          return `<button type="button" class="chip-btn prep-subj-chip${on ? " on" : ""}" data-a="ob-subj-toggle" data-sid="${s.id}" aria-pressed="${on}"><i class="dot" style="background:${s.color || `var(--c-${s.id})`}"></i><span>${esc(s.name)}</span></button>`;
+        }).join("")}
+      </div>
+      <p class="hint">Выбранные предметы сразу появятся в разделе «Учёба». По биологии, русскому и химии уже доступны интерактивные тесты и справочник.</p>
+      <div class="stu-notch-group">
+        <div class="label">Целевые баллы ЕГЭ</div>
+        <div class="stu-notch-grid">${pickedMeta.map((s) => {
+          const fb = (prof.targets && prof.targets[s.id] != null) ? prof.targets[s.id] : (DEFAULT_TARGETS[s.id] || s.target || 80);
+          return `<fieldset class="stu-notch-field"><legend><label for="ob-${s.id}">${esc(s.name)}</label></legend><input class="stu-notch-input num" type="number" min="0" max="100" inputmode="numeric" id="ob-${s.id}" data-d="ob.${s.id}" value="${esc(draft("ob." + s.id, fb))}"></fieldset>`;
+        }).join("")}</div>
+      </div>
+      <p class="hint">Выбрано предметов: ${pickedMeta.length} · максимум ${pickedMeta.length * 100} баллов. Набор предметов и цели можно изменить в профиле.</p>
       <div><button class="btn" type="submit">Начать подготовку</button></div>
     </form>`;
   }
@@ -143,15 +193,19 @@
     return `<div class="row" style="gap:6px">${tot.streak ? `<span class="chip good">Серия: ${days(tot.streak)}</span>` : ""}${tot.today ? `<span class="chip accent">Сегодня: ${minutesText(tot.today)}</span>` : ""}</div>`;
   }
   function heroCard(prof) {
+    const picked = typeof selectedStudySubjects === "function" ? selectedStudySubjects(prof) : SUBJECTS;
+    const pickedContent = typeof selectedContentSubjects === "function" ? selectedContentSubjects(prof) : CONTENT;
+    const firstPickedSid = pickedContent[0] ? pickedContent[0].id : "";
     const apply = planItems().find((i) => i.id === "ege-apply");
     const meta = heroMetaRow();
-    const goSubjBtn = CONTENT.length ? `<button type="button" class="btn ghost" data-a="go" data-v="subject" data-sid="${ui.sid}">К тренировкам</button>` : "";
+    const goSubjBtn = firstPickedSid ? `<button type="button" class="btn ghost" data-a="go" data-v="subject" data-sid="${firstPickedSid}">К тренировкам</button>` : "";
+    const subjListTxt = picked.map((s) => s.name).join(", ");
     if (apply && !apply.done && validISO(apply.due) && daysUntil(apply.due) >= 0) {
       const n = daysUntil(apply.due);
       return `<section class="hero" aria-label="Главный срок">
         <div class="row between"><span class="eyebrow">Главный срок</span>${meta}</div>
         <div class="hero-figure">${n === 0 ? '<span class="hero-num">Сегодня</span>' : `<span class="hero-num num">${n}</span><span class="hero-unit">${plural(n, "день", "дня", "дней")}</span>`}</div>
-        <p class="hero-text">${n === 0 ? "последний день" : "до " + dateDay(apply.due) + ", последнего дня"} подачи заявления на ЕГЭ по химии, биологии и русскому языку. Возьми паспорт и аттестат.</p>
+        <p class="hero-text">${n === 0 ? "последний день" : "до " + dateDay(apply.due) + ", последнего дня"} подачи заявления на ЕГЭ (${esc(subjListTxt)}). Возьми паспорт и аттестат.</p>
         <div class="row"><button type="button" class="btn" data-a="go" data-v="plan">Открыть план</button>${goSubjBtn}</div>
       </section>`;
     }
@@ -187,23 +241,24 @@
   }
   function nextSteps() {
     const steps = [];
+    const pool = typeof selectedContentSubjects === "function" ? selectedContentSubjects() : CONTENT;
     if (ui.quiz && !ui.quiz.done) steps.push({ a: "go", v: "quiz", ico: "arrow", tone: "leaf", title: "Вернуться к тесту", sub: `${ui.quiz.title} · вопрос ${ui.quiz.i + 1} из ${ui.quiz.items.length}` });
     if (store.ready) {
       const pd = planDoc();
-      CONTENT.forEach((s) => {
+      pool.forEach((s) => {
         if (subjectStats(s.id).seen === 0 && !pd.done[DIAG_PLAN_ID[s.id]]) steps.push({ a: "quiz-mixed", sid: s.id, ico: "spark", tone: "leaf", title: "Пройди диагностический тест " + SUBJ[s.id].po, sub: QUIZ_SIZE + " вопросов по всем разделам — результат сразу отметится в плане" });
       });
     }
-    CONTENT.forEach((s) => {
+    pool.forEach((s) => {
       const due = dueQs(s.id).length;
       if (due) steps.push({ a: "quiz-review", sid: s.id, ico: "repeat", title: `Повтори ${due} ${plural(due, "вопрос", "вопроса", "вопросов")} · ${s.name}`, sub: "Интервальное повторение: пора закрепить пройденное" });
     });
-    CONTENT.forEach((s) => {
+    pool.forEach((s) => {
       const mis = mistakeQs(s.id).length;
       if (mis) steps.push({ a: "quiz-mistakes", sid: s.id, ico: "alert", tone: "warn", title: `Работа над ошибками · ${s.name} · ${mis}`, sub: "Вопросы, где ответ был неверным" });
     });
     // Следующая тема — в предмете, где готовность ниже.
-    const order = CONTENT.slice().sort((a, b) => subjectStats(a.id).pct - subjectStats(b.id).pct);
+    const order = pool.slice().sort((a, b) => subjectStats(a.id).pct - subjectStats(b.id).pct);
     for (const s of order) {
       const nt = SUBJ[s.id].topicList.find((t) => topicStats(t).pct < 90);
       if (!nt) continue;
@@ -229,17 +284,25 @@
     </section>`;
   }
   function examsCard(prof) {
-    const rows = (EGE.exams || []).map((e) => ({ subject: e.subject, name: e.name, date: prof.exams[e.subject] || e.date }))
-      .filter((r) => validISO(r.date)).sort((a, b) => (a.date < b.date ? -1 : 1));
-    const sum = SUBJECT_META.reduce((n, s) => n + (Number(prof.targets[s.id]) || 0), 0);
+    const picked = typeof selectedStudySubjects === "function" ? selectedStudySubjects(prof) : SUBJECT_META;
+    const baseDates = {};
+    (EGE.exams || []).forEach((e) => { baseDates[e.subject] = e.date; });
+    const rows = picked.map((s) => ({
+      subject: s.id,
+      name: s.name,
+      color: s.color || `var(--c-${s.id})`,
+      date: (prof.exams && prof.exams[s.id]) || baseDates[s.id] || s.examDate || ""
+    })).filter((r) => validISO(r.date)).sort((a, b) => (a.date < b.date ? -1 : 1));
+    const sum = picked.reduce((n, s) => n + (Number((prof.targets && prof.targets[s.id]) != null ? prof.targets[s.id] : (s.target || 80)) || 0), 0);
     return `<section class="card stack">
       <div class="row between"><h2 class="h2">Экзамены</h2><button type="button" class="link-btn" data-a="go" data-v="profile">Изменить даты</button></div>
       <div>${rows.map((r) => {
         const n = daysUntil(r.date);
         const chip = n < 0 ? '<span class="chip">прошёл</span>' : n === 0 ? '<span class="chip bad">сегодня</span>' : `<span class="chip${n <= 30 ? " warn" : ""}">через ${days(n)}</span>`;
-        return `<div class="exam-row"><i class="dot" style="background:var(--c-${r.subject})"></i><div><div class="entry-title">${esc(r.name)}</div><div class="small muted">${dateLong(r.date)} · цель ${prof.targets[r.subject]}</div></div>${chip}</div>`;
+        const tgtVal = (prof.targets && prof.targets[r.subject] != null) ? prof.targets[r.subject] : 80;
+        return `<div class="exam-row"><i class="dot" style="background:${r.color}"></i><div><div class="entry-title">${esc(r.name)}</div><div class="small muted">${dateLong(r.date)} · цель ${tgtVal}</div></div>${chip}</div>`;
       }).join("")}</div>
-      <div class="hint">Даты по проекту расписания ЕГЭ-2027. Сумма целей — ${sum} из 300.</div>
+      <div class="hint">Даты по проекту расписания ЕГЭ-2027. Сумма целей — ${sum} из ${picked.length * 100}.</div>
     </section>`;
   }
   function activityCard() {
@@ -259,11 +322,13 @@
     const st = subjectStats(sid), prof = profile();
     const ex = prof.exams[sid], n = validISO(ex) ? daysUntil(ex) : null;
     const due = dueQs(sid).length, mis = mistakeQs(sid).length;
-    const soon = SUBJECTS.filter((x) => !x.content);
-    const switcher = CONTENT.length > 1
-      ? `<div class="switch" role="group" aria-label="Предмет">${SUBJECTS.map((x) => x.content
-        ? `<button type="button" data-a="go" data-v="subject" data-sid="${x.id}" aria-pressed="${x.id === sid}"><i class="dot" style="background:var(--c-${x.id})"></i><span>${esc(x.name)}</span><span class="small num" style="opacity:.75">${subjectStats(x.id).pct}%</span></button>`
-        : `<button type="button" disabled>${esc(x.name)} · скоро</button>`).join("")}</div>`
+    const switcherList = (typeof selectedContentSubjects === "function" ? selectedContentSubjects(prof) : CONTENT).slice();
+    if (s && !switcherList.some((x) => x.id === sid)) {
+      const curMeta = SUBJECTS.find((x) => x.id === sid);
+      if (curMeta) switcherList.push(curMeta);
+    }
+    const switcher = switcherList.length > 1
+      ? `<div class="switch" role="group" aria-label="Предмет">${switcherList.map((x) => `<button type="button" data-a="go" data-v="subject" data-sid="${x.id}" aria-pressed="${x.id === sid}"><i class="dot" style="background:${x.color || `var(--c-${x.id})`}"></i><span>${esc(x.name)}</span><span class="small num" style="opacity:.75">${subjectStats(x.id).pct}%</span></button>`).join("")}</div>`
       : "";
     const qNorm = norm(ui.subjQ);
     const totalTopics = s.topicList.length;
@@ -310,8 +375,7 @@
         </div>
       </section>
       ${filteredSecs.length ? filteredSecs.map((x) => `<section class="section-block"><div class="section-title"><span class="section-num">Раздел ${x.sec.n}</span><h2 class="h2">${esc(x.sec.title)}</h2></div><div class="slides">${x.topics.map(slide).join("")}</div></section>`).join("") : `<div class="empty"><b>Темы не найдены</b><span>В этом фильтре тем нет — попробуй другой запрос.</span><button type="button" class="btn ghost sm" data-a="subj-clear">Сбросить фильтр</button></div>`}
-      <section class="card stack"><h2 class="h2">Где ещё тренироваться</h2><div class="stack">${s.links.map((l) => `<a href="${esc(l.href)}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join("")}</div></section>
-      ${soon.length ? `<div class="empty"><b>${esc(soon.map((x) => x.name).join(", "))}</b><span>Появится здесь позже — с такими же темами, тестами и прогрессом. Пока записывай занятия в «Показатели».</span></div>` : ""}`;
+      <section class="card stack"><h2 class="h2">Где ещё тренироваться</h2><div class="stack">${s.links.map((l) => `<a href="${esc(l.href)}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join("")}</div></section>`;
   }
   function sectionBlock(sec) {
     return `<section class="section-block"><div class="section-title"><span class="section-num">Раздел ${sec.n}</span><h2 class="h2">${esc(sec.title)}</h2></div><div class="slides">${sec.topics.map(slide).join("")}</div></section>`;
@@ -1163,7 +1227,6 @@
       const t = TOPICS[el.dataset.id], read = !!prog(t.sid).th[t.id];
       patchDoc("prog-" + t.sid, { th: { [t.id]: read ? null : Date.now() } });
       if (!read) markPlanPrep(t.sid, "Прочитана теория: " + t.title);
-      toast(read ? "Отметка снята" : "Теория отмечена как прочитанная");
     },
     "gen-ai": (el) => generateQuestions(el.dataset.id),
     "gen-stop": () => { if (ui.gen && ui.gen.ctl) ui.gen.ctl.abort(); ui.gen = null; scheduleRender(); },

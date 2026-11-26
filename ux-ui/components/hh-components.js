@@ -14,10 +14,14 @@
     const total = Math.max(0, Math.round(Number(price) || 0));
     const sp = (TDATA && typeof TDATA.commissionSplit === "function")
       ? TDATA.commissionSplit(total)
-      : { total, payout: Math.round(total * 0.95), fee: total - Math.round(total * 0.95), pct: 5 };
+      : { total, fee: Math.round(total * 0.05), sbpFee: Math.round(total * 0.01), payout: Math.max(0, total - Math.round(total * 0.05) - Math.round(total * 0.01)), pct: 5, sbpPct: 1 };
+    const sbpFee = Number.isFinite(Number(sp.sbpFee)) ? Number(sp.sbpFee) : Math.round(total * 0.01);
+    const sbpPct = Number.isFinite(Number(sp.sbpPct)) ? Number(sp.sbpPct) : 1;
+    const netPct = Math.max(0, 100 - (Number(sp.pct) || 5) - sbpPct);
     return `<div class="fee-pill"><span>Ученик платит</span><b class="num">${sp.total.toLocaleString("ru-RU")} ₽/ч</b></div>
-      <div class="fee-pill"><span>Преподавателю (95%)</span><b class="num">${sp.payout.toLocaleString("ru-RU")} ₽</b></div>
-      <div class="fee-pill"><span>Комиссия сервиса (${sp.pct}%)</span><b class="num">${sp.fee.toLocaleString("ru-RU")} ₽</b></div>`;
+      <div class="fee-pill"><span>Преподавателю (${netPct}%)</span><b class="num">${sp.payout.toLocaleString("ru-RU")} ₽</b></div>
+      <div class="fee-pill"><span>Комиссия сервиса (${sp.pct}%)</span><b class="num">${sp.fee.toLocaleString("ru-RU")} ₽</b></div>
+      <div class="fee-pill"><span>Шлюз СБП (${sbpPct}%)</span><b class="num">${sbpFee.toLocaleString("ru-RU")} ₽</b></div>`;
   }
 
   function bidBtnLabelHTML(sent, price) {

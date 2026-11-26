@@ -63,11 +63,12 @@ python3 -m venv .venv-etl
 | `essays` | сохранённые сочинения и баллы ИИ К1–К10 |
 | `log-ГГГГ-ММ` | учебный журнал занятий |
 
-## Деплой на Railway и CI/CD
+## Деплой (РФ 152-ФЗ и Railway)
 
-- [`Dockerfile`](Dockerfile) собирает тонкий образ (Python 3.13 + `ux-ui/`, `frontend/`, `backend/`, `databases/`), запуская `uvicorn backend.main:app --workers 1` с постоянным томом `RAILWAY_VOLUME_MOUNT_PATH` для SQLite.
+- **Прод-контур в РФ (`Selectel` / `Timeweb Cloud` / `Yandex Cloud`):** [`docker-compose.yml`](docker-compose.yml) поднимает связку `FastAPI` + `PostgreSQL 17` (в изолированной сети `backend_internal`) + `Streamlit`-админку + `Caddy 2.9` с авто-HTTPS (либо профиль [`Nginx + Certbot`](deploy/nginx/docker-compose.nginx.yml)). Подробная инструкция, preflight-проверка (`deploy/scripts/preflight_rf.sh`) и бэкапы (`deploy/scripts/backup_postgres.sh`) — в **[`docs/DEPLOY_RF_152FZ.md`](docs/DEPLOY_RF_152FZ.md)** и [`.env.prod.example`](.env.prod.example).
+- [`Dockerfile`](Dockerfile) собирает тонкий non-root образ (Python 3.13 + `ux-ui/`, `frontend/`, `backend/`, `databases/`), запуская `uvicorn backend.main:app --workers 1` с постоянным томом `/data` (`RAILWAY_VOLUME_MOUNT_PATH` для Railway).
 - [`.github/workflows/ci.yml`](.github/workflows/ci.yml) на каждом push / PR запускает `pytest -q` и `node tests/check_app.js`.
-- Настройки ИИ (`GEMINI_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `OPENROUTER_API_KEY`), `INVITE_CODE` и `GOOGLE_CLIENT_*` задаются в Railway Variables (см. [`.env.example`](.env.example)).
+- Настройки ИИ (`GEMINI_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `OPENROUTER_API_KEY`), `INVITE_CODE` и `GOOGLE_CLIENT_*` задаются в переменных окружения (см. [`.env.example`](.env.example) и [`.env.prod.example`](.env.prod.example)).
 
 ## Документация архитектуры и стека
 

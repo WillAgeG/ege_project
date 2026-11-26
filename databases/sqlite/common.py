@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
 import hmac
+import ipaddress
 import json
 from pathlib import Path
 import re
@@ -12,6 +13,7 @@ import sqlite3
 import threading
 import time
 from typing import Any
+from urllib.parse import urlsplit
 
 DOC_NAME_RE = re.compile(
     r"^(profile|plan|mocks|essays|market|tutor-cabinet|calendar-sync|prog-[a-z]+|log-\d{4}-\d{2})$"
@@ -159,13 +161,22 @@ def validate_display_name(raw: str | None) -> str:
     return re.sub(r"\s+", " ", (raw or "").strip())[:40]
 
 
+def calc_sbp_fee(gross_rub: int) -> int:
+    """Комиссия банковского шлюза СБП 1% (half-away-from-zero)."""
+    gross = int(gross_rub or 0)
+    if gross <= 0:
+        return 0
+    return (gross * 1 + 50) // 100
+
+
 def calc_fee_split(gross_rub: int) -> tuple[int, int]:
-    """Точный 5% расчёт (half-away-from-zero), идентичный PostgreSQL ROUND(gross_rub::numeric * 0.05)."""
+    """Точный расчёт выплаты 94% (5% сервис + 1% СБП, half-away-from-zero)."""
     gross = int(gross_rub or 0)
     if gross <= 0:
         return 0, 0
     fee = (gross * 5 + 50) // 100
-    return fee, gross - fee
+    sbp = calc_sbp_fee(gross)
+    return fee, max(0, gross - fee - sbp)
 
 
 def validate_hour_slot(raw: str | None, *, default: str | None = None) -> str:
@@ -183,12 +194,51 @@ def validate_telemost_url(raw: str | None) -> str:
     val = (raw or "").strip()
     if not val:
         return ""
-    if val.lower().startswith("telemost.yandex."):
-        val = "https://" + val
-    if len(val) > 512 or not re.match(r"^https://telemost\.yandex\.(ru|com)/[A-Za-z0-9_/?=&.\-%#]+$", val, re.IGNORECASE):
+    if len(val) > 512 or any(ch.isspace() or ord(ch) < 32 or ch in "<>\"'" for ch in val):
         raise StorageError(
             "invalid_telemost_url",
-            "Укажите корректную ссылку Яндекс Телемост (https://telemost.yandex.ru/...).",
+            "Укажите корректную https-ссылку на видеозвонок (Яндекс Телемост, Zoom, Google Meet, VK Звонки и др.).",
+            400,
+        )
+    if "://" not in val and ":" not in val.split("/", 1)[0]:
+        if re.match(r"^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+(?:[/?#].*)?$", val):
+            val = "https://" + val
+    try:
+        parsed = urlsplit(val)
+    except ValueError as exc:
+        raise StorageError(
+            "invalid_telemost_url",
+            "Укажите корректную https-ссылку на видеозвонок (Яндекс Телемост, Zoom, Google Meet, VK Звонки и др.).",
+            400,
+        ) from exc
+    host = (parsed.hostname or "").strip().lower().rstrip(".")
+    invalid = (
+        parsed.scheme.lower() != "https"
+        or parsed.username is not None
+        or parsed.password is not None
+        or not host
+        or host == "localhost"
+        or host.endswith((".local", ".internal", ".localhost"))
+        or "." not in host
+    )
+    if not invalid:
+        try:
+            ipaddress.ip_address(host)
+            invalid = True
+        except ValueError:
+            pass
+    if not invalid and (
+        not re.fullmatch(
+            r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+",
+            host,
+        )
+        or not re.fullmatch(r"[a-z]{2,24}", host.rsplit(".", 1)[-1])
+    ):
+        invalid = True
+    if invalid:
+        raise StorageError(
+            "invalid_telemost_url",
+            "Укажите корректную https-ссылку на видеозвонок (Яндекс Телемост, Zoom, Google Meet, VK Звонки и др.).",
             400,
         )
     return val
@@ -301,6 +351,122 @@ def mask_payout_destination(method: str, raw: str) -> str:
     return (raw or "").strip()[:32] or "СБП"
 
 
+_TRANSLIT_RU = {
+    "а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ё": "e",
+    "ж": "zh", "з": "z", "и": "i", "й": "y", "к": "k", "л": "l", "м": "m",
+    "н": "n", "о": "o", "п": "p", "р": "r", "с": "s", "т": "t", "у": "u",
+    "ф": "f", "х": "h", "ц": "ts", "ч": "ch", "ш": "sh", "щ": "sch", "ъ": "",
+    "ы": "y", "ь": "", "э": "e", "ю": "yu", "я": "ya",
+}
+
+
+def clean_direction_label(raw: Any, *, max_len: int = 60) -> str:
+    text = re.sub(r"[<>]", "", str(raw or ""))
+    return re.sub(r"\s+", " ", text).strip()[:max_len]
+
+
+def slugify_direction(label: str) -> str:
+    src = clean_direction_label(label).lower()
+    out_chars: list[str] = []
+    for ch in src:
+        if ch in _TRANSLIT_RU:
+            out_chars.append(_TRANSLIT_RU[ch])
+        elif ("a" <= ch <= "z") or ("0" <= ch <= "9"):
+            out_chars.append(ch)
+        else:
+            out_chars.append("-")
+    slug = re.sub(r"-+", "-", "".join(out_chars)).strip("-")[:36]
+    if not slug or slug.isdigit():
+        slug = f"dir-{slug or 'custom'}"
+    return slug
+
+
+def normalize_direction_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    raw_short = clean_direction_label(payload.get("short") or payload.get("name") or "")
+    raw_name = clean_direction_label(payload.get("name") or raw_short)
+    label = raw_short or raw_name
+    if len(label) < 2:
+        raise StorageError("invalid_direction", "Название направления должно содержать минимум 2 символа.", 400)
+    full_name = raw_name if len(raw_name) >= 2 else label
+    short_label = (label[:33].strip() + "…") if len(label) > 34 else label
+    raw_id = re.sub(r"[^a-z0-9_-]", "", str(payload.get("id") or "").strip().lower())[:36]
+    dir_id = raw_id if len(raw_id) >= 2 else slugify_direction(short_label)
+    category = clean_direction_label(payload.get("category") or "", max_len=48) or "Добавлено оркестратором"
+    source_raw = str(payload.get("source") or "orchestrator").strip().lower()
+    source = "orchestrator" if source_raw not in ("base", "user", "orchestrator") else source_raw
+    kw_list: list[str] = []
+    seen_kw: set[str] = set()
+    for item in payload.get("keywords") or []:
+        kw = clean_direction_label(item, max_len=36).lower()
+        if kw and kw not in seen_kw:
+            seen_kw.add(kw)
+            kw_list.append(kw)
+        if len(kw_list) >= 12:
+            break
+    tutor_count = max(0, int(payload.get("tutorCount") or payload.get("tutor_count") or 0))
+    return {
+        "id": dir_id,
+        "name": full_name,
+        "short": short_label,
+        "category": category,
+        "is_exam": bool(payload.get("isExam")),
+        "source": source,
+        "keywords": kw_list,
+        "tutor_count": tutor_count,
+    }
+
+
+DISPUTE_REASONS = (
+    "first_lesson_guarantee",
+    "no_show",
+    "quality",
+    "tech_issue",
+    "other",
+)
+
+
+def normalize_review_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    try:
+        rating = int(payload.get("rating"))
+    except (TypeError, ValueError):
+        rating = 0
+    if not (1 <= rating <= 5):
+        raise StorageError("invalid_rating", "Оценка должна быть от 1 до 5 звёзд.", 400)
+    comment = clean_direction_label(payload.get("comment") or "", max_len=600)
+    booking_id = clean_direction_label(payload.get("bookingId") or payload.get("booking_id") or "", max_len=64) or None
+    student_name = clean_direction_label(payload.get("studentName") or "", max_len=64)
+    tags: list[str] = []
+    seen_tags: set[str] = set()
+    for item in payload.get("tags") or []:
+        t = clean_direction_label(item, max_len=36)
+        tl = t.lower()
+        if t and tl not in seen_tags:
+            seen_tags.add(tl)
+            tags.append(t)
+        if len(tags) >= 4:
+            break
+    return {
+        "rating": rating,
+        "comment": comment,
+        "booking_id": booking_id,
+        "student_name": student_name,
+        "tags": tags,
+    }
+
+
+def normalize_dispute_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    raw_reason = str(payload.get("reason") or "first_lesson_guarantee").strip().lower()
+    reason = raw_reason if raw_reason in DISPUTE_REASONS else "other"
+    comment = clean_direction_label(payload.get("comment") or "", max_len=600)
+    if len(comment) < 4:
+        raise StorageError("invalid_dispute", "Опишите причину спора (минимум 4 символа).", 400)
+    return {
+        "reason": reason,
+        "comment": comment,
+        "first_lesson_guarantee": payload.get("firstLessonGuarantee", True) is not False,
+    }
+
+
 @dataclass(frozen=True)
 class User:
     id: int
@@ -310,6 +476,73 @@ class User:
     avatar_url: str | None = None
     auth_provider: str = "local"
     role: str = "student"
+
+
+def clean_custom_badges(raw: Any) -> list[str]:
+    if not isinstance(raw, list):
+        return []
+    out: list[str] = []
+    for item in raw:
+        label = clean_direction_label(item, max_len=36)
+        if label and label not in out:
+            out.append(label)
+        if len(out) >= 2:
+            break
+    return out
+
+
+def normalize_tutor_profile_payload(payload: dict[str, Any], *, fallback_name: str = "") -> dict[str, Any]:
+    raw_name = str(payload.get("name") or payload.get("fullName") or fallback_name or "").strip()[:80]
+    if len(raw_name) < 2:
+        raise StorageError("invalid_name", "Укажите имя и фамилию преподавателя (минимум 2 символа).", 400)
+    norm_city, norm_tz = normalize_city_tz(payload.get("city"), payload.get("timezone"))
+    base_rate = max(100, min(99999, int(payload.get("price") or payload.get("baseRateRub") or 1200)))
+    market_rate = max(
+        base_rate,
+        int(payload.get("marketPrice") or payload.get("marketRateRub") or ((base_rate * 128 + 50) // 100)),
+    )
+    raw_min_fair = payload.get("minFair")
+    if raw_min_fair not in (None, ""):
+        try:
+            min_fair: int | None = max(0, min(base_rate, int(raw_min_fair)))
+        except (TypeError, ValueError):
+            min_fair = None
+    else:
+        min_fair = None
+    subjects = payload.get("subjects") if isinstance(payload.get("subjects"), list) else []
+    clean_subjects = [str(s).strip()[:32] for s in subjects if str(s).strip()][:8]
+    subject_label = str(
+        payload.get("subjectName") or payload.get("subject") or (clean_subjects[0] if clean_subjects else "Биология")
+    ).strip()[:64]
+    exams = [str(x).strip()[:32] for x in (payload.get("exams") or ["ЕГЭ"]) if str(x).strip()][:5] or ["ЕГЭ"]
+    formats = [str(x).strip()[:32] for x in (payload.get("formats") or ["Онлайн"]) if str(x).strip()][:4] or ["Онлайн"]
+    raw_slots = payload.get("slots") if isinstance(payload.get("slots"), dict) else {}
+    clean_slots: dict[str, list[str]] = {}
+    for dow_key, hours_val in raw_slots.items():
+        try:
+            dow_num = int(dow_key)
+        except (TypeError, ValueError):
+            continue
+        if 0 <= dow_num <= 6 and isinstance(hours_val, list):
+            valid_hrs = sorted({validate_hour_slot(str(h)) for h in hours_val if str(h).strip()})
+            if valid_hrs:
+                clean_slots[str(dow_num)] = valid_hrs
+    return {
+        "full_name": raw_name,
+        "norm_city": norm_city,
+        "norm_tz": norm_tz,
+        "base_rate": base_rate,
+        "market_rate": market_rate,
+        "min_fair": min_fair,
+        "clean_subjects": clean_subjects,
+        "subject_label": subject_label,
+        "exams": exams,
+        "formats": formats,
+        "clean_slots": clean_slots,
+        "custom_badges": clean_custom_badges(payload.get("customBadges")),
+        "has_published": ("published" in payload and payload["published"] is not None),
+        "published": bool(payload.get("published")) if payload.get("published") is not None else True,
+    }
 
 
 def _row_to_user(row: sqlite3.Row) -> User:

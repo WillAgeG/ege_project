@@ -18,7 +18,8 @@
     TC_LS_KEY, DAY_MS, FOUR_HOURS_MS, DAY_LIST, EXAM_OPTIONS, FORMAT_OPTIONS,
     CITY_OPTIONS, TZ_OPTIONS, WA_LEAD_OPTIONS, DEFAULT_WA_LEADS, AUTO_CHANNELS, AUTO_BUMP_HOURS,
     GOAL_PRESETS, QUICK_TEMPLATES, DEFAULT_REQUESTS, DEFAULT_STUDENTS,
-    SAMPLE_GCAL_ICS, MIN_PAYOUT_RUB, PAYOUT_BANKS,
+    SAMPLE_GCAL_ICS, MIN_PAYOUT_RUB, PAYOUT_BANKS, validateInn12,
+    isDevDemoMode, setDemoMode, hydrateFromBackend, ensureServerHydrated, resetSession,
     getCtx, configure, getTDATA, getTutorSlug, syncTutorCalendar, publishRtUpdate,
     formatPhone, formatTelegram, formatCardMask, normalizeChannelList, normalizeLeadList,
     copyStr, formatTimestamp, defaultState, tState, saveState,
@@ -27,12 +28,15 @@
     checkAutoBumpDue, formatCountdown, autoBumpRemainingMs, manualBumpRemainingMs,
     payRemindRemainingMs, markPayRemindAnim,
     ensureCountdownTimer, ensureRealtimeConnected, clampStep, profileCompleteness,
-    buildMarketTutorPayload, syncPublishedTutor, dayDowFromLabel, syncedRequests,
+    buildMarketTutorPayload, normalizeSlotsMap, countSlots, mergeAllProfileSlots,
+    createEmptySearchProfile, getEditingSearchProfile, syncProfileMirror, applyServerProfile, applyServerProfiles,
+    syncPublishedTutor, dayDowFromLabel, syncedRequests,
     findReq, updateReq, pendingCount, calcLessonSplit, renderDataTable, getTab, setTab, toggleArrayVal
   } = TC;
 
   const { renderCalendarTab, renderLeadsTab, formatWaReminderText, studentWaHref, studentReminderUrl } = TC;
   const { renderPayoutStatsBlocks, renderPayoutWalletSection, renderPayoutHistorySection, getWalletSummary, sideBalanceWidgetHTML, desktopDockHTML, mobileTopWidgetHTML, payoutModalHTML, submitPayout, viewPayouts } = TC;
+  let tcNameSaveTimer = null;
 
   function renderTutorScheduleBotHTML(req, st) {
     const sp = req && req.schedulePlan;
@@ -95,20 +99,24 @@
       ? calcLessonSplit(bidRate, req, TDATA)
       : (TDATA && typeof TDATA.commissionSplit === "function"
         ? TDATA.commissionSplit(bidRate)
-        : { total: bidRate, fee: Math.round(bidRate * 0.05), payout: Math.round(bidRate * 0.95), pct: 5 });
+        : { total: bidRate, fee: Math.round(bidRate * 0.05), sbpFee: Math.round(bidRate * 0.01), payout: Math.max(0, bidRate - Math.round(bidRate * 0.05) - Math.round(bidRate * 0.01)), pct: 5, sbpPct: 1 });
     const isPending = req.status === "pending";
     const isAccepted = req.status === "accepted";
     const isCountered = req.status === "countered";
+    const isCompleted = req.status === "completed";
+    const isCancelled = req.status === "declined" || req.status === "cancelled";
 
-    const statusBadge = isAccepted
-      ? `<span class="chip confirm">✓ Подтверждено</span>`
-      : isCountered
-        ? `<span class="chip accent">Предложена ставка ${bidRate.toLocaleString("ru-RU")} ₽/ч</span>`
-        : req.status === "declined"
-          ? `<span class="chip bad">Отклонено</span>`
-          : `<span class="chip notif">Ожидает ответа</span>`;
+    const statusBadge = isCompleted
+      ? `<span class="chip confirm">✓ Проведён</span>`
+      : isAccepted
+        ? `<span class="chip confirm">✓ Подтверждено</span>`
+        : isCountered
+          ? `<span class="chip accent">Предложена ставка ${bidRate.toLocaleString("ru-RU")} ₽/ч</span>`
+          : isCancelled
+            ? `<span class="chip bad">${req.status === "cancelled" ? "Отменено" : "Отклонено"}</span>`
+            : `<span class="chip notif">Ожидает ответа</span>`;
 
-    return `<article class="tc-req-card${isPending ? " is-pending" : isAccepted ? " is-accepted" : ""}"${isFirstPending ? ' id="tc-first-pending"' : ""}>
+    return `<article class="tc-req-card${isPending ? " is-pending" : (isAccepted || isCompleted) ? " is-accepted" : ""}"${isFirstPending ? ' id="tc-first-pending"' : ""}>
       <div class="tc-req-head">
         <div class="tc-req-who">
           <span class="tutor-avatar" aria-hidden="true">${esc(initials(req.studentName))}</span>
@@ -128,14 +136,10 @@
           : `<b class="hh-price-now num">${bidRate.toLocaleString("ru-RU")} ₽/ч</b>`;
         const rawDiffHtml = priceDiffTagsHTML({ tutorPrice: tutorRate, marketPrice: mktRate, offerPrice: bidRate, qualBadge: "Повышенная ставка · Профи" });
         const diffTags = rawDiffHtml.match(/<span\b[^>]*>[\s\S]*?<\/span>/g) || [];
-        const splitAt = diffTags.length > 2 ? Math.ceil(diffTags.length / 2) : diffTags.length;
-        const diffRow1 = diffTags.slice(0, splitAt).join("");
-        const diffRow2 = diffTags.slice(splitAt).join("");
         return `<div class="stack tc-req-price-block" style="gap:6px">
           <div class="hh-price-row">${reqPriceHTML}</div>
-          <div class="hh-diff-strip is-2rows">
-            <div class="tc-diff-row">${diffRow1}</div>
-            ${diffRow2 ? `<div class="tc-diff-row">${diffRow2}</div>` : ""}
+          <div class="hh-diff-strip is-1row">
+            <div class="tc-diff-row">${diffTags.join("")}</div>
           </div>
           <div class="small ink2">Выплата после урока: <b class="num">${sp.payout.toLocaleString("ru-RU")} ₽</b> <span class="muted">(сбор ${sp.fee} ₽)</span></div>
         </div>`;
@@ -161,7 +165,7 @@
         const stuMatch = (st.students || []).find((x) => x && ((req.studentId && x.id === req.studentId) || (reqNameLower && String(x.name || "").trim().toLowerCase() === reqNameLower))) || null;
         const contacts = typeof resolveLessonContacts === "function"
           ? resolveLessonContacts(st, req, stuMatch)
-          : { entity: { id: req.id, name: req.studentName, whatsapp: req.whatsapp || "79142100511", telegram: req.telegram || "", maxHandle: req.maxHandle || "" }, available: null };
+          : { entity: { id: req.id, name: req.studentName, whatsapp: req.whatsapp || (isDevDemoMode() ? "79142100511" : ""), telegram: req.telegram || "", maxHandle: req.maxHandle || "" }, available: null };
         return `<div class="stack" style="gap:8px;width:100%">
           ${renderTutorScheduleBotHTML(req, st)}
           ${typeof renderLessonPaymentHTML === "function" ? renderLessonPaymentHTML(st, req, stuMatch) : ""}
@@ -170,7 +174,7 @@
             ? EGE.kit.messengerLinksHTML({
                 entity: contacts.entity,
                 available: contacts.available,
-                message: `Здравствуйте, ${req.studentName}! Подтверждаю урок (${req.subjectName}, ${req.dayLabel} в ${req.hour}) через Вектор ЕГЭ.`,
+                message: `Здравствуйте, ${req.studentName}! Подтверждаю урок (${req.subjectName}, ${req.dayLabel} в ${req.hour}) через Вектор.`,
                 primaryTitle: "Написать ученику · WhatsApp",
                 iconOnly: true,
                 allowHoldAdd: true,
@@ -180,30 +184,35 @@
           <div class="small muted tc-hold-hint">Удерживайте иконку, чтобы изменить контакт</div>
           ${typeof renderLessonNotifyHTML === "function" ? renderLessonNotifyHTML(st, req, stuMatch) : ""}
         </div>`;
-      })() : `
+      })() : isCompleted ? `
+        <div class="stack" style="gap:6px;width:100%">
+          <div class="small" style="color:var(--confirm)"><b>Урок завершён</b> · выплата <b class="num">${sp.payout.toLocaleString("ru-RU")} ₽</b> зачислена на баланс</div>
+        </div>` : (!req.fromServer ? `
         <div class="row" style="gap:8px">
           <button type="button" class="btn soft sm" data-a="tc-req-restore" data-id="${esc(req.id)}">Вернуть в рассмотрение</button>
-        </div>`}
+        </div>` : "")}
     </article>`;
   }
 
-  function renderSlotsPanelHTML(st, TDATA) {
+  function renderSlotsPanelHTML(st, TDATA, sp) {
+    const targetSp = sp || getEditingSearchProfile(st);
     const activeDayObj = DAY_LIST.find((d) => d.dow === st.activeDow) || DAY_LIST[5];
-    const daySlots = Array.isArray(st.slots[activeDayObj.dow]) ? st.slots[activeDayObj.dow] : [];
-    const totalSlotsCount = Object.keys(st.slots).reduce((s, k) => s + (Array.isArray(st.slots[k]) ? st.slots[k].length : 0), 0);
+    const slotsMap = normalizeSlotsMap(targetSp && targetSp.slots);
+    const daySlots = Array.isArray(slotsMap[activeDayObj.dow]) ? slotsMap[activeDayObj.dow] : [];
+    const totalSlotsCount = countSlots(slotsMap);
     const hours = (TDATA && TDATA.HOURS) ? TDATA.HOURS : ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
-    return `<section class="card stack" style="gap:12px" aria-label="Окна времени 10:00–20:00">
-      <div class="row between" style="gap:8px;flex-wrap:wrap">
+    return `<div class="stack tc-sp-slots-box" id="tc-sp-slots-box" role="region" aria-label="Свободные окна профиля 10:00–20:00">
+      <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
         <div>
-          <div class="eyebrow">Слоты 10:00–20:00</div>
-          <h2 class="h2">Свободные окна (${totalSlotsCount})</h2>
+          <div class="eyebrow">4. Свободные окна профиля · 10:00–20:00</div>
+          <h3 class="h2">Свободные окна (${totalSlotsCount})</h3>
         </div>
         <span class="chip accent num">${esc(activeDayObj.wd)}: ${daySlots.length} ч</span>
       </div>
       <div class="cal-days is-7days" aria-label="День недели">
         ${DAY_LIST.map((d) => {
-          const cnt = Array.isArray(st.slots[d.dow]) ? st.slots[d.dow].length : 0;
-          return `<button type="button" class="day-cir${st.activeDow === d.dow ? " on" : ""}" data-a="tc-day" data-dow="${d.dow}">
+          const cnt = Array.isArray(slotsMap[d.dow]) ? slotsMap[d.dow].length : 0;
+          return `<button type="button" class="day-cir${st.activeDow === d.dow ? " on" : ""}" data-a="tc-day" data-dow="${d.dow}" aria-pressed="${st.activeDow === d.dow}">
             <span class="day-wd">${d.wd}</span>
             <span class="day-dot">${cnt}</span>
             <span class="day-cnt">${cnt ? "откр." : "выкл."}</span>
@@ -219,8 +228,8 @@
           </button>`;
         }).join("")}
       </div>
-      <span class="small muted">Нажмите на час, чтобы открыть или закрыть запись на ${esc(activeDayObj.full.toLowerCase())}.</span>
-    </section>`;
+      <span class="small muted">Слоты относятся к этому профилю поиска. Нажмите на час, чтобы открыть или закрыть запись на ${esc(activeDayObj.full.toLowerCase())}.</span>
+    </div>`;
   }
 
 
@@ -234,23 +243,57 @@
       return true;
     });
 
-    const cardsHtml = filteredReqs.length
-      ? `<div class="tc-req-list">${filteredReqs.map((r) => renderRequestCard(r, st, r.id === firstPendingId)).join("")}</div>`
-      : `<div class="empty">
-          <b>По выбранному фильтру заявок нет</b>
-          <span>Сбросьте фильтр или обновите пример заявок.</span>
-          <div class="row" style="gap:8px;flex-wrap:wrap;justify-content:center">
-            <button type="button" class="btn soft sm" data-a="tc-req-tbl-filter" data-v="all">Показать все заявки</button>
-            <button type="button" class="btn ghost sm" data-a="tc-reset-demo">Сбросить демо</button>
-          </div>
-        </div>`;
+    const isProd = !isDevDemoMode();
+    const ctxStore = getCtx().store;
+    const isAuthed = !!(ctxStore && ctxStore.user);
+
+    let cardsHtml = "";
+    if (isProd && !isAuthed) {
+      cardsHtml = `<div class="empty" id="tc-prod-auth-empty">
+        <b>Войдите в аккаунт преподавателя</b>
+        <span>После авторизации здесь появятся реальные заявки учеников, расписание уроков и ваш баланс на вывод.</span>
+        <button type="button" class="btn sm" data-a="auth-modal-open">Войти или зарегистрироваться</button>
+      </div>`;
+    } else if (isProd && st._serverLoading && !st._serverLoaded) {
+      cardsHtml = `<div class="empty" id="tc-requests-loading">
+        <b>Загружаем заявки и данные кабинета…</b>
+        <span>Получаем актуальный список бронирований и баланс эскроу с сервера.</span>
+      </div>`;
+    } else if (filteredReqs.length) {
+      cardsHtml = `<div class="tc-req-list">${filteredReqs.map((r) => renderRequestCard(r, st, r.id === firstPendingId)).join("")}</div>`;
+    } else if (isProd && allReqs.length === 0) {
+      cardsHtml = `<div class="empty" id="tc-requests-empty">
+        <b>Входящих заявок пока нет</b>
+        <span>${st.published
+          ? "Ваша анкета опубликована в каталоге — новые ставки и отклики учеников появятся здесь автоматически."
+          : "Создайте профиль для поиска и откройте свободные окна во вкладке «Профиль»."}</span>
+        <div class="row" style="gap:8px;flex-wrap:wrap;justify-content:center">
+          ${!st.published
+            ? `<button type="button" class="btn sm" data-a="tc-tab" data-tab="profile">Заполнить анкету</button>`
+            : `<button type="button" class="btn soft sm" data-a="tc-tab" data-tab="leads">Запросы учеников</button>`}
+          <button type="button" class="btn ghost sm" data-a="tc-refresh-server">Обновить</button>
+        </div>
+      </div>`;
+    } else {
+      cardsHtml = `<div class="empty">
+        <b>По выбранному фильтру заявок нет</b>
+        <span>${isProd ? "Сбросьте фильтр или обновите список заявок." : "Сбросьте фильтр или обновите пример заявок."}</span>
+        <div class="row" style="gap:8px;flex-wrap:wrap;justify-content:center">
+          <button type="button" class="btn soft sm" data-a="tc-req-tbl-filter" data-v="all">Показать все заявки</button>
+          ${isProd ? "" : `<button type="button" class="btn ghost sm" data-a="tc-reset-demo">Сбросить демо</button>`}
+        </div>
+      </div>`;
+    }
+
+    const reqHeading = reqFilter === "pending"
+      ? "Ожидающие заявки учеников"
+      : reqFilter === "accepted"
+        ? "Принятые заявки учеников"
+        : "Входящие заявки учеников";
 
     return `<div class="stack" style="gap:16px">
-      <section class="stack tc-req-section" id="tc-requests-table" aria-label="Входящие заявки учеников">
-        <div class="stack" style="gap:2px">
-          <div class="eyebrow">Торг в реальном времени</div>
-          <h2 class="h2">Входящие заявки учеников</h2>
-        </div>
+      <section class="stack tc-req-section" id="tc-requests-table" aria-label="${reqHeading}">
+        <h2 class="h2">${reqHeading}</h2>
 
         <div class="hh-seg equal tc-req-filter-seg" role="group" aria-label="Фильтр заявок">
           <button type="button" data-a="tc-req-tbl-filter" data-v="all" aria-pressed="${reqFilter === "all"}">Все (${allReqs.length})</button>
@@ -260,40 +303,173 @@
 
         ${cardsHtml}
       </section>
-
-      ${renderSlotsPanelHTML(st, TDATA)}
     </div>`;
   }
 
   function renderProfileTab(st, TDATA, baseSplit) {
-    const p = st.profile;
-    const comp = profileCompleteness(p, st.slots);
+    syncProfileMirror(st);
+    const acc = st.account || {};
+    const spList = Array.isArray(st.searchProfiles) ? st.searchProfiles : [];
+    const isCreating = !!st.creatingSearchProfile;
+    const p = getEditingSearchProfile(st);
+    const isEditingExisting = !isCreating && !!st.spEditorOpen && spList.some((item) => item && item.id === String(p.id || ""));
+    const showEditor = isCreating || isEditingExisting;
     const subjects = (TDATA && TDATA.SUBJECTS) ? TDATA.SUBJECTS : [{ id: "bio", name: "Биология" }];
-    const previewCard = st.profilePreview && EGE.views.marketplace && typeof EGE.views.marketplace.tutorCardHTML === "function"
-      ? EGE.views.marketplace.tutorCardHTML(buildMarketTutorPayload(st))
+    const subjectNameOf = (ids) => {
+      const cleanIds = Array.isArray(ids) && ids.length ? ids : ["bio"];
+      if (TDATA && typeof TDATA.subjectNamesForIds === "function") {
+        const res = TDATA.subjectNamesForIds(cleanIds);
+        if (Array.isArray(res) && res.length) return res.join(" · ");
+      }
+      return cleanIds.map((sid) => {
+        const hit = subjects.find((item) => item.id === sid);
+        return hit ? hit.name : sid;
+      }).filter(Boolean).join(" · ");
+    };
+    const mergedForMeter = Object.assign({}, acc, p);
+    const comp = profileCompleteness(mergedForMeter, p.slots);
+    const effSplit = (TDATA && typeof TDATA.commissionSplit === "function") ? TDATA.commissionSplit(p.price) : baseSplit;
+    const previewCard = (showEditor && st.profilePreview && EGE.views.marketplace && typeof EGE.views.marketplace.tutorCardHTML === "function")
+      ? EGE.views.marketplace.tutorCardHTML(buildMarketTutorPayload(st, p))
       : "";
+    const accPhoto = acc.hasPhoto === false ? "" : String(acc.photo || "");
     const avHTML = typeof tutorAvatarHTML === "function"
-      ? tutorAvatarHTML({ photo: p.photo, name: p.name }, { cls: "lg" })
+      ? tutorAvatarHTML({ photo: accPhoto, name: acc.name }, { cls: "lg" })
       : `<span class="tutor-avatar lg is-no-photo"><span>Без фото</span></span>`;
     const remMs = autoBumpRemainingMs(st);
     const mRem = manualBumpRemainingMs(st);
     const lastAutoLabel = formatTimestamp(st.lastAutoBumpAt || st.lastBumpAt);
     const lastManualLabel = formatTimestamp(st.lastManualBumpAt);
+    const ctxUser = getCtx().store && getCtx().store.user;
 
-    return `<div class="stack" style="gap:12px">
-      <div class="card tc-prof-compact-card">
-        <div class="tc-prof-compact-head">
-          <div class="tc-prof-compact-meta">
-            <b class="tc-compact-title">Заполненность профиля: <span class="num savings-gold-txt">${comp.pct}%</span></b>
-            ${st.published ? `<span class="chip confirm tc-compact-chip">✓ Опубликована для учеников</span>` : `<span class="chip notif tc-compact-chip">Черновик</span>`}
+    const tgLinked = String(acc.telegram || "").trim().length >= 3;
+    const waLinked = String(acc.whatsapp || "").replace(/\D+/g, "").length >= 10;
+    const maxLinked = String(acc.maxHandle || "").trim().length >= 2;
+    const vkLinked = String(acc.vk || "").trim().length >= 2;
+    const linkedCount = [tgLinked, waLinked, maxLinked, vkLinked].filter(Boolean).length;
+    const tgSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 4L3.6 10.9c-.8.3-.8 1.5.1 1.7l4.5 1.4 1.7 5.2c.2.7 1.1.9 1.6.3l2.6-2.8 4.4 3.2c.6.4 1.4.1 1.6-.6L22 5.2c.2-.8-.4-1.4-1-1.2z"/><path d="M8.2 14l9.6-6.2"/></svg>`;
+    const waSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.5 8.5 0 0 1-12.6 7.4L4 20l1.2-4.2A8.5 8.5 0 1 1 21 11.5z"/><path d="M9.5 9.2c.3 2 2 3.8 4 4.3l1.2-.9c.3-.2.7-.2 1 0l1 .6"/></svg>`;
+    const maxSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="14" rx="5"/><path d="M8 14.5v-5l4 3.5 4-3.5v5"/></svg>`;
+    const vkSvg = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.78 17.5c-5.47 0-8.59-3.75-8.72-10h2.74c.09 4.58 2.11 6.52 3.71 6.92V7.5h2.58v3.95c1.58-.17 3.24-1.97 3.8-3.95h2.58c-.43 2.44-2.23 4.24-3.51 4.98 1.28.6 3.33 2.17 4.11 5.02h-2.84c-.61-1.9-2.13-3.37-4.14-3.57v3.57h-.31z"/></svg>`;
+    const tgVal = formatTelegram(acc.telegram || "");
+    const waVal = formatPhone(acc.whatsapp || "") || String(acc.whatsapp || "").trim();
+    const maxVal = String(acc.maxHandle || "").trim();
+    const vkVal = String(acc.vk || "").trim();
+    const openCh = String(st.msgrLinkOpen || "");
+    const linkDrafts = st.msgrLinkDraft && typeof st.msgrLinkDraft === "object" ? st.msgrLinkDraft : {};
+    const waInp = (EGE.phoneField && typeof EGE.phoneField.phoneFieldHTML === "function")
+      ? EGE.phoneField.phoneFieldHTML({ scope: "tc-hh-wa", id: "tc-hh-wa", name: "whatsapp", label: "", value: linkDrafts.whatsapp != null ? linkDrafts.whatsapp : (acc.whatsapp || ""), country: linkDrafts.whatsappCountry || acc.whatsappCountry || "RU", extraAttrs: 'data-tc="whatsapp" aria-label="Номер телефона WhatsApp"', compact: true })
+      : `<div class="field"><input class="input num" id="tc-hh-wa" name="whatsapp" data-tc="whatsapp" aria-label="Номер телефона WhatsApp" value="${esc(formatPhone(linkDrafts.whatsapp != null ? linkDrafts.whatsapp : (acc.whatsapp || "")))}" maxlength="22" placeholder="+7 (914) 000-00-00"></div>`;
+    const msgrRow = (ch, cls, svg, title, linked, displayVal, fieldHtml) => {
+      const isEditing = !linked && openCh === ch;
+      return `<div class="stu-link-row${linked ? " is-linked" : ""}${isEditing ? " is-editing" : ""} tc-link-row" data-ch="${ch}">
+        <div class="stu-link-brand">
+          <span class="stu-link-icon ${cls}" aria-hidden="true">${svg}</span>
+          <div class="stu-link-copy">
+            <div class="stu-link-title">
+              <b>${title}</b>
+              ${linked ? `<span class="chip good stu-link-badge">Привязан ✓</span>` : ""}
+            </div>
+            ${linked ? `<span class="small muted">${esc(displayVal || "Подключён")}</span>` : ""}
           </div>
-          <button type="button" class="btn soft sm tc-prof-preview-btn" data-a="tc-preview-toggle">${st.profilePreview ? "Скрыть" : "Как видит ученик"}</button>
         </div>
-        <div class="tc-hh-meter" aria-label="Прогресс заполнения профиля"><i style="width:${comp.pct}%"></i></div>
-        <div class="tc-compact-note">${comp.missing.length ? "Осталось: " + esc(comp.missing.slice(0, 2).join(", ")) + "." : "Профиль на 100% — приоритет в поиске."}</div>
+        <div class="stu-link-act">
+          ${linked
+            ? `<button type="button" class="btn ghost sm tc-msgr-act is-unlink" data-a="tc-messenger-unlink" data-ch="${ch}">Отвязать</button>`
+            : isEditing
+              ? `<div class="stu-link-inline">
+                  ${fieldHtml}
+                  <button type="button" class="btn sm" data-a="tc-messenger-link" data-ch="${ch}">Привязать</button>
+                  <button type="button" class="btn ghost sm" data-a="tc-messenger-cancel">Отмена</button>
+                </div>`
+              : `<button type="button" class="btn soft sm" data-a="tc-messenger-open" data-ch="${ch}">Привязать ${title}</button>`}
+        </div>
+      </div>`;
+    };
+
+    const accountSectionHTML = `<section class="stack tc-account-section" id="tc-account-section">
+      <div class="tc-photo-row">
+        <div class="tc-photo-top">
+          ${avHTML}
+          <div class="stack" style="gap:4px;min-width:0">
+            <b>${accPhoto ? "Фото загружено в аккаунт" : "Сейчас отображается «Без фото»"}</b>
+            <span class="small muted">Загрузите своё фото — оно обновится во всех ваших анкетах в поиске, либо выберите «Без фото».</span>
+          </div>
+        </div>
+        <div class="tc-photo-actions">
+          <label class="btn soft sm" for="tc-photo-file" style="cursor:pointer">${icon("upload")}<span>Загрузить фото</span></label>
+          <input type="file" id="tc-photo-file" accept="image/*" data-tc-photo="1" class="sr">
+          <button type="button" class="btn ghost sm" data-a="tc-photo-clear"${accPhoto ? "" : " disabled"}>Без фото</button>
+        </div>
       </div>
 
-      <div class="tc-autobump-card" aria-label="Продвижение анкеты в выдаче">
+      <fieldset class="stu-notch-field">
+        <legend><label for="tc-hh-name">Имя и фамилия</label></legend>
+        <input class="stu-notch-input" id="tc-hh-name" name="name" data-tc="name" value="${esc(acc.name)}" maxlength="48" placeholder="${isDevDemoMode() ? "Анна Соколова" : "Имя и фамилия"}">
+      </fieldset>
+
+      <div class="tc-two-col">
+        <div class="field">
+          <span class="label">Город</span>
+          <div class="hh-seg equal" role="group" aria-label="Выбор города">
+            ${CITY_OPTIONS.map((c) => `<button type="button" data-a="tc-city-pick" data-v="${esc(c)}" aria-pressed="${(acc.city || "Якутск") === c}">${esc(c)}</button>`).join("")}
+          </div>
+        </div>
+        <fieldset class="stu-notch-field is-select">
+          <legend>Часовой пояс (UTC)</legend>
+          ${typeof hhSelectHTML === "function"
+            ? hhSelectHTML({
+                id: "tc-timezone",
+                options: TZ_OPTIONS,
+                value: acc.timezone || "UTC+9",
+                open: !!st.tzMenuOpen,
+                toggleAction: "tc-tz-toggle",
+                pickAction: "tc-tz-pick",
+                ariaLabel: "Часовой пояс"
+              })
+            : `<select class="stu-notch-select" id="tc-timezone" data-tc="timezone">${TZ_OPTIONS.map((tz) => `<option value="${esc(tz.id)}"${(acc.timezone || "UTC+9") === tz.id ? " selected" : ""}>${esc(tz.label)}</option>`).join("")}</select>`}
+        </fieldset>
+      </div>
+
+      <div class="tc-messengers-box" role="group" aria-label="Привязанные аккаунты">
+        <div class="tc-messengers-head">
+          <span class="tc-messengers-title">Привязанные аккаунты</span>
+          <span class="tc-messengers-count num">${linkedCount} из 4</span>
+        </div>
+        <div class="stu-link-list tc-link-list">
+          ${msgrRow("telegram", "is-tg", tgSvg, "Telegram", tgLinked, tgVal, `<input class="input" id="tc-hh-tg" name="telegram" data-tc="telegram" aria-label="Telegram логин или телефон" value="${esc(formatTelegram(linkDrafts.telegram != null ? linkDrafts.telegram : (acc.telegram || "")))}" maxlength="36" placeholder="@username или +7...">`)}
+          ${msgrRow("whatsapp", "is-wa", waSvg, "WhatsApp", waLinked, waVal, waInp)}
+          ${msgrRow("maxHandle", "is-max", maxSvg, "MAX", maxLinked, maxVal, `<input class="input" id="tc-hh-max" name="maxHandle" data-tc="maxHandle" aria-label="MAX логин или ссылка" value="${esc(linkDrafts.maxHandle != null ? linkDrafts.maxHandle : (acc.maxHandle || ""))}" maxlength="48" placeholder="@username или max.ru/...">`)}
+          ${msgrRow("vk", "is-vk", vkSvg, "ВКонтакте", vkLinked, vkVal, `<input class="input" id="tc-hh-vk" name="vk" data-tc="vk" aria-label="ВКонтакте ссылка или ID" value="${esc(linkDrafts.vk != null ? linkDrafts.vk : (acc.vk || ""))}" maxlength="64" placeholder="vk.com/username или @id">`)}
+        </div>
+      </div>
+    </section>`;
+
+    const activeSubjLabel = subjectNameOf(p.subjects && p.subjects.length ? p.subjects : [p.subject || "bio"]);
+    const editorHTML = showEditor ? `<div class="stack tc-sp-editor" id="tc-sp-editor" style="gap:12px">
+      <div class="tc-sp-editor-head">
+        <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
+          <b>${isCreating ? "Новый профиль для поиска" : `Настройка профиля: ${esc(activeSubjLabel)}`}</b>
+          ${isCreating ? `<span class="chip accent">Черновик нового профиля</span>` : ""}
+        </div>
+        ${isCreating
+          ? `<button type="button" class="btn ghost sm" data-a="tc-sp-cancel-new">Отмена</button>`
+          : `<button type="button" class="btn ghost sm" data-a="tc-sp-close-edit">Свернуть</button>`}
+      </div>
+
+      <div class="card tc-prof-compact-card">
+        <div class="tc-prof-compact-head">
+          <b class="tc-compact-title">Заполненность профиля: <span class="num savings-gold-txt">${comp.pct}%</span></b>
+          ${(p.published !== false && !isCreating) ? `<span class="chip confirm tc-compact-chip">✓ Опубликована для учеников</span>` : `<span class="chip notif tc-compact-chip">Черновик</span>`}
+        </div>
+        <div class="tc-hh-meter" aria-label="Прогресс заполнения профиля"><i style="width:${comp.pct}%"></i></div>
+        <div class="tc-prof-compact-foot">
+          <div class="tc-compact-note">${comp.missing.length ? "Осталось: " + esc(comp.missing.slice(0, 2).join(", ")) + "." : "Профиль на 100% — приоритет в поиске."}</div>
+          <button type="button" class="btn soft sm tc-prof-preview-btn" data-a="tc-preview-toggle">${st.profilePreview ? "Скрыть превью" : "Как видит ученик"}</button>
+        </div>
+      </div>
+
+      ${!isCreating ? `<div class="tc-autobump-card" aria-label="Продвижение анкеты в выдаче">
         <div class="tc-bump-head">
           <div class="tc-bump-title-wrap">
             <h2 class="tc-bump-title">${st.autoBump24h ? "Автоподнятие 24 ч активно" : "Автоподнятие на паузе"}</h2>
@@ -320,44 +496,23 @@
           <div class="tc-bump-meta-list stack">
             <span>Последнее автопродвижение: <b style="color:var(--ink)">${esc(lastAutoLabel)}</b></span>
             <span>Последнее ручное поднятие: <b style="color:var(--ink)">${esc(lastManualLabel)}</b> · интервал 4 ч</span>
-            <span>Всего поднятий: <b class="num" style="color:var(--ink)">${st.bumpCount || 1}</b></span>
+            <span>Всего поднятий: <b class="num" style="color:var(--ink)">${Number(st.bumpCount) || 0}</b></span>
           </div>
         </div>` : ""}
-      </div>
+      </div>` : ""}
 
       ${previewCard ? `<div class="stack" style="gap:8px"><div class="eyebrow">Живой вид вашей карточки для учеников</div>${previewCard}</div>` : ""}
 
-      <form class="stack tc-profile-form" style="gap:14px" data-f="tc-profile">
+      <form class="stack tc-profile-form" style="gap:10px" data-f="tc-profile">
         <div class="row between" style="gap:8px;flex-wrap:wrap">
-          <h3 class="h2">1. Основная визитка и фото</h3>
+          <h3 class="h2">1. Предметы и специализация профиля</h3>
           <span class="chip${p.price >= 1400 ? " pro" : " accent"}">${p.price >= 1400 ? "Эксперт выше рынка" : "Доступная ставка"}</span>
         </div>
 
-        <div class="tc-photo-row">
-          <div class="tc-photo-top">
-            ${avHTML}
-            <div class="stack" style="gap:4px;min-width:0">
-              <b>${p.photo ? "Фото загружено в анкету" : "Сейчас отображается «Без фото»"}</b>
-              <span class="small muted">Загрузите своё фото — оно обновится в анкете и предпросмотре, либо выберите «Без фото».</span>
-            </div>
-          </div>
-          <div class="tc-photo-actions">
-            <label class="btn soft sm" for="tc-photo-file" style="cursor:pointer">${icon("upload")}<span>Загрузить фото</span></label>
-            <input type="file" id="tc-photo-file" accept="image/*" data-tc-photo="1" class="sr">
-            <button type="button" class="btn ghost sm" data-a="tc-photo-clear"${p.photo ? "" : " disabled"}>Без фото</button>
-          </div>
-        </div>
-
-        <div class="tc-two-col">
-          <div class="field">
-            <label for="tc-hh-name">Имя и фамилия</label>
-            <input class="input" id="tc-hh-name" name="name" data-tc="name" value="${esc(p.name)}" maxlength="48" placeholder="Анна Соколова">
-          </div>
-          <div class="field">
-            <label for="tc-hh-headline">Заголовок специализации</label>
-            <input class="input" id="tc-hh-headline" name="headline" data-tc="headline" value="${esc(p.headline || "")}" maxlength="72" placeholder="Эксперт ЕГЭ по биологии · медвуз">
-          </div>
-        </div>
+        <fieldset class="stu-notch-field is-textarea">
+          <legend><label for="tc-hh-headline">Заголовок специализации</label></legend>
+          <textarea class="textarea tc-field-wrap" id="tc-hh-headline" name="headline" data-tc="headline" rows="2" maxlength="72" placeholder="Эксперт ЕГЭ по биологии · медвуз">${esc(p.headline || "")}</textarea>
+        </fieldset>
 
         <div class="field">
           <span class="label">Предметы преподавания (мультивыбор)</span>
@@ -388,29 +543,6 @@
 
         <div class="tc-two-col">
           <div class="field">
-            <span class="label">Город</span>
-            <div class="hh-seg equal" role="group" aria-label="Выбор города">
-              ${CITY_OPTIONS.map((c) => `<button type="button" data-a="tc-city-pick" data-v="${esc(c)}" aria-pressed="${(p.city || "Якутск") === c}">${esc(c)}</button>`).join("")}
-            </div>
-          </div>
-          <div class="field">
-            <span class="label">Часовой пояс (UTC)</span>
-            ${typeof hhSelectHTML === "function"
-              ? hhSelectHTML({
-                  id: "tc-timezone",
-                  options: TZ_OPTIONS,
-                  value: p.timezone || "UTC+9",
-                  open: !!st.tzMenuOpen,
-                  toggleAction: "tc-tz-toggle",
-                  pickAction: "tc-tz-pick",
-                  ariaLabel: "Часовой пояс"
-                })
-              : `<select class="select" id="tc-timezone" data-tc="timezone">${TZ_OPTIONS.map((tz) => `<option value="${esc(tz.id)}"${(p.timezone || "UTC+9") === tz.id ? " selected" : ""}>${esc(tz.label)}</option>`).join("")}</select>`}
-          </div>
-        </div>
-
-        <div class="tc-two-col">
-          <div class="field">
             <span class="label">Экзамены и направления</span>
             <div class="tc-tag-grid">
               ${EXAM_OPTIONS.map((ex) => {
@@ -430,61 +562,23 @@
           </div>
         </div>
 
-        <div class="eyebrow" style="margin-top:4px">2. Опыт, образование и мессенджеры</div>
+        <div class="eyebrow" style="margin-top:4px">2. Опыт, квалификация и плашки</div>
         <div class="tc-exp-edu-grid">
-          <div class="field">
-            <label for="tc-hh-exp">Стаж, лет <span style="color:var(--bad)" aria-hidden="true">*</span></label>
-            <input class="input num" id="tc-hh-exp" name="expYears" data-tc="expYears" type="number" min="1" max="50" required value="${esc(p.expYears || 6)}">
-          </div>
-          <div class="field">
-            <label for="tc-hh-edu">Образование и квалификация</label>
-            <input class="input" id="tc-hh-edu" name="education" data-tc="education" value="${esc(p.education || "")}" maxlength="90" placeholder="ВУЗ, эксперт ЕГЭ, олимпиадная подготовка">
-          </div>
+          <fieldset class="stu-notch-field">
+            <legend><label for="tc-hh-exp">Стаж, лет <span style="color:var(--bad)" aria-hidden="true">*</span></label></legend>
+            <input class="stu-notch-input num" id="tc-hh-exp" name="expYears" data-tc="expYears" type="number" min="1" max="50" required value="${esc(p.expYears || 1)}">
+          </fieldset>
+          <fieldset class="stu-notch-field is-textarea">
+            <legend><label for="tc-hh-edu">Образование и квалификация</label></legend>
+            <textarea class="textarea tc-field-wrap" id="tc-hh-edu" name="education" data-tc="education" rows="2" maxlength="90" placeholder="ВУЗ, эксперт ЕГЭ, олимпиадная подготовка">${esc(p.education || "")}</textarea>
+          </fieldset>
         </div>
 
-        ${(() => {
-          const tgLinked = String(p.telegram || "").trim().length >= 3;
-          const waLinked = String(p.whatsapp || "").replace(/\D+/g, "").length >= 10;
-          const maxLinked = String(p.maxHandle || "").trim().length >= 2;
-          const vkLinked = String(p.vk || "").trim().length >= 2;
-          const linkedCount = [tgLinked, waLinked, maxLinked, vkLinked].filter(Boolean).length;
-          const tgSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 4L3.6 10.9c-.8.3-.8 1.5.1 1.7l4.5 1.4 1.7 5.2c.2.7 1.1.9 1.6.3l2.6-2.8 4.4 3.2c.6.4 1.4.1 1.6-.6L22 5.2c.2-.8-.4-1.4-1-1.2z"/><path d="M8.2 14l9.6-6.2"/></svg>`;
-          const waSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.5 8.5 0 0 1-12.6 7.4L4 20l1.2-4.2A8.5 8.5 0 1 1 21 11.5z"/><path d="M9.5 9.2c.3 2 2 3.8 4 4.3l1.2-.9c.3-.2.7-.2 1 0l1 .6"/></svg>`;
-          const maxSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="14" rx="5"/><path d="M8 14.5v-5l4 3.5 4-3.5v5"/></svg>`;
-          const vkSvg = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.78 17.5c-5.47 0-8.59-3.75-8.72-10h2.74c.09 4.58 2.11 6.52 3.71 6.92V7.5h2.58v3.95c1.58-.17 3.24-1.97 3.8-3.95h2.58c-.43 2.44-2.23 4.24-3.51 4.98 1.28.6 3.33 2.17 4.11 5.02h-2.84c-.61-1.9-2.13-3.37-4.14-3.57v3.57h-.31z"/></svg>`;
-          const waInp = (EGE.phoneField && typeof EGE.phoneField.phoneFieldHTML === "function")
-            ? EGE.phoneField.phoneFieldHTML({ scope: "tc-hh-wa", id: "tc-hh-wa", name: "whatsapp", label: "", value: p.whatsapp || "", country: p.whatsappCountry || "RU", extraAttrs: 'data-tc="whatsapp" aria-label="Номер телефона WhatsApp"', compact: true })
-            : `<div class="field"><input class="input num" id="tc-hh-wa" name="whatsapp" data-tc="whatsapp" aria-label="Номер телефона WhatsApp" value="${esc(formatPhone(p.whatsapp || ""))}" maxlength="22" placeholder="+7 (914) 000-00-00"></div>`;
-          const msgrCard = (ch, cls, svg, title, linked, fieldHtml) => `<div class="tc-msgr-card${linked ? " is-linked" : ""}">
-            <div class="tc-msgr-top">
-              <span class="tc-msgr-brand"><span class="tc-msgr-ico ${cls}">${svg}</span><span>${title}</span></span>
-              <span class="tc-msgr-status${linked ? " is-linked" : ""}">${linked ? "✓ Привязан" : "Не привязан"}</span>
-            </div>
-            <div class="tc-msgr-row">
-              ${fieldHtml}
-              ${linked
-                ? `<button type="button" class="btn ghost sm tc-msgr-act" data-a="tc-messenger-unlink" data-ch="${ch}">Отвязать</button>`
-                : `<button type="button" class="btn soft sm tc-msgr-act" data-a="tc-messenger-link" data-ch="${ch}">Привязать</button>`}
-            </div>
-          </div>`;
-          return `<div class="tc-messengers-box" role="group" aria-label="Привязка мессенджеров и соцсетей для уведомлений">
-            <div class="tc-messengers-head">
-              <span class="tc-messengers-title">Привязать аккаунты</span>
-              <span class="tc-messengers-count num">${linkedCount} из 4</span>
-            </div>
-            <p class="tc-messengers-note">Привяжите Telegram, WhatsApp, MAX или ВКонтакте — так мы сможем настроить уведомления для вас (новые заявки, напоминания об уроках и оплаты).</p>
-            <div class="tc-messengers-grid">
-              ${msgrCard("telegram", "is-tg", tgSvg, "Telegram", tgLinked, `<div class="field"><input class="input" id="tc-hh-tg" name="telegram" data-tc="telegram" aria-label="Telegram логин или телефон" value="${esc(formatTelegram(p.telegram || ""))}" maxlength="36" placeholder="@username или +7..."></div>`)}
-              ${msgrCard("whatsapp", "is-wa", waSvg, "WhatsApp", waLinked, waInp)}
-              ${msgrCard("maxHandle", "is-max", maxSvg, "MAX", maxLinked, `<div class="field"><input class="input" id="tc-hh-max" name="maxHandle" data-tc="maxHandle" aria-label="MAX логин или ссылка" value="${esc(p.maxHandle || "")}" maxlength="48" placeholder="@username или max.ru/..."></div>`)}
-              ${msgrCard("vk", "is-vk", vkSvg, "ВКонтакте", vkLinked, `<div class="field"><input class="input" id="tc-hh-vk" name="vk" data-tc="vk" aria-label="ВКонтакте ссылка или ID" value="${esc(p.vk || "")}" maxlength="64" placeholder="vk.com/username или @id"></div>`)}
-            </div>
-          </div>`;
-        })()}
-
         <div class="field">
-          <label for="tc-hh-skills">Ключевые навыки и акценты подготовки (заполните сами)</label>
-          <input class="input" id="tc-hh-skills" name="customSkills" data-tc="customSkills" value="${esc(p.customSkills || "")}" maxlength="120" placeholder="Например: Генетика №28, разбор пробников ФИПИ, олимпиады">
+          <fieldset class="stu-notch-field is-textarea">
+            <legend><label for="tc-hh-skills">Ключевые навыки и акценты подготовки</label></legend>
+            <textarea class="textarea tc-field-wrap" id="tc-hh-skills" name="customSkills" data-tc="customSkills" rows="2" maxlength="120" placeholder="Например: Генетика №28, разбор пробников ФИПИ, олимпиады">${esc(p.customSkills || "")}</textarea>
+          </fieldset>
           <span class="hint">Укажите сильные темы и специализацию своими словами — они помогают ученикам находить вашу анкету в поиске.</span>
         </div>
 
@@ -533,38 +627,394 @@
         </div>
 
         <div class="bid-fee-row">${feeSplitHTML(p.price, TDATA)}</div>
-        <span class="small muted">Чистая выплата после 5% сбора: <b class="num savings-gold-txt">${baseSplit.payout.toLocaleString("ru-RU")} ₽/ч</b>.</span>
+        <span class="small muted">Чистая выплата после 5% сбора: <b class="num savings-gold-txt">${effSplit.payout.toLocaleString("ru-RU")} ₽/ч</b>.</span>
 
-        <div class="field">
-          <label for="tc-bio-full">О себе, программе и результатах учеников</label>
+        <fieldset class="stu-notch-field is-textarea">
+          <legend><label for="tc-bio-full">О себе, программе и результатах учеников</label></legend>
           <textarea class="textarea" id="tc-bio-full" name="bio" data-tc="bio" rows="3" maxlength="320">${esc(p.bio || "")}</textarea>
-        </div>
+        </fieldset>
+
+        ${renderSlotsPanelHTML(st, TDATA, p)}
 
         <div class="row tc-profile-submit-row" style="gap:8px;flex-wrap:wrap">
-          <button type="submit" class="btn">${icon("check")}<span>Сохранить и опубликовать</span></button>
+          <button type="submit" class="btn">${icon("check")}<span>${isCreating ? "Создать и опубликовать" : "Сохранить и опубликовать"}</span></button>
+          <button type="button" class="btn soft" data-a="tc-sp-save-draft">${isCreating ? "Сохранить черновиком" : "Сохранить скрытым"}</button>
+          ${isCreating ? `<button type="button" class="btn ghost" data-a="tc-sp-cancel-new">Отмена</button>` : ""}
         </div>
       </form>
+    </div>` : "";
+
+    const spCardsHTML = spList.length
+      ? spList.map((item) => {
+          const itemId = String(item.id || "");
+          const isActive = isEditingExisting && itemId && itemId === String(p.id || "");
+          const isPub = item.published !== false;
+          const isConfirm = st.confirmDeleteProfileId === itemId;
+          const subjLabel = subjectNameOf(item.subjects && item.subjects.length ? item.subjects : [item.subject || "bio"]);
+          const exLabel = Array.isArray(item.exams) && item.exams.length ? item.exams.join(" · ") : "ЕГЭ";
+          const fmLabel = Array.isArray(item.formats) && item.formats.length ? item.formats.join(" · ") : "Онлайн";
+          const spSlotsCnt = countSlots(item.slots);
+          return `<article class="card tc-sp-card${isActive ? " is-active is-editing" : ""}${isPub ? "" : " is-hidden"}">
+            <div class="tc-sp-card-top">
+              <div class="stack" style="gap:3px;min-width:0">
+                <div class="tc-sp-title-row">
+                  <b class="tc-sp-subj">${esc(subjLabel)}</b>
+                  <span class="chip ${isPub ? "confirm" : "tc-sp-off-chip"} tc-sp-status">${isPub ? "✓ В поиске" : "Скрыт"}</span>
+                </div>
+                <div class="tc-sp-headline">${esc(item.headline || "Специализация не указана")}</div>
+              </div>
+              <div class="tc-sp-price num">${Number(item.price || 1200).toLocaleString("ru-RU")} ₽/ч</div>
+            </div>
+            <div class="tc-sp-card-meta small muted">
+              <span>${esc(exLabel)}</span>
+              <span aria-hidden="true">·</span>
+              <span>${esc(fmLabel)}</span>
+              <span aria-hidden="true">·</span>
+              <span class="num">${spSlotsCnt > 0 ? `${spSlotsCnt} ${plural(spSlotsCnt, "окно", "окна", "окон")}` : "нет окон"}</span>
+              ${item.minFair ? `<span aria-hidden="true">·</span><span class="num">торг от ${Number(item.minFair).toLocaleString("ru-RU")} ₽</span>` : ""}
+            </div>
+            <div class="tc-sp-card-actions${isConfirm ? " is-confirming" : ""}">
+              ${isConfirm
+                ? `<div class="tc-sp-confirm">
+                    <span class="tc-sp-confirm-label">Удалить профиль?</span>
+                    <div class="tc-sp-confirm-btns">
+                      <button type="button" class="btn ghost sm" data-a="tc-sp-delete-cancel">Отмена</button>
+                      <button type="button" class="btn bad sm" data-a="tc-sp-delete-confirm" data-id="${esc(itemId)}">Удалить</button>
+                    </div>
+                  </div>`
+                : `<button type="button" class="btn ${isActive ? "" : "soft "}sm tc-sp-edit-btn" data-a="tc-sp-select" data-id="${esc(itemId)}" aria-expanded="${isActive}">${isActive ? "Свернуть" : "Редактировать"}</button>
+                   <button type="button" class="btn ghost sm tc-sp-pub-btn" data-a="tc-sp-toggle-pub" data-id="${esc(itemId)}">${isPub ? "Скрыть" : "В поиск"}</button>
+                   <button type="button" class="btn ghost sm tc-sp-del-btn" data-a="tc-sp-delete-ask" data-id="${esc(itemId)}">Удалить</button>`}
+            </div>
+            ${isActive ? editorHTML : ""}
+          </article>`;
+        }).join("")
+      : `<div class="card pad stack tc-sp-empty">
+          <b>Пока нет профилей для поиска</b>
+          <span class="small muted">Создайте первый профиль с предметом, ставкой и форматом занятий, чтобы ученики находили вас в каталоге.</span>
+          ${isCreating ? "" : `<div><button type="button" class="btn sm" data-a="tc-sp-new">+ Создать первый профиль</button></div>`}
+        </div>`;
+
+    return `<div class="stack" style="gap:16px">
+      ${(!isDevDemoMode() && !ctxUser)
+        ? `<div class="card pad stack" id="tc-profile-auth-note" style="gap:8px;background:var(--surface-2);box-shadow:none">
+            <span class="small ink2">Войдите в аккаунт преподавателя, чтобы сохранить данные и опубликовать профили в живом каталоге.</span>
+            <div><button type="button" class="btn sm" data-a="auth-modal-open">Войти или зарегистрироваться</button></div>
+          </div>`
+        : ""}
+      ${accountSectionHTML}
+      <section class="stack tc-sp-section" id="tc-search-profiles-section" style="gap:12px">
+        <div class="tc-section-head">
+          <div class="stack" style="gap:3px;min-width:0">
+            <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
+              <span class="eyebrow">ПОИСКОВЫЕ ПРОФИЛИ</span>
+              <span class="chip num">${spList.length} из 10</span>
+            </div>
+            <h2 class="h2" style="margin:0">Профили для поиска</h2>
+            <span class="small muted">Можно создать несколько карточек под разные предметы, экзамены и ставки — заявки по ним придут в единый кабинет.</span>
+          </div>
+          <button type="button" class="btn sm tc-sp-new-btn" data-a="tc-sp-new"${spList.length >= 10 || isCreating ? " disabled" : ""}>+ Новый профиль</button>
+        </div>
+        <div class="tc-sp-list">${spCardsHTML}</div>
+        ${isCreating ? `<div class="card tc-sp-draft-wrap">${editorHTML}</div>` : ""}
+      </section>
+    </div>`;
+  }
+
+  const VERIF_DOC_TYPES = [
+    ["diploma", "Диплом о высшем образовании"],
+    ["ege_expert", "Сертификат эксперта ЕГЭ / ФИПИ"],
+    ["certificate", "Диплом или сертификат курса"],
+    ["other", "Другой документ"]
+  ];
+
+  function ensureVerificationsLoaded(st) {
+    const ctxStore = getCtx().store;
+    if (!ctxStore || !ctxStore.backend || !ctxStore.user || !EGE.api || !EGE.api.verifications) return;
+    if (st._verifLoaded || st._verifLoading) return;
+    st._verifLoading = true;
+    EGE.api.verifications.list().then((res) => {
+      st._verifLoading = false;
+      st._verifLoaded = true;
+      if (res && Array.isArray(res.verifications)) {
+        st.verifications = res.verifications;
+        if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      }
+    }).catch(() => {
+      st._verifLoading = false;
+      st._verifLoaded = true;
+    });
+  }
+
+  function renderVerificationBlockHTML(st) {
+    ensureVerificationsLoaded(st);
+    const ctxStore = getCtx().store;
+    const isAuth = !!(ctxStore && ctxStore.backend && ctxStore.user);
+    const draft = st.verifDraft || (st.verifDraft = { docType: "diploma", title: "" });
+    const items = Array.isArray(st.verifications) ? st.verifications : [];
+    const hasApproved = items.some((v) => v.status === "approved");
+    const statusMap = {
+      pending: { cls: "warn", label: "На проверке" },
+      approved: { cls: "confirm", label: "Одобрен · синяя галочка" },
+      rejected: { cls: "bad", label: "Отклонён" }
+    };
+
+    return `<div class="stack" id="tc-verification-sec" style="gap:12px;margin-top:8px;padding-top:16px;border-top:1px solid var(--line)">
+      <div class="row between" style="gap:8px;flex-wrap:wrap;align-items:center">
+        <div class="stack" style="gap:2px">
+          <div class="eyebrow">4. Верификация документов и синяя галочка</div>
+          <span class="small muted">Загрузите диплом или сертификат эксперта (PDF, JPG, PNG, WebP до 10 МБ) для проверки модератором.</span>
+        </div>
+        <span class="chip ${hasApproved ? "confirm" : "accent"}">${hasApproved ? "Проверенный преподаватель" : (items.length ? "На модерации" : "Не проверено")}</span>
+      </div>
+
+      ${isAuth ? `<div class="tc-photo-row">
+        <div class="tc-two-col">
+          <div class="field">
+            <label for="tc-verif-type">Тип документа</label>
+            <select class="select" id="tc-verif-type" data-tc="verifDocType">
+              ${VERIF_DOC_TYPES.map(([k, lbl]) => `<option value="${esc(k)}"${draft.docType === k ? " selected" : ""}>${esc(lbl)}</option>`).join("")}
+            </select>
+          </div>
+          <div class="field">
+            <label for="tc-verif-title">Название / номер</label>
+            <input class="input" id="tc-verif-title" data-tc="verifTitle" maxlength="100" value="${esc(draft.title || "")}" placeholder="Например: Диплом МГУ · Биофак">
+          </div>
+        </div>
+        <div class="tc-photo-actions">
+          <label class="btn soft sm" for="tc-diploma-file" style="cursor:pointer">${icon("upload")}<span>Загрузить скан документа</span></label>
+          <input type="file" id="tc-diploma-file" accept=".pdf,image/jpeg,image/png,image/webp" data-tc-diploma-file="1" class="sr">
+          <button type="button" class="btn ghost sm" data-a="tc-verif-refresh">Обновить статус</button>
+        </div>
+      </div>` : `<div class="card pad stack" style="gap:8px;background:var(--surface-2);box-shadow:none">
+        <span class="small ink2">Войдите в аккаунт преподавателя, чтобы загрузить диплом на серверную проверку и получить синюю галочку в каталоге.</span>
+        <div><button type="button" class="btn soft sm" data-a="auth-modal-open">Войти для загрузки</button></div>
+      </div>`}
+
+      ${items.length ? `<div class="stack" style="gap:8px">
+        ${items.map((v) => {
+          const meta = statusMap[v.status] || statusMap.pending;
+          return `<div class="row between" style="gap:10px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--surface-2);flex-wrap:wrap;align-items:center">
+            <div class="stack" style="gap:2px;min-width:0">
+              <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
+                <b style="font-size:13.5px">${esc(v.title || v.originalFilename || v.docType)}</b>
+                <span class="chip ${meta.cls}">${esc(meta.label)}</span>
+              </div>
+              <span class="small muted">${esc(v.originalFilename || "")} · ${(Math.max(1, Math.round((Number(v.sizeBytes) || 0) / 1024))).toLocaleString("ru-RU")} КБ${v.reviewNote ? ` · Комментарий: ${esc(v.reviewNote)}` : ""}</span>
+            </div>
+            ${v.fileUrl ? `<a href="${esc(v.fileUrl)}" target="_blank" rel="noopener" class="btn ghost sm">Открыть</a>` : ""}
+          </div>`;
+        }).join("")}
+      </div>` : ""}
     </div>`;
   }
 
 
+  function isServerProfileId(rawId) {
+    const id = String(rawId || "").trim();
+    return Boolean(id && id !== "tc-my-profile" && id.indexOf("tc-sp-") !== 0);
+  }
+
+  function refreshPublicTutorsFromServer() {
+    const TDATA = getTDATA();
+    if (TDATA && typeof TDATA.syncServerTutors === "function" && EGE.api && EGE.api.tutors && typeof EGE.api.tutors.list === "function") {
+      EGE.api.tutors.list({ limit: 200 }).then((lr) => {
+        if (lr && Array.isArray(lr.tutors)) {
+          TDATA.syncServerTutors(lr.tutors, { replace: !isDevDemoMode() });
+        }
+      }).catch(() => {});
+    }
+  }
+
+  function buildUpsertProfilePayload(st, spOverride) {
+    syncProfileMirror(st);
+    const acc = st.account || {};
+    const p = spOverride || getEditingSearchProfile(st);
+    const tp = buildMarketTutorPayload(st, p);
+    const badges = (Array.isArray(p.customBadges) ? p.customBadges : [])
+      .map((b) => String(b || "").trim().slice(0, 36))
+      .filter(Boolean)
+      .slice(0, 2);
+    const srvId = isServerProfileId(p.id) ? String(p.id) : null;
+    const hasPhoto = acc.hasPhoto !== false && Boolean(acc.photo);
+    return {
+      id: srvId,
+      name: String(acc.name || p.name || "").trim(),
+      headline: p.headline || "",
+      photo: hasPhoto ? String(acc.photo || "") : "",
+      hasPhoto,
+      subject: tp.subject,
+      subjectName: tp.subjectName,
+      subjects: tp.subjects,
+      exams: tp.exams,
+      formats: tp.formats,
+      city: tp.city,
+      timezone: tp.timezone,
+      whatsapp: acc.whatsapp || "",
+      telegram: acc.telegram || "",
+      maxHandle: acc.maxHandle || "",
+      vk: acc.vk || "",
+      education: p.education || "",
+      expYears: Number(p.expYears) || 1,
+      avgScore: Number(p.avgScore) >= 40 ? Number(p.avgScore) : 85,
+      price: Number(p.price) || 1200,
+      minFair: Number(p.minFair) || 0,
+      marketPrice: tp.marketPrice,
+      customSkills: p.customSkills || "",
+      customBadges: badges,
+      bio: p.bio || "",
+      firstLessonGuarantee: p.firstLessonGuarantee !== false,
+      published: p.published !== false,
+      slots: normalizeSlotsMap(p.slots)
+    };
+  }
+
+  function persistTutorAccountToServer(st, opts) {
+    opts = opts || {};
+    const ctxStore = getCtx().store;
+    if (!ctxStore || !ctxStore.backend || !ctxStore.user || !EGE.api || !EGE.api.tutor || typeof EGE.api.tutor.updateAccount !== "function") {
+      return null;
+    }
+    const acc = (st && st.account) || {};
+    const cleanName = String(acc.name || "").trim();
+    if (cleanName.length < 2) {
+      if (!opts.silent && typeof getCtx().toast === "function") {
+        getCtx().toast("Укажите имя и фамилию преподавателя (минимум 2 символа)");
+      }
+      return null;
+    }
+    const hasPhoto = acc.hasPhoto !== false && Boolean(acc.photo);
+    const payload = {
+      name: cleanName,
+      city: acc.city || "Якутск",
+      timezone: acc.timezone || ((acc.city === "Москва") ? "UTC+3" : "UTC+9"),
+      photo: hasPhoto ? String(acc.photo || "") : "",
+      hasPhoto,
+      whatsapp: acc.whatsapp || "",
+      telegram: acc.telegram || "",
+      maxHandle: acc.maxHandle || "",
+      vk: acc.vk || ""
+    };
+    return EGE.api.tutor.updateAccount(payload).then((res) => {
+      if (res && res.user && ctxStore.user) {
+        Object.assign(ctxStore.user, res.user);
+      }
+      if (res && res.account) {
+        if (!ctxStore.docs || typeof ctxStore.docs !== "object") ctxStore.docs = {};
+        ctxStore.docs.profile = Object.assign({}, ctxStore.docs.profile || {}, res.account);
+      }
+      if (res && Array.isArray(res.profiles)) {
+        applyServerProfiles(res.profiles, st, res.account || (ctxStore.docs && ctxStore.docs.profile));
+      }
+      saveState();
+      refreshPublicTutorsFromServer();
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      if (!opts.silent && typeof getCtx().notifySide === "function") {
+        getCtx().notifySide("Данные аккаунта сохранены", "Имя, контакты и город обновлены во всех профилях поиска.");
+      }
+      return res;
+    }).catch((err) => {
+      if (!opts.silent && typeof getCtx().toast === "function") {
+        getCtx().toast((err && err.message) || "Не удалось сохранить данные аккаунта");
+      }
+      return null;
+    });
+  }
+
+  const _profileSaveSeq = {};
+
+  function persistTutorProfileToServer(st, spOverride, opts) {
+    if (spOverride && !opts && (Object.prototype.hasOwnProperty.call(spOverride, "silent") || Object.prototype.hasOwnProperty.call(spOverride, "createNew"))) {
+      opts = spOverride;
+      spOverride = null;
+    }
+    opts = opts || {};
+    const ctxStore = getCtx().store;
+    if (!ctxStore || !ctxStore.backend || !ctxStore.user || !EGE.api || !EGE.api.tutor) return null;
+    const acc = st && st.account;
+    if (!acc || String(acc.name || "").trim().length < 2) {
+      if (!opts.silent && typeof getCtx().toast === "function") {
+        getCtx().toast("Сначала заполните имя в блоке «Мой аккаунт» (минимум 2 символа)");
+      }
+      return null;
+    }
+    const sp = spOverride || getEditingSearchProfile(st);
+    const payload = buildUpsertProfilePayload(st, sp);
+    const isNew = Boolean(opts.createNew || !payload.id);
+    const seqKey = String(payload.id || opts.replaceLocalId || "__new__");
+    const mySeq = (_profileSaveSeq[seqKey] = (_profileSaveSeq[seqKey] || 0) + 1);
+    const callProm = (isNew && typeof EGE.api.tutor.createProfile === "function")
+      ? EGE.api.tutor.createProfile(payload)
+      : ((!isNew && typeof EGE.api.tutor.updateProfile === "function")
+        ? EGE.api.tutor.updateProfile(payload.id, payload)
+        : EGE.api.tutor.upsertProfile(payload));
+    return callProm.then((res) => {
+      if (opts.silent && _profileSaveSeq[seqKey] !== mySeq) return res;
+      if (opts.replaceLocalId) {
+        st.searchProfiles = (st.searchProfiles || []).filter((item) => item && item.id !== opts.replaceLocalId);
+      }
+      if (res && res.tutor && res.tutor.id) {
+        if (opts.silent && (st.creatingSearchProfile || (st.activeSearchProfileId && st.activeSearchProfileId !== String(res.tutor.id)))) {
+          const idx = (st.searchProfiles || []).findIndex((item) => item && item.id === res.tutor.id);
+          if (idx >= 0 && res.tutor.slots) {
+            st.searchProfiles[idx].slots = normalizeSlotsMap(res.tutor.slots);
+          }
+        } else {
+          applyServerProfile(res.tutor, st, { syncAccount: false });
+        }
+        saveState();
+      }
+      refreshPublicTutorsFromServer();
+      if (!opts.silent) hydrateFromBackend({ force: true });
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      return res;
+    }).catch((err) => {
+      if (opts.replaceLocalId && !isDevDemoMode()) {
+        st.searchProfiles = (st.searchProfiles || []).filter((item) => item && item.id !== opts.replaceLocalId);
+        if (st.activeSearchProfileId === opts.replaceLocalId) {
+          st.activeSearchProfileId = (st.searchProfiles[0] && st.searchProfiles[0].id) || "";
+        }
+        syncProfileMirror(st);
+        saveState();
+        if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      }
+      if (!opts.silent && typeof getCtx().toast === "function") {
+        getCtx().toast((err && err.message) || "Не удалось сохранить профиль для поиска на сервере");
+      }
+      return null;
+    });
+  }
+
+  function renderCommTab() {
+    const mApi = EGE.views && EGE.views.messenger;
+    if (mApi && typeof mApi.hydrateFromBackend === "function") {
+      mApi.hydrateFromBackend(false);
+    }
+    const wsHTML = mApi && typeof mApi.renderCommWorkspaceHTML === "function"
+      ? mApi.renderCommWorkspaceHTML({ compact: false })
+      : `<div class="empty"><b>Чаты временно недоступны</b></div>`;
+    return wsHTML;
+  }
+
   function viewCabinet() {
     ensureCountdownTimer();
     ensureRealtimeConnected();
+    ensureServerHydrated();
     const TDATA = getTDATA();
     const st = tState();
     const p = st.profile;
     const allReqs = syncedRequests();
     const pendingList = allReqs.filter((r) => r.status === "pending");
     const acceptedList = allReqs.filter((r) => r.status === "accepted");
-    const baseSplit = TDATA && typeof TDATA.commissionSplit === "function" ? TDATA.commissionSplit(p.price) : { total: p.price, fee: Math.round(p.price * 0.05), payout: Math.round(p.price * 0.95), pct: 5 };
+    const baseSplit = TDATA && typeof TDATA.commissionSplit === "function" ? TDATA.commissionSplit(p.price) : { total: p.price, fee: Math.round(p.price * 0.05), sbpFee: Math.round(p.price * 0.01), payout: Math.max(0, p.price - Math.round(p.price * 0.05) - Math.round(p.price * 0.01)), pct: 5, sbpPct: 1 };
     const normalizedTab = st.tab === "calendar" ? "students" : st.tab;
-    const activeTab = ["requests", "leads", "profile", "students"].includes(normalizedTab) ? normalizedTab : "requests";
+    const activeTab = ["requests", "leads", "profile", "students", "comm"].includes(normalizedTab) ? normalizedTab : "requests";
 
     let bodyHTML = "";
     if (activeTab === "leads") bodyHTML = renderLeadsTab(st, TDATA);
     else if (activeTab === "profile") bodyHTML = renderProfileTab(st, TDATA, baseSplit);
     else if (activeTab === "students") bodyHTML = renderCalendarTab(st, TDATA, allReqs);
+    else if (activeTab === "comm") bodyHTML = renderCommTab(st);
     else bodyHTML = renderRequestsTab(st, TDATA, allReqs, pendingList, acceptedList, baseSplit);
 
     return bodyHTML;
@@ -578,7 +1028,7 @@
 
     if (act === "tc-tab") {
       const rawTab = d.tab === "calendar" ? "students" : d.tab;
-      const nextTab = ["requests", "leads", "profile", "students"].includes(rawTab) ? rawTab : "requests";
+      const nextTab = ["requests", "leads", "profile", "students", "comm"].includes(rawTab) ? rawTab : "requests";
       st.tab = nextTab;
       saveState();
       if (typeof getCtx().go === "function") getCtx().go("tutor-" + nextTab);
@@ -611,20 +1061,220 @@
         }
         return true;
       }
+      const sp = getEditingSearchProfile(st);
+      sp.bumpedToday = true;
       st.bumpedToday = true;
       st.lastManualBumpAt = Date.now();
       st.bumpCount = (Number(st.bumpCount) || 0) + 1;
+      syncProfileMirror(st);
       syncPublishedTutor(st);
       saveState();
       const ctxStore = getCtx().store;
       if (ctxStore && ctxStore.backend && ctxStore.user && EGE.api && EGE.api.tutor) {
-        EGE.api.tutor.bump(st.profile && st.profile.id).catch(() => {});
+        EGE.api.tutor.bump(isServerProfileId(sp.id) ? sp.id : undefined).catch(() => {});
       }
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
       if (typeof getCtx().notifySide === "function") {
         getCtx().notifySide("Анкета поднята в топ (0 ₽)", "Следующее ручное поднятие будет доступно через 4 часа.");
       }
       return true;
+    }
+
+    if (act === "tc-account-save") {
+      if (!st.account || typeof st.account !== "object") st.account = {};
+      if (typeof document !== "undefined" && typeof document.getElementById === "function") {
+        const nameEl = document.getElementById("tc-hh-name");
+        if (nameEl && typeof nameEl.value === "string") st.account.name = nameEl.value.trim().slice(0, 48);
+        const tgEl = document.getElementById("tc-hh-tg");
+        if (tgEl && typeof tgEl.value === "string") st.account.telegram = tgEl.value.trim() ? formatTelegram(tgEl.value) : "";
+        const waEl = document.getElementById("tc-hh-wa");
+        if (waEl && typeof waEl.value === "string") {
+          const digits = waEl.value.replace(/\D+/g, "");
+          st.account.whatsapp = digits.length >= 10 ? formatPhone(waEl.value) : "";
+        }
+        const maxEl = document.getElementById("tc-hh-max");
+        if (maxEl && typeof maxEl.value === "string") st.account.maxHandle = maxEl.value.trim().slice(0, 48);
+        const vkEl = document.getElementById("tc-hh-vk");
+        if (vkEl && typeof vkEl.value === "string") st.account.vk = vkEl.value.trim().slice(0, 64);
+      }
+      if (String(st.account.name || "").trim().length < 2) {
+        if (typeof getCtx().toast === "function") getCtx().toast("Укажите имя и фамилию преподавателя (минимум 2 символа)");
+        return true;
+      }
+      syncProfileMirror(st);
+      syncPublishedTutor(st);
+      saveState();
+      const ctxStore = getCtx().store;
+      if (ctxStore && ctxStore.backend && ctxStore.user && EGE.api && EGE.api.tutor && typeof EGE.api.tutor.updateAccount === "function") {
+        persistTutorAccountToServer(st, { silent: false });
+      } else {
+        if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+        if (typeof getCtx().notifySide === "function") {
+          getCtx().notifySide("Данные аккаунта сохранены", `${st.account.name} · настройки применены ко всем профилям поиска.`);
+        }
+      }
+      return true;
+    }
+
+    if (act === "tc-sp-new") {
+      const spList = Array.isArray(st.searchProfiles) ? st.searchProfiles : [];
+      if (spList.length >= 10) {
+        if (typeof getCtx().toast === "function") getCtx().toast("Можно создать не более 10 профилей для поиска");
+        return true;
+      }
+      st.spEditorOpen = false;
+      st.creatingSearchProfile = true;
+      st.newProfileDraft = createEmptySearchProfile(st.account, { published: true });
+      st.confirmDeleteProfileId = null;
+      st.profilePreview = false;
+      syncProfileMirror(st);
+      saveState();
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      if (typeof document !== "undefined" && typeof setTimeout === "function") {
+        setTimeout(() => {
+          const ed = document.getElementById("tc-sp-editor");
+          if (ed && typeof ed.scrollIntoView === "function") ed.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 30);
+      }
+      return true;
+    }
+
+    if (act === "tc-sp-cancel-new") {
+      st.creatingSearchProfile = false;
+      st.spEditorOpen = false;
+      st.newProfileDraft = null;
+      st.profilePreview = false;
+      syncProfileMirror(st);
+      saveState();
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-sp-close-edit") {
+      st.spEditorOpen = false;
+      st.profilePreview = false;
+      saveState();
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-sp-select") {
+      const tid = String(d.id || "");
+      if (tid && (st.searchProfiles || []).some((item) => item && item.id === tid)) {
+        if (st.spEditorOpen && !st.creatingSearchProfile && st.activeSearchProfileId === tid) {
+          st.spEditorOpen = false;
+          st.profilePreview = false;
+        } else {
+          st.creatingSearchProfile = false;
+          st.newProfileDraft = null;
+          st.activeSearchProfileId = tid;
+          st.spEditorOpen = true;
+          st.profilePreview = false;
+        }
+        st.confirmDeleteProfileId = null;
+        syncProfileMirror(st);
+        saveState();
+        if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      }
+      return true;
+    }
+
+    if (act === "tc-sp-toggle-pub") {
+      const tid = String(d.id || "");
+      const target = (st.searchProfiles || []).find((item) => item && item.id === tid);
+      if (!target) return true;
+      const nextPub = target.published === false;
+      target.published = nextPub;
+      syncProfileMirror(st);
+      syncPublishedTutor(st);
+      saveState();
+      const ctxStore = getCtx().store;
+      if (ctxStore && ctxStore.backend && ctxStore.user && EGE.api && EGE.api.tutor && typeof EGE.api.tutor.setProfilePublished === "function" && isServerProfileId(tid)) {
+        EGE.api.tutor.setProfilePublished(tid, nextPub).then((res) => {
+          if (res && res.tutor) {
+            target.published = res.tutor.published !== false;
+            syncProfileMirror(st);
+            syncPublishedTutor(st);
+            saveState();
+          }
+          refreshPublicTutorsFromServer();
+          if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+        }).catch((err) => {
+          target.published = !nextPub;
+          syncProfileMirror(st);
+          syncPublishedTutor(st);
+          saveState();
+          if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+          if (typeof getCtx().toast === "function") getCtx().toast((err && err.message) || "Не удалось изменить статус профиля");
+        });
+      }
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      if (typeof getCtx().toast === "function") getCtx().toast(nextPub ? "Профиль показан в поиске" : "Профиль скрыт из поиска");
+      return true;
+    }
+
+    if (act === "tc-sp-delete-ask") {
+      st.confirmDeleteProfileId = String(d.id || "") || null;
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-sp-delete-cancel") {
+      st.confirmDeleteProfileId = null;
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-sp-delete-confirm") {
+      const tid = String(d.id || "");
+      st.confirmDeleteProfileId = null;
+      if (!tid) return true;
+      const applyLocalRemove = () => {
+        st.searchProfiles = (st.searchProfiles || []).filter((item) => item && item.id !== tid);
+        if (st.activeSearchProfileId === tid) {
+          st.activeSearchProfileId = (st.searchProfiles[0] && st.searchProfiles[0].id) || "";
+          st.spEditorOpen = false;
+          st.profilePreview = false;
+        }
+        const TDATA = getTDATA();
+        if (TDATA && typeof TDATA.removeCustomTutor === "function") TDATA.removeCustomTutor(tid);
+        syncProfileMirror(st);
+        saveState();
+      };
+      const ctxStore = getCtx().store;
+      if (ctxStore && ctxStore.backend && ctxStore.user && EGE.api && EGE.api.tutor && typeof EGE.api.tutor.deleteProfile === "function" && isServerProfileId(tid)) {
+        EGE.api.tutor.deleteProfile(tid).then((res) => {
+          if (res && res.archived) {
+            const target = (st.searchProfiles || []).find((item) => item && item.id === tid);
+            if (target) target.published = false;
+            syncProfileMirror(st);
+            syncPublishedTutor(st);
+            saveState();
+            if (typeof getCtx().toast === "function") getCtx().toast("У профиля есть история заявок — он скрыт из поиска (архивирован)");
+          } else {
+            applyLocalRemove();
+            if (typeof getCtx().toast === "function") getCtx().toast("Профиль для поиска удалён");
+          }
+          refreshPublicTutorsFromServer();
+          hydrateFromBackend({ force: true });
+          if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+        }).catch((err) => {
+          if (typeof getCtx().toast === "function") getCtx().toast((err && err.message) || "Не удалось удалить профиль");
+          if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+        });
+        return true;
+      }
+      applyLocalRemove();
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      if (typeof getCtx().toast === "function") getCtx().toast("Профиль для поиска удалён");
+      return true;
+    }
+
+    if (act === "tc-sp-save-draft") {
+      const domForm = (typeof document !== "undefined" && typeof document.querySelector === "function")
+        ? document.querySelector('[data-f="tc-profile"]')
+        : null;
+      return submitSearchProfileForm(st, domForm, { published: false });
     }
 
     if (act === "tc-bump-details-toggle") {
@@ -654,7 +1304,13 @@
       return true;
     }
 
-    if (act === "tc-messenger-link" || act === "tc-messenger-unlink") {
+    if (act === "tc-messenger-cancel") {
+      st.msgrLinkOpen = "";
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-messenger-open" || act === "tc-messenger-link" || act === "tc-messenger-unlink") {
       const ch = String((el && el.dataset && el.dataset.ch) || "");
       const metaMap = {
         telegram: { label: "Telegram", inputId: "tc-hh-tg" },
@@ -664,10 +1320,30 @@
       };
       const meta = metaMap[ch];
       if (!meta) return false;
+      const acc = st.account || (st.account = {});
+      if (act === "tc-messenger-open") {
+        st.msgrLinkOpen = ch;
+        if (!st.msgrLinkDraft || typeof st.msgrLinkDraft !== "object") st.msgrLinkDraft = {};
+        if (st.msgrLinkDraft[ch] == null) st.msgrLinkDraft[ch] = String(acc[ch] || "");
+        if (ch === "whatsapp" && !st.msgrLinkDraft.whatsappCountry) {
+          st.msgrLinkDraft.whatsappCountry = acc.whatsappCountry || "RU";
+        }
+        const ctxUi = getCtx().ui;
+        if (ctxUi) ctxUi.focusNext = meta.inputId;
+        if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+        return true;
+      }
       if (act === "tc-messenger-unlink") {
-        st.profile[ch] = "";
+        acc[ch] = "";
+        if (st.msgrLinkDraft) {
+          delete st.msgrLinkDraft[ch];
+          if (ch === "whatsapp") delete st.msgrLinkDraft.whatsappCountry;
+        }
+        if (st.msgrLinkOpen === ch) st.msgrLinkOpen = "";
+        syncProfileMirror(st);
         syncPublishedTutor(st);
         saveState();
+        persistTutorAccountToServer(st, { silent: true });
         if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
         if (typeof getCtx().notifySide === "function") {
           getCtx().notifySide(`Аккаунт ${meta.label} отвязан`, "Вы можете привязать его снова в профиле.");
@@ -677,25 +1353,31 @@
       const domInp = (typeof document !== "undefined" && typeof document.getElementById === "function")
         ? document.getElementById(meta.inputId)
         : null;
-      if (domInp && typeof domInp.value === "string" && domInp.value.trim()) {
-        if (ch === "telegram") st.profile.telegram = formatTelegram(domInp.value);
+      const rawDraft = st.msgrLinkDraft && st.msgrLinkDraft[ch] != null ? String(st.msgrLinkDraft[ch]) : "";
+      const rawVal = (domInp && typeof domInp.value === "string" && domInp.value.trim())
+        ? domInp.value
+        : (rawDraft.trim() ? rawDraft : String(acc[ch] || ""));
+      let nextVal = "";
+      let nextWaCountry = acc.whatsappCountry || "RU";
+      if (rawVal.trim()) {
+        if (ch === "telegram") nextVal = formatTelegram(rawVal);
         else if (ch === "whatsapp") {
           const pf = EGE.phoneField;
           if (pf && typeof pf.formatPhoneForCountry === "function") {
-            const stPf = typeof pf.getPhoneFieldState === "function" ? pf.getPhoneFieldState("tc-hh-wa", st.profile.whatsappCountry || "RU") : null;
-            const parsed = pf.formatPhoneForCountry(domInp.value, (stPf && stPf.country) || st.profile.whatsappCountry || "RU");
-            st.profile.whatsapp = parsed.formatted;
-            st.profile.whatsappCountry = parsed.country.code;
+            const stPf = typeof pf.getPhoneFieldState === "function" ? pf.getPhoneFieldState("tc-hh-wa", (st.msgrLinkDraft && st.msgrLinkDraft.whatsappCountry) || acc.whatsappCountry || "RU") : null;
+            const parsed = pf.formatPhoneForCountry(rawVal, (stPf && stPf.country) || (st.msgrLinkDraft && st.msgrLinkDraft.whatsappCountry) || acc.whatsappCountry || "RU");
+            nextVal = parsed.formatted;
+            nextWaCountry = parsed.country.code;
           } else {
-            st.profile.whatsapp = formatPhone(domInp.value);
+            nextVal = formatPhone(rawVal);
           }
         } else if (ch === "maxHandle") {
-          st.profile.maxHandle = domInp.value.trim().slice(0, 48);
+          nextVal = rawVal.trim().slice(0, 48);
         } else if (ch === "vk") {
-          st.profile.vk = domInp.value.trim().slice(0, 64);
+          nextVal = rawVal.trim().slice(0, 64);
         }
       }
-      const curVal = String(st.profile[ch] || "").trim();
+      const curVal = String(nextVal || "").trim();
       const ok = ch === "whatsapp"
         ? curVal.replace(/\D+/g, "").length >= 10
         : (ch === "telegram" ? curVal.length >= 3 : curVal.length >= 2);
@@ -706,8 +1388,17 @@
         }
         return true;
       }
+      acc[ch] = curVal;
+      if (ch === "whatsapp") acc.whatsappCountry = nextWaCountry;
+      st.msgrLinkOpen = "";
+      if (st.msgrLinkDraft) {
+        delete st.msgrLinkDraft[ch];
+        if (ch === "whatsapp") delete st.msgrLinkDraft.whatsappCountry;
+      }
+      syncProfileMirror(st);
       syncPublishedTutor(st);
       saveState();
+      persistTutorAccountToServer(st, { silent: true });
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
       if (typeof getCtx().notifySide === "function") {
         getCtx().notifySide(`Аккаунт ${meta.label} привязан`, `Мы сможем настроить уведомления для вас в ${meta.label}.`);
@@ -716,19 +1407,33 @@
     }
 
     if (act === "tc-photo-clear") {
-      st.profile.photo = "";
+      if (!st.account || typeof st.account !== "object") st.account = {};
+      st.account.photo = "";
+      st.account.hasPhoto = false;
+      syncProfileMirror(st);
       syncPublishedTutor(st);
       saveState();
+      persistTutorAccountToServer(st, { silent: true });
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
-      if (typeof getCtx().toast === "function") getCtx().toast("Фото убрано — показывается «Без фото»");
+      return true;
+    }
+
+    if (act === "tc-verif-refresh") {
+      st._verifLoaded = false;
+      ensureVerificationsLoaded(st);
+      if (typeof getCtx().toast === "function") getCtx().toast("Статус верификации обновлён");
       return true;
     }
 
     if (act === "tc-city-pick") {
       if (CITY_OPTIONS.includes(d.v)) {
-        st.profile.city = d.v;
+        if (!st.account || typeof st.account !== "object") st.account = {};
+        st.account.city = d.v;
+        st.account.timezone = d.v === "Москва" ? "UTC+3" : "UTC+9";
+        syncProfileMirror(st);
         syncPublishedTutor(st);
         saveState();
+        persistTutorAccountToServer(st, { silent: true });
         if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
       }
       return true;
@@ -742,11 +1447,14 @@
 
     if (act === "tc-tz-pick") {
       if (TZ_OPTIONS.some((tz) => tz.id === d.v)) {
-        st.profile.timezone = d.v;
+        if (!st.account || typeof st.account !== "object") st.account = {};
+        st.account.timezone = d.v;
       }
       st.tzMenuOpen = false;
+      syncProfileMirror(st);
       syncPublishedTutor(st);
       saveState();
+      persistTutorAccountToServer(st, { silent: true });
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
       return true;
     }
@@ -764,7 +1472,6 @@
       markSwitchAnim("wa-global", st.waSettings.enabled);
       saveState();
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
-      if (typeof getCtx().toast === "function") getCtx().toast(st.waSettings.enabled ? "Автоуведомления (WA · TG · MAX) включены" : "Автоуведомления на паузе");
       return true;
     }
 
@@ -851,14 +1558,6 @@
         s.autoNotify = !s.autoNotify;
         saveState();
         if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
-        if (typeof getCtx().notifySide === "function") {
-          const leadLabel = (WA_LEAD_OPTIONS.find((o) => o.id === ((st.waSettings && st.waSettings.lead) || "1h")) || WA_LEAD_OPTIONS[1]).label;
-          const chNames = normalizeChannelList(s.autoChannels).map((cid) => (AUTO_CHANNELS.find((c) => c.id === cid) || {}).name || cid).join(", ");
-          getCtx().notifySide(
-            s.autoNotify ? "Автоуведомление включено" : "Автоуведомление выключено",
-            s.autoNotify ? `${s.name}: ${chNames} · ${leadLabel} (${s.lessonDay || "Воскресенье"}, ${s.lessonTime || "10:00"})` : `${s.name}: только ручные напоминания`
-          );
-        }
       }
       return true;
     }
@@ -888,7 +1587,7 @@
         if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
         if (typeof getCtx().notifySide === "function") {
           const chNames = chs.map((cid) => (AUTO_CHANNELS.find((c) => c.id === cid) || {}).name || cid).join(" · ");
-          getCtx().notifySide(`Напоминание подготовлено (${chNames})`, `${s.name} · ${s.lessonDay || "Воскресенье"} в ${s.lessonTime || "10:00"}`);
+          getCtx().notifySide(`Отправили напоминание (${chNames})`, `Написали ученику ${s.name} · ${s.lessonDay || "Воскресенье"} в ${s.lessonTime || "10:00"}`, { inbox: true });
         }
       }
       return true;
@@ -962,7 +1661,9 @@
     }
 
     if (act === "tc-exam-toggle") {
-      if (d.v) st.profile.exams = toggleArrayVal(st.profile.exams, d.v, true);
+      const sp = getEditingSearchProfile(st);
+      if (d.v) sp.exams = toggleArrayVal(sp.exams, d.v, true);
+      syncProfileMirror(st);
       syncPublishedTutor(st);
       saveState();
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
@@ -970,7 +1671,9 @@
     }
 
     if (act === "tc-format-toggle") {
-      if (d.v) st.profile.formats = toggleArrayVal(st.profile.formats, d.v, true);
+      const sp = getEditingSearchProfile(st);
+      if (d.v) sp.formats = toggleArrayVal(sp.formats, d.v, true);
+      syncProfileMirror(st);
       syncPublishedTutor(st);
       saveState();
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
@@ -978,7 +1681,9 @@
     }
 
     if (act === "tc-skill-toggle") {
-      if (d.v) st.profile.skills = toggleArrayVal(st.profile.skills, d.v, false);
+      const sp = getEditingSearchProfile(st);
+      if (d.v) sp.skills = toggleArrayVal(sp.skills, d.v, false);
+      syncProfileMirror(st);
       syncPublishedTutor(st);
       saveState();
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
@@ -1043,10 +1748,12 @@
       const enabled = act === "tc-guarantee-set"
         ? (d.v === "1" || d.v === "true")
         : d.v === "free";
-      st.profile.firstLessonGuarantee = enabled;
-      st.profile.trialMode = enabled ? "free" : "none";
-      st.profile.trialPrice = enabled ? 0 : null;
-      st.profile.trialFree = enabled;
+      const sp = getEditingSearchProfile(st);
+      sp.firstLessonGuarantee = enabled;
+      sp.trialMode = enabled ? "free" : "none";
+      sp.trialPrice = enabled ? 0 : null;
+      sp.trialFree = enabled;
+      syncProfileMirror(st);
       syncPublishedTutor(st);
       saveState();
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
@@ -1056,12 +1763,14 @@
     if (act === "tc-rate-step") {
       const which = d.which === "minFair" ? "minFair" : "price";
       const step = Number(d.step) || 0;
+      const sp = getEditingSearchProfile(st);
       if (which === "price") {
-        st.profile.price = clampStep(st.profile.price, step, 0, 99999);
-        if (st.profile.minFair > st.profile.price) st.profile.minFair = Math.max(0, st.profile.price - 50);
+        sp.price = clampStep(sp.price, step, 0, 99999);
+        if (sp.minFair > sp.price) sp.minFair = Math.max(0, sp.price - 50);
       } else {
-        st.profile.minFair = clampStep(st.profile.minFair, step, 0, st.profile.price);
+        sp.minFair = clampStep(sp.minFair, step, 0, sp.price);
       }
+      syncProfileMirror(st);
       syncPublishedTutor(st);
       saveState();
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
@@ -1086,10 +1795,17 @@
         req.status = "accepted";
       });
       const who = findReq(id);
-      const bkServerId = who && (who.mktId || (String(id).startsWith("bk-") ? id : null));
+      const bkServerId = who && (who.serverId || who.mktId || (String(id).startsWith("bk-") ? id : null));
       const ctxStore = getCtx().store;
       if (bkServerId && ctxStore && ctxStore.backend && ctxStore.user && EGE.api && EGE.api.bookings) {
-        EGE.api.bookings.accept(bkServerId, { counterPrice: who ? Number(who.offerPrice) : undefined }).catch(() => {});
+        EGE.api.bookings.accept(bkServerId, { counterPrice: who ? Number(who.offerPrice) : undefined }).then(() => {
+          hydrateFromBackend({ force: true });
+        }).catch((err) => {
+          if (!isDevDemoMode()) {
+            if (typeof getCtx().toast === "function") getCtx().toast((err && err.message) || "Не удалось подтвердить заявку");
+            hydrateFromBackend({ force: true });
+          }
+        });
       }
       publishRtUpdate(
         "request.accepted",
@@ -1102,7 +1818,8 @@
       if (typeof getCtx().notifySide === "function") {
         getCtx().notifySide(
           "Урок подтверждён",
-          who ? `${who.studentName} · ${who.dayLabel} в ${who.hour} за ${who.offerPrice.toLocaleString("ru-RU")} ₽/ч` : "Заявка переведена в подтверждённые"
+          who ? `${who.studentName} · ${who.dayLabel} в ${who.hour} за ${who.offerPrice.toLocaleString("ru-RU")} ₽/ч — уведомили ученика` : "Заявка переведена в подтверждённые",
+          { inbox: false }
         );
       }
       return true;
@@ -1112,15 +1829,23 @@
       const updated = updateReq(id, (req) => { req.status = "countered"; });
       if (updated && typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
       const who = findReq(id);
-      const bkServerId = who && (who.mktId || (String(id).startsWith("bk-") ? id : null));
+      const bkServerId = who && (who.serverId || who.mktId || (String(id).startsWith("bk-") ? id : null));
       const ctxStore = getCtx().store;
       if (bkServerId && who && ctxStore && ctxStore.backend && ctxStore.user && EGE.api && EGE.api.bookings) {
-        EGE.api.bookings.counter(bkServerId, Number(who.counterPrice)).catch(() => {});
+        EGE.api.bookings.counter(bkServerId, Number(who.counterPrice)).then(() => {
+          hydrateFromBackend({ force: true });
+        }).catch((err) => {
+          if (!isDevDemoMode()) {
+            if (typeof getCtx().toast === "function") getCtx().toast((err && err.message) || "Не удалось отправить контр-ставку");
+            hydrateFromBackend({ force: true });
+          }
+        });
       }
       if (typeof getCtx().notifySide === "function") {
         getCtx().notifySide(
           "Контр-ставка отправлена",
-          who ? `Предложили ${who.counterPrice.toLocaleString("ru-RU")} ₽/ч — уведомим ученика` : "Новая ставка отправлена ученику"
+          who ? `Предложили ${who.counterPrice.toLocaleString("ru-RU")} ₽/ч — уведомили ученика` : "Новая ставка отправлена ученику",
+          { inbox: true }
         );
       }
       return true;
@@ -1128,16 +1853,22 @@
 
     if (act === "tc-req-decline") {
       const who = findReq(id);
-      const bkServerId = who && (who.mktId || (String(id).startsWith("bk-") ? id : null));
+      const bkServerId = who && (who.serverId || who.mktId || (String(id).startsWith("bk-") ? id : null));
       const ctxStore = getCtx().store;
       if (bkServerId && ctxStore && ctxStore.backend && ctxStore.user && EGE.api && EGE.api.bookings) {
-        EGE.api.bookings.cancel(bkServerId).catch(() => {});
+        EGE.api.bookings.cancel(bkServerId).then(() => {
+          hydrateFromBackend({ force: true });
+        }).catch((err) => {
+          if (!isDevDemoMode()) {
+            if (typeof getCtx().toast === "function") getCtx().toast((err && err.message) || "Не удалось отменить заявку");
+            hydrateFromBackend({ force: true });
+          }
+        });
       }
       updateReq(id, (req) => { req.status = "declined"; });
       publishRtUpdate("request.declined", "Заявка снята", `Слот освобождён (${id})`, { requestId: id });
       syncTutorCalendar(st);
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
-      if (typeof getCtx().toast === "function") getCtx().toast("Заявка отклонена");
       return true;
     }
 
@@ -1150,7 +1881,7 @@
     if (act === "tc-req-msg") {
       const who = findReq(id);
       if (typeof getCtx().notifySide === "function") {
-        getCtx().notifySide("Чат с учеником", who ? `Открыт диалог с ${who.studentName} (${who.dayLabel}, ${who.hour})` : "Сообщение ученику подготовлено");
+        getCtx().notifySide("Чат с учеником", who ? `Открыт диалог с ${who.studentName} (${who.dayLabel}, ${who.hour})` : "Сообщение ученику подготовлено", { inbox: true });
       }
       return true;
     }
@@ -1188,7 +1919,8 @@
       if (typeof getCtx().notifySide === "function") {
         getCtx().notifySide(
           "Уведомление об оплате отправлено",
-          who ? `${who.studentName} получит напоминание оплатить ${amount.toLocaleString("ru-RU")} ₽ (${who.dayLabel} в ${who.hour})` : "Напоминание отправлено ученику"
+          who ? `${who.studentName} получит напоминание оплатить ${amount.toLocaleString("ru-RU")} ₽ (${who.dayLabel} в ${who.hour})` : "Напоминание отправлено ученику",
+          { inbox: true }
         );
       }
       return true;
@@ -1207,6 +1939,11 @@
       const who = findReq(id);
       const sp = who && who.schedulePlan;
       st.schedAltId = "";
+      const bkServerId = who && (who.serverId || who.mktId || (String(id).startsWith("bk-") ? id : null));
+      const ctxStore = getCtx().store;
+      if (bkServerId && sp && ctxStore && ctxStore.backend && ctxStore.user && EGE.api && EGE.api.bookings) {
+        EGE.api.bookings.updateSchedule(bkServerId, sp).catch(() => {});
+      }
       syncTutorCalendar(st);
       saveState();
       publishRtUpdate(
@@ -1216,7 +1953,7 @@
         { requestId: id, schedulePlan: sp }
       );
       if (typeof getCtx().notifySide === "function") {
-        getCtx().notifySide("График подтверждён", sp ? `${tcDaysShort(sp.dows)} · ${sp.hour}` : "Расписание закреплено");
+        getCtx().notifySide("График подтверждён", sp ? `${tcDaysShort(sp.dows)} · ${sp.hour} — уведомили ученика` : "Расписание закреплено", { inbox: false });
       }
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
       return true;
@@ -1281,6 +2018,12 @@
         req.schedulePlan.updatedAt = Date.now();
       });
       if (!updated) return false;
+      const who = findReq(id);
+      const bkServerId = who && (who.serverId || who.mktId || (String(id).startsWith("bk-") ? id : null));
+      const ctxStore = getCtx().store;
+      if (bkServerId && who && who.schedulePlan && ctxStore && ctxStore.backend && ctxStore.user && EGE.api && EGE.api.bookings) {
+        EGE.api.bookings.updateSchedule(bkServerId, who.schedulePlan).catch(() => {});
+      }
       st.schedAltId = "";
       saveState();
       publishRtUpdate(
@@ -1290,7 +2033,13 @@
         { requestId: id, altDows: dows, altHour: hour }
       );
       if (typeof getCtx().notifySide === "function") {
-        getCtx().notifySide("Другие даты отправлены ученику", `${tcDaysShort(dows)} · ${hour}`);
+        getCtx().notifySide("Другие даты отправлены ученику", `${tcDaysShort(dows)} · ${hour}`, { inbox: true });
+      }
+      if (EGE.fx && typeof EGE.fx.playBidSentFx === "function") {
+        EGE.fx.playBidSentFx({
+          title: "Даты предложены",
+          subtitle: `${tcDaysShort(dows)} · ${hour}`
+        });
       }
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
       return true;
@@ -1340,7 +2089,6 @@
         ? lessons.map((r) => `${r.hour} — ${r.studentName} (${r.offerPrice} ₽/ч)`).join("\n")
         : "На выбранный день уроки ещё не назначены.";
       copyStr(`${activeDayObj.full}:\n${summary}`);
-      if (typeof getCtx().toast === "function") getCtx().toast("Расписание дня скопировано");
       return true;
     }
 
@@ -1348,15 +2096,21 @@
       const hour = String(d.hour || "").trim();
       if (!hour) return true;
       const dow = st.activeDow || "6";
-      const list = Array.isArray(st.slots[dow]) ? st.slots[dow].slice() : [];
+      const p = getEditingSearchProfile(st);
+      p.slots = normalizeSlotsMap(p.slots);
+      const list = Array.isArray(p.slots[dow]) ? p.slots[dow].slice() : [];
       const idx = list.indexOf(hour);
       if (idx >= 0) list.splice(idx, 1);
       else list.push(hour);
       list.sort();
-      st.slots[dow] = list;
+      p.slots[dow] = list;
+      syncProfileMirror(st);
       syncPublishedTutor(st);
       saveState();
-      publishRtUpdate("calendar.slot.updated", "Обновлено окно в расписании", `${dow}: ${hour}`, { dow, hour });
+      if (!st.creatingSearchProfile && isServerProfileId(p.id)) {
+        persistTutorProfileToServer(st, p, { silent: true });
+      }
+      publishRtUpdate("calendar.slot.updated", "Обновлено окно в расписании", `${dow}: ${hour}`, { dow, hour, tutorId: p.id || "" });
       syncTutorCalendar(st);
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
       return true;
@@ -1370,7 +2124,6 @@
         }
       }
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
-      if (typeof getCtx().toast === "function") getCtx().toast("Live-поток обновлён");
       return true;
     }
 
@@ -1378,9 +2131,6 @@
       syncTutorCalendar(st);
       saveState();
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
-      if (typeof getCtx().notifySide === "function") {
-        getCtx().notifySide(".ics-лента синхронизирована", `Часовой пояс ${st.profile.timezone || "UTC+9"} · ссылка готова для Google Calendar`);
-      }
       return true;
     }
 
@@ -1388,7 +2138,6 @@
       const cs = st.calendarSync || {};
       const url = d.url || cs.icsUrl || (`/api/calendar/${encodeURIComponent(getTutorSlug(st))}.ics`);
       copyStr(url);
-      if (typeof getCtx().toast === "function") getCtx().toast("Ссылка .ics скопирована");
       return true;
     }
 
@@ -1412,7 +2161,7 @@
           city: st.profile.city,
           timezone: st.profile.timezone,
           icsText: SAMPLE_GCAL_ICS,
-          openSlots: st.slots
+          openSlots: mergeAllProfileSlots(st)
         });
         const rtCal = typeof EGE.realtime.getState === "function" ? EGE.realtime.getState().calendar : null;
         if (rtCal) {
@@ -1443,9 +2192,6 @@
         }
       }
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
-      if (typeof getCtx().notifySide === "function") {
-        getCtx().notifySide("Импорт GCal (.ics) выполнен", `События 07:00 UTC пересчитаны в ${st.profile.timezone || "UTC+9"}`);
-      }
       return true;
     }
 
@@ -1457,13 +2203,15 @@
 
     if (act === "tc-subj-pick") {
       const pickedId = String(d.v || "bio");
-      const curList = Array.isArray(st.profile.subjects) && st.profile.subjects.length ? st.profile.subjects : [st.profile.subject || "bio"];
+      const sp = getEditingSearchProfile(st);
+      const curList = Array.isArray(sp.subjects) && sp.subjects.length ? sp.subjects : [sp.subject || "bio"];
       if (curList.includes(pickedId) && curList.length <= 1) {
         if (typeof getCtx().toast === "function") getCtx().toast("Должен остаться хотя бы один предмет");
         return true;
       }
-      st.profile.subjects = toggleArrayVal(curList, pickedId, true);
-      st.profile.subject = st.profile.subjects[0] || "bio";
+      sp.subjects = toggleArrayVal(curList, pickedId, true);
+      sp.subject = sp.subjects[0] || "bio";
+      syncProfileMirror(st);
       syncPublishedTutor(st);
       saveState();
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
@@ -1472,13 +2220,15 @@
 
     if (act === "tc-badge-preset") {
       const txt = String(d.v || "").trim().slice(0, 36);
+      const sp = getEditingSearchProfile(st);
       if (txt) {
-        const arr = Array.isArray(st.profile.customBadges) ? st.profile.customBadges.slice(0, 2) : ["", ""];
+        const arr = Array.isArray(sp.customBadges) ? sp.customBadges.slice(0, 2) : ["", ""];
         while (arr.length < 2) arr.push("");
         if (!arr.includes(txt)) {
           const emptyIdx = arr.findIndex((x) => !String(x || "").trim());
           arr[emptyIdx >= 0 ? emptyIdx : 1] = txt;
-          st.profile.customBadges = arr;
+          sp.customBadges = arr;
+          syncProfileMirror(st);
           syncPublishedTutor(st);
           saveState();
           if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
@@ -1488,7 +2238,9 @@
     }
 
     if (act === "tc-badge-clear") {
-      st.profile.customBadges = ["", ""];
+      const sp = getEditingSearchProfile(st);
+      sp.customBadges = ["", ""];
+      syncProfileMirror(st);
       syncPublishedTutor(st);
       saveState();
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
@@ -1564,12 +2316,179 @@
         { leadId: id, counterPrice: counterRate }
       );
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      if (EGE.fx && typeof EGE.fx.playBidSentFx === "function") {
+        EGE.fx.playBidSentFx({
+          title: "Отклик отправлен",
+          subtitle: `${counterRate.toLocaleString("ru-RU")} ₽/ч · ${(hit && hit.studentName) || (lead && lead.studentName) || "ученику"}`
+        });
+      }
       if (typeof getCtx().notifySide === "function") {
-        getCtx().notifySide("Отклик отправлен ученику", hit ? `${hit.studentName} получил(а) ваше предложение по ставке ${counterRate.toLocaleString("ru-RU")} ₽/ч` : `Предложена ставка ${counterRate.toLocaleString("ru-RU")} ₽/ч`);
+        getCtx().notifySide("Отклик отправлен ученику", hit ? `${hit.studentName} получил(а) ваше предложение по ставке ${counterRate.toLocaleString("ru-RU")} ₽/ч` : `Предложена ставка ${counterRate.toLocaleString("ru-RU")} ₽/ч`, { inbox: true });
       }
-      if (typeof getCtx().toast === "function") {
-        getCtx().toast(`Предложена ставка ${counterRate.toLocaleString("ru-RU")} ₽/ч`);
+      return true;
+    }
+
+    if (act === "tc-stu-view") {
+      st.studentsSubView = d.v === "list" ? "list" : "calendar";
+      st.confirmDropStudentKey = null;
+      saveState();
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-stu-scope") {
+      st.studentsScope = d.v === "past" ? "past" : "current";
+      st.expandedStudentId = "";
+      st.confirmDropStudentKey = null;
+      saveState();
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-stu-detail") {
+      st.expandedStudentId = st.expandedStudentId === id ? "" : id;
+      st.confirmDropStudentKey = null;
+      saveState();
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-stu-restore") {
+      const targetName = String(d.name || "").trim();
+      const normName = targetName.toLowerCase();
+      if (!Array.isArray(st.students)) st.students = [];
+      let hit = st.students.find((s) => s && ((id && s.id === id) || (normName && String(s.name || "").trim().toLowerCase() === normName)));
+      if (!hit) {
+        hit = { id: id || ("st-" + Date.now()), name: targetName || "Ученик", exam: "Подготовка", lessonsDone: 0, hw: "", lessonDay: "По расписанию", lessonTime: "", whatsapp: "", telegram: "", autoNotify: false, autoChannels: ["wa", "tg"] };
+        st.students.push(hit);
       }
+      hit.status = "active";
+      hit.manualStatus = "active";
+      hit.endedLabel = "";
+      st.expandedStudentId = "";
+      st.confirmDropStudentKey = null;
+      saveState();
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      if (typeof getCtx().toast === "function") getCtx().toast(targetName ? `${targetName} возвращён(а) в текущие` : "Ученик возвращён в текущие");
+      return true;
+    }
+
+    if (act === "tc-stu-chat") {
+      st.tab = "comm";
+      saveState();
+      if (typeof getCtx().go === "function") getCtx().go("tutor-comm");
+      else if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      if (EGE.views && EGE.views.messenger && typeof EGE.views.messenger.openStudentChat === "function") {
+        EGE.views.messenger.openStudentChat({
+          studentId: id,
+          studentName: String(d.name || "").trim(),
+          reqId: String(d.reqId || "").trim(),
+          subjectName: String(d.exam || "").trim(),
+          rate: Number(d.rate || 0),
+          inPageOnly: true
+        });
+      }
+      return true;
+    }
+
+    if (act === "tc-student-drop-ask") {
+      st.confirmDropStudentKey = id || null;
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-student-drop-cancel") {
+      st.confirmDropStudentKey = null;
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      return true;
+    }
+
+    if (act === "tc-student-drop-confirm") {
+      st.confirmDropStudentKey = null;
+      st.expandedStudentId = "";
+      const dropId = id;
+      const reqId = String(d.reqId || "");
+      const studentName = String(d.name || "").trim();
+      const normName = studentName.toLowerCase();
+      const TDATA = getTDATA();
+      if (!Array.isArray(st.students)) st.students = [];
+      const allStudentReqs = syncedRequests().filter((r) => {
+        if (!r || !["accepted", "completed", "cancelled"].includes(r.status)) return false;
+        if (reqId && r.id === reqId) return true;
+        if (dropId && r.studentId === dropId) return true;
+        if (normName && String(r.studentName || "").trim().toLowerCase() === normName) return true;
+        return false;
+      });
+      const matchingReqs = allStudentReqs.filter((r) => r.status === "accepted");
+      const paidReqsSum = allStudentReqs.reduce((sum, r) => {
+        const pay = typeof getLessonPaymentState === "function" ? getLessonPaymentState(st, r) : { paid: r.paid === true };
+        if (r.status !== "completed" && !pay.paid) return sum;
+        const rate = Number(r.counterPrice || r.offerPrice || r.tutorPrice || 0);
+        const split = typeof calcLessonSplit === "function" ? calcLessonSplit(rate, r, TDATA) : { payout: rate };
+        return sum + Number(r.payout > 0 ? r.payout : (split.payout || 0));
+      }, 0);
+      const sampleReq = matchingReqs[0] || allStudentReqs[0] || findReq(reqId);
+      const sampleRate = sampleReq ? Number(sampleReq.counterPrice || sampleReq.offerPrice || sampleReq.tutorPrice || 0) : Number((st.profile && st.profile.price) || 0);
+      const netPerLesson = sampleRate > 0 ? (typeof calcLessonSplit === "function" ? calcLessonSplit(sampleRate, sampleReq, TDATA).payout : Math.round(sampleRate * 0.94)) : 0;
+
+      let matchedStudent = false;
+      st.students.forEach((s) => {
+        if (!s) return;
+        const sNorm = String(s.name || "").trim().toLowerCase();
+        if ((dropId && s.id === dropId) || (normName && sNorm === normName)) {
+          matchedStudent = true;
+          s.status = "past";
+          s.manualStatus = "past";
+          s.endedLabel = "Занятия завершены";
+          if (!s.rate && sampleRate > 0) s.rate = sampleRate;
+          if (!s.lastReqId && sampleReq && sampleReq.id) s.lastReqId = String(sampleReq.id);
+          const curLessons = Number(s.lessonsDone) || 0;
+          const prevEarned = Number(s.earnedRub) || 0;
+          s.earnedRub = Math.max(prevEarned, paidReqsSum, curLessons > 0 && netPerLesson > 0 ? curLessons * netPerLesson : 0);
+        }
+      });
+      const ctxStore = getCtx().store;
+      if (!matchedStudent && studentName) {
+        st.students.push({
+          id: dropId || (sampleReq && sampleReq.studentId) || ("st-" + Date.now()),
+          lastReqId: sampleReq && sampleReq.id ? String(sampleReq.id) : "",
+          name: studentName,
+          exam: sampleReq ? `${sampleReq.exam || "ЕГЭ"} · ${sampleReq.subjectName || "Подготовка"}` : "Подготовка",
+          status: "past",
+          manualStatus: "past",
+          endedLabel: "Занятия завершены",
+          lessonsDone: 0,
+          rate: sampleRate,
+          earnedRub: paidReqsSum,
+          hw: (sampleReq && sampleReq.note) || "",
+          manualStudent: true
+        });
+      }
+      let canceledServerAny = false;
+      matchingReqs.forEach((r) => {
+        const bkServerId = r.serverId || r.mktId || (String(r.id || "").startsWith("bk-") ? r.id : null);
+        if (bkServerId && ctxStore && ctxStore.backend && ctxStore.user && EGE.api && EGE.api.bookings) {
+          canceledServerAny = true;
+          EGE.api.bookings.cancel(bkServerId).then(() => {
+            hydrateFromBackend({ force: true });
+          }).catch((err) => {
+            if (!isDevDemoMode()) {
+              if (typeof getCtx().toast === "function") getCtx().toast((err && err.message) || "Не удалось убрать ученика");
+              hydrateFromBackend({ force: true });
+            }
+          });
+        }
+        updateReq(r.id, (rec) => { rec.status = "cancelled"; });
+      });
+      if (!canceledServerAny) {
+        publishRtUpdate("student.dropped", "Ученик убран", studentName ? `${studentName} убран(а) из расписания` : "Занятия с учеником отменены", { requestId: reqId || dropId });
+      } else {
+        publishRtUpdate("student.dropped", "Ученик убран", studentName ? `${studentName} убран(а) из расписания` : "Занятия с учеником отменены", { requestId: reqId || dropId });
+      }
+      syncTutorCalendar(st);
+      saveState();
+      if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+      if (typeof getCtx().toast === "function") getCtx().toast(studentName ? `${studentName} убран(а) из расписания` : "Ученик убран из расписания");
       return true;
     }
 
@@ -1579,7 +2498,6 @@
         s.curScore = Math.min(s.targetScore, (Number(s.curScore) || 0) + (Number(d.delta) || 2));
         saveState();
         if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
-        if (typeof getCtx().notifySide === "function") getCtx().notifySide("Пробник обновлён", `${s.name}: текущий балл ${s.curScore} / ${s.targetScore}`);
       }
       return true;
     }
@@ -1590,7 +2508,6 @@
         s.lessonsDone = (Number(s.lessonsDone) || 0) + 1;
         saveState();
         if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
-        if (typeof getCtx().toast === "function") getCtx().toast(`${s.name}: учтён урок №${s.lessonsDone}`);
       }
       return true;
     }
@@ -1599,18 +2516,23 @@
       const tpl = QUICK_TEMPLATES.find((t) => t.id === id);
       if (tpl) {
         copyStr(tpl.build(st.profile));
-        if (typeof getCtx().notifySide === "function") getCtx().notifySide("Шаблон скопирован", tpl.title);
       }
       return true;
     }
 
+    if (act === "tc-refresh-server") {
+      hydrateFromBackend({ force: true });
+      if (typeof getCtx().toast === "function") getCtx().toast("Данные кабинета обновлены");
+      return true;
+    }
+
     if (act === "tc-reset-demo") {
+      if (!isDevDemoMode()) return true;
       const def = defaultState();
       st.filter = "all";
       st.requests = def.requests;
       saveState();
       if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
-      if (typeof getCtx().toast === "function") getCtx().toast("Демо-заявки обновлены");
       return true;
     }
 
@@ -1642,11 +2564,12 @@
     if (act === "tc-add-price") {
       const num = Math.max(0, Math.min(99999, Math.round(Number(el.value) || 0)));
       const fee1 = Math.round(num * 0.01);
-      const net99 = Math.max(0, num - fee1);
+      const sbp1 = Math.round(num * 0.01);
+      const net98 = Math.max(0, num - fee1 - sbp1);
       if (typeof document !== "undefined" && typeof document.getElementById === "function") {
         const noteEl = document.getElementById("tc-add-fee-note");
         if (noteEl) {
-          noteEl.innerHTML = `На руки 99%: <b class="num" style="color:var(--confirm)">${net99.toLocaleString("ru-RU")} ₽</b> · сбор 1% (${fee1.toLocaleString("ru-RU")} ₽)`;
+          noteEl.innerHTML = `На руки 98%: <b class="num" style="color:var(--confirm)">${net98.toLocaleString("ru-RU")} ₽</b> · сбор 1% + 1% СБП (${(fee1 + sbp1).toLocaleString("ru-RU")} ₽)`;
         }
       }
       return true;
@@ -1673,7 +2596,7 @@
         const deltaLabel = delta === 0
           ? "= бюджету"
           : (delta > 0 ? `+${delta.toLocaleString("ru-RU")} ₽ к бюджету` : `−${Math.abs(delta).toLocaleString("ru-RU")} ₽`);
-        const sp = TDATA && typeof TDATA.commissionSplit === "function" ? TDATA.commissionSplit(rate) : { payout: Math.round(rate * 0.95) };
+        const sp = TDATA && typeof TDATA.commissionSplit === "function" ? TDATA.commissionSplit(rate) : { payout: Math.max(0, rate - Math.round(rate * 0.05) - Math.round(rate * 0.01)) };
         const deltaEl = document.querySelector(`[data-tc-lead-delta="${leadId}"]`);
         const payEl = document.querySelector(`[data-tc-lead-payout="${leadId}"]`);
         const offerBtn = document.querySelector(`[data-a="tc-lead-offer"][data-id="${leadId}"]`);
@@ -1720,40 +2643,83 @@
     }
     if (!el.dataset.tc) return false;
     const key = el.dataset.tc;
-    const p = st.profile;
-    if (key === "name") p.name = String(el.value || "").slice(0, 48);
-    else if (key === "headline") p.headline = String(el.value || "").slice(0, 72);
-    else if (key === "city") p.city = CITY_OPTIONS.includes(el.value) ? el.value : "Якутск";
-    else if (key === "timezone") p.timezone = TZ_OPTIONS.some((tz) => tz.id === el.value) ? el.value : "UTC+9";
-    else if (key === "customSkills") p.customSkills = String(el.value || "").slice(0, 120);
+    const acc = st.account || (st.account = {});
+    const p = getEditingSearchProfile(st);
+    const autoGrowWrapField = () => {
+      if (el.classList && el.classList.contains("tc-field-wrap") && el.style && el.scrollHeight) {
+        el.style.height = "auto";
+        el.style.height = Math.max(48, el.scrollHeight) + "px";
+      }
+    };
+    if (key === "name") {
+      acc.name = String(el.value || "").slice(0, 48);
+      const ctxStore = getCtx().store;
+      if (ctxStore && ctxStore.backend && ctxStore.user && acc.name.trim().length >= 2 && typeof setTimeout === "function") {
+        if (tcNameSaveTimer && typeof clearTimeout === "function") clearTimeout(tcNameSaveTimer);
+        tcNameSaveTimer = setTimeout(() => {
+          tcNameSaveTimer = null;
+          persistTutorAccountToServer(st, { silent: true });
+        }, 700);
+      }
+    }
+    else if (key === "headline") {
+      p.headline = String(el.value || "").replace(/[\r\n]+/g, " ").slice(0, 72);
+      autoGrowWrapField();
+    }
+    else if (key === "city") acc.city = CITY_OPTIONS.includes(el.value) ? el.value : "Якутск";
+    else if (key === "timezone") acc.timezone = TZ_OPTIONS.some((tz) => tz.id === el.value) ? el.value : "UTC+9";
+    else if (key === "customSkills") {
+      p.customSkills = String(el.value || "").replace(/[\r\n]+/g, " ").slice(0, 120);
+      autoGrowWrapField();
+    }
     else if (key === "waTemplate") {
       if (!st.waSettings) st.waSettings = { enabled: true, lead: "2h", channels: ["wa", "tg", "max"], template: "" };
       st.waSettings.template = String(el.value || "").slice(0, 260);
       saveState();
       return true;
     }
-    else if (key === "education") p.education = String(el.value || "").slice(0, 90);
+    else if (key === "education") {
+      p.education = String(el.value || "").replace(/[\r\n]+/g, " ").slice(0, 90);
+      autoGrowWrapField();
+    }
     else if (key === "whatsapp") {
+      const toDraft = st.msgrLinkOpen === "whatsapp";
+      const target = toDraft ? (st.msgrLinkDraft || (st.msgrLinkDraft = {})) : acc;
+      const curCountry = target.whatsappCountry || acc.whatsappCountry || "RU";
       const pf = EGE.phoneField;
       if (pf && typeof pf.formatPhoneForCountry === "function") {
-        const stPf = typeof pf.getPhoneFieldState === "function" ? pf.getPhoneFieldState("tc-hh-wa", p.whatsappCountry || "RU") : null;
-        const parsed = pf.formatPhoneForCountry(el.value, (stPf && stPf.country) || p.whatsappCountry || "RU");
+        const stPf = typeof pf.getPhoneFieldState === "function" ? pf.getPhoneFieldState("tc-hh-wa", curCountry) : null;
+        const parsed = pf.formatPhoneForCountry(el.value, (stPf && stPf.country) || curCountry);
         if (el.value !== parsed.formatted) el.value = parsed.formatted;
-        p.whatsapp = parsed.formatted;
-        p.whatsappCountry = parsed.country.code;
+        target.whatsapp = parsed.formatted;
+        target.whatsappCountry = parsed.country.code;
       } else {
         const masked = formatPhone(el.value);
         if (el.value !== masked) el.value = masked;
-        p.whatsapp = masked;
+        target.whatsapp = masked;
       }
     } else if (key === "telegram") {
       const tgFormatted = formatTelegram(el.value);
       if (el.value !== tgFormatted) el.value = tgFormatted;
-      p.telegram = tgFormatted;
+      if (st.msgrLinkOpen === "telegram") {
+        (st.msgrLinkDraft || (st.msgrLinkDraft = {})).telegram = tgFormatted;
+      } else {
+        acc.telegram = tgFormatted;
+      }
     } else if (key === "maxHandle") {
-      p.maxHandle = String(el.value || "").trim().slice(0, 48);
+      const val = String(el.value || "").trim().slice(0, 48);
+      if (st.msgrLinkOpen === "maxHandle") {
+        (st.msgrLinkDraft || (st.msgrLinkDraft = {})).maxHandle = val;
+      } else {
+        acc.maxHandle = val;
+      }
     } else if (key === "vk") {
-      p.vk = String(el.value || "").trim().slice(0, 64);
+      const val = String(el.value || "").trim().slice(0, 64);
+      if (st.msgrLinkOpen === "vk") {
+        (st.msgrLinkDraft || (st.msgrLinkDraft = {})).vk = val;
+      } else {
+        acc.vk = val;
+      }
     }
     else if (key === "expYears") p.expYears = Math.max(1, Math.min(50, Number(el.value) || 1));
     else if (key === "firstLessonGuarantee" || key === "trialFree") {
@@ -1768,8 +2734,17 @@
     } else if (key === "subject") {
       p.subject = String(el.value || "bio");
       if (!Array.isArray(p.subjects) || !p.subjects.includes(p.subject)) p.subjects = [p.subject];
+    } else if (key === "verifDocType") {
+      if (!st.verifDraft) st.verifDraft = { docType: "diploma", title: "" };
+      st.verifDraft.docType = String(el.value || "diploma");
+      return true;
+    } else if (key === "verifTitle") {
+      if (!st.verifDraft) st.verifDraft = { docType: "diploma", title: "" };
+      st.verifDraft.title = String(el.value || "").slice(0, 100);
+      return true;
     }
     else if (key === "bio") p.bio = String(el.value || "").slice(0, 320);
+    syncProfileMirror(st);
     syncPublishedTutor(st);
     saveState();
     return true;
@@ -1778,6 +2753,33 @@
   function handleFileInput(el) {
     if (!el || !el.files || !el.files[0]) return false;
     const file = el.files[0];
+    if (el.dataset && el.dataset.tcDiplomaFile) {
+      const ctxStore = getCtx().store;
+      if (!ctxStore || !ctxStore.backend || !ctxStore.user || !EGE.api || !EGE.api.verifications) {
+        if (typeof getCtx().toast === "function") getCtx().toast("Войдите в аккаунт для отправки диплома");
+        el.value = "";
+        return true;
+      }
+      const st = tState();
+      const draft = st.verifDraft || { docType: "diploma", title: "" };
+      EGE.api.verifications.upload(file, {
+        docType: draft.docType || "diploma",
+        title: draft.title || file.name,
+        tutorId: st.profile && st.profile.id ? String(st.profile.id) : ""
+      }).then((res) => {
+        if (res && res.verification) {
+          st.verifications = [res.verification].concat((st.verifications || []).filter((x) => x.id !== res.verification.id));
+          st._verifLoaded = true;
+          if (st.verifDraft) st.verifDraft.title = "";
+        }
+        if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+        if (typeof getCtx().toast === "function") getCtx().toast("Документ отправлен на проверку модератору");
+      }).catch((err) => {
+        if (typeof getCtx().toast === "function") getCtx().toast((err && err.message) || "Не удалось загрузить документ");
+      });
+      el.value = "";
+      return true;
+    }
     if (el.dataset && el.dataset.tcIcsFile) {
       if (typeof FileReader !== "function") return false;
       const reader = new FileReader();
@@ -1796,7 +2798,7 @@
             city: st.profile.city,
             timezone: st.profile.timezone,
             icsText: rawIcs,
-            openSlots: st.slots
+            openSlots: mergeAllProfileSlots(st)
           });
           const rtCal = typeof EGE.realtime.getState === "function" ? EGE.realtime.getState().calendar : null;
           if (rtCal) {
@@ -1823,13 +2825,38 @@
       el.value = "";
       return true;
     }
+    const ctxStore = getCtx().store;
+    if (ctxStore && ctxStore.backend && ctxStore.user && EGE.api && EGE.api.media && typeof EGE.api.media.uploadAvatar === "function") {
+      EGE.api.media.uploadAvatar(file, "tutor").then((res) => {
+        if (res && res.url) {
+          const st = tState();
+          if (!st.account || typeof st.account !== "object") st.account = {};
+          st.account.photo = res.url;
+          st.account.hasPhoto = true;
+          if (ctxStore.user) ctxStore.user.avatarUrl = res.url;
+          syncProfileMirror(st);
+          syncPublishedTutor(st);
+          saveState();
+          persistTutorAccountToServer(st, { silent: true });
+          if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+          if (typeof getCtx().toast === "function") getCtx().toast("Фото загружено в хранилище и обновлено во всех анкетах");
+        }
+      }).catch((err) => {
+        if (typeof getCtx().toast === "function") getCtx().toast((err && err.message) || "Не удалось загрузить фото");
+      });
+      el.value = "";
+      return true;
+    }
     if (typeof readResizedPhotoFile !== "function") return false;
     readResizedPhotoFile(
       file,
       { maxDim: 240, quality: 0.84, maxLen: 350000 },
       (url) => {
         const st = tState();
-        st.profile.photo = url;
+        if (!st.account || typeof st.account !== "object") st.account = {};
+        st.account.photo = url;
+        st.account.hasPhoto = true;
+        syncProfileMirror(st);
         syncPublishedTutor(st);
         saveState();
         if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
@@ -1840,6 +2867,97 @@
       }
     );
     el.value = "";
+    return true;
+  }
+
+  function submitSearchProfileForm(st, form, opts) {
+    opts = opts || {};
+    const els = (form && form.elements) ? form.elements : {};
+    const acc = st.account || (st.account = {});
+    const p = getEditingSearchProfile(st);
+    if (els.name && String(els.name.value || "").trim()) acc.name = String(els.name.value).trim().slice(0, 48);
+    if (els.city && String(els.city.value || "").trim()) acc.city = String(els.city.value || "").trim().slice(0, 48);
+    if (els.whatsapp) {
+      const ph = formatPhone(String(els.whatsapp.value || "").trim());
+      acc.whatsapp = ph && ph.replace(/\D+/g, "").length >= 10 ? ph : "";
+    }
+    if (els.telegram) acc.telegram = formatTelegram(String(els.telegram.value || "").trim());
+    if (els.maxHandle) acc.maxHandle = String(els.maxHandle.value || "").trim().slice(0, 48);
+    if (els.vk) acc.vk = String(els.vk.value || "").trim().slice(0, 64);
+
+    if (els.headline) p.headline = String(els.headline.value || "").replace(/[\r\n]+/g, " ").trim().slice(0, 72);
+    if (els.education) p.education = String(els.education.value || "").replace(/[\r\n]+/g, " ").trim().slice(0, 90);
+    if (els.customSkills) p.customSkills = String(els.customSkills.value || "").replace(/[\r\n]+/g, " ").trim().slice(0, 120);
+    if (els.expYears) p.expYears = Math.max(1, Math.min(50, Number(els.expYears.value) || p.expYears));
+    if (els.firstLessonGuarantee || els.trialFree) {
+      const g = !!(els.firstLessonGuarantee ? els.firstLessonGuarantee.checked : els.trialFree.checked);
+      p.firstLessonGuarantee = g;
+      p.trialFree = g;
+      p.trialMode = g ? "free" : "none";
+      p.trialPrice = g ? 0 : null;
+    }
+    if (els.badge0 || els.badge1) {
+      if (!Array.isArray(p.customBadges)) p.customBadges = ["", ""];
+      if (els.badge0) p.customBadges[0] = String(els.badge0.value || "").trim().slice(0, 36);
+      if (els.badge1) p.customBadges[1] = String(els.badge1.value || "").trim().slice(0, 36);
+    }
+    if (els.subject) {
+      const subVal = String(els.subject.value || "bio");
+      p.subject = subVal;
+      if (!Array.isArray(p.subjects) || !p.subjects.length) p.subjects = [subVal];
+    }
+    if (els.bio) p.bio = String(els.bio.value || "").trim().slice(0, 320);
+
+    if (String(acc.name || "").trim().length < 2) {
+      if (typeof getCtx().toast === "function") getCtx().toast("Укажите имя и фамилию в блоке «Мой аккаунт» (минимум 2 символа)");
+      return true;
+    }
+
+    const spList = Array.isArray(st.searchProfiles) ? st.searchProfiles : (st.searchProfiles = []);
+    const wasCreating = Boolean(st.creatingSearchProfile || !p.id || !spList.some((item) => item && item.id === p.id));
+    if (wasCreating && spList.length >= 10) {
+      if (typeof getCtx().toast === "function") getCtx().toast("Можно создать не более 10 профилей для поиска");
+      return true;
+    }
+
+    p.published = opts.published !== false;
+    const ctxStore = getCtx().store;
+    const isLoggedBackend = !!(ctxStore && ctxStore.backend && ctxStore.user && EGE.api && EGE.api.tutor);
+    let tempLocalId = "";
+    if (wasCreating) {
+      if (!p.id) {
+        p.id = (!isLoggedBackend && spList.length === 0) ? "tc-my-profile" : ("tc-sp-" + Date.now());
+      }
+      if (isLoggedBackend) tempLocalId = p.id;
+      spList.unshift(p);
+      st.activeSearchProfileId = p.id;
+      st.creatingSearchProfile = false;
+      st.spEditorOpen = false;
+      st.newProfileDraft = null;
+    } else {
+      st.activeSearchProfileId = p.id;
+      st.spEditorOpen = true;
+    }
+    st.confirmDeleteProfileId = null;
+
+    syncProfileMirror(st);
+    syncPublishedTutor(st);
+    saveState();
+
+    if (isLoggedBackend) {
+      persistTutorProfileToServer(st, p, {
+        createNew: wasCreating || !isServerProfileId(p.id),
+        replaceLocalId: tempLocalId,
+        silent: false
+      });
+    }
+    if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
+    if (typeof getCtx().notifySide === "function") {
+      getCtx().notifySide(
+        p.published ? "Профиль сохранён и опубликован" : "Профиль сохранён в скрытых",
+        `${acc.name} · ${Number(p.price || 1200).toLocaleString("ru-RU")} ₽/ч (торг от ${Number(p.minFair || 900).toLocaleString("ru-RU")} ₽/ч)`
+      );
+    }
     return true;
   }
 
@@ -1928,7 +3046,7 @@
           city: st.profile.city,
           timezone: st.profile.timezone,
           icsText: rawIcs,
-          openSlots: st.slots
+          openSlots: mergeAllProfileSlots(st)
         });
         const rtCal = typeof EGE.realtime.getState === "function" ? EGE.realtime.getState().calendar : null;
         if (rtCal) {
@@ -1965,79 +3083,7 @@
     }
 
     if (form.dataset.f !== "tc-profile") return false;
-    const p = st.profile;
-    if (els.name && String(els.name.value || "").trim()) p.name = String(els.name.value).trim().slice(0, 48);
-    if (els.headline) p.headline = String(els.headline.value || "").trim().slice(0, 72);
-    if (els.city) p.city = String(els.city.value || "").trim().slice(0, 48);
-    if (els.education) p.education = String(els.education.value || "").trim().slice(0, 90);
-    if (els.whatsapp) {
-      const ph = formatPhone(String(els.whatsapp.value || "").trim());
-      p.whatsapp = ph && ph.replace(/\D+/g, "").length >= 10 ? ph : "";
-    }
-    if (els.telegram) p.telegram = formatTelegram(String(els.telegram.value || "").trim());
-    if (els.maxHandle) p.maxHandle = String(els.maxHandle.value || "").trim().slice(0, 48);
-    if (els.vk) p.vk = String(els.vk.value || "").trim().slice(0, 64);
-    if (els.expYears) p.expYears = Math.max(1, Math.min(50, Number(els.expYears.value) || p.expYears));
-    if (els.firstLessonGuarantee || els.trialFree) {
-      const g = !!(els.firstLessonGuarantee ? els.firstLessonGuarantee.checked : els.trialFree.checked);
-      p.firstLessonGuarantee = g;
-      p.trialFree = g;
-      p.trialMode = g ? "free" : "none";
-      p.trialPrice = g ? 0 : null;
-    }
-    if (els.badge0 || els.badge1) {
-      if (!Array.isArray(p.customBadges)) p.customBadges = ["", ""];
-      if (els.badge0) p.customBadges[0] = String(els.badge0.value || "").trim().slice(0, 36);
-      if (els.badge1) p.customBadges[1] = String(els.badge1.value || "").trim().slice(0, 36);
-    }
-    if (els.subject) {
-      const subVal = String(els.subject.value || "bio");
-      p.subject = subVal;
-      if (!Array.isArray(p.subjects) || !p.subjects.length) p.subjects = [subVal];
-    }
-    if (els.bio) p.bio = String(els.bio.value || "").trim().slice(0, 320);
-    st.published = true;
-    syncPublishedTutor(st);
-    saveState();
-    const ctxStore = getCtx().store;
-    if (ctxStore && ctxStore.backend && ctxStore.user && EGE.api && EGE.api.tutor) {
-      const tp = buildMarketTutorPayload(st);
-      EGE.api.tutor.upsertProfile({
-        name: p.name,
-        headline: p.headline,
-        photo: p.photo || "",
-        subject: tp.subject,
-        subjectName: tp.subjectName,
-        subjects: tp.subjects,
-        exams: tp.exams,
-        formats: tp.formats,
-        city: tp.city,
-        timezone: tp.timezone,
-        whatsapp: p.whatsapp || "",
-        telegram: p.telegram || "",
-        maxHandle: p.maxHandle || "",
-        vk: p.vk || "",
-        education: p.education || "",
-        expYears: Number(p.expYears) || 3,
-        avgScore: Number(p.avgScore) || 85,
-        price: Number(p.price) || 1200,
-        marketPrice: tp.marketPrice,
-        customSkills: p.customSkills || "",
-        bio: p.bio || "",
-        firstLessonGuarantee: p.firstLessonGuarantee !== false,
-        slots: st.slots || {}
-      }).then((res) => {
-        if (res && res.tutor && res.tutor.id) {
-          p.id = res.tutor.id;
-          saveState();
-        }
-      }).catch(() => {});
-    }
-    if (typeof getCtx().scheduleRender === "function") getCtx().scheduleRender();
-    if (typeof getCtx().notifySide === "function") {
-      getCtx().notifySide("Анкета сохранена и опубликована", `${p.name} · ${p.price.toLocaleString("ru-RU")} ₽/ч (торг от ${p.minFair.toLocaleString("ru-RU")} ₽/ч)`);
-    }
-    return true;
+    return submitSearchProfileForm(st, form, { published: true });
   }
 
   function closeMenus(target) {
@@ -2068,6 +3114,12 @@
   EGE.views = EGE.views || {};
   EGE.views.tutorCabinet = {
     configure,
+    setDemoMode,
+    hydrateFromBackend,
+    resetSession,
+    validateInn12,
+    tState,
+    saveState,
     pendingCount,
     getTab,
     setTab,

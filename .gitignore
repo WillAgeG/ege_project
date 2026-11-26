@@ -1,5 +1,6 @@
 .venv/
 .venv-etl/
+admin_streamlit/.venv/
 __pycache__/
 *.py[cod]
 .local_data/
@@ -15,5 +16,10 @@ etl/warehouse/silver/*
 etl/warehouse/gold/*
 !etl/warehouse/gold/.gitkeep
 .env
+.env.prod
+.env.*.local
+backups/
+*.dump
+*.sql.gz
 .DS_Store
 .pytest_cache/

@@ -57,6 +57,7 @@ class SqliteCalendarRealtimeMixin:
         return {
             "feedToken": str(row["feed_token"]),
             "tutorSlug": tutor_slug,
+            "userId": int(row["user_id"]) if row["user_id"] is not None else None,
             "tutorName": str(row["tutor_name"]),
             "city": str(row["city"]),
             "timezone": str(row["timezone"]),
@@ -73,7 +74,7 @@ class SqliteCalendarRealtimeMixin:
         *,
         tutor_slug: str,
         user_id: int | None = None,
-        tutor_name: str = "Преподаватель Вектор ЕГЭ",
+        tutor_name: str = "Преподаватель Вектор",
         city: str = "Якутск",
         timezone: str = "UTC+9",
         open_slots: dict[str, list[str]] | None = None,
@@ -92,7 +93,7 @@ class SqliteCalendarRealtimeMixin:
             ).fetchone()
             feed_token = str(existing["feed_token"]) if existing else secrets.token_urlsafe(24)
             eff_user_id = user_id if user_id is not None else (existing["user_id"] if existing else None)
-            eff_name = (tutor_name or "").strip() or (str(existing["tutor_name"]) if existing else "Преподаватель Вектор ЕГЭ")
+            eff_name = (tutor_name or "").strip() or (str(existing["tutor_name"]) if existing else "Преподаватель Вектор")
             eff_city = (city or "").strip() or (str(existing["city"]) if existing else ("Москва" if tz == "UTC+3" else "Якутск"))
             if open_slots is not None:
                 eff_open_slots = open_slots
@@ -337,6 +338,14 @@ class SqliteCalendarRealtimeMixin:
             ).fetchone()
             return self._realtime_row_to_dict(row)
 
+    def get_realtime_event(self, event_row_id: int) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM realtime_notifications WHERE id = ?",
+                (int(event_row_id),),
+            ).fetchone()
+            return self._realtime_row_to_dict(row) if row else None
+
     def list_realtime_events(
         self,
         *,
@@ -352,7 +361,7 @@ class SqliteCalendarRealtimeMixin:
             clauses.append("(channel = ? OR channel = 'all')")
             params.append(channel)
         if tutor_slug:
-            clauses.append("tutor_slug = ?")
+            clauses.append("(tutor_slug = ? OR event_type LIKE 'chat.%' OR event_type LIKE 'lesson.reminder.%')")
             params.append(tutor_slug)
         if since_id > 0:
             clauses.append("id > ?")

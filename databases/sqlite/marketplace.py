@@ -2,24 +2,35 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 import re
 import secrets
 import sqlite3
 from typing import Any
+import uuid
 
 from .common import (
     StorageError,
     _iso_utc_now,
     _normalize_dow,
     _normalize_tz,
+    _row_to_user,
     calc_fee_split,
+    calc_sbp_fee,
+    clean_custom_badges,
+    clean_direction_label,
+    deep_merge,
     format_days_short,
     generate_telemost_url,
     mask_payout_destination,
     normalize_city_tz,
+    normalize_direction_payload,
+    normalize_dispute_payload,
+    normalize_review_payload,
+    normalize_tutor_profile_payload,
     sort_dows,
+    validate_display_name,
     validate_hour_slot,
     validate_schedule_plan,
     validate_telemost_url,
@@ -305,8 +316,12 @@ class SqliteMarketplaceMixin:
             "hasPhoto": bool(r["has_photo"]),
             "verified": bool(r["verified"]),
             "bumpedToday": bool(r["bumped_today"]),
+            "published": bool(int(r["is_published"])) if "is_published" in keys else True,
+            "customBadges": clean_custom_badges(self._json_load(r["custom_badges_json"], [])) if "custom_badges_json" in keys else [],
+            "minFair": int(r["min_fair_rub"]) if "min_fair_rub" in keys and int(r["min_fair_rub"] or 0) > 0 else 0,
             "rating": float(r["rating"]),
             "reviewsCount": int(r["reviews_count"]),
+            "slots": self._json_load(r["slots_json"], {}) if "slots_json" in keys else {},
             "lastBumpedAt": str(r["last_bumped_at"]),
             "updatedAt": str(r["updated_at"]),
         }
@@ -317,10 +332,13 @@ class SqliteMarketplaceMixin:
         subject: str | None = None,
         city: str | None = None,
         limit: int = 100,
+        include_unpublished: bool = False,
     ) -> list[dict[str, Any]]:
         lim = max(1, min(int(limit or 100), 500))
         clauses: list[str] = []
         params: list[Any] = []
+        if not include_unpublished:
+            clauses.append("COALESCE(is_published, 1) = 1")
         if subject and subject.strip().lower() not in ("", "all"):
             s = subject.strip().lower()
             clauses.append("(LOWER(subject) LIKE ? OR LOWER(subjects_json) LIKE ?)")
@@ -336,11 +354,24 @@ class SqliteMarketplaceMixin:
             ).fetchall()
         return [self._tutor_row_to_public_dict(r) for r in rows]
 
+    def list_tutor_profiles(self, user_id: int) -> list[dict[str, Any]]:
+        uid = int(user_id)
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT * FROM admin_tutors
+                WHERE user_id = ?
+                ORDER BY COALESCE(is_published, 1) DESC, updated_at DESC, id ASC
+                """,
+                (uid,),
+            ).fetchall()
+        return [self._tutor_row_to_public_dict(r) for r in rows]
+
     def _ensure_tutor_exists(
         self,
         tutor_id: str,
         *,
-        tutor_name: str = "Преподаватель Вектор ЕГЭ",
+        tutor_name: str = "Преподаватель Вектор",
         subject: str = "Подготовка",
         city: str | None = None,
         timezone_str: str | None = None,
@@ -368,7 +399,7 @@ class SqliteMarketplaceMixin:
             """,
             (
                 tid,
-                (tutor_name or "Преподаватель Вектор ЕГЭ").strip()[:80],
+                (tutor_name or "Преподаватель Вектор").strip()[:80],
                 (subject or "Подготовка").strip()[:64],
                 norm_city,
                 norm_tz,
@@ -390,47 +421,104 @@ class SqliteMarketplaceMixin:
         payload: dict[str, Any],
         *,
         tutor_id: str | None = None,
+        create_new: bool = False,
+        strict_tutor_id: bool = False,
     ) -> dict[str, Any]:
         uid = int(user_id)
-        full_name = str(payload.get("name") or payload.get("fullName") or "").strip()[:80]
-        if len(full_name) < 2:
-            raise StorageError("invalid_name", "Укажите имя и фамилию преподавателя (минимум 2 символа).", 400)
-        norm_city, norm_tz = normalize_city_tz(payload.get("city"), payload.get("timezone"))
-        base_rate = max(100, min(99999, int(payload.get("price") or payload.get("baseRateRub") or 1200)))
-        market_rate = max(base_rate, int(payload.get("marketPrice") or payload.get("marketRateRub") or ((base_rate * 128 + 50) // 100)))
-        subjects = payload.get("subjects") if isinstance(payload.get("subjects"), list) else []
-        clean_subjects = [str(s).strip()[:32] for s in subjects if str(s).strip()][:8]
-        subject_label = str(payload.get("subjectName") or payload.get("subject") or (clean_subjects[0] if clean_subjects else "Биология")).strip()[:64]
-        exams = [str(x).strip()[:32] for x in (payload.get("exams") or ["ЕГЭ"]) if str(x).strip()][:5] or ["ЕГЭ"]
-        formats = [str(x).strip()[:32] for x in (payload.get("formats") or ["Онлайн"]) if str(x).strip()][:4] or ["Онлайн"]
-        raw_slots = payload.get("slots") if isinstance(payload.get("slots"), dict) else {}
-        clean_slots: dict[str, list[str]] = {}
-        for dow_key, hours_val in raw_slots.items():
-            try:
-                dow_num = int(dow_key)
-            except (TypeError, ValueError):
-                continue
-            if 0 <= dow_num <= 6 and isinstance(hours_val, list):
-                valid_hrs = sorted({validate_hour_slot(str(h)) for h in hours_val if str(h).strip()})
-                if valid_hrs:
-                    clean_slots[str(dow_num)] = valid_hrs
-
+        req_tid = str(tutor_id or payload.get("id") or payload.get("tutorId") or "").strip()[:64]
         now_iso = _iso_utc_now()
         with self._lock:
-            own = self._conn.execute("SELECT * FROM admin_tutors WHERE user_id = ? LIMIT 1", (uid,)).fetchone()
-            tid = str(own["id"]) if own else str(tutor_id or f"tut-{secrets.token_hex(5)}").strip()[:64]
-            if not own:
-                clash = self._conn.execute("SELECT * FROM admin_tutors WHERE id = ?", (tid,)).fetchone()
-                if clash and clash["user_id"] is not None and int(clash["user_id"]) != uid:
-                    tid = f"tut-{secrets.token_hex(5)}"
-            photo_url = str(payload.get("photo") or payload.get("photoUrl") or "").strip()[:220_000]
+            own = None
+            sibling = self._conn.execute(
+                """
+                SELECT * FROM admin_tutors
+                WHERE user_id = ?
+                ORDER BY COALESCE(is_published, 1) DESC, updated_at DESC, id ASC
+                LIMIT 1
+                """,
+                (uid,),
+            ).fetchone()
+            u_row = self._conn.execute(
+                "SELECT display_name, city, avatar_url FROM users WHERE id = ?",
+                (uid,),
+            ).fetchone()
+            cnt_row = self._conn.execute(
+                "SELECT COUNT(*) AS cnt FROM admin_tutors WHERE user_id = ?",
+                (uid,),
+            ).fetchone()
+            profile_count = int(cnt_row["cnt"]) if cnt_row else 0
+
+            if create_new:
+                if profile_count >= 10:
+                    raise StorageError("too_many_profiles", "Можно создать не более 10 профилей для поиска.", 400)
+                tid = req_tid or f"tut-{secrets.token_hex(5)}"
+                clash = self._conn.execute("SELECT id FROM admin_tutors WHERE id = ?", (tid,)).fetchone()
+                if clash:
+                    raise StorageError("already_exists", "Анкета с таким ID уже существует.", 409)
+            elif req_tid:
+                own = self._conn.execute("SELECT * FROM admin_tutors WHERE id = ?", (req_tid,)).fetchone()
+                if own and own["user_id"] is not None and int(own["user_id"]) != uid:
+                    raise StorageError("forbidden", "Нет прав на редактирование чужой анкеты.", 403)
+                if not own:
+                    if strict_tutor_id:
+                        raise StorageError("not_found", "Профиль для поиска не найден.", 404)
+                    if profile_count >= 10:
+                        raise StorageError("too_many_profiles", "Можно создать не более 10 профилей для поиска.", 400)
+                tid = req_tid
+            else:
+                own = sibling
+                tid = str(own["id"]) if own else f"tut-{secrets.token_hex(5)}"
+
+            fallback_name = str(
+                (own["full_name"] if own else "")
+                or (sibling["full_name"] if sibling else "")
+                or (u_row["display_name"] if u_row else "")
+            ).strip()
+            norm = normalize_tutor_profile_payload(payload, fallback_name=fallback_name)
+            own_keys = set(own.keys()) if own else set()
+            sib_keys = set(sibling.keys()) if sibling else set()
+
+            if payload.get("hasPhoto") is False:
+                photo_url = ""
+            else:
+                photo_url = str(
+                    payload.get("photo")
+                    or payload.get("photoUrl")
+                    or (own["photo_url"] if own and "photo_url" in own_keys and "photo" not in payload and "photoUrl" not in payload else "")
+                    or (sibling["photo_url"] if not own and sibling and "photo_url" in sib_keys and "photo" not in payload and "photoUrl" not in payload else "")
+                    or ""
+                ).strip()[:220_000]
             has_photo = 1 if photo_url else 0
-            tariff_id = str(payload.get("tariffId") or (own["tariff_id"] if own else "free"))
+
+            tariff_id = str(payload.get("tariffId") or (own["tariff_id"] if own else (sibling["tariff_id"] if sibling else "free")))
             if tariff_id not in ("free", "trial5k", "month10k"):
                 tariff_id = "free"
             bumped_today = int(own["bumped_today"]) if own else 0
-            verified = int(own["verified"]) if own else 1
+            verified = int(own["verified"]) if own else (int(sibling["verified"]) if sibling else 0)
+            inn_val = str(own["inn"] or "") if own and "inn" in own_keys else (str(sibling["inn"] or "") if sibling and "inn" in sib_keys else "")
+            npd_ver = int(own["npd_verified"]) if own and "npd_verified" in own_keys else (int(sibling["npd_verified"]) if sibling and "npd_verified" in sib_keys else 0)
+            npd_at = own["npd_checked_at"] if own and "npd_checked_at" in own_keys else (sibling["npd_checked_at"] if sibling and "npd_checked_at" in sib_keys else None)
             last_bumped_at = str(own["last_bumped_at"]) if own else now_iso
+
+            is_published = (
+                (1 if norm["published"] else 0)
+                if norm["has_published"]
+                else (int(own["is_published"]) if own and "is_published" in own_keys else 1)
+            )
+            min_fair = (
+                norm["min_fair"]
+                if norm["min_fair"] is not None
+                else (int(own["min_fair_rub"]) if own and "min_fair_rub" in own_keys else 0)
+            )
+            custom_badges = (
+                norm["custom_badges"]
+                if "customBadges" in payload
+                else (
+                    clean_custom_badges(self._json_load(own["custom_badges_json"], []))
+                    if own and "custom_badges_json" in own_keys
+                    else []
+                )
+            )
 
             self._conn.execute(
                 """
@@ -440,8 +528,10 @@ class SqliteMarketplaceMixin:
                     has_photo, verified, bumped_today, rating, reviews_count,
                     last_bumped_at, created_at, updated_at,
                     photo_url, headline, bio, education, exp_years, avg_score,
-                    subjects_json, exams_json, formats_json, custom_skills, first_lesson_guarantee
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'platform', ?, ?, ?, ?, ?, ?, ?, 4.9, 12, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    subjects_json, exams_json, formats_json, custom_skills, first_lesson_guarantee, slots_json,
+                    inn, npd_verified, npd_checked_at,
+                    is_published, custom_badges_json, min_fair_rub
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'platform', ?, ?, ?, ?, ?, ?, ?, 4.9, 12, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     user_id = excluded.user_id,
                     full_name = excluded.full_name,
@@ -465,17 +555,21 @@ class SqliteMarketplaceMixin:
                     exams_json = excluded.exams_json,
                     formats_json = excluded.formats_json,
                     custom_skills = excluded.custom_skills,
-                    first_lesson_guarantee = excluded.first_lesson_guarantee
+                    first_lesson_guarantee = excluded.first_lesson_guarantee,
+                    slots_json = excluded.slots_json,
+                    is_published = excluded.is_published,
+                    custom_badges_json = excluded.custom_badges_json,
+                    min_fair_rub = excluded.min_fair_rub
                 """,
                 (
                     tid,
                     uid,
-                    full_name,
-                    subject_label,
-                    norm_city,
-                    norm_tz,
-                    base_rate,
-                    market_rate,
+                    norm["full_name"],
+                    norm["subject_label"],
+                    norm["norm_city"],
+                    norm["norm_tz"],
+                    norm["base_rate"],
+                    norm["market_rate"],
                     tariff_id,
                     str(payload.get("whatsapp") or "").strip()[:32],
                     str(payload.get("telegram") or "").strip()[:64],
@@ -492,11 +586,18 @@ class SqliteMarketplaceMixin:
                     str(payload.get("education") or "").strip()[:120],
                     max(1, min(60, int(payload.get("expYears") or 3))),
                     max(40, min(100, int(payload.get("avgScore") or 85))),
-                    json.dumps(clean_subjects, ensure_ascii=False),
-                    json.dumps(exams, ensure_ascii=False),
-                    json.dumps(formats, ensure_ascii=False),
+                    json.dumps(norm["clean_subjects"], ensure_ascii=False),
+                    json.dumps(norm["exams"], ensure_ascii=False),
+                    json.dumps(norm["formats"], ensure_ascii=False),
                     str(payload.get("customSkills") or "").strip()[:240],
                     1 if payload.get("firstLessonGuarantee", True) else 0,
+                    json.dumps(norm["clean_slots"], ensure_ascii=False),
+                    inn_val,
+                    npd_ver,
+                    npd_at,
+                    is_published,
+                    json.dumps(custom_badges, ensure_ascii=False),
+                    min_fair,
                 ),
             )
             self._conn.execute("UPDATE users SET role = 'tutor' WHERE id = ? AND role = 'student'", (uid,))
@@ -504,11 +605,211 @@ class SqliteMarketplaceMixin:
                 "vektor.tutors.raw.v1",
                 tid,
                 "tutor.profile.updated",
-                {"userId": uid, "tutorId": tid, "role": "tutor", "view": "cabinet", "city": norm_city, "price": base_rate},
+                {"userId": uid, "tutorId": tid, "role": "tutor", "view": "cabinet", "city": norm["norm_city"], "price": norm["base_rate"], "published": bool(is_published)},
             )
             self._conn.commit()
             row = self._conn.execute("SELECT * FROM admin_tutors WHERE id = ?", (tid,)).fetchone()
-            return {"tutor": self._tutor_row_to_public_dict(row), "slots": clean_slots}
+            return {"tutor": self._tutor_row_to_public_dict(row), "slots": norm["clean_slots"]}
+
+    def set_tutor_profile_published(
+        self,
+        user_id: int,
+        tutor_id: str,
+        published: bool,
+        *,
+        actor_role: str = "student",
+    ) -> dict[str, Any]:
+        uid = int(user_id)
+        tid = str(tutor_id or "").strip()[:64]
+        if not tid:
+            raise StorageError("not_found", "Профиль для поиска не найден.", 404)
+        now_iso = _iso_utc_now()
+        pub_int = 1 if published else 0
+        with self._lock:
+            row = self._conn.execute("SELECT * FROM admin_tutors WHERE id = ?", (tid,)).fetchone()
+            if not row:
+                raise StorageError("not_found", "Профиль для поиска не найден.", 404)
+            if row["user_id"] is not None and int(row["user_id"]) != uid and actor_role != "admin":
+                raise StorageError("forbidden", "Нет прав на управление чужой анкетой.", 403)
+            self._conn.execute(
+                "UPDATE admin_tutors SET is_published = ?, updated_at = ? WHERE id = ?",
+                (pub_int, now_iso, tid),
+            )
+            self._record_mkt_outbox(
+                "vektor.tutors.raw.v1",
+                tid,
+                "tutor.profile.visibility",
+                {"userId": uid, "tutorId": tid, "published": bool(pub_int), "role": "tutor", "view": "cabinet"},
+            )
+            self._conn.commit()
+            updated = self._conn.execute("SELECT * FROM admin_tutors WHERE id = ?", (tid,)).fetchone()
+            return {"tutor": self._tutor_row_to_public_dict(updated)}
+
+    def delete_tutor_profile(
+        self,
+        user_id: int,
+        tutor_id: str,
+        *,
+        actor_role: str = "student",
+    ) -> dict[str, Any]:
+        uid = int(user_id)
+        tid = str(tutor_id or "").strip()[:64]
+        if not tid:
+            raise StorageError("not_found", "Профиль для поиска не найден.", 404)
+        now_iso = _iso_utc_now()
+        with self._lock:
+            row = self._conn.execute("SELECT * FROM admin_tutors WHERE id = ?", (tid,)).fetchone()
+            if not row:
+                raise StorageError("not_found", "Профиль для поиска не найден.", 404)
+            if row["user_id"] is not None and int(row["user_id"]) != uid and actor_role != "admin":
+                raise StorageError("forbidden", "Нет прав на удаление чужой анкеты.", 403)
+            has_deps = False
+            for tbl in (
+                "admin_lesson_requests",
+                "escrow_holds",
+                "admin_payout_requests",
+                "tutor_reviews",
+                "npd_receipts",
+            ):
+                cnt = self._conn.execute(f"SELECT COUNT(*) AS cnt FROM {tbl} WHERE tutor_id = ?", (tid,)).fetchone()
+                if cnt and int(cnt["cnt"]) > 0:
+                    has_deps = True
+                    break
+            if has_deps:
+                self._conn.execute(
+                    "UPDATE admin_tutors SET is_published = 0, updated_at = ? WHERE id = ?",
+                    (now_iso, tid),
+                )
+                self._record_mkt_outbox(
+                    "vektor.tutors.raw.v1",
+                    tid,
+                    "tutor.profile.archived",
+                    {"userId": uid, "tutorId": tid, "role": "tutor", "view": "cabinet"},
+                )
+                self._conn.commit()
+                updated = self._conn.execute("SELECT * FROM admin_tutors WHERE id = ?", (tid,)).fetchone()
+                return {
+                    "deleted": False,
+                    "archived": True,
+                    "tutorId": tid,
+                    "tutor": self._tutor_row_to_public_dict(updated),
+                }
+            self._conn.execute("DELETE FROM tutor_contact_overrides WHERE tutor_id = ?", (tid,))
+            self._conn.execute("DELETE FROM admin_tutors WHERE id = ?", (tid,))
+            self._record_mkt_outbox(
+                "vektor.tutors.raw.v1",
+                tid,
+                "tutor.profile.deleted",
+                {"userId": uid, "tutorId": tid, "role": "tutor", "view": "cabinet"},
+            )
+            self._conn.commit()
+            return {"deleted": True, "archived": False, "tutorId": tid}
+
+    def update_tutor_account(self, user_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+        uid = int(user_id)
+        name_raw = str(payload.get("name") or payload.get("displayName") or "").strip()[:80]
+        clean_name = validate_display_name(name_raw)
+        if len(clean_name) < 2:
+            raise StorageError("invalid_name", "Укажите имя и фамилию преподавателя (минимум 2 символа).", 400)
+        norm_city, norm_tz = normalize_city_tz(payload.get("city"), payload.get("timezone"))
+        has_photo = payload.get("hasPhoto") is not False and bool(
+            str(payload.get("photo") or payload.get("photoUrl") or "").strip()
+        )
+        photo_url = (
+            str(payload.get("photo") or payload.get("photoUrl") or "").strip()[:220_000]
+            if has_photo
+            else ""
+        )
+        whatsapp = str(payload.get("whatsapp") or payload.get("whatsappPhone") or "").strip()[:32]
+        telegram = str(payload.get("telegram") or payload.get("telegramHandle") or "").strip()[:64]
+        max_handle = str(payload.get("maxHandle") or "").strip()[:64]
+        vk = str(payload.get("vk") or "").strip()[:120]
+        now_ts = int(datetime.now(timezone.utc).timestamp())
+        now_iso = _iso_utc_now()
+        doc_patch = {
+            "name": clean_name,
+            "city": norm_city,
+            "timezone": norm_tz,
+            "photo": photo_url,
+            "hasPhoto": bool(has_photo),
+            "whatsapp": whatsapp,
+            "telegram": telegram,
+            "maxHandle": max_handle,
+            "vk": vk,
+        }
+        with self._lock:
+            u_row = self._conn.execute("SELECT * FROM users WHERE id = ?", (uid,)).fetchone()
+            if not u_row:
+                raise StorageError("not_found", "Пользователь не найден.", 404)
+            d_row = self._conn.execute(
+                "SELECT data FROM docs WHERE user_id = ? AND name = 'profile'",
+                (uid,),
+            ).fetchone()
+            current_doc = json.loads(d_row["data"]) if d_row else {}
+            if not isinstance(current_doc, dict):
+                current_doc = {}
+            merged_doc = deep_merge(current_doc, doc_patch)
+            encoded_doc = json.dumps(merged_doc, ensure_ascii=False, separators=(",", ":"))
+            self._conn.execute(
+                """
+                INSERT INTO docs (user_id, name, data, updated_at)
+                VALUES (?, 'profile', ?, ?)
+                ON CONFLICT(user_id, name) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at
+                """,
+                (uid, encoded_doc, now_ts),
+            )
+            self._conn.execute(
+                """
+                UPDATE users
+                SET display_name = ?,
+                    city = ?,
+                    avatar_url = ?,
+                    role = CASE WHEN role = 'student' THEN 'tutor' ELSE role END
+                WHERE id = ?
+                """,
+                (clean_name, norm_city, photo_url or None, uid),
+            )
+            self._conn.execute(
+                """
+                UPDATE admin_tutors
+                SET full_name = ?,
+                    city = ?,
+                    timezone = ?,
+                    whatsapp_phone = ?,
+                    telegram_handle = ?,
+                    max_handle = ?,
+                    has_photo = ?,
+                    photo_url = ?,
+                    updated_at = ?
+                WHERE user_id = ?
+                """,
+                (
+                    clean_name,
+                    norm_city,
+                    norm_tz,
+                    whatsapp,
+                    telegram,
+                    max_handle,
+                    1 if has_photo else 0,
+                    photo_url,
+                    now_iso,
+                    uid,
+                ),
+            )
+            self._record_mkt_outbox(
+                "vektor.tutors.raw.v1",
+                f"user-{uid}",
+                "tutor.account.updated",
+                {"userId": uid, "city": norm_city, "role": "tutor", "view": "cabinet"},
+            )
+            self._conn.commit()
+            u_updated = self._conn.execute("SELECT * FROM users WHERE id = ?", (uid,)).fetchone()
+            profiles = self.list_tutor_profiles(uid)
+            return {
+                "userObj": _row_to_user(u_updated),
+                "account": merged_doc,
+                "profiles": profiles,
+            }
 
     def bump_tutor(self, user_id: int, *, actor_role: str = "student", tutor_id: str | None = None) -> dict[str, Any]:
         uid = int(user_id)
@@ -519,7 +820,10 @@ class SqliteMarketplaceMixin:
                 if row and row["user_id"] is not None and int(row["user_id"]) != uid and actor_role != "admin":
                     raise StorageError("forbidden", "Нет прав на поднятие чужой анкеты.", 403)
             if row is None:
-                row = self._conn.execute("SELECT * FROM admin_tutors WHERE user_id = ? LIMIT 1", (uid,)).fetchone()
+                row = self._conn.execute(
+                    "SELECT * FROM admin_tutors WHERE user_id = ? ORDER BY COALESCE(is_published, 1) DESC, updated_at DESC, id ASC LIMIT 1",
+                    (uid,),
+                ).fetchone()
             if not row:
                 raise StorageError("not_found", "Сначала сохраните анкету преподавателя.", 404)
             now_dt = datetime.now(timezone.utc)
@@ -558,6 +862,7 @@ class SqliteMarketplaceMixin:
         raw_status = str(r["status"] or "pending")
         eff_price = int(r["final_price_rub"] or r["counter_price_rub"] or r["offer_price_rub"] or 0)
         fee, payout = calc_fee_split(eff_price)
+        sbp_fee = calc_sbp_fee(eff_price)
         slot_date = str(r["slot_date"] or "")[:10]
         dows = sort_dows(self._json_load(r["dows_json"], [])) if "dows_json" in keys else []
         schedule_plan = None
@@ -589,6 +894,7 @@ class SqliteMarketplaceMixin:
             "reserved": int(r["reserved_rub"] or 0) if "reserved_rub" in keys else 0,
             "firstLessonGuarantee": bool(r["first_lesson_guarantee"]) if "first_lesson_guarantee" in keys else True,
             "fee": fee,
+            "sbpFee": sbp_fee,
             "payout": payout,
             "note": str(r["note"] or "") if "note" in keys else "",
             "telemostUrl": str(r["telemost_url"] or "") if "telemost_url" in keys else "",
@@ -691,7 +997,7 @@ class SqliteMarketplaceMixin:
             ).strip()[:64]
             tutor_row = self._ensure_tutor_exists(
                 tutor_id,
-                tutor_name=str(payload.get("tutorName") or "Преподаватель Вектор ЕГЭ"),
+                tutor_name=str(payload.get("tutorName") or "Преподаватель Вектор"),
                 subject=str(payload.get("subjectName") or payload.get("subject") or "Подготовка"),
                 city=payload.get("city") or (u_row["city"] if u_row else None),
                 timezone_str=payload.get("timezone"),
@@ -841,6 +1147,7 @@ class SqliteMarketplaceMixin:
         actor_role: str,
         action: str,
         counter_price_rub: int | None = None,
+        allow_student_demo_accept: bool = True,
     ) -> dict[str, Any]:
         act = (action or "").strip().lower()
         if act not in ("accept", "counter", "cancel", "decline", "complete"):
@@ -859,7 +1166,7 @@ class SqliteMarketplaceMixin:
             tutor_owned = row["tutor_owner_uid"] is not None
             if act in ("counter", "decline") and tutor_owned and not (is_tutor or is_admin):
                 raise StorageError("forbidden", "Только преподаватель может изменить или отклонить ставку.", 403)
-            if act == "accept" and tutor_owned and cur_norm == "pending" and not (is_tutor or is_admin):
+            if act == "accept" and cur_norm == "pending" and (tutor_owned or not allow_student_demo_accept) and not (is_tutor or is_admin):
                 raise StorageError("forbidden", "Подтвердить новую ставку должен преподаватель.", 403)
 
             student_uid = int(row["student_user_id"]) if row["student_user_id"] is not None else None
@@ -1113,12 +1420,12 @@ class SqliteMarketplaceMixin:
         clean_url = validate_telemost_url(telemost_url)
         now_iso = _iso_utc_now()
         with self._lock:
-            row, _, _ = self._load_authorized_booking(
+            row, is_student, _ = self._load_authorized_booking(
                 booking_id, actor_user_id=actor_user_id, actor_role=actor_role
             )
             bid = str(row["id"])
             stu_id = row["student_user_id"]
-            if clean_url and stu_id is not None:
+            if is_student and clean_url and stu_id is not None:
                 self._conn.execute(
                     "UPDATE admin_lesson_requests SET telemost_url = ?, updated_at = ? WHERE student_user_id = ? OR id = ?",
                     (clean_url, now_iso, int(stu_id), bid),
@@ -1308,58 +1615,115 @@ class SqliteMarketplaceMixin:
     def get_tutor_wallet_summary(self, user_id: int, tutor_id: str | None = None) -> dict[str, Any]:
         uid = int(user_id)
         with self._lock:
+            all_rows = self._conn.execute(
+                """
+                SELECT * FROM admin_tutors
+                WHERE user_id = ?
+                ORDER BY COALESCE(is_published, 1) DESC, updated_at DESC, id ASC
+                """,
+                (uid,),
+            ).fetchall()
             row = None
             if tutor_id:
                 row = self._conn.execute("SELECT * FROM admin_tutors WHERE id = ?", (tutor_id.strip(),)).fetchone()
-            if row is None:
-                row = self._conn.execute("SELECT * FROM admin_tutors WHERE user_id = ? LIMIT 1", (uid,)).fetchone()
+            if row is None and all_rows:
+                row = all_rows[0]
             if not row:
                 return {
                     "tutorId": None,
+                    "tutor": None,
+                    "profiles": [],
+                    "tutorInn": "",
+                    "npdVerified": False,
                     "earnedNetRub": 0,
+                    "earned30dNetRub": 0,
                     "frozenNetRub": 0,
                     "withdrawnRub": 0,
                     "availableRub": 0,
+                    "completedLessonsCount": 0,
+                    "completedLessons30dCount": 0,
                     "minPayoutRub": 500,
                     "payouts": [],
                 }
             tid = str(row["id"])
+            if tutor_id:
+                target_ids = [tid]
+            else:
+                target_ids = [str(r["id"]) for r in all_rows] if all_rows else [tid]
+            placeholders = ", ".join(["?"] * len(target_ids))
+            row_keys = set(row.keys())
+            profiles_list = (
+                [self._tutor_row_to_public_dict(r) for r in all_rows]
+                if all_rows
+                else [self._tutor_row_to_public_dict(row)]
+            )
+            eff_inn = str(row["inn"] or "") if "inn" in row_keys else ""
+            if not eff_inn:
+                for r_own in all_rows:
+                    if "inn" in r_own.keys() and str(r_own["inn"] or "").strip():
+                        eff_inn = str(r_own["inn"] or "").strip()
+                        break
+            eff_npd_ver = (bool(row["npd_verified"]) if "npd_verified" in row_keys else False) or any(
+                bool(r_own["npd_verified"]) for r_own in all_rows if "npd_verified" in r_own.keys()
+            )
+            cutoff_30d = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
             agg = self._conn.execute(
-                """
+                f"""
                 SELECT
                     COALESCE(SUM(CASE WHEN status = 'captured' THEN tutor_payout_rub ELSE 0 END), 0) AS earned_net,
+                    COALESCE(SUM(CASE WHEN status = 'captured' AND COALESCE(settled_at, created_at) >= ? THEN tutor_payout_rub ELSE 0 END), 0) AS earned_30d_net,
                     COALESCE(SUM(CASE WHEN status = 'frozen' THEN tutor_payout_rub ELSE 0 END), 0) AS frozen_net
                 FROM escrow_holds
-                WHERE tutor_id = ?
+                WHERE tutor_id IN ({placeholders})
                 """,
-                (tid,),
+                (cutoff_30d, *target_ids),
+            ).fetchone()
+            les_agg = self._conn.execute(
+                f"""
+                SELECT
+                    COALESCE(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END), 0) AS completed_total,
+                    COALESCE(SUM(CASE WHEN status = 'completed' AND COALESCE(updated_at, created_at) >= ? THEN 1 ELSE 0 END), 0) AS completed_30d
+                FROM admin_lesson_requests
+                WHERE tutor_id IN ({placeholders})
+                """,
+                (cutoff_30d, *target_ids),
             ).fetchone()
             wd_row = self._conn.execute(
-                """
+                f"""
                 SELECT COALESCE(SUM(amount_rub), 0) AS withdrawn
                 FROM admin_payout_requests
-                WHERE tutor_id = ? AND status NOT IN ('failed', 'rejected')
+                WHERE tutor_id IN ({placeholders}) AND status NOT IN ('failed', 'rejected')
                 """,
-                (tid,),
+                tuple(target_ids),
             ).fetchone()
             p_rows = self._conn.execute(
-                """
+                f"""
                 SELECT * FROM admin_payout_requests
-                WHERE tutor_id = ?
+                WHERE tutor_id IN ({placeholders})
                 ORDER BY created_at DESC, id DESC
                 LIMIT 30
                 """,
-                (tid,),
+                tuple(target_ids),
             ).fetchall()
             earned = int(agg["earned_net"]) if agg else 0
+            earned_30d = int(agg["earned_30d_net"]) if agg else 0
             frozen = int(agg["frozen_net"]) if agg else 0
             withdrawn = int(wd_row["withdrawn"]) if wd_row else 0
+            completed_total = int(les_agg["completed_total"]) if les_agg else 0
+            completed_30d = int(les_agg["completed_30d"]) if les_agg else 0
             return {
                 "tutorId": tid,
+                "tutor": self._tutor_row_to_public_dict(row),
+                "profiles": profiles_list,
+                "tutorInn": eff_inn,
+                "npdVerified": eff_npd_ver,
                 "earnedNetRub": earned,
+                "earned30dNetRub": earned_30d,
                 "frozenNetRub": frozen,
                 "withdrawnRub": withdrawn,
                 "availableRub": max(0, earned - withdrawn),
+                "completedLessonsCount": completed_total,
+                "completedLessons30dCount": completed_30d,
                 "minPayoutRub": 500,
                 "payouts": [self._admin_payout_row_to_dict(r) for r in p_rows],
             }
@@ -1384,25 +1748,69 @@ class SqliteMarketplaceMixin:
         if method == "card" and len(digits) < 12:
             raise StorageError("invalid_destination", "Укажите корректный номер карты.", 400)
         bank = str(payload.get("bank") or ("Карта РФ (Мир)" if method == "card" else "СБП")).strip()[:48]
+        sbp_bank_id = str(payload.get("sbpBankId") or "").strip()[:32]
+        sbp_phone = str(payload.get("sbpPhone") or "").strip()[:32]
+        payout_token = str(payload.get("payoutToken") or "").strip()[:255]
+        tutor_inn = str(payload.get("tutorInn") or "").strip()[:16]
+        provider = str(payload.get("provider") or "manual").strip()[:32] or "manual"
+        idempotency_key = str(payload.get("idempotencyKey") or f"pout-{uuid.uuid4().hex[:16]}").strip()[:64]
+        antifraud_hold = 1 if payload.get("antifraudHold") else 0
+        antifraud_reason = str(payload.get("antifraudReason") or "").strip()[:200]
+        npd_mode = str(payload.get("npdMode") or "demo").strip().lower()
         masked = mask_payout_destination(method, dest_raw)
         npd_flag = payload.get("npdReceipt", True) is not False
-        npd_receipt = f"NPD-{datetime.now(timezone.utc).year}-{secrets.token_hex(4).upper()}" if npd_flag else None
+        explicit_code = str(payload.get("npdReceiptCode") or "").strip()[:80]
+        if not npd_flag:
+            npd_receipt = None
+            npd_status = "none"
+        elif npd_mode == "live":
+            npd_receipt = None
+            npd_status = "pending"
+        else:
+            npd_receipt = explicit_code or f"NPD-{datetime.now(timezone.utc).year}-{secrets.token_hex(4).upper()}"
+            npd_status = "demo"
         pid = str(payout_id or f"pay-{secrets.token_hex(6)}").strip()[:64]
         now_iso = _iso_utc_now()
         req_tid = str(payload.get("tutorId") or "").strip() or None
 
         with self._lock:
+            existing_idem = self._conn.execute(
+                "SELECT * FROM admin_payout_requests WHERE idempotency_key = ?",
+                (idempotency_key,),
+            ).fetchone()
+            if existing_idem:
+                tid_existing = str(existing_idem["tutor_id"])
+                return {
+                    "payout": self._admin_payout_row_to_dict(existing_idem),
+                    "summary": self.get_tutor_wallet_summary(uid, tutor_id=tid_existing),
+                }
+
             row = None
             if req_tid:
                 row = self._conn.execute("SELECT * FROM admin_tutors WHERE id = ?", (req_tid,)).fetchone()
                 if row and row["user_id"] is not None and int(row["user_id"]) != uid and actor_role != "admin":
                     raise StorageError("forbidden", "Нет прав на вывод средств чужой анкеты.", 403)
             if row is None:
-                row = self._conn.execute("SELECT * FROM admin_tutors WHERE user_id = ? LIMIT 1", (uid,)).fetchone()
+                row = self._conn.execute(
+                    """
+                    SELECT * FROM admin_tutors
+                    WHERE user_id = ?
+                    ORDER BY
+                        EXISTS(SELECT 1 FROM admin_lesson_requests lr WHERE lr.tutor_id = admin_tutors.id) DESC,
+                        COALESCE(is_published, 1) DESC,
+                        updated_at DESC,
+                        id ASC
+                    LIMIT 1
+                    """,
+                    (uid,),
+                ).fetchone()
             if not row:
                 raise StorageError("not_found", "Анкета преподавателя не найдена.", 404)
             tid = str(row["id"])
-            summary = self.get_tutor_wallet_summary(uid, tutor_id=tid)
+            row_keys = set(row.keys())
+            eff_inn = tutor_inn or (str(row["inn"] or "").strip()[:16] if "inn" in row_keys else "")
+            sum_tid = None if (row["user_id"] is not None and int(row["user_id"]) == uid) else tid
+            summary = self.get_tutor_wallet_summary(uid, tutor_id=sum_tid)
             if summary["availableRub"] < amount:
                 raise StorageError(
                     "insufficient_payout_balance",
@@ -1413,17 +1821,807 @@ class SqliteMarketplaceMixin:
                 """
                 INSERT INTO admin_payout_requests (
                     id, tutor_id, tutor_name, method, amount_rub, npd_receipt,
-                    bank, destination_masked, status, created_at, paid_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'processing', ?, NULL)
+                    bank, destination_masked, status, created_at, paid_at,
+                    idempotency_key, provider, sbp_bank_id, sbp_phone, payout_token,
+                    tutor_inn, antifraud_hold, antifraud_reason, npd_requested, npd_status, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'processing', ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (pid, tid, str(row["full_name"]), method, amount, npd_receipt, bank, masked, now_iso),
+                (
+                    pid,
+                    tid,
+                    str(row["full_name"]),
+                    method,
+                    amount,
+                    npd_receipt,
+                    bank,
+                    masked,
+                    now_iso,
+                    idempotency_key,
+                    provider,
+                    sbp_bank_id,
+                    sbp_phone,
+                    payout_token,
+                    eff_inn,
+                    antifraud_hold,
+                    antifraud_reason,
+                    1 if npd_flag else 0,
+                    npd_status,
+                    now_iso,
+                ),
             )
+            if npd_flag and npd_status == "demo" and npd_receipt:
+                rid = f"npd-{uuid.uuid4().hex[:12]}"
+                self._conn.execute(
+                    """
+                    INSERT OR IGNORE INTO npd_receipts (
+                        id, payout_id, tutor_id, tutor_inn, provider,
+                        receipt_uuid, receipt_url, receipt_json_url, service_name,
+                        amount_rub, status, error_message, created_at, updated_at, canceled_at
+                    ) VALUES (?, ?, ?, ?, 'demo', ?, '', '', ?, ?, 'demo', '', ?, ?, NULL)
+                    """,
+                    (
+                        rid,
+                        pid,
+                        tid,
+                        eff_inn,
+                        npd_receipt,
+                        "Услуги репетитора «Вектор»",
+                        amount,
+                        now_iso,
+                        now_iso,
+                    ),
+                )
             self._record_mkt_outbox(
                 "vektor.payments.ledger.v1",
                 pid,
                 "tutor.payout.requested",
-                {"userId": uid, "payoutId": pid, "tutorId": tid, "amountRub": amount, "method": method, "role": "tutor", "view": "fees"},
+                {
+                    "userId": uid,
+                    "payoutId": pid,
+                    "tutorId": tid,
+                    "amountRub": amount,
+                    "method": method,
+                    "provider": provider,
+                    "antifraudHold": bool(antifraud_hold),
+                    "role": "tutor",
+                    "view": "fees",
+                },
             )
             self._conn.commit()
             p_row = self._conn.execute("SELECT * FROM admin_payout_requests WHERE id = ?", (pid,)).fetchone()
-            return {"payout": self._admin_payout_row_to_dict(p_row), "summary": self.get_tutor_wallet_summary(uid, tutor_id=tid)}
+            return {"payout": self._admin_payout_row_to_dict(p_row), "summary": self.get_tutor_wallet_summary(uid, tutor_id=sum_tid)}
+
+    @staticmethod
+    def _direction_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
+        try:
+            keywords = json.loads(str(row["keywords_json"] or "[]"))
+        except Exception:
+            keywords = []
+        if not isinstance(keywords, list):
+            keywords = []
+        return {
+            "id": str(row["id"]),
+            "name": str(row["name"]),
+            "short": str(row["short"]),
+            "category": str(row["category"] or "Добавлено оркестратором"),
+            "isExam": bool(row["is_exam"]),
+            "source": str(row["source"] or "orchestrator"),
+            "keywords": [str(k) for k in keywords if str(k).strip()],
+            "demandCount": int(row["demand_count"] or 1),
+            "tutorCount": int(row["tutor_count"] or 0),
+            "autoAdded": True,
+            "addedAt": str(row["created_at"] or ""),
+        }
+
+    def list_market_directions(self, *, limit: int = 200) -> list[dict[str, Any]]:
+        lim = max(1, min(500, int(limit or 200)))
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT * FROM market_directions
+                ORDER BY demand_count DESC, updated_at DESC, id ASC
+                LIMIT ?
+                """,
+                (lim,),
+            ).fetchall()
+        return [self._direction_row_to_dict(r) for r in rows]
+
+    def upsert_market_direction(
+        self,
+        payload: dict[str, Any],
+        *,
+        direction_id: str | None = None,
+    ) -> dict[str, Any]:
+        norm = normalize_direction_payload(payload)
+        if direction_id:
+            norm["id"] = str(direction_id).strip()[:36]
+        now_iso = _iso_utc_now()
+        with self._lock:
+            existing = self._conn.execute(
+                """
+                SELECT * FROM market_directions
+                WHERE id = ? OR LOWER(short) = LOWER(?) OR LOWER(name) = LOWER(?)
+                LIMIT 1
+                """,
+                (norm["id"], norm["short"], norm["name"]),
+            ).fetchone()
+            if existing is not None:
+                eid = str(existing["id"])
+                try:
+                    prev_kw = json.loads(str(existing["keywords_json"] or "[]"))
+                except Exception:
+                    prev_kw = []
+                merged_kw = list(dict.fromkeys([*(str(k) for k in (prev_kw or []) if str(k).strip()), *norm["keywords"]]))[:12]
+                next_demand = int(existing["demand_count"] or 1) + 1
+                next_tutor_count = max(int(existing["tutor_count"] or 0), norm["tutor_count"])
+                next_source = "orchestrator" if norm["source"] == "orchestrator" else str(existing["source"] or "orchestrator")
+                self._conn.execute(
+                    """
+                    UPDATE market_directions
+                    SET keywords_json = ?, demand_count = ?, tutor_count = ?, source = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (json.dumps(merged_kw, ensure_ascii=False), next_demand, next_tutor_count, next_source, now_iso, eid),
+                )
+                self._conn.commit()
+                updated = self._conn.execute("SELECT * FROM market_directions WHERE id = ?", (eid,)).fetchone()
+                return {"direction": self._direction_row_to_dict(updated), "created": False}
+
+            self._conn.execute(
+                """
+                INSERT INTO market_directions (
+                    id, name, short, category, is_exam, source, keywords_json,
+                    demand_count, tutor_count, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+                """,
+                (
+                    norm["id"],
+                    norm["name"],
+                    norm["short"],
+                    norm["category"],
+                    1 if norm["is_exam"] else 0,
+                    norm["source"],
+                    json.dumps(norm["keywords"], ensure_ascii=False),
+                    norm["tutor_count"],
+                    now_iso,
+                    now_iso,
+                ),
+            )
+            self._conn.commit()
+            created_row = self._conn.execute("SELECT * FROM market_directions WHERE id = ?", (norm["id"],)).fetchone()
+            return {"direction": self._direction_row_to_dict(created_row), "created": True}
+
+    @staticmethod
+    def _review_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
+        try:
+            tags = json.loads(str(row["tags_json"] or "[]"))
+        except Exception:
+            tags = []
+        if not isinstance(tags, list):
+            tags = []
+        return {
+            "id": str(row["id"]),
+            "tutorId": str(row["tutor_id"]),
+            "bookingId": row["booking_id"],
+            "studentUserId": int(row["student_user_id"]) if row["student_user_id"] is not None else None,
+            "studentName": str(row["student_name"] or "Ученик"),
+            "rating": int(row["rating"]),
+            "comment": str(row["comment"] or ""),
+            "tags": [str(t) for t in tags if str(t).strip()],
+            "verifiedLesson": bool(row["verified_lesson"]),
+            "createdAt": str(row["created_at"] or ""),
+        }
+
+    def _tutor_review_agg(self, tutor_id: str) -> tuple[float, int]:
+        agg = self._conn.execute(
+            "SELECT COUNT(*) AS cnt, AVG(rating) AS avg_r FROM tutor_reviews WHERE tutor_id = ?",
+            (tutor_id,),
+        ).fetchone()
+        cnt = int(agg["cnt"] or 0) if agg else 0
+        if cnt > 0 and agg and agg["avg_r"] is not None:
+            rating = round(float(agg["avg_r"]), 1)
+            return rating, cnt
+        t_row = self._conn.execute("SELECT rating, reviews_count FROM admin_tutors WHERE id = ?", (tutor_id,)).fetchone()
+        if t_row:
+            return round(float(t_row["rating"] or 4.9), 1), int(t_row["reviews_count"] or 0)
+        return 5.0, 0
+
+    def list_tutor_reviews(self, tutor_id: str, *, limit: int = 50) -> dict[str, Any]:
+        tid = clean_direction_label(tutor_id, max_len=64)
+        if not tid:
+            raise StorageError("invalid_tutor", "Не указан преподаватель.", 400)
+        lim = max(1, min(200, int(limit or 50)))
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT * FROM tutor_reviews
+                WHERE tutor_id = ?
+                ORDER BY created_at DESC, id DESC
+                LIMIT ?
+                """,
+                (tid, lim),
+            ).fetchall()
+            rating, cnt = self._tutor_review_agg(tid)
+        return {
+            "tutorId": tid,
+            "rating": rating,
+            "reviewsCount": cnt,
+            "reviews": [self._review_row_to_dict(r) for r in rows],
+        }
+
+    def list_tutor_review_summaries(self) -> dict[str, dict[str, Any]]:
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT tutor_id, COUNT(*) AS cnt, ROUND(AVG(rating), 1) AS avg_r
+                FROM tutor_reviews
+                GROUP BY tutor_id
+                """
+            ).fetchall()
+        return {
+            str(r["tutor_id"]): {
+                "rating": round(float(r["avg_r"] or 5.0), 1),
+                "reviewsCount": int(r["cnt"] or 0),
+            }
+            for r in rows
+            if int(r["cnt"] or 0) > 0
+        }
+
+    def create_tutor_review(
+        self,
+        student_user_id: int | None,
+        tutor_id: str,
+        payload: dict[str, Any],
+        *,
+        review_id: str | None = None,
+    ) -> dict[str, Any]:
+        tid = clean_direction_label(tutor_id, max_len=64)
+        if not tid:
+            raise StorageError("invalid_tutor", "Не указан преподаватель.", 400)
+        norm = normalize_review_payload(payload)
+        rid = str(review_id or f"rev-{secrets.token_hex(6)}").strip()[:64]
+        now_iso = _iso_utc_now()
+        uid = int(student_user_id) if student_user_id is not None else None
+        bid = norm["booking_id"]
+
+        with self._lock:
+            if bid:
+                dup = self._conn.execute("SELECT id FROM tutor_reviews WHERE booking_id = ?", (bid,)).fetchone()
+                if dup is not None:
+                    raise StorageError("review_exists", "Отзыв по этому занятию уже оставлен.", 409)
+                bk = self._conn.execute("SELECT * FROM admin_lesson_requests WHERE id = ?", (bid,)).fetchone()
+                if bk is not None:
+                    if str(bk["tutor_id"]) != tid:
+                        raise StorageError("invalid_booking", "Заявка относится к другому преподавателю.", 400)
+                    if uid is not None and bk["student_user_id"] is not None and int(bk["student_user_id"]) != uid:
+                        raise StorageError("forbidden", "Нет прав на оценку чужого занятия.", 403)
+                    if not norm["student_name"]:
+                        norm["student_name"] = str(bk["student_name"] or "")
+            if not norm["student_name"] and uid is not None:
+                u_row = self._conn.execute("SELECT display_name, username FROM users WHERE id = ?", (uid,)).fetchone()
+                if u_row:
+                    norm["student_name"] = str(u_row["display_name"] or u_row["username"] or "Ученик")[:64]
+            if not norm["student_name"]:
+                norm["student_name"] = "Ученик"
+
+            self._conn.execute(
+                """
+                INSERT INTO tutor_reviews (
+                    id, tutor_id, booking_id, student_user_id, student_name,
+                    rating, comment, tags_json, verified_lesson, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    rid,
+                    tid,
+                    bid,
+                    uid,
+                    norm["student_name"],
+                    norm["rating"],
+                    norm["comment"],
+                    json.dumps(norm["tags"], ensure_ascii=False),
+                    1 if bid else 0,
+                    now_iso,
+                ),
+            )
+            rating, cnt = self._tutor_review_agg(tid)
+            self._conn.execute(
+                "UPDATE admin_tutors SET rating = ?, reviews_count = ?, updated_at = ? WHERE id = ?",
+                (rating, cnt, now_iso, tid),
+            )
+            self._record_mkt_outbox(
+                "vektor.market.bids.v1",
+                tid,
+                "market.review.created",
+                {
+                    "userId": uid,
+                    "reviewId": rid,
+                    "tutorId": tid,
+                    "bookingId": bid,
+                    "rating": norm["rating"],
+                    "reviewsCount": cnt,
+                },
+            )
+            self._conn.commit()
+            row = self._conn.execute("SELECT * FROM tutor_reviews WHERE id = ?", (rid,)).fetchone()
+            return {
+                "review": self._review_row_to_dict(row),
+                "rating": rating,
+                "reviewsCount": cnt,
+            }
+
+    @staticmethod
+    def _dispute_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
+        return {
+            "id": str(row["id"]),
+            "bookingId": str(row["booking_id"]),
+            "tutorId": str(row["tutor_id"]),
+            "tutorName": str(row["tutor_name"] or row["tutor_id"]),
+            "studentUserId": int(row["student_user_id"]) if row["student_user_id"] is not None else None,
+            "studentName": str(row["student_name"] or "Ученик"),
+            "reason": str(row["reason"] or "first_lesson_guarantee"),
+            "comment": str(row["comment"] or ""),
+            "amountRub": int(row["amount_rub"] or 0),
+            "firstLessonGuarantee": bool(row["first_lesson_guarantee"]),
+            "status": str(row["status"] or "open"),
+            "resolutionNote": str(row["resolution_note"] or ""),
+            "createdAt": str(row["created_at"] or ""),
+            "resolvedAt": row["resolved_at"],
+        }
+
+    def list_disputes(
+        self,
+        *,
+        student_user_id: int | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        lim = max(1, min(500, int(limit or 100)))
+        with self._lock:
+            if student_user_id is not None:
+                rows = self._conn.execute(
+                    """
+                    SELECT * FROM lesson_disputes
+                    WHERE student_user_id = ?
+                    ORDER BY CASE WHEN status = 'open' THEN 0 ELSE 1 END, created_at DESC, id DESC
+                    LIMIT ?
+                    """,
+                    (int(student_user_id), lim),
+                ).fetchall()
+            else:
+                rows = self._conn.execute(
+                    """
+                    SELECT * FROM lesson_disputes
+                    ORDER BY CASE WHEN status = 'open' THEN 0 ELSE 1 END, created_at DESC, id DESC
+                    LIMIT ?
+                    """,
+                    (lim,),
+                ).fetchall()
+        return [self._dispute_row_to_dict(r) for r in rows]
+
+    def open_dispute(
+        self,
+        actor_user_id: int,
+        booking_id: str,
+        payload: dict[str, Any],
+        *,
+        actor_role: str = "student",
+        dispute_id: str | None = None,
+    ) -> dict[str, Any]:
+        uid = int(actor_user_id)
+        bid = clean_direction_label(booking_id, max_len=64)
+        if not bid:
+            raise StorageError("invalid_booking", "Не указана заявка.", 400)
+        norm = normalize_dispute_payload(payload)
+        did = str(dispute_id or f"dsp-{secrets.token_hex(6)}").strip()[:64]
+        now_iso = _iso_utc_now()
+
+        with self._lock:
+            row = self._conn.execute("SELECT * FROM admin_lesson_requests WHERE id = ?", (bid,)).fetchone()
+            if not row:
+                raise StorageError("not_found", "Заявка не найдена.", 404)
+            is_owner = row["student_user_id"] is not None and int(row["student_user_id"]) == uid
+            if not is_owner and actor_role != "admin":
+                raise StorageError("forbidden", "Нет прав на открытие спора по этой заявке.", 403)
+            cur_status = str(row["status"] or "")
+            if cur_status not in ("accepted", "completed"):
+                raise StorageError("invalid_transition", "Спор можно открыть только по подтверждённому или проведённому занятию.", 409)
+            existing = self._conn.execute("SELECT * FROM lesson_disputes WHERE booking_id = ?", (bid,)).fetchone()
+            if existing is not None:
+                raise StorageError("dispute_exists", "Спор по этому занятию уже открыт.", 409)
+
+            amount = int(row["final_price_rub"] or row["counter_price_rub"] or row["offer_price_rub"] or row["reserved_rub"] or 0)
+            student_uid = int(row["student_user_id"]) if row["student_user_id"] is not None else uid
+            self._conn.execute(
+                """
+                INSERT INTO lesson_disputes (
+                    id, booking_id, tutor_id, tutor_name, student_user_id, student_name,
+                    reason, comment, amount_rub, first_lesson_guarantee, status, resolution_note, created_at, resolved_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', '', ?, NULL)
+                """,
+                (
+                    did,
+                    bid,
+                    str(row["tutor_id"]),
+                    str(row["tutor_name"] or row["tutor_id"]),
+                    student_uid,
+                    str(row["student_name"] or "Ученик"),
+                    norm["reason"],
+                    norm["comment"],
+                    amount,
+                    1 if (row["first_lesson_guarantee"] and norm["first_lesson_guarantee"]) else 0,
+                    now_iso,
+                ),
+            )
+            self._record_mkt_outbox(
+                "vektor.payments.ledger.v1",
+                did,
+                "market.dispute.opened",
+                {
+                    "userId": student_uid,
+                    "disputeId": did,
+                    "bookingId": bid,
+                    "tutorId": str(row["tutor_id"]),
+                    "reason": norm["reason"],
+                    "amountRub": amount,
+                },
+            )
+            self._conn.commit()
+            d_row = self._conn.execute("SELECT * FROM lesson_disputes WHERE id = ?", (did,)).fetchone()
+            return {"dispute": self._dispute_row_to_dict(d_row)}
+
+    def resolve_dispute(
+        self,
+        dispute_id: str,
+        action: str,
+        *,
+        resolution_note: str = "",
+    ) -> dict[str, Any]:
+        did = clean_direction_label(dispute_id, max_len=64)
+        act = str(action or "").strip().lower()
+        if act not in ("refund", "reject"):
+            raise StorageError("invalid_action", "Допустимые решения: refund или reject.", 400)
+        note = clean_direction_label(resolution_note or "", max_len=300)
+        now_iso = _iso_utc_now()
+
+        with self._lock:
+            d_row = self._conn.execute("SELECT * FROM lesson_disputes WHERE id = ?", (did,)).fetchone()
+            if not d_row:
+                raise StorageError("not_found", "Спор не найден.", 404)
+            if str(d_row["status"]) != "open":
+                raise StorageError("dispute_closed", "Спор уже закрыт.", 409)
+
+            bid = str(d_row["booking_id"])
+            amount = max(0, int(d_row["amount_rub"] or 0))
+            student_uid = int(d_row["student_user_id"]) if d_row["student_user_id"] is not None else None
+            refunded_rub = 0
+            wallet_snap = None
+
+            if act == "refund":
+                next_status = "refunded"
+                refunded_rub = amount
+                if student_uid is not None and refunded_rub > 0:
+                    snap = self._wallet_snapshot(student_uid)
+                    new_bal = int(snap["balanceRub"]) + refunded_rub
+                    self._conn.execute(
+                        "UPDATE wallets SET balance_rub = ?, updated_at = ? WHERE user_id = ?",
+                        (new_bal, now_iso, student_uid),
+                    )
+                    self._conn.execute(
+                        """
+                        INSERT INTO wallet_ledger (
+                            user_id, kind, amount_rub, balance_after_rub, fee_rub, method, ref_type, ref_id, note, created_at
+                        ) VALUES (?, 'dispute_refund', ?, ?, 0, 'escrow', 'dispute', ?, ?, ?)
+                        """,
+                        (student_uid, refunded_rub, new_bal, did, f"Возврат по спору {did} (гарантия 1-го урока)", now_iso),
+                    )
+                    wallet_snap = self._wallet_snapshot(student_uid)
+                self._conn.execute(
+                    "UPDATE escrow_holds SET status = 'refunded', settled_at = ? WHERE request_id = ?",
+                    (now_iso, bid),
+                )
+                self._conn.execute(
+                    """
+                    UPDATE admin_lesson_requests
+                    SET status = 'refunded', escrow_status = 'refunded', reserved_rub = 0, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (now_iso, bid),
+                )
+            else:
+                next_status = "rejected"
+
+            self._conn.execute(
+                """
+                UPDATE lesson_disputes
+                SET status = ?, resolution_note = ?, resolved_at = ?
+                WHERE id = ?
+                """,
+                (next_status, note, now_iso, did),
+            )
+            self._record_mkt_outbox(
+                "vektor.payments.ledger.v1",
+                did,
+                f"payments.dispute.{next_status}",
+                {
+                    "userId": student_uid,
+                    "disputeId": did,
+                    "bookingId": bid,
+                    "refundedRub": refunded_rub,
+                },
+            )
+            self._conn.commit()
+            updated = self._conn.execute("SELECT * FROM lesson_disputes WHERE id = ?", (did,)).fetchone()
+            out: dict[str, Any] = {
+                "dispute": self._dispute_row_to_dict(updated),
+                "refundedRub": refunded_rub,
+            }
+            if wallet_snap is not None:
+                out["wallet"] = wallet_snap
+            return out
+
+    # ---------- Фоновый планировщик: эскроу и напоминания ----------
+
+    def list_scheduler_bookings(
+        self,
+        *,
+        statuses: tuple[str, ...] = ("pending", "countered", "accepted"),
+        limit: int = 500,
+    ) -> list[dict[str, Any]]:
+        norm: list[str] = []
+        for s in statuses:
+            val = str(s or "").strip().lower()
+            if val == "pending":
+                norm.extend(("pending", "offered"))
+            elif val:
+                norm.append(val)
+        unique_statuses = list(dict.fromkeys(norm))
+        if not unique_statuses:
+            return []
+        lim = max(1, min(int(limit or 500), 2000))
+        placeholders = ", ".join("?" for _ in unique_statuses)
+        with self._lock:
+            rows = self._conn.execute(
+                f"""
+                SELECT r.*,
+                       EXISTS (
+                           SELECT 1 FROM lesson_disputes d
+                           WHERE d.booking_id = r.id AND d.status IN ('open', 'refunded')
+                       ) AS has_blocking_dispute
+                FROM admin_lesson_requests r
+                WHERE r.status IN ({placeholders})
+                ORDER BY r.slot_date ASC, r.hour_slot ASC, r.created_at ASC
+                LIMIT ?
+                """,
+                (*unique_statuses, lim),
+            ).fetchall()
+        out: list[dict[str, Any]] = []
+        for r in rows:
+            item = self._booking_row_to_dict(r)
+            item["hasBlockingDispute"] = bool(r["has_blocking_dispute"])
+            out.append(item)
+        return out
+
+    def auto_capture_booking(
+        self,
+        booking_id: str,
+        *,
+        reason: str = "slot_finished",
+    ) -> dict[str, Any] | None:
+        bid = str(booking_id or "").strip()
+        if not bid:
+            return None
+        now_iso = _iso_utc_now()
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM admin_lesson_requests WHERE id = ?",
+                (bid,),
+            ).fetchone()
+            if not row:
+                return None
+            cur_norm = _PG_TO_MKT_STATUS.get(str(row["status"] or ""), str(row["status"] or ""))
+            if cur_norm != "accepted":
+                return None
+            dispute_row = self._conn.execute(
+                """
+                SELECT 1 FROM lesson_disputes
+                WHERE booking_id = ? AND status IN ('open', 'refunded')
+                LIMIT 1
+                """,
+                (bid,),
+            ).fetchone()
+            if dispute_row:
+                return None
+            esc_row = self._conn.execute(
+                "SELECT status FROM escrow_holds WHERE request_id = ? LIMIT 1",
+                (bid,),
+            ).fetchone()
+            esc_state = str((esc_row["status"] if esc_row else row["escrow_status"]) or "none")
+            if esc_state != "frozen":
+                return None
+
+            eff_price = int(row["final_price_rub"] or row["counter_price_rub"] or row["offer_price_rub"] or 0)
+            student_uid = int(row["student_user_id"]) if row["student_user_id"] is not None else None
+            tutor_id = str(row["tutor_id"])
+            cur_reserved = int(row["reserved_rub"] or 0)
+            fee, payout = calc_fee_split(eff_price)
+            sbp_fee = calc_sbp_fee(eff_price)
+
+            if eff_price > 0:
+                self._conn.execute(
+                    """
+                    INSERT INTO escrow_holds (
+                        id, request_id, tutor_id, student_user_id, gross_rub,
+                        platform_fee_rub, tutor_payout_rub, status, created_at, settled_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'captured', ?, ?)
+                    ON CONFLICT(request_id) DO UPDATE SET
+                        gross_rub = excluded.gross_rub,
+                        platform_fee_rub = excluded.platform_fee_rub,
+                        tutor_payout_rub = excluded.tutor_payout_rub,
+                        status = 'captured',
+                        settled_at = excluded.settled_at
+                    """,
+                    (f"esc-{bid}", bid, tutor_id, student_uid, eff_price, fee, payout, now_iso, now_iso),
+                )
+                if student_uid is not None and cur_reserved > 0:
+                    snap = self._wallet_snapshot(student_uid)
+                    self._conn.execute(
+                        """
+                        INSERT INTO wallet_ledger (
+                            user_id, kind, amount_rub, balance_after_rub, fee_rub, method, ref_type, ref_id, note, created_at
+                        ) VALUES (?, 'escrow_capture', 0, ?, ?, 'escrow', 'booking', ?, ?, ?)
+                        """,
+                        (student_uid, int(snap["balanceRub"]), fee, bid, f"Автозавершение урока {bid}: списано {eff_price} ₽", now_iso),
+                    )
+            self._conn.execute(
+                """
+                UPDATE admin_lesson_requests
+                SET status = 'completed',
+                    final_price_rub = COALESCE(final_price_rub, ?),
+                    escrow_status = CASE WHEN ? > 0 THEN 'captured' ELSE escrow_status END,
+                    reserved_rub = 0,
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (eff_price, eff_price, now_iso, bid),
+            )
+            self._record_mkt_outbox(
+                "vektor.payments.ledger.v1",
+                bid,
+                "payments.escrow.auto_captured",
+                {
+                    "userId": student_uid,
+                    "bookingId": bid,
+                    "tutorId": tutor_id,
+                    "grossRub": eff_price,
+                    "feeRub": fee,
+                    "sbpFeeRub": sbp_fee,
+                    "payoutRub": payout,
+                    "reason": reason,
+                    "role": "system",
+                    "view": "backend",
+                },
+            )
+            self._conn.commit()
+            updated = self._conn.execute("SELECT * FROM admin_lesson_requests WHERE id = ?", (bid,)).fetchone()
+            return {
+                "booking": self._booking_row_to_dict(updated),
+                "grossRub": eff_price,
+                "feeRub": fee,
+                "sbpFeeRub": sbp_fee,
+                "payoutRub": payout,
+                "reason": reason,
+            }
+
+    def auto_expire_pending_booking(
+        self,
+        booking_id: str,
+        *,
+        reason: str = "expired",
+    ) -> dict[str, Any] | None:
+        bid = str(booking_id or "").strip()
+        if not bid:
+            return None
+        now_iso = _iso_utc_now()
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM admin_lesson_requests WHERE id = ?",
+                (bid,),
+            ).fetchone()
+            if not row:
+                return None
+            cur_norm = _PG_TO_MKT_STATUS.get(str(row["status"] or ""), str(row["status"] or ""))
+            if cur_norm not in ("pending", "countered"):
+                return None
+
+            student_uid = int(row["student_user_id"]) if row["student_user_id"] is not None else None
+            cur_reserved = int(row["reserved_rub"] or 0)
+            if student_uid is not None and cur_reserved > 0:
+                snap = self._wallet_snapshot(student_uid)
+                new_bal = int(snap["balanceRub"]) + cur_reserved
+                self._conn.execute(
+                    "UPDATE wallets SET balance_rub = ?, updated_at = ? WHERE user_id = ?",
+                    (new_bal, now_iso, student_uid),
+                )
+                self._conn.execute(
+                    """
+                    INSERT INTO wallet_ledger (
+                        user_id, kind, amount_rub, balance_after_rub, fee_rub, method, ref_type, ref_id, note, created_at
+                    ) VALUES (?, 'escrow_refund', ?, ?, 0, 'escrow', 'booking', ?, ?, ?)
+                    """,
+                    (student_uid, cur_reserved, new_bal, bid, f"Автоотмена просроченной заявки {bid}", now_iso),
+                )
+            self._conn.execute(
+                "UPDATE escrow_holds SET status = 'refunded', settled_at = ? WHERE request_id = ?",
+                (now_iso, bid),
+            )
+            next_esc = "refunded" if (cur_reserved > 0 or str(row["escrow_status"]) in ("frozen", "captured")) else "none"
+            self._conn.execute(
+                """
+                UPDATE admin_lesson_requests
+                SET status = 'cancelled', escrow_status = ?, reserved_rub = 0, updated_at = ?
+                WHERE id = ?
+                """,
+                (next_esc, now_iso, bid),
+            )
+            self._record_mkt_outbox(
+                "vektor.payments.ledger.v1",
+                bid,
+                "market.bid.auto_expired",
+                {
+                    "userId": student_uid,
+                    "bookingId": bid,
+                    "refundedRub": cur_reserved,
+                    "reason": reason,
+                    "role": "system",
+                    "view": "backend",
+                },
+            )
+            self._conn.commit()
+            updated = self._conn.execute("SELECT * FROM admin_lesson_requests WHERE id = ?", (bid,)).fetchone()
+            return {
+                "booking": self._booking_row_to_dict(updated),
+                "refundedRub": cur_reserved,
+                "reason": reason,
+            }
+
+    def has_lesson_reminder_sent(self, booking_id: str, kind: str, recipient_role: str) -> bool:
+        bid = str(booking_id or "").strip()
+        k = "24h" if str(kind or "").strip() == "24h" else "1h"
+        role_norm = "tutor" if str(recipient_role or "").strip() == "tutor" else "student"
+        if not bid:
+            return False
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT 1 FROM lesson_reminders_sent
+                WHERE booking_id = ? AND kind = ? AND recipient_role = ?
+                LIMIT 1
+                """,
+                (bid, k, role_norm),
+            ).fetchone()
+        return row is not None
+
+    def mark_lesson_reminder_sent(
+        self,
+        booking_id: str,
+        kind: str,
+        recipient_role: str,
+        chat_id: str = "",
+    ) -> bool:
+        bid = str(booking_id or "").strip()
+        k = "24h" if str(kind or "").strip() == "24h" else "1h"
+        role_norm = "tutor" if str(recipient_role or "").strip() == "tutor" else "student"
+        if not bid:
+            return False
+        now_iso = _iso_utc_now()
+        with self._lock:
+            cur = self._conn.execute(
+                """
+                INSERT OR IGNORE INTO lesson_reminders_sent (
+                    booking_id, kind, recipient_role, chat_id, sent_at
+                ) VALUES (?, ?, ?, ?, ?)
+                """,
+                (bid, k, role_norm, str(chat_id or ""), now_iso),
+            )
+            self._conn.commit()
+        return bool(cur.rowcount and cur.rowcount > 0)
