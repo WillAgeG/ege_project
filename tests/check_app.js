@@ -6637,9 +6637,18 @@
       syllabusHtml.includes("Паронимы: точный выбор слова") &&
       syllabusHtml.includes("Модуль 2 · Орфография") &&
       syllabusHtml.includes("Правописание корней: чередования и ловушки ФИПИ") &&
-      syllabusHtml.includes("0/27 шагов") &&
-      syllabusHtml.includes("Модуль 3 · Пунктуация"),
-      "expected course-select to open compact course syllabus with Module 1 + Module 2 (Topics 1-3) and planned modules"
+      syllabusHtml.includes("Правописание приставок: З/С, ПРЕ/ПРИ, Ъ/Ь и Ы/И") &&
+      syllabusHtml.includes("Правописание суффиксов разных частей речи") &&
+      syllabusHtml.includes("Личные окончания глаголов и суффиксы причастий") &&
+      syllabusHtml.includes("Слитное и раздельное написание НЕ и НИ") &&
+      syllabusHtml.includes("Слитное, дефисное и раздельное написание слов") &&
+      syllabusHtml.includes("Правописание Н и НН в разных частях речи") &&
+      syllabusHtml.includes("Запятые при однородных членах и в ССП") &&
+      syllabusHtml.includes("Обособленные определения и обстоятельства") &&
+      syllabusHtml.includes("0/99 шагов") &&
+      syllabusHtml.includes("Модуль 3 · Пунктуация") &&
+      syllabusHtml.includes("Модуль 4 · Текст, речь и сочинение"),
+      "expected course-select to open compact course syllabus with Modules 1-3 (Topics 1-11) and planned Module 4"
     );
     clickAction(envChat, { a: "course-filter", filter: "done" });
     await flushMicrotasks(2);
@@ -6673,7 +6682,7 @@
     assert(
       step1Html.includes("crs-step-strip") &&
       step1Html.includes("Теория · Блок 1") &&
-      step1Html.includes("Темы (1/3)") &&
+      step1Html.includes("Темы (1/11)") &&
       step1Html.includes("Шаг 1/9 · Пройдено 0/9"),
       "expected course-open to render Stepik player on Topic 1 step 1 (theory) with topic switcher"
     );
@@ -6746,7 +6755,7 @@
     assert(
       !par1Html.includes('id="crs-topic-drawer"') &&
       par1Html.includes("Паронимы: точный выбор слова") &&
-      par1Html.includes("Темы (2/3)") &&
+      par1Html.includes("Темы (2/11)") &&
       par1Html.includes("Шаг 1/9 · Пройдено 0/9"),
       "expected switching to Topic 2 from drawer to close drawer and open Паронимы step 1"
     );
@@ -6796,18 +6805,18 @@
     await flushMicrotasks(4);
     const syllabusAfterHtml = envChat.elements.get("main").innerHTML;
     assert(
-      syllabusAfterHtml.includes("4/27 шагов") &&
+      syllabusAfterHtml.includes("4/99 шагов") &&
       syllabusAfterHtml.includes("Продолжить: Задание 4"),
-      "expected course-back-course to return to compact syllabus with 4/27 completed steps"
+      "expected course-back-course to return to compact syllabus with 4/99 completed steps"
     );
     // Тема 3 (Задание 9 · Правописание корней): gaps + classify + multi
     clickAction(envChat, { a: "course-open", course: "rus-ege", lesson: "rus-korni" });
     await flushMicrotasks(4);
     assert(
       envChat.elements.get("main").innerHTML.includes("Правописание корней: чередования и ловушки ФИПИ") &&
-      envChat.elements.get("main").innerHTML.includes("Темы (3/3)") &&
+      envChat.elements.get("main").innerHTML.includes("Темы (3/11)") &&
       envChat.elements.get("main").innerHTML.includes("Шаг 1/9 · Пройдено 0/9"),
-      "expected Topic 3 (Правописание корней) to open on step 1 with Темы (3/3)"
+      "expected Topic 3 (Правописание корней) to open on step 1 with Темы (3/11)"
     );
     clickAction(envChat, { a: "course-theory-done" });
     await flushMicrotasks(2);
@@ -6837,6 +6846,325 @@
       envChat.elements.get("main").innerHTML.includes('data-r="2"') &&
       envChat.elements.get("main").innerHTML.includes("Пройдено 4/9"),
       "expected Topic 3 (Задание 9) to track 4/9 completed steps across theory, gaps, classify & ЕГЭ №9 test"
+    );
+    clickAction(envChat, { a: "course-reset" });
+    await flushMicrotasks(4);
+    // Тема 4 (Задание 10 · Правописание приставок): classify + gaps + multi
+    clickAction(envChat, { a: "course-open", course: "rus-ege", lesson: "rus-pristavki" });
+    await flushMicrotasks(4);
+    assert(
+      envChat.elements.get("main").innerHTML.includes("Правописание приставок: З/С, ПРЕ/ПРИ, Ъ/Ь и Ы/И") &&
+      envChat.elements.get("main").innerHTML.includes("Темы (4/11)") &&
+      envChat.elements.get("main").innerHTML.includes("Шаг 1/9 · Пройдено 0/9"),
+      "expected Topic 4 (Правописание приставок) to open on step 1 with Темы (4/11)"
+    );
+    clickAction(envChat, { a: "course-theory-done" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "0", val: "1" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "1", val: "0" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "2", val: "1" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "3", val: "0" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "4", val: "1" });
+    clickAction(envChat, { a: "course-check" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-step", idx: "3" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-tpl-act", op: "gap-chip", val: "и" });
+    clickAction(envChat, { a: "course-tpl-act", op: "gap-chip", val: "е" });
+    clickAction(envChat, { a: "course-tpl-act", op: "gap-chip", val: "и" });
+    clickAction(envChat, { a: "course-tpl-act", op: "gap-chip", val: "и" });
+    clickAction(envChat, { a: "course-check" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-step", idx: "8" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-opt", idx: "0" });
+    clickAction(envChat, { a: "course-opt", idx: "1" });
+    clickAction(envChat, { a: "course-opt", idx: "3" });
+    clickAction(envChat, { a: "course-check" });
+    await flushMicrotasks(4);
+    assert(
+      envChat.elements.get("main").innerHTML.includes('data-r="2"') &&
+      envChat.elements.get("main").innerHTML.includes("Пройдено 4/9"),
+      "expected Topic 4 (Задание 10) to track 4/9 completed steps across theory, classify, gaps & ЕГЭ №10 test"
+    );
+    clickAction(envChat, { a: "course-reset" });
+    await flushMicrotasks(4);
+    // Тема 5 (Задание 11 · Правописание суффиксов): gaps + classify + multi
+    clickAction(envChat, { a: "course-open", course: "rus-ege", lesson: "rus-suffiksy" });
+    await flushMicrotasks(4);
+    assert(
+      envChat.elements.get("main").innerHTML.includes("Правописание суффиксов разных частей речи") &&
+      envChat.elements.get("main").innerHTML.includes("Темы (5/11)") &&
+      envChat.elements.get("main").innerHTML.includes("Шаг 1/9 · Пройдено 0/9"),
+      "expected Topic 5 (Правописание суффиксов) to open on step 1 with Темы (5/11)"
+    );
+    clickAction(envChat, { a: "course-theory-done" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-tpl-act", op: "gap-chip", val: "и" });
+    clickAction(envChat, { a: "course-tpl-act", op: "gap-chip", val: "е" });
+    clickAction(envChat, { a: "course-tpl-act", op: "gap-chip", val: "ы" });
+    clickAction(envChat, { a: "course-tpl-act", op: "gap-chip", val: "о" });
+    clickAction(envChat, { a: "course-check" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-step", idx: "3" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "0", val: "0" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "1", val: "1" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "2", val: "1" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "3", val: "1" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "4", val: "0" });
+    clickAction(envChat, { a: "course-check" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-step", idx: "6" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-opt", idx: "0" });
+    clickAction(envChat, { a: "course-opt", idx: "1" });
+    clickAction(envChat, { a: "course-opt", idx: "3" });
+    clickAction(envChat, { a: "course-check" });
+    await flushMicrotasks(4);
+    assert(
+      envChat.elements.get("main").innerHTML.includes('data-r="2"') &&
+      envChat.elements.get("main").innerHTML.includes("Пройдено 4/9"),
+      "expected Topic 5 (Задание 11) to track 4/9 completed steps across theory, gaps, classify & ЕГЭ №11 test"
+    );
+    clickAction(envChat, { a: "course-reset" });
+    await flushMicrotasks(4);
+    // Тема 6 (Задание 12 · Спряжение и причастия): classify + gaps + multi
+    clickAction(envChat, { a: "course-open", course: "rus-ege", lesson: "rus-spryazhenie" });
+    await flushMicrotasks(4);
+    assert(
+      envChat.elements.get("main").innerHTML.includes("Личные окончания глаголов и суффиксы причастий") &&
+      envChat.elements.get("main").innerHTML.includes("Темы (6/11)") &&
+      envChat.elements.get("main").innerHTML.includes("Шаг 1/9 · Пройдено 0/9"),
+      "expected Topic 6 (Задание 12) to open on step 1 with Темы (6/11)"
+    );
+    clickAction(envChat, { a: "course-theory-done" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "0", val: "0" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "1", val: "1" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "2", val: "0" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "3", val: "1" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "4", val: "0" });
+    clickAction(envChat, { a: "course-check" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-step", idx: "3" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-tpl-act", op: "gap-chip", val: "е" });
+    clickAction(envChat, { a: "course-tpl-act", op: "gap-chip", val: "я" });
+    clickAction(envChat, { a: "course-tpl-act", op: "gap-chip", val: "е" });
+    clickAction(envChat, { a: "course-tpl-act", op: "gap-chip", val: "е" });
+    clickAction(envChat, { a: "course-check" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-step", idx: "6" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-opt", idx: "0" });
+    clickAction(envChat, { a: "course-opt", idx: "2" });
+    clickAction(envChat, { a: "course-opt", idx: "3" });
+    clickAction(envChat, { a: "course-check" });
+    await flushMicrotasks(4);
+    assert(
+      envChat.elements.get("main").innerHTML.includes('data-r="2"') &&
+      envChat.elements.get("main").innerHTML.includes("Пройдено 4/9"),
+      "expected Topic 6 (Задание 12) to track 4/9 completed steps across theory, classify, gaps & ЕГЭ №12 test"
+    );
+    clickAction(envChat, { a: "course-reset" });
+    await flushMicrotasks(4);
+    // Тема 7 (Задание 13 · НЕ и НИ): classify + gaps + multi
+    clickAction(envChat, { a: "course-open", course: "rus-ege", lesson: "rus-ne-ni" });
+    await flushMicrotasks(4);
+    assert(
+      envChat.elements.get("main").innerHTML.includes("Слитное и раздельное написание НЕ и НИ") &&
+      envChat.elements.get("main").innerHTML.includes("Темы (7/11)") &&
+      envChat.elements.get("main").innerHTML.includes("Шаг 1/9 · Пройдено 0/9"),
+      "expected Topic 7 (Задание 13) to open on step 1 with Темы (7/11)"
+    );
+    clickAction(envChat, { a: "course-theory-done" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "0", val: "0" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "1", val: "1" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "2", val: "0" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "3", val: "1" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "4", val: "0" });
+    clickAction(envChat, { a: "course-check" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-step", idx: "5" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-tpl-act", op: "gap-chip", val: "ни" });
+    clickAction(envChat, { a: "course-tpl-act", op: "gap-chip", val: "не" });
+    clickAction(envChat, { a: "course-tpl-act", op: "gap-chip", val: "не" });
+    clickAction(envChat, { a: "course-tpl-act", op: "gap-chip", val: "не" });
+    clickAction(envChat, { a: "course-check" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-step", idx: "6" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-opt", idx: "0" });
+    clickAction(envChat, { a: "course-opt", idx: "2" });
+    clickAction(envChat, { a: "course-opt", idx: "4" });
+    clickAction(envChat, { a: "course-check" });
+    await flushMicrotasks(4);
+    assert(
+      envChat.elements.get("main").innerHTML.includes('data-r="2"') &&
+      envChat.elements.get("main").innerHTML.includes("Пройдено 4/9"),
+      "expected Topic 7 (Задание 13) to track 4/9 completed steps across theory, classify, gaps & ЕГЭ №13 test"
+    );
+    clickAction(envChat, { a: "course-reset" });
+    await flushMicrotasks(4);
+    // Тема 8 (Задание 14 · Слитное, дефисное и раздельное): classify (2 и 3 категории) + multi
+    clickAction(envChat, { a: "course-open", course: "rus-ege", lesson: "rus-slitno-razdelno" });
+    await flushMicrotasks(4);
+    assert(
+      envChat.elements.get("main").innerHTML.includes("Слитное, дефисное и раздельное написание слов") &&
+      envChat.elements.get("main").innerHTML.includes("Темы (8/11)") &&
+      envChat.elements.get("main").innerHTML.includes("Шаг 1/9 · Пройдено 0/9"),
+      "expected Topic 8 (Задание 14) to open on step 1 with Темы (8/11)"
+    );
+    clickAction(envChat, { a: "course-theory-done" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "0", val: "0" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "1", val: "1" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "2", val: "0" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "3", val: "1" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "4", val: "1" });
+    clickAction(envChat, { a: "course-check" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-step", idx: "5" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "0", val: "2" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "1", val: "0" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "2", val: "1" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "3", val: "2" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "4", val: "0" });
+    clickAction(envChat, { a: "course-check" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-step", idx: "8" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-opt", idx: "0" });
+    clickAction(envChat, { a: "course-opt", idx: "1" });
+    clickAction(envChat, { a: "course-opt", idx: "3" });
+    clickAction(envChat, { a: "course-check" });
+    await flushMicrotasks(4);
+    assert(
+      envChat.elements.get("main").innerHTML.includes('data-r="2"') &&
+      envChat.elements.get("main").innerHTML.includes("Пройдено 4/9"),
+      "expected Topic 8 (Задание 14) to track 4/9 completed steps across theory, 2-way/3-way classify & ЕГЭ №14 test"
+    );
+    clickAction(envChat, { a: "course-reset" });
+    await flushMicrotasks(4);
+    // Тема 9 (Задание 15 · Правописание Н и НН): classify + gaps + multi
+    clickAction(envChat, { a: "course-open", course: "rus-ege", lesson: "rus-n-nn" });
+    await flushMicrotasks(4);
+    assert(
+      envChat.elements.get("main").innerHTML.includes("Правописание Н и НН в разных частях речи") &&
+      envChat.elements.get("main").innerHTML.includes("Темы (9/11)") &&
+      envChat.elements.get("main").innerHTML.includes("Шаг 1/9 · Пройдено 0/9"),
+      "expected Topic 9 (Задание 15) to open on step 1 with Темы (9/11)"
+    );
+    clickAction(envChat, { a: "course-theory-done" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "0", val: "0" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "1", val: "1" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "2", val: "1" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "3", val: "0" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "4", val: "1" });
+    clickAction(envChat, { a: "course-check" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-step", idx: "3" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-tpl-act", op: "gap-chip", val: "н" });
+    clickAction(envChat, { a: "course-tpl-act", op: "gap-chip", val: "нн" });
+    clickAction(envChat, { a: "course-tpl-act", op: "gap-chip", val: "н" });
+    clickAction(envChat, { a: "course-tpl-act", op: "gap-chip", val: "нн" });
+    clickAction(envChat, { a: "course-check" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-step", idx: "6" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-opt", idx: "0" });
+    clickAction(envChat, { a: "course-opt", idx: "1" });
+    clickAction(envChat, { a: "course-opt", idx: "3" });
+    clickAction(envChat, { a: "course-check" });
+    await flushMicrotasks(4);
+    assert(
+      envChat.elements.get("main").innerHTML.includes('data-r="2"') &&
+      envChat.elements.get("main").innerHTML.includes("Пройдено 4/9"),
+      "expected Topic 9 (Задание 15) to track 4/9 completed steps across theory, classify, gaps & ЕГЭ №15 test"
+    );
+    clickAction(envChat, { a: "course-reset" });
+    await flushMicrotasks(4);
+    // Тема 10 (Задание 16 · Модуль 3: Пунктуация): theory + punct + classify + punct
+    clickAction(envChat, { a: "course-open", course: "rus-ege", lesson: "rus-zapyatye-16" });
+    await flushMicrotasks(4);
+    assert(
+      envChat.elements.get("main").innerHTML.includes("Запятые при однородных членах и в ССП") &&
+      envChat.elements.get("main").innerHTML.includes("Темы (10/11)") &&
+      envChat.elements.get("main").innerHTML.includes("Шаг 1/9 · Пройдено 0/9"),
+      "expected Topic 10 (Задание 16) to open on step 1 with Темы (10/11)"
+    );
+    clickAction(envChat, { a: "course-theory-done" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-tpl-act", op: "punct", num: "1" });
+    clickAction(envChat, { a: "course-tpl-act", op: "punct", num: "2" });
+    clickAction(envChat, { a: "course-tpl-act", op: "punct", num: "4" });
+    clickAction(envChat, { a: "course-check" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-step", idx: "3" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "0", val: "1" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "1", val: "0" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "2", val: "1" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "3", val: "1" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "4", val: "0" });
+    clickAction(envChat, { a: "course-check" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-step", idx: "5" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-tpl-act", op: "punct", num: "2" });
+    clickAction(envChat, { a: "course-tpl-act", op: "punct", num: "3" });
+    clickAction(envChat, { a: "course-check" });
+    await flushMicrotasks(4);
+    assert(
+      envChat.elements.get("main").innerHTML.includes('data-r="2"') &&
+      envChat.elements.get("main").innerHTML.includes("Пройдено 4/9"),
+      "expected Topic 10 (Задание 16) to track 4/9 completed steps across theory, punct & classify"
+    );
+    clickAction(envChat, { a: "course-reset" });
+    await flushMicrotasks(4);
+    // Тема 11 (Задание 17 · Модуль 3: Пунктуация): theory + punct + classify + punct (test)
+    clickAction(envChat, { a: "course-open", course: "rus-ege", lesson: "rus-obosoblenie-17" });
+    await flushMicrotasks(4);
+    assert(
+      envChat.elements.get("main").innerHTML.includes("Обособленные определения и обстоятельства") &&
+      envChat.elements.get("main").innerHTML.includes("Темы (11/11)") &&
+      envChat.elements.get("main").innerHTML.includes("Шаг 1/9 · Пройдено 0/9"),
+      "expected Topic 11 (Задание 17) to open on step 1 with Темы (11/11)"
+    );
+    clickAction(envChat, { a: "course-theory-done" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-tpl-act", op: "punct", num: "1" });
+    clickAction(envChat, { a: "course-tpl-act", op: "punct", num: "4" });
+    clickAction(envChat, { a: "course-check" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-step", idx: "3" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "0", val: "1" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "1", val: "0" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "2", val: "0" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "3", val: "1" });
+    clickAction(envChat, { a: "course-tpl-act", op: "classify", row: "4", val: "1" });
+    clickAction(envChat, { a: "course-check" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-step", idx: "8" });
+    await flushMicrotasks(2);
+    clickAction(envChat, { a: "course-tpl-act", op: "punct", num: "3" });
+    clickAction(envChat, { a: "course-tpl-act", op: "punct", num: "4" });
+    clickAction(envChat, { a: "course-tpl-act", op: "punct", num: "5" });
+    clickAction(envChat, { a: "course-tpl-act", op: "punct", num: "6" });
+    clickAction(envChat, { a: "course-tpl-act", op: "punct", num: "7" });
+    clickAction(envChat, { a: "course-check" });
+    await flushMicrotasks(4);
+    assert(
+      envChat.elements.get("main").innerHTML.includes('data-r="2"') &&
+      envChat.elements.get("main").innerHTML.includes("Пройдено 4/9"),
+      "expected Topic 11 (Задание 17) to track 4/9 completed steps across theory, punct, classify & final punct test"
     );
     clickAction(envChat, { a: "course-reset" });
     await flushMicrotasks(4);
