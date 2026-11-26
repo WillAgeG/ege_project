@@ -451,7 +451,17 @@ def clear_session_cookie(response: Response, request: Request, settings: Setting
     )
 
 
-def serialize_user(user: User) -> dict[str, Any]:
+def serialize_user(user: User, db: Any | None = None) -> dict[str, Any]:
+    auth_prov = str(getattr(user, "auth_provider", "local") or "local").strip().lower()
+    if db is not None and hasattr(db, "get_user_linked_providers"):
+        linked_providers = db.get_user_linked_providers(user.id)
+    else:
+        linked_providers = {
+            "local": {"connected": auth_prov == "local"},
+            "phone": {"connected": auth_prov == "phone"},
+            "google": {"connected": auth_prov == "google", "email": (user.email or "") if auth_prov == "google" else ""},
+            "telegram": {"connected": auth_prov == "telegram", "username": "", "botLinked": False},
+        }
     return {
         "id": user.id,
         "username": user.username,
@@ -460,6 +470,7 @@ def serialize_user(user: User) -> dict[str, Any]:
         "avatarUrl": user.avatar_url,
         "authProvider": user.auth_provider,
         "role": getattr(user, "role", "student"),
+        "linkedProviders": linked_providers,
     }
 
 
@@ -509,12 +520,16 @@ def sanitize_next_url(raw_next: str | None, *, default_url: str = "/") -> str:
     return urlunsplit(("", "", path, parts.query, parts.fragment))
 
 
-def append_auth_error(next_url: str, error_code: str) -> str:
+def append_query_param(next_url: str, key: str, value: str) -> str:
     safe_next = sanitize_next_url(next_url, default_url="/")
     parts = urlsplit(safe_next)
-    query_items = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True) if k != "auth_error"]
-    query_items.append(("auth_error", str(error_code or "oauth_failed")))
+    query_items = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True) if k != key]
+    query_items.append((str(key), str(value)))
     return urlunsplit(("", "", parts.path or "/", urlencode(query_items), parts.fragment))
+
+
+def append_auth_error(next_url: str, error_code: str) -> str:
+    return append_query_param(next_url, "auth_error", str(error_code or "oauth_failed"))
 
 
 def _telegram_bot_id(settings: Settings) -> str | None:
@@ -591,7 +606,7 @@ def create_auth_docs_router(settings: Settings) -> APIRouter:
     async def me(request: Request) -> dict[str, Any]:
         user = current_user(request, settings)
         return {
-            "user": serialize_user(user) if user else None,
+            "user": serialize_user(user, request.app.state.db) if user else None,
             "ai": {"enabled": settings.ai.enabled, "provider": settings.ai.provider},
             "inviteRequired": bool(settings.invite_code),
             "demoMode": bool(settings.dev_demo_mode),
@@ -776,7 +791,7 @@ def create_auth_docs_router(settings: Settings) -> APIRouter:
         token = request.app.state.db.create_session(user.id, settings.session_ttl_sec)
         set_session_cookie(response, request, settings, token)
         return {
-            "user": serialize_user(user),
+            "user": serialize_user(user, request.app.state.db),
             "phone": clean_phone,
             "channel": resolved_channel,
         }
@@ -803,7 +818,7 @@ def create_auth_docs_router(settings: Settings) -> APIRouter:
         )
         token = request.app.state.db.create_session(user.id, settings.session_ttl_sec)
         set_session_cookie(response, request, settings, token)
-        return {"user": serialize_user(user)}
+        return {"user": serialize_user(user, request.app.state.db)}
 
     @router.post("/api/auth/login")
     async def login(payload: AuthPayload, request: Request, response: Response) -> dict[str, Any]:
@@ -820,7 +835,7 @@ def create_auth_docs_router(settings: Settings) -> APIRouter:
             )
         token = request.app.state.db.create_session(user.id, settings.session_ttl_sec)
         set_session_cookie(response, request, settings, token)
-        return {"user": serialize_user(user)}
+        return {"user": serialize_user(user, request.app.state.db)}
 
     @router.post("/api/auth/logout")
     async def logout(request: Request, response: Response) -> dict[str, bool]:
@@ -829,7 +844,7 @@ def create_auth_docs_router(settings: Settings) -> APIRouter:
         return {"ok": True}
 
     @router.get("/api/auth/google/start")
-    async def google_start(request: Request, role: str = "", next: str = "") -> RedirectResponse:
+    async def google_start(request: Request, role: str = "", next: str = "", mode: str = "") -> RedirectResponse:
         if not settings.google.enabled:
             raise HTTPException(
                 status_code=503,
@@ -843,6 +858,12 @@ def create_auth_docs_router(settings: Settings) -> APIRouter:
         clean_role = normalize_oauth_role(role)
         default_next = "/tutor" if clean_role == "tutor" else "/"
         clean_next = sanitize_next_url(next, default_url=default_next)
+        link_user_id: int | None = None
+        if str(mode or "").strip().lower() == "link":
+            cur = current_user(request, settings)
+            if not cur:
+                return RedirectResponse(url=append_auth_error(clean_next, "oauth_link_auth"), status_code=302)
+            link_user_id = cur.id
         code_verifier = secrets.token_urlsafe(48)
         redirect_uri = google_redirect_uri(request, settings)
         state = request.app.state.db.create_oauth_state(
@@ -851,6 +872,7 @@ def create_auth_docs_router(settings: Settings) -> APIRouter:
             redirect_uri,
             role=clean_role,
             next_url=clean_next,
+            link_user_id=link_user_id,
         )
         params = urlencode(
             {
@@ -876,17 +898,24 @@ def create_auth_docs_router(settings: Settings) -> APIRouter:
         if not settings.google.enabled or error or not code or not state:
             err_next = "/"
             if state:
-                consumed_err = request.app.state.db.consume_oauth_state(state, "google")
+                consumed_err = request.app.state.db.consume_oauth_state_data(state, "google")
                 if consumed_err:
-                    err_next = sanitize_next_url(consumed_err[3], default_url="/")
+                    err_next = sanitize_next_url(consumed_err.get("nextUrl"), default_url="/")
             return RedirectResponse(url=append_auth_error(err_next, "google_denied"), status_code=302)
 
-        consumed = request.app.state.db.consume_oauth_state(state, "google")
+        consumed = request.app.state.db.consume_oauth_state_data(state, "google")
         if not consumed:
             return RedirectResponse(url="/?auth_error=oauth_state", status_code=302)
-        code_verifier, redirect_uri, state_role, raw_next = consumed
-        clean_role = normalize_oauth_role(state_role)
-        next_url = sanitize_next_url(raw_next, default_url="/tutor" if clean_role == "tutor" else "/")
+        code_verifier = str(consumed["codeVerifier"])
+        redirect_uri = str(consumed["redirectUri"])
+        clean_role = normalize_oauth_role(consumed.get("role"))
+        next_url = sanitize_next_url(consumed.get("nextUrl"), default_url="/tutor" if clean_role == "tutor" else "/")
+        link_user_id = consumed.get("linkUserId")
+
+        if link_user_id is not None:
+            cur = current_user(request, settings)
+            if not cur or int(cur.id) != int(link_user_id):
+                return RedirectResponse(url=append_auth_error(next_url, "oauth_state"), status_code=302)
 
         try:
             token_resp = await request.app.state.http.post(
@@ -916,6 +945,16 @@ def create_auth_docs_router(settings: Settings) -> APIRouter:
             sub = str(info.get("sub") or "").strip()
             if not sub:
                 return RedirectResponse(url=append_auth_error(next_url, "oauth_profile"), status_code=302)
+            if link_user_id is not None:
+                request.app.state.db.link_oauth_identity(
+                    int(link_user_id),
+                    "google",
+                    sub,
+                    email=info.get("email"),
+                    email_verified=bool(info.get("email_verified")),
+                    avatar_url=info.get("picture"),
+                )
+                return RedirectResponse(url=append_query_param(next_url, "linked", "google"), status_code=302)
             user = request.app.state.db.upsert_oauth_user(
                 "google",
                 sub,
@@ -928,7 +967,7 @@ def create_auth_docs_router(settings: Settings) -> APIRouter:
             )
         except Exception as exc:
             err_code = getattr(exc, "code", None)
-            if err_code in ("user_limit", "invalid_email"):
+            if err_code in ("user_limit", "invalid_email", "google_already_linked", "not_found"):
                 return RedirectResponse(url=append_auth_error(next_url, str(err_code)), status_code=302)
             if isinstance(exc, httpx.HTTPError):
                 return RedirectResponse(url=append_auth_error(next_url, "oauth_failed"), status_code=302)

@@ -56,10 +56,10 @@ def test_alembic_upgrade_downgrade_and_status(tmp_path: Path) -> None:
     st_head = get_migration_status(settings)
     assert st_head["configured"] is True
     assert st_head["dialect"] == "sqlite"
-    assert st_head["headRevision"] == "20261126_0014"
-    assert st_head["currentRevision"] == "20261126_0014"
+    assert st_head["headRevision"] == "20261126_0015"
+    assert st_head["currentRevision"] == "20261126_0015"
     assert st_head["upToDate"] is True
-    assert st_head["revisionsCount"] >= 14
+    assert st_head["revisionsCount"] >= 15
 
     conn = sqlite3.connect(str(db_file))
     try:
@@ -88,7 +88,7 @@ def test_alembic_upgrade_downgrade_and_status(tmp_path: Path) -> None:
         assert "idx_chat_messages_thread_created" in idx_names
         assert "idx_chat_msg_attachments_message" in idx_names
         oauth_cols = {str(r[1]) for r in conn.execute("PRAGMA table_info(oauth_states)").fetchall()}
-        assert {"role", "next_url"} <= oauth_cols
+        assert {"role", "next_url", "link_user_id"} <= oauth_cols
         tutor_cols = {str(r[1]) for r in conn.execute("PRAGMA table_info(admin_tutors)").fetchall()}
         assert "slots_json" in tutor_cols
         # Проверяем, что channel='sms' разрешён после миграции 20261123_0009
@@ -111,8 +111,25 @@ def test_alembic_upgrade_downgrade_and_status(tmp_path: Path) -> None:
         check=False,
     )
     assert r_down.returncode == 0, r_down.stderr
-    assert get_migration_status(settings)["currentRevision"] == "20261124_0013"
+    assert get_migration_status(settings)["currentRevision"] == "20261126_0014"
     assert get_migration_status(settings)["upToDate"] is False
+
+    conn_down_15 = sqlite3.connect(str(db_file))
+    try:
+        oauth_cols_down = {str(r[1]) for r in conn_down_15.execute("PRAGMA table_info(oauth_states)").fetchall()}
+        assert "link_user_id" not in oauth_cols_down
+    finally:
+        conn_down_15.close()
+
+    r_down2 = subprocess.run(
+        [str(alembic_bin), "-x", f"url={db_url}", "downgrade", "-1"],
+        cwd=ROOT_DIR,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert r_down2.returncode == 0, r_down2.stderr
+    assert get_migration_status(settings)["currentRevision"] == "20261124_0013"
 
     conn_down = sqlite3.connect(str(db_file))
     try:

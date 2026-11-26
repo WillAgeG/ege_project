@@ -13,6 +13,7 @@ from ..config import Settings
 from ..telegram_bot import verify_telegram_login_widget
 from .auth_docs import (
     append_auth_error,
+    append_query_param,
     client_ip,
     current_user,
     normalize_oauth_role,
@@ -38,6 +39,7 @@ class TelegramLoginPayload(BaseModel):
     username: str = Field(default="", max_length=64)
     photo_url: str = Field(default="", max_length=500)
     role: str = Field(default="student", max_length=16)
+    mode: str = Field(default="", max_length=16)
 
 
 def create_telegram_router(settings: Settings) -> APIRouter:
@@ -111,6 +113,7 @@ def create_telegram_router(settings: Settings) -> APIRouter:
             )
         raw = payload.model_dump()
         role = normalize_oauth_role(str(raw.pop("role", "student") or "student"))
+        mode = str(raw.pop("mode", "") or "").strip().lower()
         raw.pop("next", None)
         try:
             tg = verify_telegram_login_widget(raw, bot_token)
@@ -131,6 +134,36 @@ def create_telegram_router(settings: Settings) -> APIRouter:
                 detail={"code": "invalid_payload", "message": "Некорректные данные входа Telegram."},
             ) from exc
 
+        if mode == "link":
+            cur = current_user(request, settings)
+            if not cur:
+                raise HTTPException(
+                    status_code=401,
+                    detail={
+                        "code": "oauth_link_auth",
+                        "message": "Чтобы привязать Telegram, сначала войдите в аккаунт.",
+                    },
+                )
+            user = request.app.state.db.link_oauth_identity(
+                cur.id,
+                "telegram",
+                f"tg:{tg['id']}",
+                avatar_url=tg["photo_url"],
+            )
+            binding = request.app.state.db.upsert_telegram_binding(
+                str(tg["id"]),
+                user_id=user.id,
+                telegram_user_id=str(tg["id"]),
+                telegram_username=tg["username"],
+                first_name=tg["first_name"],
+            )
+            return {
+                "ok": True,
+                "linked": True,
+                "user": serialize_user(user, request.app.state.db),
+                "binding": binding,
+            }
+
         user = request.app.state.db.upsert_oauth_user(
             "telegram",
             f"tg:{tg['id']}",
@@ -148,7 +181,7 @@ def create_telegram_router(settings: Settings) -> APIRouter:
         )
         token = request.app.state.db.create_session(user.id, settings.session_ttl_sec)
         set_session_cookie(response, request, settings, token)
-        return {"ok": True, "user": serialize_user(user), "binding": binding}
+        return {"ok": True, "user": serialize_user(user, request.app.state.db), "binding": binding}
 
     @router.get("/api/auth/telegram/callback")
     async def telegram_callback(request: Request) -> RedirectResponse:
@@ -159,6 +192,7 @@ def create_telegram_router(settings: Settings) -> APIRouter:
         )
         raw = dict(request.query_params)
         clean_role = normalize_oauth_role(raw.pop("role", "student"))
+        mode = str(raw.pop("mode", "") or "").strip().lower()
         default_next = "/tutor" if clean_role == "tutor" else "/"
         clean_next = sanitize_next_url(raw.pop("next", ""), default_url=default_next)
 
@@ -171,6 +205,31 @@ def create_telegram_router(settings: Settings) -> APIRouter:
         except ValueError as exc:
             err_code = "telegram_expired" if str(exc) == "auth_expired" else "telegram_invalid"
             return RedirectResponse(url=append_auth_error(clean_next, err_code), status_code=302)
+
+        if mode == "link":
+            cur = current_user(request, settings)
+            if not cur:
+                return RedirectResponse(url=append_auth_error(clean_next, "oauth_link_auth"), status_code=302)
+            try:
+                user = request.app.state.db.link_oauth_identity(
+                    cur.id,
+                    "telegram",
+                    f"tg:{tg['id']}",
+                    avatar_url=tg["photo_url"],
+                )
+            except Exception as exc:
+                err_code = getattr(exc, "code", None)
+                if err_code in ("telegram_already_linked", "invalid_email", "not_found"):
+                    return RedirectResponse(url=append_auth_error(clean_next, str(err_code)), status_code=302)
+                raise
+            request.app.state.db.upsert_telegram_binding(
+                str(tg["id"]),
+                user_id=user.id,
+                telegram_user_id=str(tg["id"]),
+                telegram_username=tg["username"],
+                first_name=tg["first_name"],
+            )
+            return RedirectResponse(url=append_query_param(clean_next, "linked", "telegram"), status_code=302)
 
         try:
             user = request.app.state.db.upsert_oauth_user(

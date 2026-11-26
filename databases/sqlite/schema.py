@@ -46,6 +46,7 @@ class SqliteSchemaMixin:
                     redirect_uri TEXT NOT NULL,
                     role TEXT NOT NULL DEFAULT 'student',
                     next_url TEXT NOT NULL DEFAULT '/',
+                    link_user_id INTEGER,
                     created_at INTEGER NOT NULL,
                     expires_at INTEGER NOT NULL
                 );
@@ -646,6 +647,7 @@ class SqliteSchemaMixin:
             for col_name, col_def in (
                 ("role", "TEXT NOT NULL DEFAULT 'student'"),
                 ("next_url", "TEXT NOT NULL DEFAULT '/'"),
+                ("link_user_id", "INTEGER"),
             ):
                 if col_name not in oauth_cols:
                     self._conn.execute(f"ALTER TABLE oauth_states ADD COLUMN {col_name} {col_def}")

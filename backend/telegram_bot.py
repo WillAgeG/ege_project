@@ -903,6 +903,11 @@ class TelegramBotService:
                     telegram_username=tg_username,
                     first_name=first_name,
                 )
+                if tg_uid and hasattr(self.db, "link_oauth_identity"):
+                    try:
+                        self.db.link_oauth_identity(uid, "telegram", f"tg:{tg_uid}")
+                    except Exception:
+                        pass
                 uname = self._esc((user.display_name or user.username) if user else f"#{uid}")
                 await self._safe_send(
                     chat_id,

@@ -147,6 +147,7 @@ class PgSchemaMixin:
                         redirect_uri TEXT NOT NULL,
                         role TEXT NOT NULL DEFAULT 'student',
                         next_url TEXT NOT NULL DEFAULT '/',
+                        link_user_id BIGINT,
                         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                         expires_at TIMESTAMPTZ NOT NULL
                     )
@@ -289,6 +290,7 @@ class PgSchemaMixin:
                     "ALTER TABLE IF EXISTS oltp.users ADD COLUMN IF NOT EXISTS contact_verified BOOLEAN NOT NULL DEFAULT FALSE",
                     "ALTER TABLE IF EXISTS oltp.oauth_states ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'student'",
                     "ALTER TABLE IF EXISTS oltp.oauth_states ADD COLUMN IF NOT EXISTS next_url TEXT NOT NULL DEFAULT '/'",
+                    "ALTER TABLE IF EXISTS oltp.oauth_states ADD COLUMN IF NOT EXISTS link_user_id BIGINT",
                 ):
                     conn.execute(sql)
 

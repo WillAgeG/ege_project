@@ -293,6 +293,7 @@
     } catch (e) { /* игнор */ }
   }
   let pendingAutoAuth = null;
+  let pendingLinkSuccess = "";
   function consumePendingAutoAuth() {
     if (!pendingAutoAuth) return;
     const req = pendingAutoAuth;
@@ -828,6 +829,16 @@
           );
           if (me.user.authProvider === "google" && !hasVerifiedContact) {
             openContactVerifyModal({ required: true });
+          }
+          if (pendingLinkSuccess) {
+            const linkedLabel = pendingLinkSuccess === "google" ? "Google" : (pendingLinkSuccess === "telegram" ? "Telegram" : pendingLinkSuccess);
+            pendingLinkSuccess = "";
+            toast("Аккаунт " + linkedLabel + " привязан ✓");
+          }
+          if (ui.auth && ui.auth.error) {
+            const linkErrMsg = String(ui.auth.error);
+            ui.auth.error = "";
+            toast(linkErrMsg);
           }
         } catch (e) {
           store.user = me.user; store.uid = String(me.user.id);
@@ -2793,12 +2804,18 @@
   function accountCard() {
     if (!store.user) return (ui.demoAuthed || ui.guest) ? "" : authCard();
     const cf = ui.confirm, u = store.user, prof = profile(), title = u.displayName || u.username;
+    const lp = u.linkedProviders || {};
+    const provParts = [];
+    if (u.authProvider === "google" || (lp.google && lp.google.connected)) provParts.push("Google");
+    if (u.authProvider === "telegram" || (lp.telegram && lp.telegram.connected)) provParts.push("Telegram");
+    if (u.authProvider === "phone" || (lp.phone && lp.phone.connected)) provParts.push("Телефон");
+    const provLabel = provParts.length ? provParts.join(" · ") : "Аккаунт";
     return `<section class="card pad-lg stack">
       <div class="row between" style="flex-wrap:wrap">
         <div class="me">
           ${avatarHTML(prof.photo || u.avatarUrl, title, true)}
           <div>
-            <div class="eyebrow">Аккаунт · ${u.authProvider === "google" ? "Google" : u.authProvider === "telegram" ? "Telegram" : u.authProvider === "phone" ? "Телефон" : "Аккаунт"}</div>
+            <div class="eyebrow">Аккаунт · ${esc(provLabel)}</div>
             <h2 class="h2">${esc(title)}</h2>
             <div class="small muted">@${esc(u.username)}${u.email ? " · " + esc(u.email) : ""}</div>
           </div>
@@ -5482,32 +5499,47 @@
       if (typeof URLSearchParams !== "function" || !location.search) return;
       const sp = new URLSearchParams(location.search);
       const code = sp.get("auth_error");
-      if (!code) return;
-      const map = {
-        google_denied: "Вход через Google отменён.",
-        oauth_state: "Сессия входа через Google устарела. Попробуй ещё раз.",
-        oauth_exchange: "Не удалось завершить вход через Google. Попробуй ещё раз.",
-        oauth_profile: "Google не передал данные профиля.",
-        user_limit: "Достигнут лимит аккаунтов на этом сервере.",
-        invalid_email: "У аккаунта Google указан некорректный email.",
-        oauth_failed: "Ошибка при входе через Google. Попробуй ещё раз.",
-        telegram_not_configured: "Вход через Telegram Login Widget не настроен на сервере.",
-        telegram_expired: "Срок авторизации через Telegram истёк. Попробуй ещё раз.",
-        telegram_invalid: "Не удалось проверить подпись Telegram Login. Попробуй ещё раз."
-      };
-      ui.auth.error = map[code] || "Не удалось выполнить вход.";
-      if (!pendingAutoAuth) {
-        pendingAutoAuth = {
-          tab: "login",
-          role: HOST_SITE === "tutor" ? "tutor" : (HOST_SITE === "student" ? "student" : ""),
-          keepError: true
+      const linkedProv = sp.get("linked");
+      if (!code && !linkedProv) return;
+      let changed = false;
+      if (code) {
+        const map = {
+          google_denied: "Вход через Google отменён.",
+          oauth_state: "Сессия входа через Google устарела. Попробуй ещё раз.",
+          oauth_exchange: "Не удалось завершить вход через Google. Попробуй ещё раз.",
+          oauth_profile: "Google не передал данные профиля.",
+          user_limit: "Достигнут лимит аккаунтов на этом сервере.",
+          invalid_email: "У аккаунта Google указан некорректный email.",
+          oauth_failed: "Ошибка при входе через Google. Попробуй ещё раз.",
+          oauth_link_auth: "Чтобы привязать аккаунт, сначала войдите в профиль.",
+          google_already_linked: "Этот аккаунт Google уже привязан к другому пользователю.",
+          telegram_already_linked: "Этот аккаунт Telegram уже привязан к другому пользователю.",
+          telegram_not_configured: "Вход через Telegram Login Widget не настроен на сервере.",
+          telegram_expired: "Срок авторизации через Telegram истёк. Попробуй ещё раз.",
+          telegram_invalid: "Не удалось проверить подпись Telegram Login. Попробуй ещё раз."
         };
-      } else {
-        pendingAutoAuth.keepError = true;
+        ui.auth.error = map[code] || "Не удалось выполнить вход.";
+        if (!pendingAutoAuth) {
+          pendingAutoAuth = {
+            tab: "login",
+            role: HOST_SITE === "tutor" ? "tutor" : (HOST_SITE === "student" ? "student" : ""),
+            keepError: true
+          };
+        } else {
+          pendingAutoAuth.keepError = true;
+        }
+        sp.delete("auth_error");
+        changed = true;
       }
-      sp.delete("auth_error");
-      const q = sp.toString();
-      history.replaceState(null, "", (location.pathname || "/") + (q ? "?" + q : "") + (location.hash || ""));
+      if (linkedProv === "google" || linkedProv === "telegram") {
+        pendingLinkSuccess = linkedProv;
+        sp.delete("linked");
+        changed = true;
+      }
+      if (changed) {
+        const q = sp.toString();
+        history.replaceState(null, "", (location.pathname || "/") + (q ? "?" + q : "") + (location.hash || ""));
+      }
     } catch (e) { /* игнор */ }
   }
   function readAuthQuery() {

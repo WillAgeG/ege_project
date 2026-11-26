@@ -87,10 +87,18 @@ class DualWriteDatabase:
         *,
         role: str = "student",
         next_url: str = "/",
+        link_user_id: int | None = None,
     ) -> str:
         raw_state = self.sqlite.create_oauth_state(
-            provider, code_verifier, redirect_uri, ttl_sec, role=role, next_url=next_url
+            provider,
+            code_verifier,
+            redirect_uri,
+            ttl_sec,
+            role=role,
+            next_url=next_url,
+            link_user_id=link_user_id,
         )
+        pg_link_uid = self._resolve_pg_user_id(link_user_id, emit_outbox=False) if link_user_id is not None else None
         self.pg.insert_oauth_state_hash(
             hash_token(raw_state),
             provider,
@@ -99,13 +107,45 @@ class DualWriteDatabase:
             ttl_sec,
             role=role,
             next_url=next_url,
+            link_user_id=pg_link_uid,
         )
         return raw_state
+
+    def consume_oauth_state_data(self, raw_state: str, provider: str) -> dict[str, Any] | None:
+        res = self.sqlite.consume_oauth_state_data(raw_state, provider)
+        self.pg.consume_oauth_state_data(raw_state, provider)
+        return res
 
     def consume_oauth_state(self, raw_state: str, provider: str) -> tuple[str, str, str, str] | None:
         res = self.sqlite.consume_oauth_state(raw_state, provider)
         self.pg.consume_oauth_state(raw_state, provider)
         return res
+
+    def get_user_linked_providers(self, user_id: int) -> dict[str, Any]:
+        return self.sqlite.get_user_linked_providers(user_id)
+
+    def link_oauth_identity(
+        self,
+        user_id: int,
+        provider: str,
+        subject: str,
+        *,
+        email: str | None = None,
+        email_verified: bool = False,
+        avatar_url: str | None = None,
+    ) -> User:
+        user = self.sqlite.link_oauth_identity(
+            user_id,
+            provider,
+            subject,
+            email=email,
+            email_verified=email_verified,
+            avatar_url=avatar_url,
+        )
+        pg_uid = self._resolve_pg_user_id(user.id, emit_outbox=False)
+        if pg_uid is not None:
+            self.pg.mirror_oauth_identity(provider, subject, pg_uid, user.email)
+        return user
 
     def upsert_oauth_user(
         self,

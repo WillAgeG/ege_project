@@ -340,9 +340,17 @@
     const mRem = manualBumpRemainingMs(st);
     const lastAutoLabel = formatTimestamp(st.lastAutoBumpAt || st.lastBumpAt);
     const lastManualLabel = formatTimestamp(st.lastManualBumpAt);
-    const ctxUser = getCtx().store && getCtx().store.user;
+    const ctxStore = getCtx().store || {};
+    const ctxUser = ctxStore.user || null;
+    const ctxLp = (ctxUser && ctxUser.linkedProviders) || {};
+    const tgBot = ctxStore.telegramBinding && ctxStore.telegramBinding.chatId ? ctxStore.telegramBinding : null;
+    const tgServerHandle = (tgBot && tgBot.telegramUsername ? "@" + tgBot.telegramUsername : "")
+      || (ctxLp.telegram && ctxLp.telegram.username ? "@" + ctxLp.telegram.username : "")
+      || (ctxUser && ctxUser.authProvider === "telegram" && ctxUser.username ? "@" + ctxUser.username : "");
+    const tgServerLinked = Boolean(tgBot || (ctxUser && ctxUser.authProvider === "telegram") || (ctxLp.telegram && ctxLp.telegram.connected));
 
-    const tgLinked = String(acc.telegram || "").trim().length >= 3;
+    const hasManualTg = String(acc.telegram || "").trim().length >= 3;
+    const tgLinked = hasManualTg || tgServerLinked;
     const waLinked = String(acc.whatsapp || "").replace(/\D+/g, "").length >= 10;
     const maxLinked = String(acc.maxHandle || "").trim().length >= 2;
     const vkLinked = String(acc.vk || "").trim().length >= 2;
@@ -351,7 +359,7 @@
     const waSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.5 8.5 0 0 1-12.6 7.4L4 20l1.2-4.2A8.5 8.5 0 1 1 21 11.5z"/><path d="M9.5 9.2c.3 2 2 3.8 4 4.3l1.2-.9c.3-.2.7-.2 1 0l1 .6"/></svg>`;
     const maxSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="14" rx="5"/><path d="M8 14.5v-5l4 3.5 4-3.5v5"/></svg>`;
     const vkSvg = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.78 17.5c-5.47 0-8.59-3.75-8.72-10h2.74c.09 4.58 2.11 6.52 3.71 6.92V7.5h2.58v3.95c1.58-.17 3.24-1.97 3.8-3.95h2.58c-.43 2.44-2.23 4.24-3.51 4.98 1.28.6 3.33 2.17 4.11 5.02h-2.84c-.61-1.9-2.13-3.37-4.14-3.57v3.57h-.31z"/></svg>`;
-    const tgVal = formatTelegram(acc.telegram || "");
+    const tgVal = formatTelegram(acc.telegram || tgServerHandle || "");
     const waVal = formatPhone(acc.whatsapp || "") || String(acc.whatsapp || "").trim();
     const maxVal = String(acc.maxHandle || "").trim();
     const vkVal = String(acc.vk || "").trim();
@@ -360,7 +368,7 @@
     const waInp = (EGE.phoneField && typeof EGE.phoneField.phoneFieldHTML === "function")
       ? EGE.phoneField.phoneFieldHTML({ scope: "tc-hh-wa", id: "tc-hh-wa", name: "whatsapp", label: "", value: linkDrafts.whatsapp != null ? linkDrafts.whatsapp : (acc.whatsapp || ""), country: linkDrafts.whatsappCountry || acc.whatsappCountry || "RU", extraAttrs: 'data-tc="whatsapp" aria-label="Номер телефона WhatsApp"', compact: true })
       : `<div class="field"><input class="input num" id="tc-hh-wa" name="whatsapp" data-tc="whatsapp" aria-label="Номер телефона WhatsApp" value="${esc(formatPhone(linkDrafts.whatsapp != null ? linkDrafts.whatsapp : (acc.whatsapp || "")))}" maxlength="22" placeholder="+7 (914) 000-00-00"></div>`;
-    const msgrRow = (ch, cls, svg, title, linked, displayVal, fieldHtml) => {
+    const msgrRow = (ch, cls, svg, title, linked, displayVal, fieldHtml, canUnlink) => {
       const isEditing = !linked && openCh === ch;
       return `<div class="stu-link-row${linked ? " is-linked" : ""}${isEditing ? " is-editing" : ""} tc-link-row" data-ch="${ch}">
         <div class="stu-link-brand">
@@ -375,7 +383,7 @@
         </div>
         <div class="stu-link-act">
           ${linked
-            ? `<button type="button" class="btn ghost sm tc-msgr-act is-unlink" data-a="tc-messenger-unlink" data-ch="${ch}">Отвязать</button>`
+            ? (canUnlink !== false ? `<button type="button" class="btn ghost sm tc-msgr-act is-unlink" data-a="tc-messenger-unlink" data-ch="${ch}">Отвязать</button>` : "")
             : isEditing
               ? `<div class="stu-link-inline">
                   ${fieldHtml}
@@ -437,7 +445,7 @@
           <span class="tc-messengers-count num">${linkedCount} из 4</span>
         </div>
         <div class="stu-link-list tc-link-list">
-          ${msgrRow("telegram", "is-tg", tgSvg, "Telegram", tgLinked, tgVal, `<input class="input" id="tc-hh-tg" name="telegram" data-tc="telegram" aria-label="Telegram логин или телефон" value="${esc(formatTelegram(linkDrafts.telegram != null ? linkDrafts.telegram : (acc.telegram || "")))}" maxlength="36" placeholder="@username или +7...">`)}
+          ${msgrRow("telegram", "is-tg", tgSvg, "Telegram", tgLinked, tgVal, `<input class="input" id="tc-hh-tg" name="telegram" data-tc="telegram" aria-label="Telegram логин или телефон" value="${esc(formatTelegram(linkDrafts.telegram != null ? linkDrafts.telegram : (acc.telegram || "")))}" maxlength="36" placeholder="@username или +7...">`, hasManualTg)}
           ${msgrRow("whatsapp", "is-wa", waSvg, "WhatsApp", waLinked, waVal, waInp)}
           ${msgrRow("maxHandle", "is-max", maxSvg, "MAX", maxLinked, maxVal, `<input class="input" id="tc-hh-max" name="maxHandle" data-tc="maxHandle" aria-label="MAX логин или ссылка" value="${esc(linkDrafts.maxHandle != null ? linkDrafts.maxHandle : (acc.maxHandle || ""))}" maxlength="48" placeholder="@username или max.ru/...">`)}
           ${msgrRow("vk", "is-vk", vkSvg, "ВКонтакте", vkLinked, vkVal, `<input class="input" id="tc-hh-vk" name="vk" data-tc="vk" aria-label="ВКонтакте ссылка или ID" value="${esc(linkDrafts.vk != null ? linkDrafts.vk : (acc.vk || ""))}" maxlength="64" placeholder="vk.com/username или @id">`)}

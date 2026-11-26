@@ -413,14 +413,18 @@
     const curPhone = String(draft("pf.phone", prof.phone || (vc && vc.value) || ""));
     const curPhoneCountry = String(draft("pf.phoneCountry", prof.phoneCountry || (vc && vc.country) || "RU"));
     const curGoal = String(draft("pf.goal", prof.goal || ""));
-    const googleLinked = Boolean((store.user && store.user.authProvider === "google") || (prof.linkedGoogle && prof.linkedGoogle.connected));
-    const googleEmail = String((prof.linkedGoogle && prof.linkedGoogle.email) || (store.user && store.user.email) || "").trim();
-    const canUnlinkGoogle = googleLinked && !(store.user && store.user.authProvider === "google");
+    const lp = (store.user && store.user.linkedProviders) || {};
+    const googleOAuthLinked = Boolean((store.user && store.user.authProvider === "google") || (lp.google && lp.google.connected));
+    const googleLinked = Boolean(googleOAuthLinked || (prof.linkedGoogle && prof.linkedGoogle.connected));
+    const googleEmail = String((lp.google && lp.google.email) || (prof.linkedGoogle && prof.linkedGoogle.email) || (store.user && store.user.email) || "").trim();
+    const canUnlinkGoogle = googleLinked && !googleOAuthLinked;
     const tgBot = store.telegramBinding && store.telegramBinding.chatId ? store.telegramBinding : null;
     const tgBotConnected = Boolean(tgBot);
-    const tgLinked = Boolean(tgBotConnected || (store.user && store.user.authProvider === "telegram") || (prof.linkedTelegram && prof.linkedTelegram.connected));
+    const tgOAuthLinked = Boolean((store.user && store.user.authProvider === "telegram") || (lp.telegram && lp.telegram.connected));
+    const tgLinked = Boolean(tgBotConnected || tgOAuthLinked || (prof.linkedTelegram && prof.linkedTelegram.connected));
     const tgHandleRaw = String(
       (tgBot && tgBot.telegramUsername ? "@" + tgBot.telegramUsername : "") ||
+      (lp.telegram && lp.telegram.username ? "@" + lp.telegram.username : "") ||
       (prof.linkedTelegram && prof.linkedTelegram.handle) ||
       (store.user && store.user.authProvider === "telegram" && store.user.username ? "@" + store.user.username : "")
     ).trim();
@@ -428,7 +432,7 @@
     const accTg = String((tcAcc && tcAcc.telegram) || tgHandleRaw || prof.telegram || "");
     const accMax = String((tcAcc && tcAcc.maxHandle) || prof.maxHandle || "");
     const accVk = String((tcAcc && tcAcc.vk) || prof.vk || "");
-    const canUnlinkTg = tgLinked && (tgBotConnected || !(store.user && store.user.authProvider === "telegram"));
+    const canUnlinkTg = tgLinked && (tgBotConnected || !tgOAuthLinked);
     const tgBotUsername = String(store.telegramBotUsername || "").trim().replace(/^@+/, "");
     const canLinkTgBot = Boolean(store.backend && store.user && tgBotUsername && EGE.api && EGE.api.telegram);
     const hasServerGoogle = Boolean(store.authProviders && store.authProviders.google);
@@ -599,7 +603,7 @@
                       <button type="button" class="btn ghost sm" data-a="pf-link-cancel">Отмена</button>
                     </div>`
                   : (hasServerGoogle
-                      ? `<a class="btn soft sm" href="/api/auth/google/start?role=${encodeURIComponent(ui.role === "tutor" ? "tutor" : "student")}&next=${encodeURIComponent(((typeof location !== "undefined" && location.pathname) || "/") + "#profile")}" data-a="pf-link-google">Привязать Google</a>`
+                      ? `<a class="btn soft sm" href="/api/auth/google/start?${store.user ? "mode=link&" : ""}role=${encodeURIComponent(ui.role === "tutor" ? "tutor" : "student")}&next=${encodeURIComponent(((typeof location !== "undefined" && location.pathname) || "/") + "#profile")}">Привязать Google</a>`
                       : `<button type="button" class="btn soft sm" data-a="pf-link-google">Привязать Google</button>`)}</div>`}
           </div>
           <div class="stu-link-row${tgLinked ? " is-linked" : ""}${tgBotConnected ? " is-bot" : ""}">

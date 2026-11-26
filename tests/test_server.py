@@ -1,8 +1,11 @@
 """Тесты FastAPI-бэкенда «Вектор»."""
 
+import hashlib
+import hmac
 import json
 from pathlib import Path
 import sqlite3
+import time
 from urllib.parse import parse_qs, quote as quote_url, urlparse
 
 from fastapi.testclient import TestClient
@@ -575,6 +578,7 @@ def test_google_oauth_flow_and_email_linking(tmp_path: Path) -> None:
         assert me_authed["email"] == "maria@gmail.com"
         assert me_authed["avatarUrl"] == "https://example.com/maria.png"
         assert me_authed["authProvider"] == "google"
+        assert me_authed["linkedProviders"]["google"] == {"connected": True, "email": "maria@gmail.com"}
 
         # Повторное использование того же state невозможно
         r_replay = client.get(
@@ -609,6 +613,8 @@ def test_google_oauth_flow_and_email_linking(tmp_path: Path) -> None:
         assert r_link.headers["location"] == "/"
         linked_user = c_g.get("/api/me").json()["user"]
         assert linked_user["id"] == dmitry_id
+        assert linked_user["authProvider"] == "local"
+        assert linked_user["linkedProviders"]["google"] == {"connected": True, "email": "dmitry@gmail.com"}
         assert c_g.get("/api/docs").json()["docs"]["profile"]["name"] == "Дима"
 
     # 5. Лимит пользователей распространяется и на новых Google-пользователей
@@ -623,6 +629,117 @@ def test_google_oauth_flow_and_email_linking(tmp_path: Path) -> None:
         s3 = parse_qs(urlparse(c_lim.get("/api/auth/google/start", follow_redirects=False).headers["location"]).query)["state"][0]
         r_lim = c_lim.get(f"/api/auth/google/callback?code=ok&state={s3}", follow_redirects=False)
         assert r_lim.headers["location"] == "/?auth_error=user_limit"
+
+
+def test_oauth_link_mode_google_and_telegram(tmp_path: Path) -> None:
+    bot_token = "123456:LINKTESTTOKEN"
+    app = create_app(
+        _make_settings(
+            tmp_path / "oauth_link_mode",
+            google=GoogleOAuthConfig(client_id="gid-link", client_secret="gsec-link"),
+            telegram=TelegramAuthConfig(bot_username="vektor_link_bot", bot_token=bot_token),
+            public_base_url="https://ege.example.com",
+            max_users=10,
+        )
+    )
+    fake_profile = {
+        "sub": "google-sub-link-1",
+        "email": "linked.phone@gmail.com",
+        "email_verified": True,
+        "name": "Google Identity",
+        "picture": "https://example.com/av.png",
+    }
+
+    def google_handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if url == "https://oauth2.googleapis.com/token":
+            return httpx.Response(200, json={"access_token": "tok-link"})
+        if url == "https://openidconnect.googleapis.com/v1/userinfo":
+            return httpx.Response(200, json=fake_profile)
+        return httpx.Response(404)
+
+    def sign_tg(payload: dict) -> dict:
+        pairs = [f"{k}={payload[k]}" for k in sorted(payload.keys()) if payload[k] not in (None, "")]
+        secret = hashlib.sha256(bot_token.encode("utf-8")).digest()
+        sig = hmac.new(secret, "\n".join(pairs).encode("utf-8"), hashlib.sha256).hexdigest()
+        return {**payload, "hash": sig}
+
+    with TestClient(app) as client:
+        client.app.state.http = httpx.AsyncClient(transport=_mock_transport(google_handler))
+
+        # 1. Без сессии mode=link отклоняется
+        r_unauthed = client.get("/api/auth/google/start?mode=link&next=/%23profile", follow_redirects=False)
+        assert r_unauthed.status_code == 302
+        assert r_unauthed.headers["location"] == "/?auth_error=oauth_link_auth#profile"
+
+        # 2. Авторизованный локальный/телефонный пользователь без email привязывает Google через mode=link
+        r_u1 = client.post(
+            "/api/auth/register",
+            json={"username": "phone_user_1", "password": "secret123", "displayName": "Айтал"},
+        )
+        assert r_u1.status_code == 200
+        uid1 = int(r_u1.json()["user"]["id"])
+
+        r_start = client.get("/api/auth/google/start?mode=link&next=/%23profile", follow_redirects=False)
+        assert r_start.status_code == 302
+        st1 = parse_qs(urlparse(r_start.headers["location"]).query)["state"][0]
+        r_cb = client.get(f"/api/auth/google/callback?code=ok&state={st1}", follow_redirects=False)
+        assert r_cb.status_code == 302
+        assert r_cb.headers["location"] == "/?linked=google#profile"
+
+        me1 = client.get("/api/me").json()["user"]
+        assert me1["id"] == uid1
+        assert me1["linkedProviders"]["google"] == {"connected": True, "email": "linked.phone@gmail.com"}
+
+        # 3. Привязка Telegram к тому же пользователю через POST /api/auth/telegram/login с mode=link
+        tg_payload = sign_tg(
+            {
+                "id": 771122,
+                "first_name": "Айтал",
+                "username": "aytal_link",
+                "auth_date": int(time.time()),
+            }
+        )
+        r_tg = client.post("/api/auth/telegram/login", json={**tg_payload, "mode": "link"})
+        assert r_tg.status_code == 200
+        tg_data = r_tg.json()
+        assert tg_data["linked"] is True
+        assert tg_data["user"]["id"] == uid1
+        assert tg_data["user"]["linkedProviders"]["telegram"] == {
+            "connected": True,
+            "username": "aytal_link",
+            "botLinked": True,
+        }
+
+    # 4. Второй пользователь не может украсть уже привязанные Google или Telegram
+    with TestClient(app) as c2:
+        c2.app.state.http = httpx.AsyncClient(transport=_mock_transport(google_handler))
+        r_u2 = c2.post(
+            "/api/auth/register",
+            json={"username": "other_user_2", "password": "secret123", "displayName": "Другой"},
+        )
+        assert r_u2.status_code == 200
+        uid2 = int(r_u2.json()["user"]["id"])
+        assert uid2 != uid1
+
+        r_s2 = c2.get("/api/auth/google/start?mode=link&next=/%23profile", follow_redirects=False)
+        st2 = parse_qs(urlparse(r_s2.headers["location"]).query)["state"][0]
+        r_cb2 = c2.get(f"/api/auth/google/callback?code=ok&state={st2}", follow_redirects=False)
+        assert r_cb2.status_code == 302
+        assert r_cb2.headers["location"] == "/?auth_error=google_already_linked#profile"
+        me2 = c2.get("/api/me").json()["user"]
+        assert me2["id"] == uid2
+        assert me2["linkedProviders"]["google"]["connected"] is False
+
+        r_tg2 = c2.post(
+            "/api/auth/telegram/login",
+            json={
+                **sign_tg({"id": 771122, "first_name": "Айтал", "username": "aytal_link", "auth_date": int(time.time())}),
+                "mode": "link",
+            },
+        )
+        assert r_tg2.status_code == 409
+        assert r_tg2.json()["code"] == "telegram_already_linked"
 
 
 def test_google_oauth_role_and_next_redirect(tmp_path: Path) -> None:

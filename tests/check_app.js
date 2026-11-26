@@ -6939,6 +6939,96 @@
       "expected Учёба -> Справочник to filter sections to selected content subjects only"
     );
 
+    // Проверка отображения linkedProviders и ссылки mode=link без data-a="pf-link-google"
+    const envLinkedOAuth = installGlobals({
+      host: { backend: true },
+      fetch: async (url) => {
+        const resJson = (obj) => ({ ok: true, status: 200, headers: { get: () => "application/json" }, json: async () => obj });
+        if (url === "/api/me") {
+          return resJson({
+            user: {
+              id: 404,
+              username: "alex_local",
+              displayName: "Александр",
+              email: "alex@gmail.com",
+              authProvider: "local",
+              role: "student",
+              linkedProviders: {
+                local: { connected: true },
+                phone: { connected: false },
+                google: { connected: true, email: "alex@gmail.com" },
+                telegram: { connected: true, username: "alex_tg", botLinked: false }
+              }
+            },
+            providers: { local: true, phone: true, google: true, telegram: false }
+          });
+        }
+        if (url === "/api/docs") return resJson({ docs: { profile: { name: "Александр", contactVerified: true, phone: "+79142100511" } } });
+        if (url === "/api/telegram/status") return resJson({ ok: true, linked: false, binding: null });
+        if (url === "/api/tutors?limit=200") return resJson({ ok: true, tutors: [] });
+        if (url === "/api/market/state") return resJson({ ok: true, wallet: { balanceRub: 0 }, bookings: [], notifications: [] });
+        if (url.indexOf("/api/chats") === 0) return resJson({ ok: true, chats: [], unreadTotal: 0 });
+        return resJson({ ok: true });
+      }
+    });
+    loadScripts(dataScripts);
+    vmRun(readFileText("frontend/app.js"), "frontend/app.js");
+    await flushMicrotasks(12);
+    clickAction(envLinkedOAuth, { a: "go", v: "profile" });
+    await flushMicrotasks(4);
+    const linkedProfHtml = envLinkedOAuth.elements.get("main").innerHTML;
+    assert(
+      linkedProfHtml.includes("alex@gmail.com") &&
+      linkedProfHtml.includes("@alex_tg") &&
+      linkedProfHtml.includes("Привязан ✓") &&
+      !linkedProfHtml.includes("Привязать Google") &&
+      !linkedProfHtml.includes("Привязать Telegram"),
+      "expected profile with linkedProviders google+telegram to show Привязан ✓ instead of link buttons"
+    );
+
+    const envUnlinkedGoogleHref = installGlobals({
+      host: { backend: true },
+      fetch: async (url) => {
+        const resJson = (obj) => ({ ok: true, status: 200, headers: { get: () => "application/json" }, json: async () => obj });
+        if (url === "/api/me") {
+          return resJson({
+            user: {
+              id: 405,
+              username: "phone_u",
+              displayName: "Мария",
+              authProvider: "phone",
+              role: "student",
+              linkedProviders: {
+                local: { connected: false },
+                phone: { connected: true },
+                google: { connected: false, email: "" },
+                telegram: { connected: false, username: "", botLinked: false }
+              }
+            },
+            providers: { local: true, phone: true, google: true, telegram: false }
+          });
+        }
+        if (url === "/api/docs") return resJson({ docs: { profile: { name: "Мария", contactVerified: true, phone: "+79142100512" } } });
+        if (url === "/api/telegram/status") return resJson({ ok: true, linked: false, binding: null });
+        if (url === "/api/tutors?limit=200") return resJson({ ok: true, tutors: [] });
+        if (url === "/api/market/state") return resJson({ ok: true, wallet: { balanceRub: 0 }, bookings: [], notifications: [] });
+        if (url.indexOf("/api/chats") === 0) return resJson({ ok: true, chats: [], unreadTotal: 0 });
+        return resJson({ ok: true });
+      }
+    });
+    loadScripts(dataScripts);
+    vmRun(readFileText("frontend/app.js"), "frontend/app.js");
+    await flushMicrotasks(12);
+    clickAction(envUnlinkedGoogleHref, { a: "go", v: "profile" });
+    await flushMicrotasks(4);
+    const unlinkedProfHtml = envUnlinkedGoogleHref.elements.get("main").innerHTML;
+    assert(
+      unlinkedProfHtml.includes('href="/api/auth/google/start?mode=link&role=student&next=') &&
+      unlinkedProfHtml.includes(">Привязать Google</a>") &&
+      !unlinkedProfHtml.includes('data-a="pf-link-google"'),
+      "expected server Google link anchor without data-a interception"
+    );
+
     out("APP_SMOKE_TESTS_OK");
     if (isNode) process.exit(0);
   }

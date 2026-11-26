@@ -276,20 +276,24 @@ class PgAuthDocsMixin:
         *,
         role: str = "student",
         next_url: str = "/",
+        link_user_id: int | None = None,
     ) -> None:
         clean_role = validate_registration_role(role)
         clean_next = str(next_url or "/").strip()[:256] or "/"
+        clean_link_uid = int(link_user_id) if link_user_id is not None else None
         expires_at = _utc_now() + timedelta(seconds=ttl_sec)
         with self._pool.connection() as conn:
             with conn.transaction():
                 conn.execute("DELETE FROM oltp.oauth_states WHERE expires_at <= NOW()")
                 conn.execute(
                     """
-                    INSERT INTO oltp.oauth_states (state_hash, provider, code_verifier, redirect_uri, role, next_url, expires_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    INSERT INTO oltp.oauth_states (
+                        state_hash, provider, code_verifier, redirect_uri, role, next_url, link_user_id, expires_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (state_hash) DO NOTHING
                     """,
-                    (state_hash, provider, code_verifier, redirect_uri, clean_role, clean_next, expires_at),
+                    (state_hash, provider, code_verifier, redirect_uri, clean_role, clean_next, clean_link_uid, expires_at),
                 )
 
     def create_oauth_state(
@@ -301,6 +305,7 @@ class PgAuthDocsMixin:
         *,
         role: str = "student",
         next_url: str = "/",
+        link_user_id: int | None = None,
     ) -> str:
         raw_state = secrets.token_urlsafe(32)
         self.insert_oauth_state_hash(
@@ -311,10 +316,11 @@ class PgAuthDocsMixin:
             ttl_sec,
             role=role,
             next_url=next_url,
+            link_user_id=link_user_id,
         )
         return raw_state
 
-    def consume_oauth_state(self, raw_state: str, provider: str) -> tuple[str, str, str, str] | None:
+    def consume_oauth_state_data(self, raw_state: str, provider: str) -> dict[str, Any] | None:
         if not raw_state:
             return None
         sh = hash_token(raw_state)
@@ -324,7 +330,7 @@ class PgAuthDocsMixin:
                     """
                     DELETE FROM oltp.oauth_states
                     WHERE state_hash = %s AND provider = %s
-                    RETURNING code_verifier, redirect_uri, role, next_url, expires_at
+                    RETURNING code_verifier, redirect_uri, role, next_url, link_user_id, expires_at
                     """,
                     (sh, provider),
                 ).fetchone()
@@ -332,7 +338,20 @@ class PgAuthDocsMixin:
             return None
         role_val = "tutor" if str(row.get("role") or "").strip().lower() == "tutor" else "student"
         next_val = str(row.get("next_url") or "/").strip()[:256] or "/"
-        return str(row["code_verifier"]), str(row["redirect_uri"]), role_val, next_val
+        link_uid = int(row["link_user_id"]) if row.get("link_user_id") is not None else None
+        return {
+            "codeVerifier": str(row["code_verifier"]),
+            "redirectUri": str(row["redirect_uri"]),
+            "role": role_val,
+            "nextUrl": next_val,
+            "linkUserId": link_uid,
+        }
+
+    def consume_oauth_state(self, raw_state: str, provider: str) -> tuple[str, str, str, str] | None:
+        data = self.consume_oauth_state_data(raw_state, provider)
+        if not data:
+            return None
+        return data["codeVerifier"], data["redirectUri"], data["role"], data["nextUrl"]
 
     def _generate_unique_username(self, conn: psycopg.Connection[Any], hint: str) -> str:
         cleaned = re.sub(r"[^0-9A-Za-z_.\-]+", "_", (hint or "").strip()).strip("_.-")
@@ -503,6 +522,138 @@ class PgAuthDocsMixin:
                     payload={"username": username, "authProvider": provider, "role": clean_role, "action": "created"},
                 )
                 return _row_to_user(row)
+
+    def get_user_linked_providers(self, user_id: int) -> dict[str, Any]:
+        uid = int(user_id)
+        with self._pool.connection() as conn:
+            u_row = conn.execute(
+                "SELECT auth_provider, email, username FROM oltp.users WHERE id = %s",
+                (uid,),
+            ).fetchone()
+            id_rows = conn.execute(
+                "SELECT provider, provider_subject, email FROM oltp.user_identities WHERE user_id = %s ORDER BY created_at",
+                (uid,),
+            ).fetchall()
+            tg_row = conn.execute(
+                "SELECT telegram_username FROM oltp.telegram_bindings WHERE user_id = %s ORDER BY updated_at DESC LIMIT 1",
+                (uid,),
+            ).fetchone()
+        auth_prov = str(u_row.get("auth_provider") or "local") if u_row else "local"
+        user_email = str(u_row.get("email") or "").strip() if u_row else ""
+        providers_map: dict[str, dict[str, str]] = {}
+        for r in id_rows:
+            prov = str(r.get("provider") or "").strip().lower()
+            if prov and prov not in providers_map:
+                providers_map[prov] = {
+                    "subject": str(r.get("provider_subject") or ""),
+                    "email": str(r.get("email") or "").strip(),
+                }
+        google_info = providers_map.get("google")
+        google_connected = bool(google_info is not None or auth_prov == "google")
+        google_email = str((google_info and google_info.get("email")) or (user_email if google_connected else "") or "").strip()
+        tg_info = providers_map.get("telegram")
+        tg_bot_linked = bool(tg_row)
+        tg_bot_username = str(tg_row.get("telegram_username") or "").strip().lstrip("@") if tg_row else ""
+        tg_connected = bool(tg_info is not None or tg_bot_linked or auth_prov == "telegram")
+        return {
+            "local": {"connected": bool("local" in providers_map or auth_prov == "local")},
+            "phone": {"connected": bool("phone" in providers_map or auth_prov == "phone")},
+            "google": {"connected": google_connected, "email": google_email},
+            "telegram": {
+                "connected": tg_connected,
+                "username": tg_bot_username,
+                "botLinked": tg_bot_linked,
+            },
+        }
+
+    def link_oauth_identity(
+        self,
+        user_id: int,
+        provider: str,
+        subject: str,
+        *,
+        email: str | None = None,
+        email_verified: bool = False,
+        avatar_url: str | None = None,
+    ) -> User:
+        uid = int(user_id)
+        prov = str(provider or "").strip().lower()
+        subj = str(subject or "").strip()
+        clean_email = validate_email(email) if email else None
+        stored_email = clean_email if (clean_email and email_verified) else None
+        clean_email_lower = stored_email.lower() if stored_email else None
+        clean_avatar = (avatar_url or "").strip()[:500] or None
+
+        with self._pool.connection() as conn:
+            with conn.transaction():
+                u_row = conn.execute(
+                    "SELECT id, username, display_name, email, email_lower, avatar_url, auth_provider, role FROM oltp.users WHERE id = %s FOR UPDATE",
+                    (uid,),
+                ).fetchone()
+                if not u_row:
+                    raise StorageError("not_found", "Пользователь не найден.", 404)
+
+                existing = conn.execute(
+                    "SELECT user_id FROM oltp.user_identities WHERE provider = %s AND provider_subject = %s",
+                    (prov, subj),
+                ).fetchone()
+                if existing and int(existing["user_id"]) != uid:
+                    label = "Google" if prov == "google" else ("Telegram" if prov == "telegram" else prov)
+                    raise StorageError(
+                        f"{prov}_already_linked",
+                        f"Этот аккаунт {label} уже привязан к другому пользователю.",
+                        409,
+                    )
+
+                if existing:
+                    if stored_email:
+                        conn.execute(
+                            "UPDATE oltp.user_identities SET email = %s WHERE provider = %s AND provider_subject = %s",
+                            (stored_email, prov, subj),
+                        )
+                else:
+                    conn.execute(
+                        """
+                        INSERT INTO oltp.user_identities (provider, provider_subject, user_id, email)
+                        VALUES (%s, %s, %s, %s)
+                        """,
+                        (prov, subj, uid, stored_email),
+                    )
+
+                sets: list[str] = []
+                params: list[Any] = []
+                if clean_avatar and not u_row.get("avatar_url"):
+                    sets.append("avatar_url = %s")
+                    params.append(clean_avatar)
+                if clean_email_lower and not u_row.get("email"):
+                    conflict = conn.execute(
+                        "SELECT 1 FROM oltp.users WHERE email_lower = %s AND id <> %s",
+                        (clean_email_lower, uid),
+                    ).fetchone()
+                    if not conflict:
+                        sets.append("email = %s")
+                        params.append(stored_email)
+                        sets.append("email_lower = %s")
+                        params.append(clean_email_lower)
+                if sets:
+                    params.append(uid)
+                    conn.execute(f"UPDATE oltp.users SET {', '.join(sets)} WHERE id = %s", tuple(params))
+
+                refreshed = conn.execute(
+                    "SELECT id, username, display_name, email, avatar_url, auth_provider, role FROM oltp.users WHERE id = %s",
+                    (uid,),
+                ).fetchone()
+                self._insert_outbox(
+                    conn,
+                    topic="vektor.user.clickstream.v1",
+                    partition_key=str(uid),
+                    event_type="auth.user.registered",
+                    user_id=uid,
+                    role=str(refreshed.get("role") or "student"),
+                    view="auth",
+                    payload={"username": str(refreshed["username"]), "authProvider": prov, "action": "linked_explicit"},
+                )
+                return _row_to_user(refreshed)
 
     def insert_session_hash(self, token_hash: str, user_id: int, ttl_sec: int) -> None:
         expires_at = _utc_now() + timedelta(seconds=ttl_sec)
