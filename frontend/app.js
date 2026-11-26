@@ -1265,6 +1265,7 @@
     studyWeekOffset: 0,
     studySubj: "all",
     learnTab: "subjects",
+    lastMainView: "home",
     commTab: "chats",
     messenger: { open: false, activeThreadId: "", query: "", draft: "", busy: false, loading: false, error: "", serverThreads: [], messagesByThread: {}, loadedOnce: false },
     bug: null,
@@ -1394,6 +1395,9 @@
     if (v !== "profile") ui.pfAccountEditOpen = false;
     if (v === "tests" && !opts.keepLearnTab) ui.learnTab = "subjects";
     if (v === "essay") ui.sid = "rus";
+    if (["home", "market", "study", "profile"].includes(ui.view) && ["tests", "tutor", "subject", "topic", "quiz", "essay", "plan", "stats"].includes(v)) {
+      ui.lastMainView = ui.view;
+    }
     ui.view = v;
     ui.confirm = null; ui.confirmDel = null; ui.exportText = ""; ui.auth.error = "";
     writeHash();
@@ -2338,11 +2342,21 @@
           ["study", "Календарь", "cal", inCalendar, acceptedBadge, ""],
           ["profile", "Профиль", "user", inProfile, prepBadge, ""]
         ];
+    const learnInGuide = ui.view === "tutor" || (ui.view === "tests" && ui.learnTab === "guide");
+    const learnInCourses = ui.view === "tests" && ui.learnTab === "courses";
+    const learnInSubjects = inLearn && !learnInGuide && !learnInCourses;
     $("#side-nav").innerHTML = sideNav.map(([v, l, ic, cur, badge, badgeAct]) => {
       const chipTone = (isTutor || v === "profile" || v === "home") ? "notif" : "accent";
       const btn = `<button type="button" class="nav-btn" data-a="go" data-v="${v}"${cur ? ' aria-current="page"' : ""}>${icon(ic)}<span style="flex:1">${l}</span>${badge && !badgeAct ? `<span class="chip ${chipTone} num">${badge}</span>` : ""}</button>`;
       if (badge && badgeAct) {
         return `<div class="nav-row${cur ? " is-cur" : ""}">${btn}<button type="button" class="chip ${isTutor ? "notif" : "accent"} num side-badge-jump" data-a="${badgeAct}" title="Перейти к ожидающим заявкам (${badge})" aria-label="Открыть ожидающие заявки (${badge})">${badge}</button></div>`;
+      }
+      if (!isTutor && inLearn && v === "tests") {
+        return btn + `<div class="side-learn-sub" role="group" aria-label="Подразделы учёбы">
+          <button type="button" class="side-learn-sub-btn" data-a="learn-tab" data-tab="subjects"${learnInSubjects ? ' aria-current="page"' : ""}>${icon("book")}<span>Учёба</span></button>
+          <button type="button" class="side-learn-sub-btn" data-a="learn-tab" data-tab="courses"${learnInCourses ? ' aria-current="page"' : ""}>${icon("video")}<span>Курсы</span></button>
+          <button type="button" class="side-learn-sub-btn" data-a="learn-tab" data-tab="guide"${learnInGuide ? ' aria-current="page"' : ""}>${icon("search")}<span>Справочник</span></button>
+        </div>`;
       }
       return btn;
     }).join("");
@@ -2446,9 +2460,18 @@
           ["tutor-profile", "Профиль", "sliders", ui.view === "cabinet" && tcTab === "profile", 0]
         ]
       : sideNav;
-    $("#tabbar").innerHTML = mobileNav.map(([v, l, ic, cur, badge]) =>
-      `<button type="button" class="tab-btn" data-a="go" data-v="${v}"${cur ? ' aria-current="page"' : ""}>${icon(ic)}<span>${esc(l)}</span>${badge ? `<i class="tab-badge">${badge}</i>` : ""}</button>`
-    ).join("");
+    if (!isTutor && inLearn) {
+      $("#tabbar").innerHTML = [
+        `<button type="button" class="tab-btn" data-a="learn-tab" data-tab="subjects"${learnInSubjects ? ' aria-current="page"' : ""}>${icon("book")}<span>Учёба</span></button>`,
+        `<button type="button" class="tab-btn" data-a="learn-tab" data-tab="courses"${learnInCourses ? ' aria-current="page"' : ""}>${icon("video")}<span>Курсы</span></button>`,
+        `<button type="button" class="tab-btn" data-a="learn-tab" data-tab="guide"${learnInGuide ? ' aria-current="page"' : ""}>${icon("search")}<span>Справочник</span></button>`,
+        `<button type="button" class="tab-btn" data-a="learn-back">${icon("back")}<span>Вернуться</span></button>`
+      ].join("");
+    } else {
+      $("#tabbar").innerHTML = mobileNav.map(([v, l, ic, cur, badge]) =>
+        `<button type="button" class="tab-btn" data-a="go" data-v="${v}"${cur ? ' aria-current="page"' : ""}>${icon(ic)}<span>${esc(l)}</span>${badge ? `<i class="tab-badge">${badge}</i>` : ""}</button>`
+      ).join("");
+    }
     renderSync();
   }
 
@@ -3327,6 +3350,10 @@
       }
     },
     go: (el) => go(el.dataset.v, { sid: el.dataset.sid, id: el.dataset.id, fromNav: !!(el.closest && el.closest("#side-nav, #tabbar")) }),
+    "learn-back": () => {
+      const target = ["home", "market", "study", "profile"].includes(ui.lastMainView) ? ui.lastMainView : "home";
+      go(target);
+    },
     "ob-subj-toggle": (el) => {
       const sid = String((el && el.dataset && el.dataset.sid) || "").trim();
       if (!sid || !STUDY_SUBJ_MAP[sid]) return;

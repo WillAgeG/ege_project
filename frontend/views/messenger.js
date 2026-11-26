@@ -2284,7 +2284,11 @@
     ACTIONS["learn-tab"] = (el) => {
       const ui = getUi();
       const tab = (el && el.dataset && el.dataset.tab) || "subjects";
-      ui.learnTab = tab === "guide" ? "guide" : "subjects";
+      ui.learnTab = tab === "guide" ? "guide" : (tab === "courses" ? "courses" : "subjects");
+      if (ui.view !== "tests" && typeof _ctx.go === "function") {
+        _ctx.go("tests", { keepLearnTab: true });
+        return;
+      }
       if (typeof _ctx.scheduleRender === "function") _ctx.scheduleRender(false);
     };
   }

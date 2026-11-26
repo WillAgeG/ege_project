@@ -917,10 +917,18 @@
     assert(topBalHtml.includes("top-bal-pill") && topBalHtml.includes("Пополнить") && !env4.elements.get("top-balance-slot").hidden, "expected persistent student top-right balance slot in mobile .topbar");
     assert(!env4.elements.get("main").innerHTML.includes("desktop-top-bar"), "expected duplicate desktop-top-bar removed");
     for (const label of ["Учёба", "Общение", "Поиск", "Календарь", "Профиль"]) {
-      assert(sideNavHtml.includes(label) && tabHtml.includes(label), `expected ${label} in sidebar and bottom tabbar`);
+      assert(sideNavHtml.includes(label), `expected ${label} in sidebar`);
     }
+    for (const label of ["Учёба", "Курсы", "Справочник", "Вернуться"]) {
+      assert(tabHtml.includes(label), `expected contextual Study tab ${label} in bottom tabbar`);
+    }
+    assert(tabHtml.includes('data-a="learn-back"'), "expected learn-back action inside Study tabbar");
     clickAction(env4, { a: "go", v: "profile" });
     await flushMicrotasks(4);
+    const profTabHtml = env4.elements.get("tabbar").innerHTML;
+    for (const label of ["Учёба", "Общение", "Поиск", "Календарь", "Профиль"]) {
+      assert(profTabHtml.includes(label), `expected ${label} restored in bottom tabbar outside Study`);
+    }
     const stuProfileHtml = env4.elements.get("main").innerHTML;
     assert(!stuProfileHtml.includes("Как администратор") && !stuProfileHtml.includes("Система и API"), "expected student settings to hide administrator role button");
 
@@ -1158,14 +1166,17 @@
     clickAction(env4, { a: "go", v: "tutor" });
     await flushMicrotasks(6);
     const guideHome = env4.elements.get("main").innerHTML;
+    const guideTabHtml = env4.elements.get("tabbar").innerHTML;
     assert(
-      guideHome.includes("Справочник") &&
+      guideTabHtml.includes("Справочник") &&
+      guideTabHtml.includes("Вернуться") &&
       guideHome.includes('id="guide-q"') &&
+      !guideHome.includes("learn-head-seg") &&
       !guideHome.includes('data-a="guide-sid"') &&
       !guideHome.includes('data-a="guide-chip"') &&
       !guideHome.includes("Все темы ·") &&
       !guideHome.includes("недоступен"),
-      "expected search-only offline guide view without subject filter chips, quick-query pills, or overview cards"
+      "expected search-only offline guide view without top switcher, subject filter chips, quick-query pills, or overview cards"
     );
     env4.emitDoc("input", { target: { id: "guide-q", value: "митоз", dataset: {} } });
     await flushMicrotasks(6);
@@ -1235,7 +1246,7 @@
     clickAction(env4, { a: "quiz-guide" });
     await flushMicrotasks(8);
     const pausedInGuide = env4.elements.get("main").innerHTML;
-    assert(pausedInGuide.includes("Справочник") && pausedInGuide.includes("quiz-resume") && pausedInGuide.includes("Вернуться к тесту"), "expected paused quiz banner in guide view");
+    assert(pausedInGuide.includes('id="guide-q"') && pausedInGuide.includes("quiz-resume") && pausedInGuide.includes("Вернуться к тесту") && env4.elements.get("tabbar").innerHTML.includes("Справочник"), "expected paused quiz banner in guide view");
     assert(!!env4.lsMap["vektor-ege:active-quiz"], "expected unfinished quiz snapshot persisted in localStorage");
 
     clickAction(env4, { a: "go", v: "stats" });
@@ -6531,22 +6542,37 @@
       );
     }
 
-    // Проверка «Учёба» (выбор предметов + тесты внутри «Предметы и тесты» и search-only «Справочник»)
+    // Проверка «Учёба»: без верхнего переключателя, скролл предметов, 4 вкладки в нижнем баре (Учёба, Курсы, Справочник, Вернуться)
+    clickAction(envChat, { a: "go", v: "home" });
+    await flushMicrotasks(4);
     clickAction(envChat, { a: "go", v: "tests" });
     await flushMicrotasks(4);
     const learnSubjectsHtml = envChat.elements.get("main").innerHTML;
+    const learnTabbarHtml = envChat.elements.get("tabbar").innerHTML;
+    const learnSideHtml = envChat.elements.get("side-nav").innerHTML;
     assert(
-      learnSubjectsHtml.includes("learn-head-seg") &&
-      learnSubjectsHtml.includes("Предметы и тесты") &&
+      !learnSubjectsHtml.includes("learn-head-seg") &&
+      !learnSubjectsHtml.includes("Предметы и тесты") &&
       learnSubjectsHtml.includes("learn-subj-bar") &&
+      learnSubjectsHtml.includes("learn-subj-switch") &&
       learnSubjectsHtml.includes('data-a="learn-pick-subject" data-sid="bio"') &&
       learnSubjectsHtml.includes('data-a="learn-subjects-edit"') &&
       learnSubjectsHtml.includes("Пробные варианты ЕГЭ") &&
       learnSubjectsHtml.includes("Смешанный тест") &&
       learnSubjectsHtml.includes("Темы предмета") &&
-      !learnSubjectsHtml.includes("Справочник, формулы и сочинение") &&
-      !learnSubjectsHtml.includes("Открыть справочник"),
-      "expected Учёба -> Предметы и тесты to show subject picker and active subject tests/topics directly"
+      learnTabbarHtml.includes('data-a="learn-tab" data-tab="subjects" aria-current="page"') &&
+      learnTabbarHtml.includes('data-a="learn-tab" data-tab="courses"') &&
+      learnTabbarHtml.includes('data-a="learn-tab" data-tab="guide"') &&
+      learnTabbarHtml.includes('data-a="learn-back"') &&
+      learnSideHtml.includes("side-learn-sub"),
+      "expected Учёба to omit top learn-head-seg and render horizontal subject picker + 4-tab Study bottom bar + sidebar sub-nav"
+    );
+    clickAction(envChat, { a: "learn-tab", tab: "courses" });
+    await flushMicrotasks(4);
+    assert(
+      envChat.elements.get("main").innerHTML.includes('id="learn-courses-empty"') &&
+      envChat.elements.get("tabbar").innerHTML.includes('data-a="learn-tab" data-tab="courses" aria-current="page"'),
+      "expected Курсы tab to show empty placeholder and highlight Курсы in tabbar"
     );
     clickAction(envChat, { a: "learn-tab", tab: "guide" });
     await flushMicrotasks(4);
@@ -6554,12 +6580,13 @@
     assert(
       guideOnlyHtml.includes('id="guide-q"') &&
       guideOnlyHtml.includes("guide-search-only") &&
-      guideOnlyHtml.includes("Справочник") &&
+      envChat.elements.get("tabbar").innerHTML.includes('data-a="learn-tab" data-tab="guide" aria-current="page"') &&
+      !guideOnlyHtml.includes("learn-head-seg") &&
       !guideOnlyHtml.includes('data-a="guide-sid"') &&
       !guideOnlyHtml.includes('data-a="guide-chip"') &&
       !guideOnlyHtml.includes("Сочинение ЕГЭ · памятка") &&
       !guideOnlyHtml.includes("Все темы ·"),
-      "expected Учёба -> Справочник tab to render only the search bar until user types a query"
+      "expected Учёба -> Справочник tab to render only search bar and highlight Справочник in tabbar"
     );
     envChat.emitDoc("input", { target: { id: "guide-q", value: "сочинение", dataset: {} } });
     await flushMicrotasks(4);
@@ -6569,6 +6596,21 @@
     );
     clickAction(envChat, { a: "guide-clear" });
     await flushMicrotasks(4);
+    clickAction(envChat, { a: "learn-back" });
+    await flushMicrotasks(4);
+    assert(
+      envChat.elements.get("main").innerHTML.includes("comm-head-seg") &&
+      envChat.elements.get("tabbar").innerHTML.includes("Общение") &&
+      !envChat.elements.get("tabbar").innerHTML.includes('data-a="learn-back"'),
+      "expected learn-back to return to Общение and restore main 5-tab bottom bar"
+    );
+    const studyCssTxt = readFileText("frontend/styles/study.css");
+    assert(
+      studyCssTxt.includes(".learn-subj-switch") &&
+      studyCssTxt.includes("flex-wrap: nowrap") &&
+      studyCssTxt.includes("overflow-x: auto"),
+      "expected horizontal single-row scrolling styles on .learn-subj-switch in study.css"
+    );
 
     // Проверка «Календарь» (study)
     clickAction(envChat, { a: "go", v: "study" });

@@ -79,15 +79,8 @@
   }
   function viewGuide(opts) {
     opts = opts || {};
-    const embedded = !!opts.embedded;
     const selectedPool = typeof selectedContentSubjects === "function" ? selectedContentSubjects() : CONTENT;
     const searchPool = selectedPool.length ? selectedPool : CONTENT;
-    const headHtml = embedded
-      ? ""
-      : `<div class="hh-seg learn-head-seg" role="group" aria-label="Раздел учёбы">
-        <button type="button" data-a="go" data-v="tests" aria-pressed="false">Предметы и тесты</button>
-        <button type="button" data-a="learn-tab" data-tab="guide" aria-pressed="true">Справочник</button>
-      </div>`;
     const qNorm = norm(ui.guideQ);
     const terms = qNorm ? qNorm.split(/\s+/).filter(Boolean) : [];
     const searchBox = `<div class="search-wrap guide-search-only">
@@ -133,22 +126,15 @@
       }).join("");
       body = (essayHit + cards) || `<div class="empty"><b>По запросу «${esc(ui.guideQ)}» ничего не найдено</b><span>Попробуй более короткое слово: например, «митоз», «гидролиз» или «запятые».</span><button type="button" class="btn ghost sm" data-a="guide-clear">Очистить поиск</button></div>`;
     }
-    return `${headHtml}
-      ${searchBox}
+    return `${searchBox}
       ${body}`;
   }
 
   function viewTutor(opts) {
     opts = opts || {};
-    const embedded = !!opts.embedded;
     if (ai.state !== "ready") return viewGuide(opts);
     const c = ui.chat;
-    const head = embedded
-      ? ""
-      : `<div class="hh-seg learn-head-seg" role="group" aria-label="Раздел учёбы">
-        <button type="button" data-a="go" data-v="tests" aria-pressed="false">Предметы и тесты</button>
-        <button type="button" data-a="learn-tab" data-tab="guide" aria-pressed="true">Справочник</button>
-      </div>`;
+    const head = "";
     const sugg = subjectAI(c.sid).suggest || [];
     const switcher = CONTENT.length > 1
       ? `<div class="switch" role="group" aria-label="Предмет">${CONTENT.map((s) => `<button type="button" data-a="chat-subject" data-sid="${s.id}" aria-pressed="${s.id === c.sid}">${esc(s.name)}</button>`).join("")}</div>`

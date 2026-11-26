@@ -35,17 +35,17 @@
     const embedded = !!(opts && opts.embedded);
     const prof = profile();
     const parts = [];
-    const activeLearnTab = ui.learnTab === "guide" ? "guide" : "subjects";
+    const activeLearnTab = ui.learnTab === "guide" ? "guide" : (ui.learnTab === "courses" ? "courses" : "subjects");
     if (embedded) {
       parts.push(`<div class="row between" style="gap:8px;flex-wrap:wrap"><h2 class="h2">Тесты ЕГЭ</h2><span class="small muted">ФИПИ и КИМ</span></div>`);
     } else {
-      parts.push(`<div class="hh-seg learn-head-seg" role="group" aria-label="Раздел учёбы">
-        <button type="button" data-a="learn-tab" data-tab="subjects" aria-pressed="${activeLearnTab === "subjects"}">Предметы и тесты</button>
-        <button type="button" data-a="learn-tab" data-tab="guide" aria-pressed="${activeLearnTab === "guide"}">Справочник</button>
-      </div>`);
       if (store.backend && store.ready && !store.user && !ui.demoAuthed) parts.push(`<div class="notice"><b>Гостевой режим.</b><span>Прогресс хранится в этом браузере. <button type="button" class="link-btn" data-a="auth-modal-open">Войти или создать аккаунт</button>, чтобы синхронизировать.</span></div>`);
       if (store.mode === "local" && !store.backend) parts.push(localNotice());
       parts.push(staleNotice());
+      if (activeLearnTab === "courses") {
+        parts.push(`<section class="card pad-lg empty learn-courses-empty" id="learn-courses-empty" aria-label="Курсы"><b>Курсы</b><span>Раздел курсов пока пуст — скоро здесь появятся программы подготовки.</span></section>`);
+        return parts.join("");
+      }
       if (activeLearnTab === "guide" && EGE.views.essayGuide && typeof EGE.views.essayGuide.viewTutor === "function") {
         parts.push(EGE.views.essayGuide.viewTutor({ embedded: true }));
         return parts.join("");
@@ -407,7 +407,7 @@
       if (curMeta) switcherList.push(curMeta);
     }
     const switcher = switcherList.length > 1
-      ? `<div class="switch" role="group" aria-label="Предмет">${switcherList.map((x) => `<button type="button" data-a="go" data-v="subject" data-sid="${x.id}" aria-pressed="${x.id === sid}"><i class="dot" style="background:${x.color || `var(--c-${x.id})`}"></i><span>${esc(x.name)}</span><span class="small num" style="opacity:.75">${subjectStats(x.id).pct}%</span></button>`).join("")}</div>`
+      ? `<div class="switch learn-subj-switch" role="group" aria-label="Предмет">${switcherList.map((x) => `<button type="button" data-a="go" data-v="subject" data-sid="${x.id}" aria-pressed="${x.id === sid}"><i class="dot" style="background:${x.color || `var(--c-${x.id})`}"></i><span>${esc(x.name)}</span><span class="small num" style="opacity:.75">${subjectStats(x.id).pct}%</span></button>`).join("")}</div>`
       : "";
     return `${switcher}${renderSubjectBody(sid, { compactHead: false, prof })}`;
   }

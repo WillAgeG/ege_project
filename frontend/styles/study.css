@@ -253,12 +253,37 @@ details.manual-box[open] > summary::after { content: "−"; }
 .guide-search-ico svg { width: 17px; height: 17px; }
 .guide-search-only .input { min-height: 44px; padding-left: 38px; border-radius: var(--r); }
 .learn-subj-bar {
-  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px;
+  display: flex; flex-wrap: nowrap; align-items: center; gap: 8px;
+  min-width: 0; max-width: 100%;
 }
-.learn-subj-switch { flex: 1 1 auto; min-width: 0; }
-.learn-subj-edit-btn { flex: none; }
+.learn-subj-switch {
+  flex: 1 1 auto; min-width: 0;
+  display: flex; flex-wrap: nowrap;
+  overflow-x: auto; overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; gap: 6px; padding-bottom: 2px;
+}
+.learn-subj-switch::-webkit-scrollbar { display: none; }
+.learn-subj-switch button { flex: 0 0 auto; white-space: nowrap; }
+.learn-subj-edit-btn { flex: none; white-space: nowrap; }
 .learn-subj-editor { gap: 10px; padding: 14px 16px; }
 .learn-subj-head { gap: 10px; }
+.learn-courses-empty { min-height: 220px; place-content: center; text-align: center; }
+.side-learn-sub {
+  display: grid; gap: 2px;
+  margin: 2px 0 6px 14px; padding-left: 10px;
+  border-left: 1px solid var(--line);
+}
+.side-learn-sub-btn {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 6px 10px; border: 0; border-radius: var(--r-sm);
+  background: transparent; color: var(--muted);
+  font-size: 13px; font-weight: 500; text-align: left;
+  transition: background-color .12s ease, color .12s ease;
+}
+.side-learn-sub-btn svg { width: 15px; height: 15px; flex: none; }
+.side-learn-sub-btn:hover { background: var(--surface-2); color: var(--ink); }
+.side-learn-sub-btn[aria-current="page"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 .qtbl-wrap { -webkit-overflow-scrolling: touch; max-width: 100%; }
 .quiz-resume {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 14px;
