@@ -80,35 +80,24 @@
   function viewGuide(opts) {
     opts = opts || {};
     const embedded = !!opts.embedded;
-    const pool = typeof selectedContentSubjects === "function" ? selectedContentSubjects() : CONTENT;
+    const selectedPool = typeof selectedContentSubjects === "function" ? selectedContentSubjects() : CONTENT;
+    const searchPool = selectedPool.length ? selectedPool : CONTENT;
     const headHtml = embedded
       ? ""
       : `<div class="hh-seg learn-head-seg" role="group" aria-label="Раздел учёбы">
         <button type="button" data-a="go" data-v="tests" aria-pressed="false">Предметы и тесты</button>
         <button type="button" data-a="learn-tab" data-tab="guide" aria-pressed="true">Справочник</button>
       </div>`;
-    if (!pool.length) {
-      return `${headHtml}<div class="card pad-lg empty"><b>По выбранным предметам офлайн-справочник ещё готовится</b><span>Выберите биологию, русский или химию в профиле либо занимайтесь с преподавателем по выбранному направлению.</span><div class="row" style="gap:8px;flex-wrap:wrap;justify-content:center"><button type="button" class="btn sm" data-a="go" data-v="profile">Изменить предметы в профиле</button><button type="button" class="btn soft sm" data-a="go" data-v="market">Найти репетитора</button></div></div>`;
-    }
-    let sid = ui.guideSid && (ui.guideSid === "all" || pool.some((s) => s.id === ui.guideSid)) ? ui.guideSid : "all";
-    if (pool.length === 1) sid = pool[0].id;
     const qNorm = norm(ui.guideQ);
     const terms = qNorm ? qNorm.split(/\s+/).filter(Boolean) : [];
-    const switcher = `<div class="switch" role="group" aria-label="Предмет">
-      ${pool.length > 1 ? `<button type="button" data-a="guide-sid" data-sid="all" aria-pressed="${sid === "all"}">Все предметы</button>` : ""}
-      ${pool.map((s) => `<button type="button" data-a="guide-sid" data-sid="${s.id}" aria-pressed="${sid === s.id}"><i class="dot" style="background:var(--c-${s.id})"></i><span>${esc(s.name)}</span></button>`).join("")}
-    </div>`;
-    const searchBox = `<div class="search-wrap">
-      <label class="sr" for="guide-q">Поиск по конспектам и таблицам</label>
+    const searchBox = `<div class="search-wrap guide-search-only">
+      <span class="guide-search-ico" aria-hidden="true">${icon("search")}</span>
+      <label class="sr" for="guide-q">Поиск по справочнику</label>
       <input class="input" type="search" id="guide-q" value="${esc(ui.guideQ)}" placeholder="Поиск по правилам, терминам, формулам и исключениям…">
       ${ui.guideQ ? `<button type="button" class="search-clear" data-a="guide-clear" aria-label="Очистить поиск">${icon("x")}</button>` : ""}
     </div>`;
-    const chips = `<div class="suggest">${guideQuickChips(sid, pool).map((w) => `<button type="button" data-a="guide-chip" data-q="${esc(w)}">${esc(w)}</button>`).join("")}</div>`;
     let body = "";
-    if (!terms.length) {
-      body = guideOverview(sid, pool);
-    } else {
-      const searchPool = (sid === "all" ? pool : pool.filter((s) => s.id === sid));
+    if (terms.length) {
       const hits = [];
       for (const s of searchPool) {
         const secs = (s.content && s.content.sections) || [];
@@ -125,7 +114,7 @@
         }
       }
       hits.sort((a, b) => b.score - a.score);
-      const essayHit = ((sid === "all" || sid === "rus") && pool.some((s) => s.id === "rus")) ? guideMatchEssay(terms) : "";
+      const essayHit = searchPool.some((s) => s.id === "rus") ? guideMatchEssay(terms) : "";
       const cards = hits.slice(0, 12).map(({ s, sec, t, matchTables, matchBullets }) => {
         const bullets = (matchBullets.length ? matchBullets : (t.theory || []).filter((x) => !x.startsWith("## "))).slice(0, 4);
         const tb = matchTables[0] || (t.tables && t.tables[0]) || null;
@@ -142,12 +131,10 @@
           ${tb ? tableBlockHTML(tb) : ""}
         </article>`;
       }).join("");
-      body = (essayHit + cards) || `<div class="empty"><b>По запросу «${esc(ui.guideQ)}» ничего не найдено</b><span>Попробуй более короткое слово: например, «митоз», «гидролиз» или «запятые».</span><button type="button" class="btn ghost sm" data-a="guide-clear">Показать все разделы</button></div>`;
+      body = (essayHit + cards) || `<div class="empty"><b>По запросу «${esc(ui.guideQ)}» ничего не найдено</b><span>Попробуй более короткое слово: например, «митоз», «гидролиз» или «запятые».</span><button type="button" class="btn ghost sm" data-a="guide-clear">Очистить поиск</button></div>`;
     }
     return `${headHtml}
-      ${switcher}
       ${searchBox}
-      ${chips}
       ${body}`;
   }
 

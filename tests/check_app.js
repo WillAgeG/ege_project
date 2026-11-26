@@ -1154,17 +1154,28 @@
     clickAction(env4, { a: "study-chats-cols", cols: "5" });
     await flushMicrotasks(2);
 
-    // Справочник без нейросети: мгновенный поиск по темам и сочинению
+    // Справочник без нейросети: только поисковик с мгновенным поиском по темам и сочинению
     clickAction(env4, { a: "go", v: "tutor" });
     await flushMicrotasks(6);
     const guideHome = env4.elements.get("main").innerHTML;
-    assert(guideHome.includes("Справочник") && !guideHome.includes("недоступен"), "expected offline guide view without unavailable notice");
+    assert(
+      guideHome.includes("Справочник") &&
+      guideHome.includes('id="guide-q"') &&
+      !guideHome.includes('data-a="guide-sid"') &&
+      !guideHome.includes('data-a="guide-chip"') &&
+      !guideHome.includes("Все темы ·") &&
+      !guideHome.includes("недоступен"),
+      "expected search-only offline guide view without subject filter chips, quick-query pills, or overview cards"
+    );
     env4.emitDoc("input", { target: { id: "guide-q", value: "митоз", dataset: {} } });
     await flushMicrotasks(6);
     assert(env4.elements.get("main").innerHTML.includes("guide-card") && env4.elements.get("main").innerHTML.includes("Митоз"), "expected guide search results for митоз");
-    clickAction(env4, { a: "guide-chip", q: "клише" });
+    env4.emitDoc("input", { target: { id: "guide-q", value: "клише", dataset: {} } });
     await flushMicrotasks(6);
-    assert(env4.elements.get("main").innerHTML.includes("Сочинение: клише и аргументы"), "expected essay reference card on клише chip");
+    assert(env4.elements.get("main").innerHTML.includes("Сочинение: клише и аргументы"), "expected essay reference card on клише search");
+    clickAction(env4, { a: "guide-clear" });
+    await flushMicrotasks(4);
+    assert(!env4.elements.get("main").innerHTML.includes("guide-card"), "expected guide-clear to return to search-only state");
 
     // Автоматические «Показатели» + ненулевое время завершённых тестов + свернутый ручной ввод
     clickAction(env4, { a: "go", v: "stats" });
@@ -6520,29 +6531,44 @@
       );
     }
 
-    // Проверка «Учёба» (предметы + встроенный Справочник)
+    // Проверка «Учёба» (выбор предметов + тесты внутри «Предметы и тесты» и search-only «Справочник»)
     clickAction(envChat, { a: "go", v: "tests" });
     await flushMicrotasks(4);
     const learnSubjectsHtml = envChat.elements.get("main").innerHTML;
     assert(
       learnSubjectsHtml.includes("learn-head-seg") &&
       learnSubjectsHtml.includes("Предметы и тесты") &&
-      !learnSubjectsHtml.includes("Предметы и справочник") &&
-      !learnSubjectsHtml.includes("Изучай темы по предметам") &&
-      !learnSubjectsHtml.includes('<h1 class="h1">Учёба</h1>') &&
-      learnSubjectsHtml.includes("Биология") &&
+      learnSubjectsHtml.includes("learn-subj-bar") &&
+      learnSubjectsHtml.includes('data-a="learn-pick-subject" data-sid="bio"') &&
+      learnSubjectsHtml.includes('data-a="learn-subjects-edit"') &&
+      learnSubjectsHtml.includes("Пробные варианты ЕГЭ") &&
+      learnSubjectsHtml.includes("Смешанный тест") &&
+      learnSubjectsHtml.includes("Темы предмета") &&
       !learnSubjectsHtml.includes("Справочник, формулы и сочинение") &&
       !learnSubjectsHtml.includes("Открыть справочник"),
-      "expected Учёба -> Предметы и тесты to render subject cards without duplicate guide card"
+      "expected Учёба -> Предметы и тесты to show subject picker and active subject tests/topics directly"
     );
     clickAction(envChat, { a: "learn-tab", tab: "guide" });
     await flushMicrotasks(4);
+    const guideOnlyHtml = envChat.elements.get("main").innerHTML;
     assert(
-      envChat.elements.get("main").innerHTML.includes('id="guide-q"') &&
-      envChat.elements.get("main").innerHTML.includes("Справочник") &&
-      envChat.elements.get("main").innerHTML.includes("Сочинение ЕГЭ · памятка"),
-      "expected Учёба -> Справочник tab to render inline guide with #guide-q search and Сочинение ЕГЭ · памятка"
+      guideOnlyHtml.includes('id="guide-q"') &&
+      guideOnlyHtml.includes("guide-search-only") &&
+      guideOnlyHtml.includes("Справочник") &&
+      !guideOnlyHtml.includes('data-a="guide-sid"') &&
+      !guideOnlyHtml.includes('data-a="guide-chip"') &&
+      !guideOnlyHtml.includes("Сочинение ЕГЭ · памятка") &&
+      !guideOnlyHtml.includes("Все темы ·"),
+      "expected Учёба -> Справочник tab to render only the search bar until user types a query"
     );
+    envChat.emitDoc("input", { target: { id: "guide-q", value: "сочинение", dataset: {} } });
+    await flushMicrotasks(4);
+    assert(
+      envChat.elements.get("main").innerHTML.includes("Сочинение: клише и аргументы"),
+      "expected Учёба -> Справочник to return matching essay card on search input"
+    );
+    clickAction(envChat, { a: "guide-clear" });
+    await flushMicrotasks(4);
 
     // Проверка «Календарь» (study)
     clickAction(envChat, { a: "go", v: "study" });
@@ -6919,24 +6945,57 @@
     const filteredTestsHtml = envChat.elements.get("main").innerHTML;
     const filteredSideSubjsHtml = envChat.elements.get("side-subjects").innerHTML;
     assert(
-      filteredTestsHtml.includes(">Математика<") &&
-      filteredTestsHtml.includes("Тренажёр скоро") &&
-      filteredTestsHtml.includes("Найти репетитора") &&
-      !filteredTestsHtml.includes('data-sid="chem"') &&
-      !filteredTestsHtml.includes(">Химия<") &&
+      filteredTestsHtml.includes('data-a="learn-pick-subject" data-sid="math"') &&
+      !filteredTestsHtml.includes('data-a="learn-pick-subject" data-sid="chem"') &&
       filteredSideSubjsHtml.includes("Математика") &&
       !filteredSideSubjsHtml.includes("Химия"),
-      "expected Учёба and sidebar subjects to show Математика and hide deselected Химия"
+      "expected Учёба subject picker and sidebar to show Математика and hide deselected Химия"
     );
+    clickAction(envChat, { a: "learn-pick-subject", sid: "math" });
+    await flushMicrotasks(4);
+    const mathTabHtml = envChat.elements.get("main").innerHTML;
+    assert(
+      mathTabHtml.includes(">Математика<") &&
+      mathTabHtml.includes("Тренажёр скоро") &&
+      mathTabHtml.includes("Найти репетитора"),
+      "expected picking Математика in Предметы и тесты to display coming-soon card and Find Tutor CTA"
+    );
+    clickAction(envChat, { a: "learn-subjects-edit" });
+    await flushMicrotasks(2);
+    assert(
+      envChat.elements.get("main").innerHTML.includes('data-a="learn-subj-toggle" data-sid="phys"'),
+      "expected learn-subjects-edit to open inline subject toggles in Учёба"
+    );
+    clickAction(envChat, { a: "learn-subj-toggle", sid: "phys" });
+    await flushMicrotasks(2);
+    assert(
+      envChat.elements.get("main").innerHTML.includes('data-a="learn-pick-subject" data-sid="phys"') &&
+      envChat.elements.get("side-subjects").innerHTML.includes("Физика"),
+      "expected learn-subj-toggle to immediately add Физика to Учёба and sidebar"
+    );
+    clickAction(envChat, { a: "learn-subj-toggle", sid: "phys" });
+    clickAction(envChat, { a: "learn-subjects-edit" });
+    await flushMicrotasks(2);
+
     clickAction(envChat, { a: "learn-tab", tab: "guide" });
     await flushMicrotasks(4);
-    const filteredGuideHtml = envChat.elements.get("main").innerHTML;
     assert(
-      filteredGuideHtml.includes('data-sid="bio"') &&
-      filteredGuideHtml.includes('data-sid="rus"') &&
-      !filteredGuideHtml.includes('data-sid="chem"') &&
-      !filteredGuideHtml.includes(">Химия<"),
-      "expected Учёба -> Справочник to filter sections to selected content subjects only"
+      envChat.elements.get("main").innerHTML.includes('id="guide-q"') &&
+      !envChat.elements.get("main").innerHTML.includes("guide-card"),
+      "expected Учёба -> Справочник to open search-only without cards before typing"
+    );
+    envChat.emitDoc("input", { target: { id: "guide-q", value: "электролиз", dataset: {} } });
+    await flushMicrotasks(4);
+    assert(
+      envChat.elements.get("main").innerHTML.includes("ничего не найдено"),
+      "expected Справочник search to ignore deselected Химия topics"
+    );
+    envChat.emitDoc("input", { target: { id: "guide-q", value: "митоз", dataset: {} } });
+    await flushMicrotasks(4);
+    assert(
+      envChat.elements.get("main").innerHTML.includes("guide-card") &&
+      envChat.elements.get("main").innerHTML.includes("Митоз"),
+      "expected Справочник search to return selected Биология results"
     );
 
     // Проверка отображения linkedProviders и ссылки mode=link без data-a="pf-link-google"

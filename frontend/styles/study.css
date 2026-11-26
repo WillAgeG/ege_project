@@ -244,6 +244,21 @@ details.manual-box[open] > summary::after { content: "−"; }
 .manual-body .card { border: 0; padding: 0; background: transparent; box-shadow: none; }
 .guide-card { display: grid; gap: 10px; }
 .guide-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; }
+.guide-search-only { width: 100%; }
+.guide-search-ico {
+  position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--muted); pointer-events: none;
+}
+.guide-search-ico svg { width: 17px; height: 17px; }
+.guide-search-only .input { min-height: 44px; padding-left: 38px; border-radius: var(--r); }
+.learn-subj-bar {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px;
+}
+.learn-subj-switch { flex: 1 1 auto; min-width: 0; }
+.learn-subj-edit-btn { flex: none; }
+.learn-subj-editor { gap: 10px; padding: 14px 16px; }
+.learn-subj-head { gap: 10px; }
 .qtbl-wrap { -webkit-overflow-scrolling: touch; max-width: 100%; }
 .quiz-resume {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 14px;

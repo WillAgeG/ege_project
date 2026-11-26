@@ -37,7 +37,7 @@
     const parts = [];
     const activeLearnTab = ui.learnTab === "guide" ? "guide" : "subjects";
     if (embedded) {
-      parts.push(`<div class="row between" style="gap:8px;flex-wrap:wrap"><h2 class="h2">Тесты ЕГЭ</h2><span class="small muted">3 предмета · ФИПИ и КИМ</span></div>`);
+      parts.push(`<div class="row between" style="gap:8px;flex-wrap:wrap"><h2 class="h2">Тесты ЕГЭ</h2><span class="small muted">ФИПИ и КИМ</span></div>`);
     } else {
       parts.push(`<div class="hh-seg learn-head-seg" role="group" aria-label="Раздел учёбы">
         <button type="button" data-a="learn-tab" data-tab="subjects" aria-pressed="${activeLearnTab === "subjects"}">Предметы и тесты</button>
@@ -53,54 +53,63 @@
     }
 
     const picked = typeof selectedStudySubjects === "function" ? selectedStudySubjects(prof) : CONTENT;
-    if (!embedded) {
-      parts.push(`<div class="row between" style="gap:8px;flex-wrap:wrap"><span class="small muted">Выбранные предметы (${picked.length})</span><button type="button" class="link-btn small" data-a="go" data-v="profile">Изменить предметы</button></div>`);
-    }
-    const subjCards = picked.map((s) => {
-      const target = (prof.targets && prof.targets[s.id]) || s.target || 80;
-      const dotColor = s.color || `var(--c-${s.id})`;
-      if (!s.content) {
-        return `<article class="card stack" style="gap:12px">
-          <div class="row between" style="gap:8px;flex-wrap:wrap">
-            <div class="row" style="gap:8px"><i class="dot" style="background:${dotColor}"></i><h2 class="h2">${esc(s.name)}</h2></div>
-            <span class="chip num">цель ${target}</span>
-          </div>
-          <div class="row between small muted" style="flex-wrap:wrap;gap:6px">
-            <span class="chip">Тренажёр скоро</span>
-          </div>
-          <p class="small ink2 prep-soon-note" style="margin:0">Задания ФИПИ по предмету в разработке — уже можно заниматься с преподавателем и отслеживать цель.</p>
-          <div class="tutor-actions">
-            <button type="button" class="btn soft" data-a="learn-find-tutor" data-sid="${s.id}">Найти репетитора</button>
-          </div>
-        </article>`;
-      }
-      const st = subjectStats(s.id);
-      const mis = store.ready ? mistakeQs(s.id).length : 0;
-      const due = store.ready ? dueQs(s.id).length : 0;
-      return `<article class="card stack" style="gap:12px">
-        <div class="row between" style="gap:8px;flex-wrap:wrap">
-          <div class="row" style="gap:8px"><i class="dot" style="background:${dotColor}"></i><h2 class="h2">${esc(s.name)}</h2></div>
-          <span class="chip num">готовность ${store.ready ? st.pct + "%" : "—"} · цель ${target}</span>
-        </div>
-        <div class="meter"><i style="width:${st.pct}%"></i></div>
-        <div class="row between small muted" style="flex-wrap:wrap;gap:6px">
-          <span>освоено ${st.mastered} из ${st.total} · тем ${st.started}/${st.topics}</span>
-          <span>${mis ? `ошибок: ${mis}` : due ? `повторить: ${due}` : "без долгов"}</span>
-        </div>
-        <div class="tutor-actions">
-          <button type="button" class="btn" data-a="go" data-v="subject" data-sid="${s.id}">Открыть темы</button>
-          <button type="button" class="btn soft" data-a="quiz-mixed" data-sid="${s.id}">Смешанный тест</button>
-        </div>
-        ${mis ? `<div><button type="button" class="link-btn small" data-a="quiz-mistakes" data-sid="${s.id}">Разобрать ошибки (${mis})</button></div>` : ""}
-      </article>`;
-    }).join("");
-    parts.push(`<div class="grid-3">${subjCards}</div>`);
+    const pickedIds = new Set(picked.map((s) => s.id));
+    let activeSid = ui.learnSid && pickedIds.has(ui.learnSid)
+      ? ui.learnSid
+      : (ui.sid && pickedIds.has(ui.sid) ? ui.sid : (picked[0] ? picked[0].id : firstSubject.id));
+    ui.learnSid = activeSid;
+    if (SUBJ[activeSid]) ui.sid = activeSid;
 
-    const steps = nextSteps();
-    if (steps.length) {
-      parts.push(`<section class="section"><div class="section-head"><h2 class="h2">Рекомендуем сейчас</h2><button type="button" class="link-btn small" data-a="go" data-v="market">Нужен репетитор?</button></div><div class="steps">${steps.map(stepBtn).join("")}</div></section>`);
+    const subjectSwitch = `<div class="learn-subj-bar">
+      <div class="switch learn-subj-switch" role="group" aria-label="Выбор предмета">
+        ${picked.map((s) => {
+          const dotColor = s.color || `var(--c-${s.id})`;
+          const on = s.id === activeSid;
+          const pctHtml = s.content ? `<span class="small num" style="opacity:.75">${store.ready ? subjectStats(s.id).pct + "%" : "—"}</span>` : "";
+          return `<button type="button" data-a="learn-pick-subject" data-sid="${s.id}" aria-pressed="${on}"><i class="dot" style="background:${dotColor}"></i><span>${esc(s.name)}</span>${pctHtml}</button>`;
+        }).join("")}
+      </div>
+      ${!embedded ? `<button type="button" class="btn ghost sm learn-subj-edit-btn" data-a="learn-subjects-edit" aria-expanded="${!!ui.learnSubjectsOpen}">${ui.learnSubjectsOpen ? "Готово" : "Предметы"}</button>` : ""}
+    </div>`;
+    parts.push(subjectSwitch);
+
+    if (!embedded && ui.learnSubjectsOpen) {
+      const catalog = ALL_STUDY_SUBJECTS || SUBJECT_META || SUBJECTS;
+      const curIds = Array.isArray(prof.subjects) && prof.subjects.length ? prof.subjects : SUBJECT_META.map((s) => s.id);
+      parts.push(`<section class="card stack learn-subj-editor" aria-label="Настройка предметов">
+        <div class="row between" style="gap:8px;flex-wrap:wrap">
+          <b class="small">Какие предметы показывать в разделе «Учёба»</b>
+          <button type="button" class="link-btn small" data-a="go" data-v="profile">Цели и даты экзаменов</button>
+        </div>
+        <div class="chip-rail prep-subj-picker" role="group" aria-label="Выбор предметов ЕГЭ">
+          ${catalog.map((s) => {
+            const on = curIds.includes(s.id);
+            return `<button type="button" class="chip-btn prep-subj-chip${on ? " on" : ""}" data-a="learn-subj-toggle" data-sid="${s.id}" aria-pressed="${on}"><i class="dot" style="background:${s.color || `var(--c-${s.id})`}"></i><span>${esc(s.name)}</span></button>`;
+          }).join("")}
+        </div>
+      </section>`);
     }
-    parts.push(`<div class="grid-hero">${heroCard(prof)}${examsCard(prof)}</div>`);
+
+    const activeMeta = picked.find((s) => s.id === activeSid) || (STUDY_SUBJ_MAP && STUDY_SUBJ_MAP[activeSid]) || CONTENT[0];
+    if (activeMeta && activeMeta.content && SUBJ[activeSid]) {
+      parts.push(renderSubjectBody(activeSid, { compactHead: true, prof }));
+    } else if (activeMeta) {
+      const target = (prof.targets && prof.targets[activeMeta.id]) || activeMeta.target || 80;
+      const dotColor = activeMeta.color || `var(--c-${activeMeta.id})`;
+      parts.push(`<article class="card stack" style="gap:12px">
+        <div class="row between" style="gap:8px;flex-wrap:wrap">
+          <div class="row" style="gap:8px"><i class="dot" style="background:${dotColor}"></i><h2 class="h2">${esc(activeMeta.name)}</h2></div>
+          <span class="chip num">цель ${target}</span>
+        </div>
+        <div class="row between small muted" style="flex-wrap:wrap;gap:6px">
+          <span class="chip">Тренажёр скоро</span>
+        </div>
+        <p class="small ink2 prep-soon-note" style="margin:0">Задания ФИПИ по предмету в разработке — уже можно заниматься с преподавателем и отслеживать цель.</p>
+        <div class="tutor-actions">
+          <button type="button" class="btn soft" data-a="learn-find-tutor" data-sid="${activeMeta.id}">Найти репетитора</button>
+        </div>
+      </article>`);
+    }
     return parts.join("");
   }
 
@@ -315,21 +324,15 @@
   }
 
   // ---------- предмет и темы ----------
-  function viewSubject() {
-    const sid = SUBJ[ui.sid] ? ui.sid : firstSubject.id;
+  function renderSubjectBody(sid, opts) {
+    opts = opts || {};
     const s = SUBJ[sid];
     if (!s) return `<div class="empty">Предмет пока не добавлен.</div>`;
-    const st = subjectStats(sid), prof = profile();
-    const ex = prof.exams[sid], n = validISO(ex) ? daysUntil(ex) : null;
+    const prof = opts.prof || profile();
+    const st = subjectStats(sid);
+    const ex = prof.exams && prof.exams[sid], n = validISO(ex) ? daysUntil(ex) : null;
     const due = dueQs(sid).length, mis = mistakeQs(sid).length;
-    const switcherList = (typeof selectedContentSubjects === "function" ? selectedContentSubjects(prof) : CONTENT).slice();
-    if (s && !switcherList.some((x) => x.id === sid)) {
-      const curMeta = SUBJECTS.find((x) => x.id === sid);
-      if (curMeta) switcherList.push(curMeta);
-    }
-    const switcher = switcherList.length > 1
-      ? `<div class="switch" role="group" aria-label="Предмет">${switcherList.map((x) => `<button type="button" data-a="go" data-v="subject" data-sid="${x.id}" aria-pressed="${x.id === sid}"><i class="dot" style="background:${x.color || `var(--c-${x.id})`}"></i><span>${esc(x.name)}</span><span class="small num" style="opacity:.75">${subjectStats(x.id).pct}%</span></button>`).join("")}</div>`
-      : "";
+    const target = (prof.targets && prof.targets[sid]) || 80;
     const qNorm = norm(ui.subjQ);
     const totalTopics = s.topicList.length;
     const filteredSecs = s.sections.map((sec) => {
@@ -342,14 +345,29 @@
       });
       return { sec, topics };
     }).filter((x) => x.topics.length);
-    const shownTopics = filteredSecs.reduce((n, x) => n + x.topics.length, 0);
-    return `${switcher}<div class="head">
-        <div class="eyebrow">Предмет · ЕГЭ 2027</div>
-        <div class="head-row"><h1 class="h1">${esc(s.name)}</h1><span class="chip leaf">готовность ${st.pct}%</span></div>
-        <p class="lead">${validISO(ex) ? `Экзамен по проекту расписания — ${dateLong(ex)}${n > 0 ? ", через " + days(n) : ""}. ` : ""}${esc(s.about || "")} Вопрос считается освоенным после двух верных ответов подряд.</p>
-      </div>
-      <div class="facts">${s.exam.facts.map((f) => `<div class="fact"><b>${esc(f[0])}</b><span>${esc(f[1])}</span></div>`).join("")}</div>
-      <p class="hint">${esc(s.exam.note)}</p>
+    const shownTopics = filteredSecs.reduce((acc, x) => acc + x.topics.length, 0);
+
+    const headHtml = opts.compactHead
+      ? `<section class="card stack learn-subj-head" aria-label="Прогресс по предмету">
+          <div class="row between" style="gap:8px;flex-wrap:wrap">
+            <div class="row" style="gap:8px"><i class="dot" style="background:var(--c-${sid})"></i><h2 class="h2">${esc(s.name)}</h2></div>
+            <span class="chip ${st.pct >= 90 ? "good" : "leaf"} num">готовность ${store.ready ? st.pct + "%" : "—"} · цель ${target}</span>
+          </div>
+          <div class="meter"><i style="width:${st.pct}%"></i></div>
+          <div class="row between small muted" style="flex-wrap:wrap;gap:6px">
+            <span>освоено ${st.mastered} из ${st.total} · тем ${st.started}/${st.topics}</span>
+            <span>${mis ? `ошибок: ${mis}` : due ? `повторить: ${due}` : (validISO(ex) && n > 0 ? `экзамен через ${days(n)}` : "без долгов")}</span>
+          </div>
+        </section>`
+      : `<div class="head">
+          <div class="eyebrow">Предмет · ЕГЭ 2027</div>
+          <div class="head-row"><h1 class="h1">${esc(s.name)}</h1><span class="chip leaf">готовность ${st.pct}%</span></div>
+          <p class="lead">${validISO(ex) ? `Экзамен по проекту расписания — ${dateLong(ex)}${n > 0 ? ", через " + days(n) : ""}. ` : ""}${esc(s.about || "")} Вопрос считается освоенным после двух верных ответов подряд.</p>
+        </div>
+        <div class="facts">${s.exam.facts.map((f) => `<div class="fact"><b>${esc(f[0])}</b><span>${esc(f[1])}</span></div>`).join("")}</div>
+        <p class="hint">${esc(s.exam.note)}</p>`;
+
+    return `${headHtml}
       ${s.fullVariant ? `<section class="card stack"><h2 class="h2">Пробные варианты ЕГЭ</h2><p class="small muted">${esc(s.fullVariant.sub)}</p>
         <div class="row" style="flex-wrap:wrap">${range(s.fullVariant.count).map((i) => `<button type="button" class="btn ghost sm" data-a="quiz-fullvariant" data-sid="${sid}" data-k="${i + 1}">Вариант ${i + 1}</button>`).join("")}<button type="button" class="btn sm" data-a="quiz-fullvariant" data-sid="${sid}" data-k="0">Случайный</button></div></section>` : ""}
       <section class="card stack"><h2 class="h2">Тренировка</h2><div class="steps">
@@ -376,6 +394,22 @@
       </section>
       ${filteredSecs.length ? filteredSecs.map((x) => `<section class="section-block"><div class="section-title"><span class="section-num">Раздел ${x.sec.n}</span><h2 class="h2">${esc(x.sec.title)}</h2></div><div class="slides">${x.topics.map(slide).join("")}</div></section>`).join("") : `<div class="empty"><b>Темы не найдены</b><span>В этом фильтре тем нет — попробуй другой запрос.</span><button type="button" class="btn ghost sm" data-a="subj-clear">Сбросить фильтр</button></div>`}
       <section class="card stack"><h2 class="h2">Где ещё тренироваться</h2><div class="stack">${s.links.map((l) => `<a href="${esc(l.href)}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join("")}</div></section>`;
+  }
+
+  function viewSubject() {
+    const sid = SUBJ[ui.sid] ? ui.sid : firstSubject.id;
+    const s = SUBJ[sid];
+    if (!s) return `<div class="empty">Предмет пока не добавлен.</div>`;
+    const prof = profile();
+    const switcherList = (typeof selectedContentSubjects === "function" ? selectedContentSubjects(prof) : CONTENT).slice();
+    if (s && !switcherList.some((x) => x.id === sid)) {
+      const curMeta = SUBJECTS.find((x) => x.id === sid);
+      if (curMeta) switcherList.push(curMeta);
+    }
+    const switcher = switcherList.length > 1
+      ? `<div class="switch" role="group" aria-label="Предмет">${switcherList.map((x) => `<button type="button" data-a="go" data-v="subject" data-sid="${x.id}" aria-pressed="${x.id === sid}"><i class="dot" style="background:${x.color || `var(--c-${x.id})`}"></i><span>${esc(x.name)}</span><span class="small num" style="opacity:.75">${subjectStats(x.id).pct}%</span></button>`).join("")}</div>`
+      : "";
+    return `${switcher}${renderSubjectBody(sid, { compactHead: false, prof })}`;
   }
   function sectionBlock(sec) {
     return `<section class="section-block"><div class="section-title"><span class="section-num">Раздел ${sec.n}</span><h2 class="h2">${esc(sec.title)}</h2></div><div class="slides">${sec.topics.map(slide).join("")}</div></section>`;
@@ -1144,6 +1178,39 @@
 
   function registerActions(ACTIONS) {
     Object.assign(ACTIONS, {
+    "learn-pick-subject": (el) => {
+      const sid = String((el && el.dataset && el.dataset.sid) || "").trim();
+      if (!sid) return;
+      ui.learnSid = sid;
+      if (SUBJ[sid]) ui.sid = sid;
+      ui.subjQ = "";
+      ui.subjFilter = "all";
+      scheduleRender();
+    },
+    "learn-subjects-edit": () => {
+      ui.learnSubjectsOpen = !ui.learnSubjectsOpen;
+      scheduleRender();
+    },
+    "learn-subj-toggle": (el) => {
+      const sid = String((el && el.dataset && el.dataset.sid) || "").trim();
+      if (!sid || (STUDY_SUBJ_MAP && !STUDY_SUBJ_MAP[sid])) return;
+      const prof = profile();
+      const cur = Array.isArray(prof.subjects) && prof.subjects.length ? prof.subjects.slice() : SUBJECT_META.map((s) => s.id);
+      const pos = cur.indexOf(sid);
+      let next;
+      if (pos >= 0) {
+        if (cur.length <= 1) { toast("Оставь хотя бы один предмет"); return; }
+        next = cur.filter((id) => id !== sid);
+        if (ui.learnSid === sid) ui.learnSid = next[0];
+      } else {
+        next = cur.concat([sid]);
+        ui.learnSid = sid;
+      }
+      if (SUBJ[ui.learnSid]) ui.sid = ui.learnSid;
+      if (ui.drafts && ui.drafts["pf.subjects"]) delete ui.drafts["pf.subjects"];
+      patchDoc("profile", { subjects: next });
+      scheduleRender();
+    },
     "subj-filter": (el) => { ui.subjFilter = el.dataset.filter || "all"; scheduleRender(); },
     "subj-clear": () => { ui.subjQ = ""; ui.subjFilter = "all"; ui.focusNext = "subj-q"; scheduleRender(); },
     "topic-filter": (el) => { ui.topicFilter = el.dataset.filter || "all"; scheduleRender(); },
