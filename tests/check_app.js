@@ -1162,7 +1162,7 @@
     clickAction(env4, { a: "study-chats-cols", cols: "5" });
     await flushMicrotasks(2);
 
-    // Справочник без нейросети: только поисковик с мгновенным поиском по темам и сочинению
+    // Справочник без нейросети: строка поиска сверху + обзор тем и сочинения ниже
     clickAction(env4, { a: "go", v: "tutor" });
     await flushMicrotasks(6);
     const guideHome = env4.elements.get("main").innerHTML;
@@ -1171,12 +1171,13 @@
       guideTabHtml.includes("Справочник") &&
       guideTabHtml.includes("Вернуться") &&
       guideHome.includes('id="guide-q"') &&
+      guideHome.includes("Все темы ·") &&
+      guideHome.includes("Сочинение ЕГЭ · памятка") &&
       !guideHome.includes("learn-head-seg") &&
       !guideHome.includes('data-a="guide-sid"') &&
       !guideHome.includes('data-a="guide-chip"') &&
-      !guideHome.includes("Все темы ·") &&
       !guideHome.includes("недоступен"),
-      "expected search-only offline guide view without top switcher, subject filter chips, quick-query pills, or overview cards"
+      "expected offline guide view with search box + overview topics without top switcher, subject filter chips, or quick-query pills"
     );
     env4.emitDoc("input", { target: { id: "guide-q", value: "митоз", dataset: {} } });
     await flushMicrotasks(6);
@@ -1186,7 +1187,7 @@
     assert(env4.elements.get("main").innerHTML.includes("Сочинение: клише и аргументы"), "expected essay reference card on клише search");
     clickAction(env4, { a: "guide-clear" });
     await flushMicrotasks(4);
-    assert(!env4.elements.get("main").innerHTML.includes("guide-card"), "expected guide-clear to return to search-only state");
+    assert(!env4.elements.get("main").innerHTML.includes("guide-card") && env4.elements.get("main").innerHTML.includes("Все темы ·"), "expected guide-clear to restore overview state");
 
     // Автоматические «Показатели» + ненулевое время завершённых тестов + свернутый ручной ввод
     clickAction(env4, { a: "go", v: "stats" });
@@ -6556,7 +6557,7 @@
       learnSubjectsHtml.includes("learn-subj-bar") &&
       learnSubjectsHtml.includes("learn-subj-switch") &&
       learnSubjectsHtml.includes('data-a="learn-pick-subject" data-sid="bio"') &&
-      learnSubjectsHtml.includes('data-a="learn-subjects-edit"') &&
+      !learnSubjectsHtml.includes('data-a="learn-subjects-edit"') &&
       learnSubjectsHtml.includes("Пробные варианты ЕГЭ") &&
       learnSubjectsHtml.includes("Смешанный тест") &&
       learnSubjectsHtml.includes("Темы предмета") &&
@@ -6565,7 +6566,7 @@
       learnTabbarHtml.includes('data-a="learn-tab" data-tab="guide"') &&
       learnTabbarHtml.includes('data-a="learn-back"') &&
       learnSideHtml.includes("side-learn-sub"),
-      "expected Учёба to omit top learn-head-seg and render horizontal subject picker + 4-tab Study bottom bar + sidebar sub-nav"
+      "expected Учёба to omit top learn-head-seg and Предметы button, and render horizontal subject picker + 4-tab Study bottom bar + sidebar sub-nav"
     );
     clickAction(envChat, { a: "learn-tab", tab: "courses" });
     await flushMicrotasks(4);
@@ -6580,13 +6581,13 @@
     assert(
       guideOnlyHtml.includes('id="guide-q"') &&
       guideOnlyHtml.includes("guide-search-only") &&
+      guideOnlyHtml.includes("Все темы ·") &&
+      guideOnlyHtml.includes("Сочинение ЕГЭ · памятка") &&
       envChat.elements.get("tabbar").innerHTML.includes('data-a="learn-tab" data-tab="guide" aria-current="page"') &&
       !guideOnlyHtml.includes("learn-head-seg") &&
       !guideOnlyHtml.includes('data-a="guide-sid"') &&
-      !guideOnlyHtml.includes('data-a="guide-chip"') &&
-      !guideOnlyHtml.includes("Сочинение ЕГЭ · памятка") &&
-      !guideOnlyHtml.includes("Все темы ·"),
-      "expected Учёба -> Справочник tab to render only search bar and highlight Справочник in tabbar"
+      !guideOnlyHtml.includes('data-a="guide-chip"'),
+      "expected Учёба -> Справочник tab to render search bar + guide overview and highlight Справочник in tabbar"
     );
     envChat.emitDoc("input", { target: { id: "guide-q", value: "сочинение", dataset: {} } });
     await flushMicrotasks(4);
@@ -7000,31 +7001,19 @@
       mathTabHtml.includes(">Математика<") &&
       mathTabHtml.includes("Тренажёр скоро") &&
       mathTabHtml.includes("Найти репетитора"),
-      "expected picking Математика in Предметы и тесты to display coming-soon card and Find Tutor CTA"
+      "expected picking Математика in Учёба to display coming-soon card and Find Tutor CTA"
     );
-    clickAction(envChat, { a: "learn-subjects-edit" });
-    await flushMicrotasks(2);
-    assert(
-      envChat.elements.get("main").innerHTML.includes('data-a="learn-subj-toggle" data-sid="phys"'),
-      "expected learn-subjects-edit to open inline subject toggles in Учёба"
-    );
-    clickAction(envChat, { a: "learn-subj-toggle", sid: "phys" });
-    await flushMicrotasks(2);
-    assert(
-      envChat.elements.get("main").innerHTML.includes('data-a="learn-pick-subject" data-sid="phys"') &&
-      envChat.elements.get("side-subjects").innerHTML.includes("Физика"),
-      "expected learn-subj-toggle to immediately add Физика to Учёба and sidebar"
-    );
-    clickAction(envChat, { a: "learn-subj-toggle", sid: "phys" });
-    clickAction(envChat, { a: "learn-subjects-edit" });
-    await flushMicrotasks(2);
 
     clickAction(envChat, { a: "learn-tab", tab: "guide" });
     await flushMicrotasks(4);
+    const filteredGuideOverview = envChat.elements.get("main").innerHTML;
     assert(
-      envChat.elements.get("main").innerHTML.includes('id="guide-q"') &&
-      !envChat.elements.get("main").innerHTML.includes("guide-card"),
-      "expected Учёба -> Справочник to open search-only without cards before typing"
+      filteredGuideOverview.includes('id="guide-q"') &&
+      filteredGuideOverview.includes("Биология") &&
+      filteredGuideOverview.includes("Русский язык") &&
+      !filteredGuideOverview.includes(">Химия<") &&
+      !filteredGuideOverview.includes("guide-card"),
+      "expected Учёба -> Справочник to render overview for selected content subjects only"
     );
     envChat.emitDoc("input", { target: { id: "guide-q", value: "электролиз", dataset: {} } });
     await flushMicrotasks(4);

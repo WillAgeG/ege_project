@@ -90,7 +90,9 @@
       ${ui.guideQ ? `<button type="button" class="search-clear" data-a="guide-clear" aria-label="Очистить поиск">${icon("x")}</button>` : ""}
     </div>`;
     let body = "";
-    if (terms.length) {
+    if (!terms.length) {
+      body = guideOverview("all", searchPool);
+    } else {
       const hits = [];
       for (const s of searchPool) {
         const secs = (s.content && s.content.sections) || [];

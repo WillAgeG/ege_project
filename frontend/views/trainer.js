@@ -69,26 +69,8 @@
           return `<button type="button" data-a="learn-pick-subject" data-sid="${s.id}" aria-pressed="${on}"><i class="dot" style="background:${dotColor}"></i><span>${esc(s.name)}</span>${pctHtml}</button>`;
         }).join("")}
       </div>
-      ${!embedded ? `<button type="button" class="btn ghost sm learn-subj-edit-btn" data-a="learn-subjects-edit" aria-expanded="${!!ui.learnSubjectsOpen}">${ui.learnSubjectsOpen ? "Готово" : "Предметы"}</button>` : ""}
     </div>`;
     parts.push(subjectSwitch);
-
-    if (!embedded && ui.learnSubjectsOpen) {
-      const catalog = ALL_STUDY_SUBJECTS || SUBJECT_META || SUBJECTS;
-      const curIds = Array.isArray(prof.subjects) && prof.subjects.length ? prof.subjects : SUBJECT_META.map((s) => s.id);
-      parts.push(`<section class="card stack learn-subj-editor" aria-label="Настройка предметов">
-        <div class="row between" style="gap:8px;flex-wrap:wrap">
-          <b class="small">Какие предметы показывать в разделе «Учёба»</b>
-          <button type="button" class="link-btn small" data-a="go" data-v="profile">Цели и даты экзаменов</button>
-        </div>
-        <div class="chip-rail prep-subj-picker" role="group" aria-label="Выбор предметов ЕГЭ">
-          ${catalog.map((s) => {
-            const on = curIds.includes(s.id);
-            return `<button type="button" class="chip-btn prep-subj-chip${on ? " on" : ""}" data-a="learn-subj-toggle" data-sid="${s.id}" aria-pressed="${on}"><i class="dot" style="background:${s.color || `var(--c-${s.id})`}"></i><span>${esc(s.name)}</span></button>`;
-          }).join("")}
-        </div>
-      </section>`);
-    }
 
     const activeMeta = picked.find((s) => s.id === activeSid) || (STUDY_SUBJ_MAP && STUDY_SUBJ_MAP[activeSid]) || CONTENT[0];
     if (activeMeta && activeMeta.content && SUBJ[activeSid]) {
