@@ -132,7 +132,12 @@ def run_verification(base_url: str | None, reset_after: bool, force_local: bool 
             )
             d_da = r_da.json()
             reply = d_da.get("reply", "")
-            _assert("CSV" in reply and "Тема 4" in reply, f"ожидался формат CSV и Тема 4: {reply[:140]}")
+            sources = d_da.get("sources") or []
+            _assert(d_da.get("needsClarification") is False, f"после выбора курса неоднозначность не снята: {d_da}")
+            _assert(
+                "CSV" in reply and ("Тема 4" in reply or any(s.get("section") == "Тема 4" for s in sources)),
+                f"ожидался формат CSV и ссылка на Тему 4: {reply[:140]}",
+            )
             return "уточнил курс и корректно разделил SQL (БД) и CSV (Анализ данных)"
 
         def scen_3() -> str:

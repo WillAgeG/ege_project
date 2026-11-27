@@ -491,11 +491,23 @@ class TeacherAgentOrchestrator:
                 for tc in tool_calls:
                     fn = tc.get("function") or {}
                     tname = str(fn.get("name") or "")
-                    targs = fn.get("arguments") or "{}"
+                    raw_args = fn.get("arguments") or "{}"
+                    if isinstance(raw_args, dict):
+                        parsed_args: dict[str, Any] = dict(raw_args)
+                    else:
+                        try:
+                            loaded = json.loads(str(raw_args))
+                            parsed_args = loaded if isinstance(loaded, dict) else {}
+                        except (TypeError, ValueError):
+                            parsed_args = {}
+                    if selected_course and tname in {"search_course", "get_schedule"} and not parsed_args.get("course"):
+                        parsed_args["course"] = selected_course
+                    if active_draft_id and tname in {"prepare_publish_preview", "export_presentation"} and not parsed_args.get("draft_id"):
+                        parsed_args["draft_id"] = active_draft_id
                     artifacts["toolsCalled"].append(tname)
                     res = self.tools.dispatch_tool(
                         tname,
-                        targs,
+                        parsed_args,
                         owner_id=owner_id,
                         request_id=request_id,
                         trace_id=trace_id,

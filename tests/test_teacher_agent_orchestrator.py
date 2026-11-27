@@ -200,6 +200,67 @@ def test_gigachat_auto_grounds_when_model_skips_tool_call(tmp_path: Path) -> Non
         store.close()
 
 
+def test_gigachat_injects_selected_course_into_search_tool(tmp_path: Path) -> None:
+    turn = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        turn["n"] += 1
+        if turn["n"] == 1:
+            return httpx.Response(
+                200,
+                json={
+                    "choices": [
+                        {
+                            "message": {
+                                "role": "assistant",
+                                "tool_calls": [
+                                    {
+                                        "id": "call-search-1",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "search_course",
+                                            "arguments": json.dumps({"query": "JOIN"}),
+                                        },
+                                    }
+                                ],
+                            }
+                        }
+                    ]
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": "По курсу «Анализ данных» (Тема 4) нужно выгрузить CSV-витрину.",
+                        }
+                    }
+                ]
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    store, _, orch = _make_orchestrator(tmp_path, api_key="rk_test_key", transport=transport)
+    try:
+        res = asyncio.run(
+            orch.handle_message(
+                message="Что сдавать по JOIN?",
+                selected_course="Анализ данных",
+                owner_id=DEMO_OWNER_ID,
+            )
+        )
+        assert res["ok"] is True and res["mode"] == "gigachat"
+        assert res["needsClarification"] is False
+        assert any(s.get("section") == "Тема 4" for s in res["sources"])
+        assert all(s.get("section") != "Практика 4" for s in res["sources"])
+        assert "CSV" in res["reply"]
+    finally:
+        store.close()
+
+
 def test_orchestrator_covers_all_10_tz_scenarios_and_extra_checks(tmp_path: Path) -> None:
     store, tools, orch = _make_orchestrator(tmp_path, api_key=None)
     try:
