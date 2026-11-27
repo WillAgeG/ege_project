@@ -96,7 +96,12 @@ class TeacherAgentOrchestrator:
         self._http_transport = http_transport
 
     def _client_kwargs(self) -> dict[str, Any]:
-        kw: dict[str, Any] = {"timeout": self.config.timeout_sec}
+        kw: dict[str, Any] = {
+            "timeout": httpx.Timeout(
+                self.config.timeout_sec,
+                connect=min(10.0, self.config.timeout_sec),
+            )
+        }
         if self._http_transport is not None:
             kw["transport"] = self._http_transport
         return kw

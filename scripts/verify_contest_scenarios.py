@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 from contextlib import contextmanager
 import io
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -63,8 +64,18 @@ def _assert(cond: bool, msg: str) -> None:
         raise AssertionError(msg)
 
 
-def run_verification(base_url: str | None, reset_after: bool) -> int:
+def run_verification(base_url: str | None, reset_after: bool, force_local: bool = False) -> int:
     results: list[tuple[str, bool, str]] = []
+    if force_local and not base_url:
+        os.environ["TEACHER_AGENT_IGNORE_DOTENV"] = "1"
+        os.environ.pop("CONTEST_GIGACHAT_API_KEY", None)
+        os.environ.pop("GIGACHAT_API_KEY", None)
+
+    def chat_payload(message: str, **extra: Any) -> dict[str, Any]:
+        body: dict[str, Any] = {"message": message, **extra}
+        if force_local:
+            body["forceLocal"] = True
+        return body
 
     def record(name: str, fn: Any) -> Any:
         try:
@@ -103,7 +114,7 @@ def run_verification(base_url: str | None, reset_after: bool) -> int:
         state_box: dict[str, Any] = {}
 
         def scen_1() -> str:
-            r = client.post("/api/teacher-agent/chat", json={"message": "Что у меня сегодня?"})
+            r = client.post("/api/teacher-agent/chat", json=chat_payload("Что у меня сегодня?"))
             _assert(r.status_code == 200, f"HTTP {r.status_code}")
             reply = r.json().get("reply", "")
             _assert("09:00" in reply and "11:00" in reply, f"ожидались пары 09:00 и 11:00: {reply[:140]}")
@@ -111,13 +122,13 @@ def run_verification(base_url: str | None, reset_after: bool) -> int:
             return "нашёл обе пары 2026-12-02 (ИС-21 в 09:00 и ПИ-22 в 11:00)"
 
         def scen_2() -> str:
-            r_amb = client.post("/api/teacher-agent/chat", json={"message": "Что сдавать по JOIN?"})
+            r_amb = client.post("/api/teacher-agent/chat", json=chat_payload("Что сдавать по JOIN?"))
             _assert(r_amb.status_code == 200, f"HTTP {r_amb.status_code}")
             d_amb = r_amb.json()
             _assert(d_amb.get("needsClarification") is True, "ожидалось уточнение курса")
             r_da = client.post(
                 "/api/teacher-agent/chat",
-                json={"message": "Что сдавать по JOIN?", "selectedCourse": "Анализ данных"},
+                json=chat_payload("Что сдавать по JOIN?", selectedCourse="Анализ данных"),
             )
             d_da = r_da.json()
             reply = d_da.get("reply", "")
@@ -127,7 +138,7 @@ def run_verification(base_url: str | None, reset_after: bool) -> int:
         def scen_3() -> str:
             r_plan = client.post(
                 "/api/teacher-agent/chat",
-                json={"message": "Подготовь план и задание по JOIN для ИС-21"},
+                json=chat_payload("Подготовь план и задание по JOIN для ИС-21"),
             )
             _assert(r_plan.status_code == 200, f"HTTP {r_plan.status_code}")
             data = r_plan.json()
@@ -140,7 +151,7 @@ def run_verification(base_url: str | None, reset_after: bool) -> int:
 
             r_pptx = client.post(
                 "/api/teacher-agent/chat",
-                json={"message": "Сделай слайды по JOIN для ИС-21", "activeDraftId": draft["id"]},
+                json=chat_payload("Сделай слайды по JOIN для ИС-21", activeDraftId=draft["id"]),
             )
             _assert(r_pptx.status_code == 200, f"PPTX chat HTTP {r_pptx.status_code}")
             pres = r_pptx.json().get("presentation")
@@ -253,7 +264,7 @@ def run_verification(base_url: str | None, reset_after: bool) -> int:
             try:
                 r = client.post(
                     "/api/teacher-agent/chat",
-                    json={"message": "Подготовь и опубликуй практику по JOIN для ИС-21"},
+                    json=chat_payload("Подготовь и опубликуй практику по JOIN для ИС-21"),
                 )
                 _assert(r.status_code == 200, f"HTTP {r.status_code}")
                 pubs = client.get("/api/teacher-agent/publications").json()["publications"]
@@ -344,9 +355,14 @@ def main() -> int:
         default=None,
         help="Сбросить демо-стенд после проверки (по умолчанию True для --base-url)",
     )
+    parser.add_argument(
+        "--force-local",
+        action="store_true",
+        help="Игнорировать локальный .env и выполнять чат-сценарии через локальный fallback",
+    )
     args = parser.parse_args()
     reset_after = bool(args.base_url) if args.reset_after is None else bool(args.reset_after)
-    return run_verification(args.base_url, reset_after)
+    return run_verification(args.base_url, reset_after, force_local=bool(args.force_local))
 
 
 if __name__ == "__main__":
