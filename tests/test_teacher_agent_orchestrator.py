@@ -149,6 +149,57 @@ def test_live_gigachat_client_usage_tool_loop_and_429(tmp_path: Path) -> None:
         store.close()
 
 
+def test_gigachat_auto_grounds_when_model_skips_tool_call(tmp_path: Path) -> None:
+    turn = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        turn["n"] += 1
+        body = json.loads(request.content.decode("utf-8"))
+        if turn["n"] == 1:
+            assert "tools" in body
+            return httpx.Response(
+                200,
+                json={
+                    "choices": [
+                        {
+                            "message": {
+                                "role": "assistant",
+                                "content": "Уточните, пожалуйста, ваш курс и группу.",
+                            }
+                        }
+                    ]
+                },
+            )
+        assert turn["n"] == 2
+        assert "tools" not in body
+        sys_blobs = [m.get("content", "") for m in body["messages"] if m.get("role") == "system"]
+        assert any("09:00" in c and "11:00" in c for c in sys_blobs)
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": "Сегодня 02.12.2026: 09:00–10:30 Базы данных (ИС-21, А-305) и 11:00–12:30 Анализ данных (ПИ-22, Б-204).",
+                        }
+                    }
+                ]
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    store, _, orch = _make_orchestrator(tmp_path, api_key="rk_test_key", transport=transport)
+    try:
+        res = asyncio.run(orch.handle_message(message="Что у меня сегодня?", owner_id=DEMO_OWNER_ID))
+        assert res["ok"] is True and res["mode"] == "gigachat"
+        assert "get_schedule" in res["toolsCalled"]
+        assert "09:00" in res["reply"] and "11:00" in res["reply"]
+        assert turn["n"] == 2
+    finally:
+        store.close()
+
+
 def test_orchestrator_covers_all_10_tz_scenarios_and_extra_checks(tmp_path: Path) -> None:
     store, tools, orch = _make_orchestrator(tmp_path, api_key=None)
     try:

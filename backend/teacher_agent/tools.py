@@ -21,7 +21,10 @@ OPENAI_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "get_schedule",
-            "description": "Получить расписание занятий преподавателя с фильтрами по периоду, курсу и группе.",
+            "description": (
+                "Получить расписание занятий преподавателя. Все фильтры опциональны: при вопросах "
+                "«Что у меня сегодня?» или «Какие пары?» сразу вызывай get_schedule(period='today') без уточнения курса и группы."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
