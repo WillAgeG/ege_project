@@ -11,6 +11,7 @@ from pathlib import Path
 import shutil
 import sqlite3
 import subprocess
+import sys
 
 from fastapi.testclient import TestClient
 import httpx
@@ -38,13 +39,12 @@ from databases.sqlite.store import Database
 
 def test_alembic_upgrade_downgrade_and_status(tmp_path: Path) -> None:
     db_file = tmp_path / "alembic_test.db"
-    alembic_bin = ROOT_DIR / ".venv" / "bin" / "alembic"
-    assert alembic_bin.is_file(), "alembic CLI должен быть установлен в .venv"
+    alembic_cmd = [sys.executable, "-m", "alembic"]
 
     db_url = f"sqlite:///{db_file.as_posix()}"
 
     r_up = subprocess.run(
-        [str(alembic_bin), "-x", f"url={db_url}", "upgrade", "head"],
+        [*alembic_cmd, "-x", f"url={db_url}", "upgrade", "head"],
         cwd=ROOT_DIR,
         capture_output=True,
         text=True,
@@ -104,7 +104,7 @@ def test_alembic_upgrade_downgrade_and_status(tmp_path: Path) -> None:
         conn.close()
 
     r_down = subprocess.run(
-        [str(alembic_bin), "-x", f"url={db_url}", "downgrade", "-1"],
+        [*alembic_cmd, "-x", f"url={db_url}", "downgrade", "-1"],
         cwd=ROOT_DIR,
         capture_output=True,
         text=True,
@@ -122,7 +122,7 @@ def test_alembic_upgrade_downgrade_and_status(tmp_path: Path) -> None:
         conn_down_15.close()
 
     r_down2 = subprocess.run(
-        [str(alembic_bin), "-x", f"url={db_url}", "downgrade", "-1"],
+        [*alembic_cmd, "-x", f"url={db_url}", "downgrade", "-1"],
         cwd=ROOT_DIR,
         capture_output=True,
         text=True,
@@ -150,7 +150,7 @@ def test_alembic_upgrade_downgrade_and_status(tmp_path: Path) -> None:
         conn_down.close()
 
     r_reup = subprocess.run(
-        [str(alembic_bin), "-x", f"url={db_url}", "upgrade", "head"],
+        [*alembic_cmd, "-x", f"url={db_url}", "upgrade", "head"],
         cwd=ROOT_DIR,
         capture_output=True,
         text=True,

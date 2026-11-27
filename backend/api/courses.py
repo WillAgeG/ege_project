@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import asyncio
 import base64
+import signal
 import subprocess
 import sys
 import tempfile
@@ -64,7 +65,7 @@ import sys
 
 try:
     import resource
-    resource.setrlimit(resource.RLIMIT_CPU, (2, 2))
+    resource.setrlimit(resource.RLIMIT_CPU, (3, 4))
 except Exception:
     pass
 
@@ -206,8 +207,15 @@ def _run_one_test(code_b64: str, allowed_csv: str, tc: PythonTestCase, index: in
         stdout = (proc.stdout or "")[:8192]
         stderr = (proc.stderr or "")[:8192]
         if proc.returncode != 0:
+            sigxcpu = getattr(signal, "SIGXCPU", None)
+            sigkill = getattr(signal, "SIGKILL", None)
             last_line = [ln.strip() for ln in stderr.splitlines() if ln.strip()]
-            err_msg = last_line[-1] if last_line else f"Ошибка выполнения (код {proc.returncode})"
+            if (sigxcpu and proc.returncode == -sigxcpu) or (
+                sigkill and proc.returncode == -sigkill and not last_line and (time.monotonic() - t0) >= 1.8
+            ):
+                err_msg = "Превышен лимит времени (2 сек)"
+            else:
+                err_msg = last_line[-1] if last_line else f"Ошибка выполнения (код {proc.returncode})"
         else:
             actual = stdout.replace("\r\n", "\n").strip()
             expected_norm = tc.expected.replace("\r\n", "\n").strip()
