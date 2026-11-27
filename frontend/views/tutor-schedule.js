@@ -690,6 +690,7 @@
         </div>
         ${dayLessonsHTML}
       </div>
+      ${EGE.views && EGE.views.teacherAgent && typeof EGE.views.teacherAgent.renderCalendarWidgetHTML === "function" ? EGE.views.teacherAgent.renderCalendarWidgetHTML() : ""}
     </section>
     </div>`;
   }

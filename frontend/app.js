@@ -1222,11 +1222,15 @@
     || (typeof location !== "undefined" && location.pathname === "/fees");
   const IS_MARKET_ENTRY = (typeof window !== "undefined" && window.EGE_HOST && window.EGE_HOST.view === "market")
     || (typeof location !== "undefined" && location.pathname === "/market");
+  const IS_TEACHER_AGENT_ENTRY = (typeof window !== "undefined" && window.EGE_HOST && window.EGE_HOST.view === "teacher-agent")
+    || (typeof location !== "undefined" && location.pathname === "/teacher-agent");
   const INITIAL_VIEW = IS_FEES_ENTRY
     ? "fees"
-    : (IS_MARKET_ENTRY
-      ? "market"
-      : (HOST_SITE === "tutor" ? "cabinet" : (HOST_SITE === "brandbook" ? "brandbook" : "home")));
+    : (IS_TEACHER_AGENT_ENTRY
+      ? "teacher-agent"
+      : (IS_MARKET_ENTRY
+        ? "market"
+        : (HOST_SITE === "tutor" ? "cabinet" : (HOST_SITE === "brandbook" ? "brandbook" : "home"))));
   const ui = {
     view: INITIAL_VIEW,
     role: INITIAL_ROLE,
@@ -1424,11 +1428,16 @@
       if (h === "bids" || h === "responses") { ui.view = "home"; ui.commTab = "bids"; return; }
       if (h === "learn") { ui.view = "tests"; return; }
       if (h === "calendar") { ui.view = "study"; return; }
-      if (["home", "tests", "study", "plan", "stats", "tutor", "cabinet", "market", "landing", "brandbook", "fees", "profile"].includes(h)) { ui.view = h; return; }
+      if (["home", "tests", "study", "plan", "stats", "tutor", "cabinet", "teacher-agent", "market", "landing", "brandbook", "fees", "profile"].includes(h)) { ui.view = h; return; }
     }
     try {
       if (!h && typeof location !== "undefined") {
         if (location.pathname === "/brandbook" || (location.pathname && location.pathname.indexOf("/brandbook/") === 0) || HOST_SITE === "brandbook") { ui.view = "brandbook"; return; }
+        if (location.pathname === "/teacher-agent" || (typeof window !== "undefined" && window.EGE_HOST && window.EGE_HOST.view === "teacher-agent")) {
+          ui.role = "tutor";
+          ui.view = "teacher-agent";
+          return;
+        }
         if (location.pathname === "/fees" || (typeof window !== "undefined" && window.EGE_HOST && window.EGE_HOST.view === "fees")) {
           if (HOST_SITE === "tutor") ui.role = "tutor";
           ui.view = "fees";
@@ -1450,7 +1459,7 @@
       ui.role = HOST_SITE;
     }
     if (ui.role === "tutor") {
-      if (forceDefault || !["cabinet", "fees", "tutor"].includes(ui.view)) ui.view = "cabinet";
+      if (forceDefault || !["cabinet", "fees", "tutor", "teacher-agent"].includes(ui.view)) ui.view = "cabinet";
       writeHash();
       return;
     }
@@ -1475,7 +1484,7 @@
     renderQueued = true;
     Promise.resolve().then(() => { renderQueued = false; render(); });
   }
-  const VIEWS = { home: viewHome, tests: viewTests, study: viewStudy, subject: viewSubject, topic: viewTopic, quiz: viewQuiz, essay: viewEssay, plan: viewPlan, stats: viewStats, tutor: viewTutor, cabinet: viewCabinet, market: () => viewMarket({ inside: true }), landing: viewLanding, brandbook: () => viewBrandbook({ inside: true }), fees: () => viewFees({ inside: true }), profile: viewProfile };
+  const VIEWS = { home: viewHome, tests: viewTests, study: viewStudy, subject: viewSubject, topic: viewTopic, quiz: viewQuiz, essay: viewEssay, plan: viewPlan, stats: viewStats, tutor: viewTutor, cabinet: viewCabinet, "teacher-agent": () => viewTeacherAgent({ inside: true }), market: () => viewMarket({ inside: true }), landing: viewLanding, brandbook: () => viewBrandbook({ inside: true }), fees: () => viewFees({ inside: true }), profile: viewProfile };
   function setAuthLayout(on) {
     try {
       if (document.body && document.body.dataset) {
@@ -1516,7 +1525,7 @@
       if (document.body && document.body.dataset) {
         if (ui.view === "brandbook" && HOST_SITE === "brandbook") document.body.dataset.brandbook = "1";
         else delete document.body.dataset.brandbook;
-        if (ui.view === "landing" || (ui.view === "fees" && !(HOST_SITE === "tutor" || ui.role === "tutor"))) {
+        if (ui.view === "landing" || (ui.view === "fees" && !(HOST_SITE === "tutor" || ui.role === "tutor")) || (ui.view === "teacher-agent" && authGate)) {
           document.body.dataset.fullbleed = "1";
         } else {
           delete document.body.dataset.fullbleed;
@@ -1552,7 +1561,9 @@
             ? viewFees({ inside: false })
             : ui.view === "market"
               ? viewMarket({ inside: false, dark: effectiveDark() })
-              : authScreen())
+              : ui.view === "teacher-agent"
+                ? viewTeacherAgent({ inside: false })
+                : authScreen())
         : siteLoaderHTML();
       main.innerHTML = html;
     } else {
@@ -2333,6 +2344,7 @@
           ["tutor-requests", "Заявки", "list", ui.view === "cabinet" && tcTab === "requests", tcPending, "tc-jump-pending"],
           ["tutor-students", "Ученики", "users", ui.view === "cabinet" && (tcTab === "students" || tcTab === "calendar"), 0, ""],
           ["tutor-comm", "Общение", "chat", ui.view === "cabinet" && tcTab === "comm", tutorChatBadge, ""],
+          ["teacher-agent", "ИИ-помощник", "spark", ui.view === "teacher-agent", 0, ""],
           ["fees", "Выплаты", "wallet", ui.view === "fees", 0, ""],
           ["tutor-profile", "Профиль", "sliders", ui.view === "cabinet" && tcTab === "profile", 0, ""]
         ]
@@ -2566,6 +2578,7 @@
     if (HOST_SITE === "student") return "/student" + (h && h.indexOf("#") === 0 ? h : "");
     if (role === "tutor") return "/tutor";
     if (ui.view === "market") return "/market";
+    if (ui.view === "teacher-agent") return "/teacher-agent";
     if (ui.view === "fees") return "/fees";
     return "/";
   }
@@ -2789,6 +2802,9 @@
       return EGE.views.tutorCabinet.viewPayouts();
     }
     return EGE.views.brandbook.viewFees(opts, { ui, dark: effectiveDark(), TDATA });
+  }
+  function viewTeacherAgent(opts) {
+    return EGE.views.teacherAgent ? EGE.views.teacherAgent.viewTeacherAgent(opts) : viewCabinet();
   }
   /** Вкладка «Тесты»: 3 предмета ЕГЭ, тренажёр, варианты КИМ и встроенный Справочник. */
 
@@ -5137,6 +5153,7 @@
     if (el.id === "bb-hero-demo-q") { bbState().heroQ = el.value; return; }
     if (el.id === "bb-catalog-q") { bbState().catQ = el.value; scheduleRender(); return; }
     if (el.id === "bb-tbl-q") { bbState().tableSearch = el.value; scheduleRender(); return; }
+    if (el.dataset && el.dataset.taInput && EGE.views.teacherAgent) { EGE.views.teacherAgent.onInput(el.value, el.id, el.dataset); return; }
     if (el.id === "landing-q") { mkt().q = el.value; saveMkt(); return; }
     if (el.id === "bug-body") {
       if (ui.bug) {
@@ -5457,6 +5474,13 @@
       el.value = "";
       return;
     }
+    if (el.id === "ta-sql-file" && el.files && el.files[0]) {
+      if (EGE.views.teacherAgent && typeof EGE.views.teacherAgent.onFileChange === "function") {
+        EGE.views.teacherAgent.onFileChange(el.files[0]);
+      }
+      el.value = "";
+      return;
+    }
     if (el.id === "import-file" && el.files && el.files[0]) { readImport(el.files[0]); el.value = ""; }
   });
   document.addEventListener("keydown", (e) => {
@@ -5668,6 +5692,11 @@
     EGE.views.messenger.configure(appCtx);
     EGE.views.messenger.registerActions(ACTIONS);
     EGE.views.messenger.registerForms(FORMS);
+  }
+  if (EGE.views.teacherAgent) {
+    EGE.views.teacherAgent.configure(appCtx);
+    EGE.views.teacherAgent.registerActions(ACTIONS);
+    EGE.views.teacherAgent.registerForms(FORMS);
   }
   if (EGE.realtime && typeof EGE.realtime.onEvent === "function") {
     EGE.realtime.onEvent((evt) => {

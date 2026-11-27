@@ -23,6 +23,13 @@ from ..otp_delivery import OtpDeliveryService
 from ..payouts import PayoutGatewayError, YooKassaPayoutsClient
 from ..realtime import RealtimeBroker
 from ..scheduler import BackgroundScheduler
+from ..teacher_agent import (
+    TeacherAgentOrchestrator,
+    TeacherAgentStore,
+    TeacherAgentTools,
+    load_teacher_agent_config,
+    seed_demo_stand,
+)
 from ..telegram_bot import TelegramBotService
 from ..yookassa import YooKassaClient, YooKassaError
 from databases.postgres.store import create_store
@@ -37,6 +44,7 @@ from .media import create_media_router
 from .payments import create_payments_router
 from .payouts import create_payouts_router
 from .realtime_calendar import create_realtime_calendar_router
+from .teacher_agent import create_teacher_agent_router
 from .telegram import create_telegram_router
 
 DEFAULT_CORS_ORIGINS = [
@@ -303,6 +311,7 @@ def create_api_router(settings: Settings) -> APIRouter:
     router.include_router(create_telegram_router(settings))
     router.include_router(create_chat_router(settings))
     router.include_router(create_courses_router(settings))
+    router.include_router(create_teacher_agent_router(settings))
     return router
 
 
@@ -376,6 +385,20 @@ def create_api_app(
             payout_gateway=app.state.payout_gateway,
             npd_client=app.state.npd_client,
         )
+        ta_cfg = load_teacher_agent_config(settings)
+        ta_store = TeacherAgentStore(ta_cfg.db_path)
+        if ta_store.claim_initial_seed():
+            seed_demo_stand(
+                ta_store,
+                reset=False,
+                stand_now_iso=ta_cfg.stand_now_iso,
+                presentations_dir=ta_cfg.presentations_dir,
+            )
+        ta_tools = TeacherAgentTools(ta_store, ta_cfg)
+        app.state.teacher_agent_config = ta_cfg
+        app.state.teacher_agent_store = ta_store
+        app.state.teacher_agent_tools = ta_tools
+        app.state.teacher_agent = TeacherAgentOrchestrator(ta_tools, ta_cfg)
         app.state.scheduler.start()
         try:
             yield
@@ -383,6 +406,7 @@ def create_api_app(
             await app.state.scheduler.stop()
             app.state.realtime.stop_pg_listener()
             await app.state.http.aclose()
+            ta_store.close()
             app.state.db.close()
 
     expose_docs = str(getattr(settings, "env", "development") or "development").strip().lower() != "production"

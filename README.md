@@ -72,5 +72,6 @@ python3 -m venv .venv-etl
 
 ## Документация архитектуры и стека
 
+- **[`README_CONTEST.md`](README_CONTEST.md)** — конкурсное решение **Кейса №3 («Помощник преподавателя вуза»)** на базе `ai-sage/GigaChat3-10B-A1.8B`: вход `/teacher-agent`, прогон 10 сценариев ТЗ и интеграция с курсами, расписанием и чатами групп.
 - **[`GEMINI.md`](GEMINI.md)** — подробный справочник по Backend, Frontend, БД (OLTP SQLite WAL + OLAP/ETL), отдельно вынесенному UI Kit (`ux-ui/`), роутам API и строгим инвариантам.
 - **[`ARCHITECTURE.md`](ARCHITECTURE.md)** — обзор слоёв, HTTP-маршрутизации и правил изменений.

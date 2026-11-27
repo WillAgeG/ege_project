@@ -7845,6 +7845,51 @@
       "expected server Google link anchor without data-a interception"
     );
 
+    // Проверка интерфейса ИИ-помощника преподавателя (/teacher-agent + виджет в календаре)
+    const envTeacherAgent = installGlobals({
+      host: { backend: true, demoMode: true, site: "tutor", view: "teacher-agent" }
+    });
+    loadScripts(dataScripts);
+    vmRun(readFileText("frontend/app.js"), "frontend/app.js");
+    await flushMicrotasks(8);
+    assert(typeof globalThis.EGE.views.teacherAgent === "object", "expected EGE.views.teacherAgent loaded");
+    const taHtml = envTeacherAgent.elements.get("main").innerHTML;
+    assert(
+      taHtml.includes('id="ta-workspace"') &&
+      taHtml.includes("Помощник преподавателя вуза") &&
+      taHtml.includes('id="ta-chat-input"'),
+      "expected direct /teacher-agent entry to open workspace without auth wall"
+    );
+    clickAction(envTeacherAgent, { a: "ta-tab", tab: "schedule" });
+    await flushMicrotasks(1);
+    assert(
+      envTeacherAgent.elements.get("main").innerHTML.includes("ИС-21") &&
+      envTeacherAgent.elements.get("main").innerHTML.includes("ПИ-22"),
+      "expected teacher-agent schedule tab with university groups"
+    );
+    clickAction(envTeacherAgent, { a: "ta-tab", tab: "courses" });
+    await flushMicrotasks(1);
+    assert(
+      envTeacherAgent.elements.get("main").innerHTML.includes("Базы данных") &&
+      envTeacherAgent.elements.get("main").innerHTML.includes("Анализ данных"),
+      "expected teacher-agent courses tab with Stepik-template courses"
+    );
+    clickAction(envTeacherAgent, { a: "ta-tab", tab: "chat" });
+    await flushMicrotasks(1);
+    assert(envTeacherAgent.elements.get("main").innerHTML.includes("Староста ИС-21"), "expected group student chat tab");
+    clickAction(envTeacherAgent, { a: "ta-tab", tab: "journal" });
+    await flushMicrotasks(1);
+    assert(envTeacherAgent.elements.get("main").innerHTML.includes("Журнал публикаций"), "expected publication journal tab");
+    clickAction(envTeacherAgent, { a: "auth-guest" });
+    await flushMicrotasks(2);
+    clickAction(envTeacherAgent, { a: "go", v: "tutor-calendar" });
+    await flushMicrotasks(2);
+    assert(
+      envTeacherAgent.elements.get("main").innerHTML.includes('id="ta-cal-widget"') &&
+      envTeacherAgent.elements.get("main").innerHTML.includes("SQL JOIN"),
+      "expected university schedule widget in tutor calendar tab"
+    );
+
     out("APP_SMOKE_TESTS_OK");
     if (isNode) process.exit(0);
   }

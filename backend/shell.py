@@ -73,6 +73,8 @@ def render_index_html(
         page_title = "Вектор — Условия оплаты, эскроу и комиссия"
     elif view == "market":
         page_title = "Вектор — Поиск репетиторов"
+    elif view == "teacher-agent":
+        page_title = "Вектор — ИИ-помощник преподавателя"
     elif site == "brandbook" and bb_site and bb_site in BB_SUBSITE_TITLES:
         page_title = f"Вектор — Брендбук · {BB_SUBSITE_TITLES[bb_site]}"
     else:
@@ -215,6 +217,19 @@ def register_shell_routes(
     async def tutor_page() -> HTMLResponse:
         return HTMLResponse(
             content=render_index_html(root_dir, site="tutor", dev_demo_mode=_demo_flag(), **_analytics_kwargs()),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @app.get("/teacher-agent", response_class=HTMLResponse)
+    async def teacher_agent_page() -> HTMLResponse:
+        return HTMLResponse(
+            content=render_index_html(
+                root_dir,
+                site="tutor",
+                view="teacher-agent",
+                dev_demo_mode=_demo_flag(),
+                **_analytics_kwargs(),
+            ),
             headers={"Cache-Control": "no-store"},
         )
 

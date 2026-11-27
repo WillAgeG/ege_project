@@ -1,0 +1,294 @@
+/* Стили рабочего пространства ИИ-помощника преподавателя (/teacher-agent и вкладка в /tutor). */
+
+.ta-shell {
+  display: grid;
+  gap: 16px;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 16px;
+  color: var(--ink);
+}
+.ta-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.ta-head-title {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.ta-head-title h1 {
+  margin: 0;
+  font-size: clamp(19px, 2.3vw, 24px);
+  line-height: 1.2;
+}
+.ta-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.ta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  border: 1px solid var(--line);
+}
+.ta-pill.is-accent {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: transparent;
+}
+.ta-pill.is-ok {
+  background: var(--confirm-soft);
+  color: var(--confirm);
+  border-color: transparent;
+}
+.ta-pill.is-warn {
+  background: var(--notif-soft);
+  color: var(--notif);
+  border-color: transparent;
+}
+.ta-pill.is-bad {
+  background: var(--bad-soft);
+  color: var(--bad);
+  border-color: transparent;
+}
+.ta-head-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.ta-stand-bar {
+  display: grid;
+  gap: 10px;
+  padding: 14px 18px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px dashed var(--line-strong);
+}
+.ta-stand-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.ta-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.ta-panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  min-width: 0;
+}
+.ta-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ta-prompts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ta-prompt-chip {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .16s cubic-bezier(.2, .8, .2, 1), border-color .16s;
+}
+.ta-prompt-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.ta-chat-log {
+  display: grid;
+  gap: 10px;
+  max-height: 440px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.ta-msg {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  font-size: 13.5px;
+  line-height: 1.48;
+}
+.ta-msg.is-user {
+  background: var(--accent-soft);
+  border-color: transparent;
+}
+.ta-msg-role {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.ta-msg-body {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ta-chat-form {
+  display: grid;
+  gap: 8px;
+}
+.ta-textarea,
+.ta-input,
+.ta-select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+}
+.ta-textarea:focus,
+.ta-input:focus,
+.ta-select:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent) 32%, transparent);
+  border-color: var(--accent);
+}
+.ta-chat-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ta-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ta-tab-btn {
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ta-tab-btn[aria-selected="true"] {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: transparent;
+}
+.ta-card {
+  display: grid;
+  gap: 10px;
+  padding: 13px 14px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+.ta-card.is-preview {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface));
+}
+.ta-card.is-cancelled {
+  opacity: .72;
+}
+.ta-row-between {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ta-form-grid {
+  display: grid;
+  gap: 8px;
+}
+.ta-two-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.ta-plan-list,
+.ta-crit-list,
+.ta-steps-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ta-step-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-size: 12.5px;
+}
+.ta-cal-widget {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  margin-top: 12px;
+}
+.ta-num {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 960px) {
+  .ta-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 560px) {
+  .ta-shell {
+    padding: 10px;
+  }
+  .ta-two-cols {
+    grid-template-columns: 1fr;
+  }
+}
